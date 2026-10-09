@@ -14,12 +14,12 @@ using Microsoft.Win32;
 internal sealed class Settings
 {
     public int Minutes = 25;
-    public int FontSize = 32;
+    public int FontSize = 20;
     public int X = 80;
     public int Y = 80;
     public int HotkeyModifiers = 3;
     public int HotkeyKey = (int)Keys.Space;
-    public string Color = "#FFFFFF";
+    public string Color = "#FF0000";
     public string Format = "HH:MM:SS";
     public string EndMessage = "倒计时结束";
     public string Language = "zh";
@@ -152,7 +152,7 @@ internal sealed class Overlay : Form
         }
 
         Color c;
-        try { c = ColorTranslator.FromHtml(settings.Color); } catch { c = Color.White; }
+        try { c = ColorTranslator.FromHtml(settings.Color); } catch { c = Color.Red; }
         cachedFont = new Font("Segoe UI", settings.FontSize, FontStyle.Bold, GraphicsUnit.Pixel);
         cachedBrush = new SolidBrush(c);
 
@@ -285,7 +285,7 @@ internal sealed class SettingsDialog : Form
     private CheckBox AddCheck(string t, bool v, int x, int y) { CheckBox c = new CheckBox(); c.Text = t; c.Checked = v; c.SetBounds(x, y, 220, 24); Controls.Add(c); return c; }
     private void ChooseColor(object sender, EventArgs e)
     {
-        Color initial; try { initial = ColorTranslator.FromHtml(selectedColor); } catch { initial = Color.White; }
+        Color initial; try { initial = ColorTranslator.FromHtml(selectedColor); } catch { initial = Color.Red; }
         using (ColorDialog d = new ColorDialog())
         {
             d.Color = initial; d.AllowFullOpen = true; d.FullOpen = true; d.AnyColor = true;
@@ -294,7 +294,7 @@ internal sealed class SettingsDialog : Form
     }
     private void UpdateColorPreview()
     {
-        try { colorPreview.BackColor = ColorTranslator.FromHtml(selectedColor); } catch { colorPreview.BackColor = Color.White; }
+        try { colorPreview.BackColor = ColorTranslator.FromHtml(selectedColor); } catch { colorPreview.BackColor = Color.Red; }
     }
     private void CaptureHotkey(object sender, KeyEventArgs e)
     {

@@ -29,6 +29,18 @@ internal static class TestCheck
             endNoticeField.SetValue(settings, false);
             endSoundField.SetValue(settings, false);
 
+            // 0. Verify default settings: FontSize = 20, Color = "#FF0000"
+            Type settingsType = asm.GetType("Settings");
+            object defaultSettings = Activator.CreateInstance(settingsType);
+            int defSize = (int)settingsType.GetField("FontSize").GetValue(defaultSettings);
+            string defColor = (string)settingsType.GetField("Color").GetValue(defaultSettings);
+            if (defSize != 20 || defColor != "#FF0000")
+            {
+                Console.WriteLine("FAIL: Default FontSize (" + defSize + ") should be 20 and Color (" + defColor + ") should be #FF0000");
+                return 18;
+            }
+            Console.WriteLine("PASS: Default settings have FontSize = 20 and Color = #FF0000 (red).");
+
             // 1. Overlay must be hidden before countdown starts
             if (overlay.Visible)
             {
