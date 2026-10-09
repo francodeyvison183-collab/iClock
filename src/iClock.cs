@@ -232,7 +232,7 @@ internal sealed class SettingsDialog : Form
     private Panel colorPreview;
     private string selectedColor;
     private TextBox endMessage;
-    private ComboBox format;
+    private ComboBox format, language;
     private CheckBox startup, sound, notice;
     private TextBox hotkeyBox;
     private int hotkeyModifiers, hotkeyKey;
@@ -248,7 +248,7 @@ internal sealed class SettingsDialog : Form
         Value.AutoStart = s.AutoStart; Value.EndSound = s.EndSound; Value.EndNotice = s.EndNotice;
         bool en = Value.Language == "en";
         Text = en ? "iClock Settings" : "iClock 设置"; FormBorderStyle = FormBorderStyle.FixedDialog; StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(350, 356);
+        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(350, 396);
         AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 16, 20); minutes = AddNumber(Value.Minutes, 1, 1440, 150, 16);
         AddLabel(en ? "Text size" : "文字大小", 16, 56); size = AddNumber(Value.FontSize, 12, 120, 150, 52);
         AddLabel(en ? "Text color" : "文字颜色", 16, 92); selectedColor = Value.Color;
@@ -259,12 +259,25 @@ internal sealed class SettingsDialog : Form
         AddLabel(en ? "End message" : "结束时弹出消息", 16, 160); endMessage = new TextBox(); endMessage.SetBounds(150, 160, 180, 36); endMessage.Multiline = true; endMessage.MaxLength = 200; endMessage.Text = Value.EndMessage; Controls.Add(endMessage);
         hotkeyModifiers = Value.HotkeyModifiers; hotkeyKey = Value.HotkeyKey;
         AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 16, 208); hotkeyBox = new TextBox(); hotkeyBox.ReadOnly = true; hotkeyBox.SetBounds(150, 208, 180, 24); hotkeyBox.Text = HotkeyText(hotkeyModifiers, hotkeyKey); hotkeyBox.KeyDown += CaptureHotkey; Controls.Add(hotkeyBox);
-        startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 16, 238);
-        sound = AddCheck(en ? "Sound at end" : "结束时声音提醒", Value.EndSound, 16, 262);
-        notice = AddCheck(en ? "Notification at end" : "结束时系统通知", Value.EndNotice, 16, 286);
-        Button save = new Button(); save.Text = en ? "Save" : "保存"; save.SetBounds(170, 320, 70, 28); save.Click += SaveClick; Controls.Add(save);
-        Button cancel = new Button(); cancel.Text = en ? "Cancel" : "取消"; cancel.SetBounds(250, 320, 70, 28); cancel.DialogResult = DialogResult.Cancel; Controls.Add(cancel);
+        AddLabel(en ? "Interface language" : "界面语言", 16, 246); language = new ComboBox(); language.DropDownStyle = ComboBoxStyle.DropDownList; language.SetBounds(150, 242, 150, 24);
+        language.Items.AddRange(new object[] { "简体中文", "English" }); language.SelectedIndex = Value.Language == "en" ? 1 : 0; language.SelectedIndexChanged += OnLanguageChanged; Controls.Add(language);
+        startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 16, 276);
+        sound = AddCheck(en ? "Sound at end" : "结束时声音提醒", Value.EndSound, 16, 300);
+        notice = AddCheck(en ? "Notification at end" : "结束时系统通知", Value.EndNotice, 16, 324);
+        Button save = new Button(); save.Text = en ? "Save" : "保存"; save.SetBounds(170, 358, 70, 28); save.Click += SaveClick; Controls.Add(save);
+        Button cancel = new Button(); cancel.Text = en ? "Cancel" : "取消"; cancel.SetBounds(250, 358, 70, 28); cancel.DialogResult = DialogResult.Cancel; Controls.Add(cancel);
         AcceptButton = save; CancelButton = cancel;
+    }
+
+    private void OnLanguageChanged(object sender, EventArgs e)
+    {
+        bool toEnglish = language.SelectedIndex == 1;
+        if (toEnglish && endMessage.Text == "倒计时结束") endMessage.Text = "Countdown finished";
+        else if (!toEnglish && endMessage.Text == "Countdown finished") endMessage.Text = "倒计时结束";
+        int sel = format.SelectedIndex;
+        format.Items.Clear();
+        format.Items.AddRange(toEnglish ? new object[] { "HH:MM:SS", "MM:SS", "Chinese units" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位" });
+        format.SelectedIndex = sel >= 0 ? sel : 0;
     }
 
     private void AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.SetBounds(x, y, 132, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); }
@@ -309,6 +322,7 @@ internal sealed class SettingsDialog : Form
         Value.HotkeyModifiers = hotkeyModifiers; Value.HotkeyKey = hotkeyKey;
         Value.EndMessage = endMessage.Text.Trim();
         Value.Format = format.SelectedIndex == 1 ? "MM:SS" : (format.SelectedIndex == 2 ? "Chinese" : "HH:MM:SS");
+        Value.Language = language.SelectedIndex == 1 ? "en" : "zh";
         Value.AutoStart = startup.Checked; Value.EndSound = sound.Checked; Value.EndNotice = notice.Checked;
         DialogResult = DialogResult.OK; Close();
     }
@@ -456,29 +470,79 @@ internal sealed class NoticeDialog : Form
     }
 }
 
-internal sealed class SponsorDialog : Form
+internal class AboutDialog : Form
 {
-    public SponsorDialog(string language)
+    private AppContext app;
+    private string language;
+    private Button btnCheck;
+    private Label lblVersion;
+
+    public AboutDialog(string lang) : this(lang, null) { }
+
+    public AboutDialog(string lang, AppContext appContext)
     {
+        language = lang;
+        app = appContext;
         bool en = language == "en";
-        Text = en ? "Sponsor iClock" : "赞赏 iClock";
+        Text = en ? "About iClock" : "关于 iClock";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(300, 370);
+        ClientSize = new Size(330, 470);
 
-        Label lbl = new Label();
-        lbl.Text = en ? "If iClock helps you, thank you for supporting!" : "如果 iClock 对你有帮助，欢迎赞赏支持！";
-        lbl.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
-        lbl.TextAlign = ContentAlignment.MiddleCenter;
-        lbl.SetBounds(15, 14, 270, 30);
-        Controls.Add(lbl);
+        Label lblTitle = new Label();
+        lblTitle.Text = "iClock";
+        lblTitle.Font = new Font("Segoe UI", 16, FontStyle.Bold, GraphicsUnit.Pixel);
+        lblTitle.ForeColor = Color.FromArgb(28, 114, 190);
+        lblTitle.SetBounds(20, 16, 120, 26);
+        Controls.Add(lblTitle);
+
+        Label lblDesc = new Label();
+        lblDesc.Text = en ? "Desktop Floating Countdown Timer" : "桌面极简悬浮倒计时工具";
+        lblDesc.Font = new Font("Segoe UI", 11, FontStyle.Regular, GraphicsUnit.Pixel);
+        lblDesc.ForeColor = Color.Gray;
+        lblDesc.SetBounds(20, 44, 290, 20);
+        Controls.Add(lblDesc);
+
+        lblVersion = new Label();
+        lblVersion.Text = (en ? "Version: v" : "当前版本: v") + AppContext.CURRENT_VERSION;
+        lblVersion.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        lblVersion.SetBounds(20, 72, 170, 24);
+        lblVersion.TextAlign = ContentAlignment.MiddleLeft;
+        Controls.Add(lblVersion);
+
+        btnCheck = new Button();
+        btnCheck.Text = en ? "Check Updates" : "检查更新";
+        btnCheck.Font = new Font("Segoe UI", 11, FontStyle.Regular, GraphicsUnit.Pixel);
+        btnCheck.SetBounds(196, 70, 114, 26);
+        btnCheck.Click += OnCheckUpdates;
+        Controls.Add(btnCheck);
+
+        LinkLabel link = new LinkLabel();
+        link.Text = "GitHub: francodeyvison183-collab/iClock";
+        link.Font = new Font("Segoe UI", 11, FontStyle.Regular, GraphicsUnit.Pixel);
+        link.SetBounds(20, 102, 290, 20);
+        link.LinkClicked += delegate { try { Process.Start("https://github.com/francodeyvison183-collab/iClock"); } catch { } };
+        Controls.Add(link);
+
+        Label line = new Label();
+        line.BorderStyle = BorderStyle.Fixed3D;
+        line.SetBounds(20, 128, 290, 2);
+        Controls.Add(line);
+
+        Label lblSponsor = new Label();
+        lblSponsor.Text = en ? "If iClock helps you, thank you for supporting!" : "如果 iClock 对你有帮助，欢迎赞赏支持！";
+        lblSponsor.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        lblSponsor.TextAlign = ContentAlignment.MiddleCenter;
+        lblSponsor.SetBounds(20, 138, 290, 24);
+        Controls.Add(lblSponsor);
 
         PictureBox pic = new PictureBox();
-        pic.SetBounds(35, 48, 230, 230);
+        pic.SetBounds(60, 166, 210, 210);
         pic.SizeMode = PictureBoxSizeMode.Zoom;
+        pic.BorderStyle = BorderStyle.None;
         pic.Image = LoadSponsorImage();
         Controls.Add(pic);
 
@@ -487,17 +551,62 @@ internal sealed class SponsorDialog : Form
         sub.Font = new Font("Segoe UI", 12, FontStyle.Bold, GraphicsUnit.Pixel);
         sub.ForeColor = Color.FromArgb(28, 114, 190);
         sub.TextAlign = ContentAlignment.MiddleCenter;
-        sub.SetBounds(15, 286, 270, 20);
+        sub.SetBounds(20, 382, 290, 20);
         Controls.Add(sub);
 
-        Button btn = new Button();
-        btn.Text = en ? "Close" : "关闭";
-        btn.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
-        btn.SetBounds(105, 320, 90, 32);
-        btn.Click += delegate { Close(); };
-        Controls.Add(btn);
-        AcceptButton = btn;
-        CancelButton = btn;
+        Button btnClose = new Button();
+        btnClose.Text = en ? "OK" : "确定";
+        btnClose.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        btnClose.SetBounds(120, 416, 90, 32);
+        btnClose.Click += delegate { Close(); };
+        Controls.Add(btnClose);
+        AcceptButton = btnClose;
+        CancelButton = btnClose;
+    }
+
+    private void OnCheckUpdates(object sender, EventArgs e)
+    {
+        bool en = language == "en";
+        btnCheck.Enabled = false;
+        btnCheck.Text = en ? "Checking..." : "检查中...";
+
+        System.Threading.ThreadPool.QueueUserWorkItem(delegate
+        {
+            string latest, url;
+            bool success = AppContext.QueryLatestVersion("check", out latest, out url);
+
+            try
+            {
+                if (IsDisposed || !IsHandleCreated) return;
+                BeginInvoke(new MethodInvoker(delegate
+                {
+                    btnCheck.Enabled = true;
+                    btnCheck.Text = en ? "Check Updates" : "检查更新";
+
+                    if (!success || string.IsNullOrEmpty(latest))
+                    {
+                        MessageBox.Show(this, en ? "Failed to check for updates. Please check your network." : "检查更新失败，请检查网络连接。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+
+                    if (AppContext.IsNewer(latest, AppContext.CURRENT_VERSION))
+                    {
+                        string targetUrl = string.IsNullOrEmpty(url) ? "https://github.com/francodeyvison183-collab/iClock/releases/latest" : url;
+                        if (app != null) app.NotifyUpdateFound(latest, targetUrl);
+                        string msg = en ? "New version " + latest + " is available! Do you want to download it now?" : "发现新版本 " + latest + "！是否立即前往下载？";
+                        if (MessageBox.Show(this, msg, "iClock", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                        {
+                            try { Process.Start(targetUrl); } catch { }
+                        }
+                    }
+                    else
+                    {
+                        MessageBox.Show(this, en ? "You are using the latest version (v" + AppContext.CURRENT_VERSION + ")." : "当前已是最新版本 (v" + AppContext.CURRENT_VERSION + ")。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }));
+            }
+            catch { }
+        });
     }
 
     private static Image LoadSponsorImage()
@@ -539,6 +648,11 @@ internal sealed class SponsorDialog : Form
     }
 }
 
+internal sealed class SponsorDialog : AboutDialog
+{
+    public SponsorDialog(string language) : base(language, null) { }
+}
+
 internal sealed class AppContext : ApplicationContext
 {
     private const int HOTKEY_ID = 0x4A10;
@@ -547,8 +661,8 @@ internal sealed class AppContext : ApplicationContext
     private Settings settings;
     private Overlay overlay;
     private NotifyIcon tray;
-    private ToolStripMenuItem menuStart, menuReset, menuMove, menuSettings, menuHistory, menuSponsor, menuLanguage, menuLanguageChinese, menuLanguageEnglish, menuExit, menuUpdate;
-    private const string CURRENT_VERSION = "1.0.0";
+    private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuAbout, menuExit, menuUpdate;
+    internal const string CURRENT_VERSION = "1.0.0";
     private string updateUrl;
     private string latestVersion;
     private Timer timer;
@@ -592,16 +706,13 @@ internal sealed class AppContext : ApplicationContext
         menuStart = new ToolStripMenuItem(); menuStart.Click += delegate { Toggle(); };
         menuReset = new ToolStripMenuItem(); menuReset.Click += delegate { if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; } running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.Hide(); };
         menuMove = new ToolStripMenuItem(); menuMove.Click += delegate { ToggleMove(); };
-        menuSettings = new ToolStripMenuItem(); menuSettings.Click += delegate { ShowSettings(); };
         menuHistory = new ToolStripMenuItem(); menuHistory.Click += delegate { ShowHistory(); };
-        menuSponsor = new ToolStripMenuItem(); menuSponsor.Click += delegate { ShowSponsor(); };
-        menuLanguage = new ToolStripMenuItem();
-        menuLanguageChinese = new ToolStripMenuItem("简体中文"); menuLanguageChinese.Click += delegate { SelectLanguage("zh"); };
-        menuLanguageEnglish = new ToolStripMenuItem("English"); menuLanguageEnglish.Click += delegate { SelectLanguage("en"); };
-        menuLanguage.DropDownItems.Add(menuLanguageChinese); menuLanguage.DropDownItems.Add(menuLanguageEnglish);
+        menuSettings = new ToolStripMenuItem(); menuSettings.Click += delegate { ShowSettings(); };
+        menuAbout = new ToolStripMenuItem(); menuAbout.Click += delegate { ShowAbout(); };
         menuExit = new ToolStripMenuItem(); menuExit.Click += delegate { Exit(); };
-        m.Items.Add(menuStart); m.Items.Add(menuReset); m.Items.Add(menuMove); m.Items.Add(menuSettings);
-        m.Items.Add(menuHistory); m.Items.Add(menuSponsor); m.Items.Add(menuLanguage);
+        m.Items.Add(menuStart); m.Items.Add(menuReset); m.Items.Add(menuMove);
+        m.Items.Add(new ToolStripSeparator());
+        m.Items.Add(menuHistory); m.Items.Add(menuSettings); m.Items.Add(menuAbout);
         m.Items.Add(new ToolStripSeparator());
         m.Items.Add(menuExit);
         UpdateMenuText();
@@ -615,18 +726,15 @@ internal sealed class AppContext : ApplicationContext
         menuStart.Text = (en ? "Start / pause  (" : "开始 / 暂停  (") + HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey) + ")";
         menuReset.Text = en ? "Reset countdown" : "重置倒计时";
         menuMove.Text = overlay.MoveMode ? (en ? "Finish position adjustment" : "完成位置调整") : (en ? "Adjust text position" : "调整文字位置");
-        menuSettings.Text = en ? "Settings…" : "设置…";
         menuHistory.Text = en ? "View today's history…" : "查看今日记录…";
-        menuSponsor.Text = en ? "Sponsor…" : "赞赏作者…";
-        menuLanguage.Text = en ? "Language" : "语言";
-        menuLanguageChinese.Checked = settings.Language == "zh";
-        menuLanguageEnglish.Checked = settings.Language == "en";
+        menuSettings.Text = en ? "Settings…" : "设置…";
+        menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
         menuExit.Text = en ? "Exit iClock" : "退出 iClock";
         if (menuUpdate != null) menuUpdate.Text = en ? "⭐ Update available (" + latestVersion + ")…" : "⭐ 发现新版本 (" + latestVersion + ")…";
         tray.Text = "iClock";
     }
 
-    private void SelectLanguage(string language)
+    public void SelectLanguage(string language)
     {
         bool toEnglish = language == "en";
         if (settings.Language == language) return;
@@ -786,13 +894,14 @@ internal sealed class AppContext : ApplicationContext
         if (list.Items.Count == 0) list.Items.Add(new ListViewItem(en ? "No countdown records today" : "今天还没有倒计时记录"));
         f.Controls.Add(list); f.ShowDialog(); f.Dispose();
     }
-    private void ShowSponsor()
+    private void ShowAbout()
     {
-        using (SponsorDialog d = new SponsorDialog(settings.Language))
+        using (AboutDialog d = new AboutDialog(settings.Language, this))
         {
             d.ShowDialog();
         }
     }
+    private void ShowSponsor() { ShowAbout(); }
     private void LogSession(string result)
     {
         try
@@ -876,64 +985,77 @@ internal sealed class AppContext : ApplicationContext
         launchReported = true;
         System.Threading.ThreadPool.QueueUserWorkItem(delegate
         {
-            string latest = null;
-            string url = null;
+            string latest, url;
+            if (QueryLatestVersion("launch", out latest, out url))
+            {
+                if (IsNewer(latest, CURRENT_VERSION))
+                {
+                    string foundVer = latest;
+                    string targetUrl = url;
+                    try
+                    {
+                        if (overlay != null && overlay.IsHandleCreated)
+                        {
+                            overlay.BeginInvoke(new MethodInvoker(delegate { OnUpdateFound(foundVer, targetUrl); }));
+                        }
+                    }
+                    catch { }
+                }
+            }
+        });
+    }
+
+    internal static bool QueryLatestVersion(string eventType, out string latest, out string url)
+    {
+        latest = null;
+        url = null;
+        try
+        {
+            ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
+            byte[] data = Encoding.UTF8.GetBytes("{\"event\":\"" + (eventType ?? "launch") + "\",\"page\":\"main\",\"ua\":\"iClock Desktop v" + CURRENT_VERSION + "\"}");
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create("https://green-scene-5a6d.francodeyvison183.workers.dev/track");
+            req.Method = "POST";
+            req.ContentType = "application/json";
+            req.ContentLength = data.Length;
+            req.Timeout = 5000;
+            req.ReadWriteTimeout = 5000;
+            using (Stream s = req.GetRequestStream()) s.Write(data, 0, data.Length);
+            using (WebResponse resp = req.GetResponse())
+            using (StreamReader r = new StreamReader(resp.GetResponseStream()))
+            {
+                string body = r.ReadToEnd();
+                latest = ExtractJsonValue(body, "latest");
+                url = ExtractJsonValue(body, "url");
+            }
+        }
+        catch { }
+
+        if (string.IsNullOrEmpty(latest))
+        {
             try
             {
                 ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
-                byte[] data = Encoding.UTF8.GetBytes("{\"event\":\"launch\",\"page\":\"main\",\"ua\":\"iClock Desktop v" + CURRENT_VERSION + "\"}");
-                HttpWebRequest req = (HttpWebRequest)WebRequest.Create("https://green-scene-5a6d.francodeyvison183.workers.dev/track");
-                req.Method = "POST";
-                req.ContentType = "application/json";
-                req.ContentLength = data.Length;
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create("https://api.github.com/repos/francodeyvison183-collab/iClock/releases/latest");
+                req.Method = "GET";
+                req.UserAgent = "iClock-Desktop-v" + CURRENT_VERSION;
                 req.Timeout = 5000;
                 req.ReadWriteTimeout = 5000;
-                using (Stream s = req.GetRequestStream()) s.Write(data, 0, data.Length);
                 using (WebResponse resp = req.GetResponse())
                 using (StreamReader r = new StreamReader(resp.GetResponseStream()))
                 {
                     string body = r.ReadToEnd();
-                    latest = ExtractJsonValue(body, "latest");
-                    url = ExtractJsonValue(body, "url");
+                    latest = ExtractJsonValue(body, "tag_name");
+                    url = ExtractJsonValue(body, "html_url");
                 }
             }
             catch { }
+        }
+        return !string.IsNullOrEmpty(latest);
+    }
 
-            if (string.IsNullOrEmpty(latest))
-            {
-                try
-                {
-                    ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
-                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create("https://api.github.com/repos/francodeyvison183-collab/iClock/releases/latest");
-                    req.Method = "GET";
-                    req.UserAgent = "iClock-Desktop-v" + CURRENT_VERSION;
-                    req.Timeout = 5000;
-                    req.ReadWriteTimeout = 5000;
-                    using (WebResponse resp = req.GetResponse())
-                    using (StreamReader r = new StreamReader(resp.GetResponseStream()))
-                    {
-                        string body = r.ReadToEnd();
-                        latest = ExtractJsonValue(body, "tag_name");
-                        url = ExtractJsonValue(body, "html_url");
-                    }
-                }
-                catch { }
-            }
-
-            if (!string.IsNullOrEmpty(latest) && IsNewer(latest, CURRENT_VERSION))
-            {
-                string foundVer = latest;
-                string targetUrl = url;
-                try
-                {
-                    if (overlay != null && overlay.IsHandleCreated)
-                    {
-                        overlay.BeginInvoke(new MethodInvoker(delegate { OnUpdateFound(foundVer, targetUrl); }));
-                    }
-                }
-                catch { }
-            }
-        });
+    internal void NotifyUpdateFound(string newVersion, string url)
+    {
+        OnUpdateFound(newVersion, url);
     }
 
     private void OnUpdateFound(string newVersion, string url)
@@ -961,7 +1083,7 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
-    private static bool IsNewer(string latest, string current)
+    internal static bool IsNewer(string latest, string current)
     {
         try
         {
@@ -983,7 +1105,7 @@ internal sealed class AppContext : ApplicationContext
         return new Version(major, minor, build);
     }
 
-    private static string ExtractJsonValue(string json, string key)
+    internal static string ExtractJsonValue(string json, string key)
     {
         if (string.IsNullOrEmpty(json)) return null;
         int k = json.IndexOf("\"" + key + "\"", StringComparison.OrdinalIgnoreCase);

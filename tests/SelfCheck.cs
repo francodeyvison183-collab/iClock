@@ -121,32 +121,39 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: Overlay is hidden after reset.");
 
-            // 7. Verify SponsorDialog and menuSponsor
-            ToolStripMenuItem menuSponsor = (ToolStripMenuItem)appType.GetField("menuSponsor", bf).GetValue(app);
-            if (menuSponsor == null || menuSponsor.Text != "赞赏作者…")
+            // 7. Verify AboutDialog and menuAbout
+            ToolStripMenuItem menuAbout = (ToolStripMenuItem)appType.GetField("menuAbout", bf).GetValue(app);
+            if (menuAbout == null || menuAbout.Text != "关于 iClock…")
             {
-                Console.WriteLine("FAIL: menuSponsor missing or incorrect text");
+                Console.WriteLine("FAIL: menuAbout missing or incorrect text");
                 return 10;
             }
-            Type sponsorType = asm.GetType("SponsorDialog");
-            Form sponsorDialog = (Form)Activator.CreateInstance(sponsorType, new object[] { "zh" });
+            Type aboutType = asm.GetType("AboutDialog");
+            Form aboutDialog = (Form)Activator.CreateInstance(aboutType, new object[] { "zh" });
             PictureBox pb = null;
-            foreach (Control c in sponsorDialog.Controls)
+            Button btnCheck = null;
+            foreach (Control c in aboutDialog.Controls)
             {
                 if (c is PictureBox) pb = (PictureBox)c;
+                if (c is Button && (c.Text == "检查更新" || c.Text == "Check Updates")) btnCheck = (Button)c;
             }
             if (pb == null || pb.Image == null || pb.Image.Width != 1152)
             {
-                Console.WriteLine("FAIL: SponsorDialog image not loaded properly");
+                Console.WriteLine("FAIL: AboutDialog image not loaded properly");
                 return 11;
             }
             if (pb.BorderStyle != BorderStyle.None)
             {
-                Console.WriteLine("FAIL: SponsorDialog PictureBox has border");
+                Console.WriteLine("FAIL: AboutDialog PictureBox has border");
                 return 12;
             }
-            sponsorDialog.Close();
-            Console.WriteLine("PASS: SponsorDialog and embedded zan.jpg loaded without border.");
+            if (btnCheck == null)
+            {
+                Console.WriteLine("FAIL: AboutDialog missing Check Updates button");
+                return 12;
+            }
+            aboutDialog.Close();
+            Console.WriteLine("PASS: AboutDialog and embedded zan.jpg loaded with Check Updates button.");
 
             // 8. Performance check: Overlay cached GDI handles & dynamic timer interval
             Type overlayType = asm.GetType("Overlay");
@@ -167,16 +174,21 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: Overlay caches GDI handles and timer uses dynamic heartbeat alignment (" + appTimer.Interval + "ms).");
 
-            // 9. Verify default update check & deduplicated launch reporting
+            // 9. Verify SettingsDialog contains language selection and default update check & deduplicated launch reporting
             Type settingsDialogType = asm.GetType("SettingsDialog");
             Form settingsDialog = (Form)Activator.CreateInstance(settingsDialogType, new object[] { settings });
             bool hasUpdateCheck = false;
+            bool hasLanguageCombo = false;
             foreach (Control c in settingsDialog.Controls)
             {
                 if (c is CheckBox && (c.Text.Contains("自动检查版本更新") || c.Text.Contains("Check for updates")))
                 {
                     hasUpdateCheck = true;
                     break;
+                }
+                if (c is ComboBox && ((ComboBox)c).Items.Contains("简体中文"))
+                {
+                    hasLanguageCombo = true;
                 }
             }
             settingsDialog.Dispose();
@@ -185,13 +197,18 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: SettingsDialog should not have manual update check option");
                 return 15;
             }
+            if (!hasLanguageCombo)
+            {
+                Console.WriteLine("FAIL: SettingsDialog missing language option");
+                return 15;
+            }
             FieldInfo launchField = appType.GetField("launchReported", BindingFlags.NonPublic | BindingFlags.Static);
             if (launchField == null || !(bool)launchField.GetValue(null))
             {
                 Console.WriteLine("FAIL: launchReported was not set on startup or field missing");
                 return 15;
             }
-            Console.WriteLine("PASS: Update check runs unconditionally on startup and launchReported is de-duplicated.");
+            Console.WriteLine("PASS: SettingsDialog contains language selection and launchReported is de-duplicated.");
 
             // 10. Verify version comparison and JSON parsing
             BindingFlags sbf = BindingFlags.NonPublic | BindingFlags.Static;
