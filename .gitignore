@@ -16,5 +16,6 @@ Thumbs.db
 Desktop.ini
 *.log
 
-# Local documentation
+# Local documentation and promotion articles
 /docs/GEO_STRATEGY.md
+/articles/
