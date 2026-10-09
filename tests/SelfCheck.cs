@@ -138,8 +138,13 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: SponsorDialog image not loaded properly");
                 return 11;
             }
+            if (pb.BorderStyle != BorderStyle.None)
+            {
+                Console.WriteLine("FAIL: SponsorDialog PictureBox has border");
+                return 12;
+            }
             sponsorDialog.Close();
-            Console.WriteLine("PASS: SponsorDialog and embedded zan.jpg loaded successfully.");
+            Console.WriteLine("PASS: SponsorDialog and embedded zan.jpg loaded without border.");
 
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);

@@ -450,7 +450,6 @@ internal sealed class SponsorDialog : Form
         PictureBox pic = new PictureBox();
         pic.SetBounds(35, 48, 230, 230);
         pic.SizeMode = PictureBoxSizeMode.Zoom;
-        pic.BorderStyle = BorderStyle.FixedSingle;
         pic.Image = LoadSponsorImage();
         Controls.Add(pic);
 
