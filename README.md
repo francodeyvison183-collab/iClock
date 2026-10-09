@@ -15,7 +15,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/francodeyvison183-collab/iClock/releases/latest"><b>🚀 立即下载最新版 (iClock-1.0.0-windows.zip)</b></a> ·
+  <a href="https://francodeyvison183-collab.github.io/iClock/"><b>🌐 访问官方主页</b></a> ·
+  <a href="https://github.com/francodeyvison183-collab/iClock/releases/latest"><b>🚀 下载最新版</b></a> ·
   <a href="README_EN.md">English Documentation</a> ·
   <a href="docs/USER_GUIDE.md">使用指南</a> ·
   <a href="CHANGELOG.md">更新日志</a>

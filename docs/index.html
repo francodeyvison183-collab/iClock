@@ -1,0 +1,1513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iClock - 桌面极简悬浮倒计时工具 | 仅 125 KB 原生单文件</title>
+  <meta name="description" content="iClock 是一款 Windows 平台上的极简桌面悬浮倒计时工具。单文件仅 125 KB，零依赖、支持置顶悬浮穿透、全局快捷键、自选色彩与格式，专为高效专注打造。">
+  <meta name="keywords" content="iClock, 倒计时, 桌面倒计时, 悬浮倒计时, 番茄钟, Windows 效率工具, 极简倒计时">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱️</text></svg>">
+  <style>
+    :root {
+      --bg-primary: #FFFFFF;
+      --bg-secondary: #F8FAFC;
+      --bg-tertiary: #F1F5F9;
+      --text-main: #0F172A;
+      --text-muted: #475569;
+      --text-light: #94A3B8;
+      --brand-blue: #1C72BE;
+      --brand-blue-hover: #155A96;
+      --brand-blue-light: #EBF4FC;
+      --brand-blue-glow: rgba(28, 114, 190, 0.15);
+      --accent-coral: #EF4444;
+      --accent-green: #10B981;
+      --border-color: #E2E8F0;
+      --card-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+      --card-shadow-hover: 0 20px 30px -8px rgba(15, 23, 42, 0.08), 0 8px 12px -3px rgba(15, 23, 42, 0.04);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
+      --radius-full: 9999px;
+      --container-max: 1160px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button {
+      font-family: inherit;
+      border: none;
+      outline: none;
+      background: none;
+      cursor: pointer;
+    }
+
+    .container {
+      width: 100%;
+      max-width: var(--container-max);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* 顶部导航 */
+    header.navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border-color);
+      transition: background 0.2s ease;
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 68px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-icon {
+      font-size: 24px;
+      display: inline-block;
+      line-height: 1;
+    }
+
+    .version-tag {
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--brand-blue-light);
+      color: var(--brand-blue);
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      border: 1px solid rgba(28, 114, 190, 0.2);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-muted);
+      transition: color 0.2s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--brand-blue);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-github {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-main);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      transition: all 0.2s ease;
+    }
+
+    .btn-github:hover {
+      background: var(--bg-tertiary);
+      border-color: #CBD5E1;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #FFFFFF;
+      background: var(--brand-blue);
+      border-radius: var(--radius-sm);
+      box-shadow: 0 2px 8px var(--brand-blue-glow);
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover {
+      background: var(--brand-blue-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px var(--brand-blue-glow);
+    }
+
+    /* 首屏 Hero */
+    .hero {
+      position: relative;
+      padding: 80px 0 60px;
+      text-align: center;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 0%, rgba(28, 114, 190, 0.05) 0%, transparent 60%);
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--brand-blue);
+      background: var(--brand-blue-light);
+      border: 1px solid rgba(28, 114, 190, 0.25);
+      border-radius: var(--radius-full);
+      margin-bottom: 24px;
+    }
+
+    .hero-title {
+      font-size: clamp(34px, 5vw, 54px);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+      color: var(--text-main);
+      max-width: 860px;
+      margin: 0 auto 20px;
+    }
+
+    .hero-title span {
+      background: linear-gradient(135deg, var(--brand-blue) 0%, #3B82F6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 18px;
+      color: var(--text-muted);
+      max-width: 640px;
+      margin: 0 auto 36px;
+      font-weight: 400;
+      line-height: 1.6;
+    }
+
+    .hero-buttons {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .btn-large {
+      padding: 13px 28px;
+      font-size: 16px;
+      border-radius: var(--radius-md);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-main);
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-secondary);
+      border-color: #CBD5E1;
+      transform: translateY(-1px);
+    }
+
+    .hero-caption {
+      font-size: 13px;
+      color: var(--text-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .hero-caption span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* 交互式虚拟演示区 */
+    .hero-preview {
+      margin-top: 52px;
+      position: relative;
+    }
+
+    .interactive-board {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 12px 40px -10px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }
+
+    .board-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .board-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .board-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #CBD5E1;
+    }
+
+    .board-dot.red { background: #FDA4AF; }
+    .board-dot.yellow { background: #FDE047; }
+    .board-dot.green { background: #86EFAC; }
+
+    .board-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+    }
+
+    .board-view-switch {
+      display: flex;
+      gap: 4px;
+      background: var(--bg-tertiary);
+      padding: 2px;
+      border-radius: var(--radius-sm);
+    }
+
+    .board-tab {
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 4px;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+
+    .board-tab.active {
+      background: #FFFFFF;
+      color: var(--text-main);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+
+    .board-screen {
+      position: relative;
+      height: 380px;
+      background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    /* 仿真桌面悬浮时钟 */
+    .simulated-floating-clock {
+      padding: 14px 28px;
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      border-radius: var(--radius-md);
+      box-shadow: 0 10px 25px -5px rgba(28, 114, 190, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.04);
+      cursor: grab;
+      transition: box-shadow 0.2s, transform 0.1s;
+      text-align: center;
+    }
+
+    .simulated-floating-clock:active {
+      cursor: grabbing;
+      box-shadow: 0 16px 32px -6px rgba(28, 114, 190, 0.2);
+    }
+
+    .simulated-digits {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      font-size: 46px;
+      font-weight: 800;
+      color: var(--brand-blue);
+      letter-spacing: -0.02em;
+      line-height: 1;
+    }
+
+    .simulated-status {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-light);
+      margin-top: 6px;
+    }
+
+    .simulated-controls {
+      display: flex;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .sim-btn {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      background: #FFFFFF;
+      color: var(--text-main);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+      transition: all 0.15s;
+    }
+
+    .sim-btn:hover {
+      background: var(--bg-secondary);
+      border-color: #CBD5E1;
+    }
+
+    .sim-btn.primary {
+      background: var(--brand-blue);
+      color: #FFFFFF;
+      border-color: var(--brand-blue);
+    }
+
+    .sim-btn.primary:hover {
+      background: var(--brand-blue-hover);
+    }
+
+    .sim-tip {
+      position: absolute;
+      bottom: 12px;
+      font-size: 11px;
+      color: var(--text-light);
+    }
+
+    .real-screenshot-view {
+      display: none;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* 指标统计栏 (Metrics) */
+    .section-metrics {
+      padding: 40px 0 70px;
+      border-bottom: 1px solid var(--border-color);
+      background: #FFFFFF;
+    }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+
+    .metric-card {
+      padding: 24px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .metric-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--card-shadow);
+    }
+
+    .metric-number {
+      font-size: 38px;
+      font-weight: 800;
+      color: var(--brand-blue);
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+
+    .metric-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 6px;
+    }
+
+    .metric-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* 通用段落标题 */
+    .section-header {
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto 50px;
+    }
+
+    .section-tag {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--brand-blue);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    .section-title {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+      margin-bottom: 14px;
+    }
+
+    .section-subtitle {
+      font-size: 16px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* 核心特性区 (Features) */
+    .section-features {
+      padding: 80px 0;
+      background: var(--bg-primary);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .feature-card {
+      padding: 30px;
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--card-shadow);
+      transition: all 0.25s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--card-shadow-hover);
+      border-color: #CBD5E1;
+    }
+
+    .feature-icon-box {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-md);
+      background: var(--brand-blue-light);
+      color: var(--brand-blue);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin-bottom: 20px;
+    }
+
+    .feature-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 10px;
+    }
+
+    .feature-detail {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+
+    /* 应用场景 (Scenarios) */
+    .section-scenarios {
+      padding: 80px 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .scenarios-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+
+    .scenario-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+      transition: transform 0.2s;
+    }
+
+    .scenario-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .scenario-emoji {
+      font-size: 32px;
+      margin-bottom: 14px;
+      display: inline-block;
+    }
+
+    .scenario-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 8px;
+    }
+
+    .scenario-text {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* 对比板块 (Comparison) */
+    .section-comparison {
+      padding: 80px 0;
+      background: #FFFFFF;
+    }
+
+    .comparison-table-wrapper {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--card-shadow);
+      overflow-x: auto;
+    }
+
+    table.comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    table.comparison-table th,
+    table.comparison-table td {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    table.comparison-table th {
+      background: var(--bg-secondary);
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    table.comparison-table th.highlight,
+    table.comparison-table td.highlight {
+      background: rgba(28, 114, 190, 0.04);
+      color: var(--brand-blue);
+      font-weight: 600;
+    }
+
+    table.comparison-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .badge-check {
+      color: var(--accent-green);
+      font-weight: 700;
+    }
+
+    .badge-cross {
+      color: #94A3B8;
+    }
+
+    /* 下载中心 (Download) */
+    .section-download {
+      padding: 80px 0;
+      background: linear-gradient(180deg, var(--bg-secondary) 0%, #FFFFFF 100%);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      max-width: 860px;
+      margin: 0 auto 40px;
+    }
+
+    .download-card {
+      padding: 32px;
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--card-shadow);
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: all 0.25s ease;
+    }
+
+    .download-card.primary-card {
+      border-color: rgba(28, 114, 190, 0.4);
+      box-shadow: 0 10px 30px -5px rgba(28, 114, 190, 0.08);
+      position: relative;
+    }
+
+    .download-card.primary-card::before {
+      content: "官方推荐";
+      position: absolute;
+      top: -12px;
+      background: var(--brand-blue);
+      color: #FFFFFF;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 12px;
+      border-radius: var(--radius-full);
+      letter-spacing: 0.04em;
+    }
+
+    .download-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--card-shadow-hover);
+    }
+
+    .dl-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+    }
+
+    .dl-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+
+    .dl-meta {
+      font-size: 13px;
+      color: var(--text-light);
+      margin-bottom: 20px;
+    }
+
+    .dl-btn {
+      width: 100%;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      border-radius: var(--radius-md);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .dl-btn.btn-solid {
+      background: var(--brand-blue);
+      color: #FFFFFF;
+    }
+
+    .dl-btn.btn-solid:hover {
+      background: var(--brand-blue-hover);
+    }
+
+    .dl-btn.btn-outline {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    .dl-btn.btn-outline:hover {
+      background: var(--bg-tertiary);
+    }
+
+    /* SHA256 校验框 */
+    .checksum-box {
+      max-width: 860px;
+      margin: 0 auto;
+      background: #FFFFFF;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 20px 24px;
+      font-size: 13px;
+    }
+
+    .checksum-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .checksum-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 12px;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+      overflow-x: auto;
+    }
+
+    .checksum-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .copy-btn {
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--brand-blue);
+      background: var(--brand-blue-light);
+      border-radius: 4px;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+
+    .copy-btn:hover {
+      background: #D7EAFB;
+    }
+
+    /* 赞赏与开源 (Sponsor & Open Source) */
+    .section-sponsor {
+      padding: 80px 0;
+      background: #FFFFFF;
+      border-top: 1px solid var(--border-color);
+      text-align: center;
+    }
+
+    .sponsor-card {
+      max-width: 520px;
+      margin: 0 auto;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 36px 28px;
+      box-shadow: var(--card-shadow);
+    }
+
+    .sponsor-qr-img {
+      width: 240px;
+      height: 240px;
+      object-fit: contain;
+      border-radius: var(--radius-md);
+      background: #FFFFFF;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+      margin: 20px auto;
+      display: block;
+    }
+
+    .sponsor-caption {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 12px;
+      font-weight: 500;
+    }
+
+    /* 页脚 (Footer) */
+    footer.footer {
+      padding: 40px 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      font-size: 13px;
+      color: var(--text-light);
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 20px;
+    }
+
+    .footer-links a:hover {
+      color: var(--brand-blue);
+    }
+
+    /* 移动端响应式 */
+    @media (max-width: 900px) {
+      .features-grid, .metrics-grid, .scenarios-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .download-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .nav-links {
+        display: none;
+      }
+      .features-grid, .metrics-grid, .scenarios-grid {
+        grid-template-columns: 1fr;
+      }
+      .simulated-digits {
+        font-size: 36px;
+      }
+      .hero-title {
+        font-size: 32px;
+      }
+      .board-screen {
+        height: 320px;
+      }
+    }
+
+    /* Toast 通知 */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: rgba(15, 23, 42, 0.9);
+      color: #FFFFFF;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 10px 20px;
+      border-radius: var(--radius-full);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s;
+      opacity: 0;
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a href="#" class="brand">
+        <span class="brand-icon">⏱️</span>
+        <span>iClock</span>
+        <span class="version-tag">v1.0.0</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">特性矩阵</a></li>
+        <li><a href="#scenarios">适用场景</a></li>
+        <li><a href="#comparison">硬核对比</a></li>
+        <li><a href="#demo">在线试玩</a></li>
+        <li><a href="#download">下载中心</a></li>
+        <li><a href="#sponsor">赞赏支持</a></li>
+      </ul>
+      <div class="nav-actions">
+        <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank" class="btn-github" title="在 GitHub 查看源代码">
+          <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          <span>Star</span>
+        </a>
+        <a href="#download" class="btn-primary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>免费下载</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 首屏 Hero 区域 -->
+  <section class="hero">
+    <div class="container">
+      <div class="badge-pill">
+        <span>✨ iClock 1.0 绿色正式版现已发布</span>
+      </div>
+      <h1 class="hero-title">
+        极简、置顶、穿透<br>
+        <span>重新定义 Windows 桌面倒计时</span>
+      </h1>
+      <p class="hero-desc">
+        拒绝动辄百兆的臃肿软件。iClock 是为心流专注而生的原生悬浮计时利器，体积仅 125 KB，零常驻负担，支持全局热键一键启停。
+      </p>
+      <div class="hero-buttons">
+        <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.0.0/iClock-1.0.0-windows.exe" class="btn-primary btn-large" id="heroDownloadBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>下载 Windows 版 (125 KB)</span>
+        </a>
+        <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank" class="btn-secondary">
+          <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          <span>GitHub 开源主页</span>
+        </a>
+      </div>
+      <div class="hero-caption">
+        <span>🟢 纯绿色免安装</span>
+        <span>⚡ 极速冷启动</span>
+        <span>🛡️ 零遥测隐私侵扰</span>
+        <span>💻 适配 Win 7 / 8 / 10 / 11</span>
+      </div>
+
+      <!-- 仿真交互演示面板 -->
+      <div class="hero-preview" id="demo">
+        <div class="interactive-board">
+          <div class="board-header">
+            <div class="board-dots">
+              <span class="board-dot red"></span>
+              <span class="board-dot yellow"></span>
+              <span class="board-dot green"></span>
+            </div>
+            <div class="board-title">iClock 交互体验沙盒</div>
+            <div class="board-view-switch">
+              <button class="board-tab active" id="tabInteractive">动态沙盒</button>
+              <button class="board-tab" id="tabScreenshot">软件实图</button>
+            </div>
+          </div>
+          <div class="board-screen" id="boardScreen">
+            <!-- 动态仿真时钟 -->
+            <div class="simulated-floating-clock" id="simClock">
+              <div class="simulated-digits" id="simDigits">00:25:00</div>
+              <div class="simulated-status" id="simStatus">按 Ctrl+Alt+Space 或下方按钮启停</div>
+            </div>
+
+            <div class="simulated-controls" id="simControls">
+              <button class="sim-btn primary" id="simToggleBtn">▶ 开始倒计时</button>
+              <button class="sim-btn" id="simResetBtn">↺ 重置</button>
+              <button class="sim-btn" id="simFormatBtn">格式: HH:MM:SS</button>
+            </div>
+
+            <div class="sim-tip">💡 提示：在上方可按住时钟自由拖动定位，感受半透明悬浮体验</div>
+
+            <!-- 实物截图模式 -->
+            <img src="preview.png" alt="iClock 真实桌面运行效果" class="real-screenshot-view" id="realScreenshot">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 硬核数据指标 -->
+  <section class="section-metrics">
+    <div class="container">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-number">125 <span style="font-size: 20px;">KB</span></div>
+          <div class="metric-title">极致超轻单文件</div>
+          <div class="metric-desc">比一张普通壁纸还小，不产生安装垃圾，解压双击秒开</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-number">0 <span style="font-size: 20px;">依赖</span></div>
+          <div class="metric-title">原生纯净架构</div>
+          <div class="metric-desc">基于 Windows 系统自带 .NET 运行时，绝非内存黑洞 Electron</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-number">0.0<span style="font-size: 20px;">%</span></div>
+          <div class="metric-title">动态心跳省电</div>
+          <div class="metric-desc">独创毫秒级心跳对齐算法，静止与运行均极致节能省电</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-number">100<span style="font-size: 20px;">%</span></div>
+          <div class="metric-title">开源本地安全</div>
+          <div class="metric-desc">完全透明开源，倒计时历史均保存在本地，隐私完全自主</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 核心特性网格 -->
+  <section class="section-features" id="features">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Features</span>
+        <h2 class="section-title">专注、优雅、克制，满足对桌面时钟的一切想象</h2>
+        <p class="section-subtitle">每一个像素都经过严苛考量，剔除一切无用噱头，保留最纯粹的工作流体验。</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon-box">📌</div>
+          <h3 class="feature-name">悬浮置顶与点击穿透</h3>
+          <p class="feature-detail">支持自由调整文字半透明背景与屏幕坐标。调整完毕后文字纯净浮现，绝不阻挡后方窗口的正常点击操作。</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">⌨️</div>
+          <h3 class="feature-name">全局热键无缝启停</h3>
+          <p class="feature-detail">默认快捷键 <kbd style="background:#F1F5F9;padding:2px 6px;border-radius:4px;border:1px solid #CBD5E1;font-size:12px;">Ctrl+Alt+Space</kbd>，无论您在全屏写代码、游戏还是 PPT 演讲，无须切换窗口即可一键启停。</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🎨</div>
+          <h3 class="feature-name">格式与配色随心定制</h3>
+          <p class="feature-detail">内置 <code>HH:MM:SS</code>、<code>MM:SS</code> 及中文时间单位；支持字体大小平滑调节与系统调色板任意选色，完美融入各类壁纸风格。</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🔔</div>
+          <h3 class="feature-name">强力置顶通知与声音</h3>
+          <p class="feature-detail">倒计时归零时弹出 TopMost 顶层视窗与超时累计秒数，配合提示音效，即使沉浸工作中也绝不错过重要节点。</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">📊</div>
+          <h3 class="feature-name">今日专注记录自动归档</h3>
+          <p class="feature-detail">静默将当天每次倒计时的开始时间、时长与结果（完成/重置/中断）归档至标准 TSV 文本，便于日常个人效能复盘。</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🌐</div>
+          <h3 class="feature-name">中英双语与静默更新</h3>
+          <p class="feature-detail">支持简体中文与 English 原生切换。冷启动后台无感探测最新版本，发现新版仅轻量提醒，绝不弹窗强制打扰。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 场景化展示 -->
+  <section class="section-scenarios" id="scenarios">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Scenarios</span>
+        <h2 class="section-title">随时待命，融入您的每一段高产时刻</h2>
+        <p class="section-subtitle">不论是团队汇报还是个人深潜，iClock 都能在角落静默护航。</p>
+      </div>
+
+      <div class="scenarios-grid">
+        <div class="scenario-card">
+          <span class="scenario-emoji">🎤</span>
+          <h4 class="scenario-title">演讲与会议控时</h4>
+          <p class="scenario-text">汇报时无感挂在投影或屏幕边角，清晰掌控演讲进度，告别时间超时窘境。</p>
+        </div>
+
+        <div class="scenario-card">
+          <span class="scenario-emoji">🍅</span>
+          <h4 class="scenario-title">番茄钟深度专注</h4>
+          <p class="scenario-text">25 分钟番茄心流冲刺，无需频繁查看手机，抬头即见剩余时间，保持思维不掉线。</p>
+        </div>
+
+        <div class="scenario-card">
+          <span class="scenario-emoji">🎮</span>
+          <h4 class="scenario-title">全屏游戏与副本计时</h4>
+          <p class="scenario-text">全局快捷键随时唤醒，监控 Boss 刷新或技能冷却周期，全屏画面穿透不穿帮。</p>
+        </div>
+
+        <div class="scenario-card">
+          <span class="scenario-emoji">📈</span>
+          <h4 class="scenario-title">交易看盘与开市倒计</h4>
+          <p class="scenario-text">紧盯盘面波动，分秒必争。醒目置顶在行情走势图上方，精准把控挂单节奏。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 对比表格 -->
+  <section class="section-comparison" id="comparison">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Comparison</span>
+        <h2 class="section-title">为什么挑剔的效率控都选择 iClock？</h2>
+        <p class="section-subtitle">看一看真正的原生开发与市面常见方案的代差对比。</p>
+      </div>
+
+      <div class="comparison-table-wrapper">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>核心维度</th>
+              <th class="highlight">iClock (本项目)</th>
+              <th>主流 Electron 计时工具</th>
+              <th>网页版在线计时器</th>
+              <th>手机自带倒计时</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>可执行体积</strong></td>
+              <td class="highlight">~125 KB (单文件)</td>
+              <td>120 MB ~ 250 MB</td>
+              <td>每次加载数 MB</td>
+              <td>无法投射至电脑</td>
+            </tr>
+            <tr>
+              <td><strong>内存开销</strong></td>
+              <td class="highlight">< 15 MB 静态占用</td>
+              <td>180 MB ~ 400 MB</td>
+              <td>浏览器额外占内存</td>
+              <td>不占电脑内存</td>
+            </tr>
+            <tr>
+              <td><strong>置顶与穿透</strong></td>
+              <td class="highlight"><span class="badge-check">✔</span> 支持置顶+点击穿透</td>
+              <td>部分支持置顶，穿透繁琐</td>
+              <td><span class="badge-cross">✘</span> 必须维持浏览器前置</td>
+              <td><span class="badge-cross">✘</span> 无法贴合电脑屏幕</td>
+            </tr>
+            <tr>
+              <td><strong>全局快捷键</strong></td>
+              <td class="highlight"><span class="badge-check">✔</span> 任意窗口秒级启停</td>
+              <td>部分受限</td>
+              <td><span class="badge-cross">✘</span> 需切换至标签页</td>
+              <td><span class="badge-cross">✘</span> 需手动触碰手机</td>
+            </tr>
+            <tr>
+              <td><strong>纯净度与隐私</strong></td>
+              <td class="highlight"><span class="badge-check">✔</span> 0 广告、无常驻遥测</td>
+              <td>常见开机常驻广告</td>
+              <td>常见网页插播广告</td>
+              <td>易被手机通知打断</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 下载中心 -->
+  <section class="section-download" id="download">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag">Get Started</span>
+        <h2 class="section-title">立即下载，开启纯粹专注</h2>
+        <p class="section-subtitle">完全免费、绿色无捆绑。支持 Windows 7 SP1、Windows 8、Windows 10 及 Windows 11。</p>
+      </div>
+
+      <div class="download-grid">
+        <div class="download-card primary-card">
+          <div class="dl-icon">⚡</div>
+          <h3 class="dl-name">iClock 单文件绿色版</h3>
+          <p class="dl-meta">v1.0.0 · iClock-1.0.0-windows.exe · 125 KB</p>
+          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.0.0/iClock-1.0.0-windows.exe" class="dl-btn btn-solid">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>直接下载 .exe (推荐)</span>
+          </a>
+        </div>
+
+        <div class="download-card">
+          <div class="dl-icon">📦</div>
+          <h3 class="dl-name">iClock 便携压缩包</h3>
+          <p class="dl-meta">v1.0.0 · iClock-1.0.0-windows.zip · 83 KB</p>
+          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.0.0/iClock-1.0.0-windows.zip" class="dl-btn btn-outline">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>下载便携 .zip 格式</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- SHA256 校验和卡片 -->
+      <div class="checksum-box">
+        <div class="checksum-header">
+          <span>🔒 文件完整性 SHA-256 校验和</span>
+          <span style="font-size:12px;color:var(--text-light);">可保障下载文件未被篡改</span>
+        </div>
+        <div class="checksum-row">
+          <span>iClock-1.0.0-windows.exe: <strong>be6d340a717324380d85ff2e7583188d5e288b9c2e2fc2015306dcfc1739e1b7</strong></span>
+          <button class="copy-btn" onclick="copyText('be6d340a717324380d85ff2e7583188d5e288b9c2e2fc2015306dcfc1739e1b7')">复制</button>
+        </div>
+        <div class="checksum-row">
+          <span>iClock-1.0.0-windows.zip: <strong>75fd8587d293757a81112b6f96390b461f8d724aa7765f5d7ddc3d793600cfe0</strong></span>
+          <button class="copy-btn" onclick="copyText('75fd8587d293757a81112b6f96390b461f8d724aa7765f5d7ddc3d793600cfe0')">复制</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 赞赏支持与开源社区 -->
+  <section class="section-sponsor" id="sponsor">
+    <div class="container">
+      <div class="section-header" style="margin-bottom: 30px;">
+        <span class="section-tag">Community & Sponsor</span>
+        <h2 class="section-title">开源精神，致谢支持</h2>
+        <p class="section-subtitle">iClock 是一款完全自由开源的项目。如果它切实提高了您的日常效率，欢迎赞赏支持作者持续迭代！</p>
+      </div>
+
+      <div class="sponsor-card">
+        <h4 style="font-size: 16px; font-weight: 700; color: var(--text-main);">微信扫一扫 赞赏支持</h4>
+        <img src="zan.jpg" alt="iClock 微信赞赏码" class="sponsor-qr-img">
+        <p class="sponsor-caption">“谢谢使用，恭喜发财！” · 每一份鼓励都是持续打磨的动力</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 页脚 -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <p>© 2026 iClock Project. 采用 MIT 开源协议。</p>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank">GitHub 仓库</a>
+        <a href="https://github.com/francodeyvison183-collab/iClock/issues" target="_blank">提交反馈 / Issue</a>
+        <a href="https://github.com/francodeyvison183-collab/iClock/releases" target="_blank">历史版本</a>
+        <a href="#">返回顶部 ↑</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- 浮动提示 Toast -->
+  <div class="toast" id="toast">已成功复制到剪贴板</div>
+
+  <script>
+    // 交互式沙盒倒计时逻辑
+    let totalSeconds = 25 * 60;
+    let remaining = totalSeconds;
+    let timerId = null;
+    let currentFormatIndex = 0; // 0: HH:MM:SS, 1: MM:SS, 2: Chinese
+    const formats = ['HH:MM:SS', 'MM:SS', '中文单位'];
+
+    const digitsEl = document.getElementById('simDigits');
+    const statusEl = document.getElementById('simStatus');
+    const toggleBtn = document.getElementById('simToggleBtn');
+    const resetBtn = document.getElementById('simResetBtn');
+    const formatBtn = document.getElementById('simFormatBtn');
+    const clockEl = document.getElementById('simClock');
+    const screenEl = document.getElementById('boardScreen');
+
+    function formatTime(secs) {
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      const pad = (n) => n.toString().padStart(2, '0');
+
+      if (currentFormatIndex === 1) {
+        return `${pad(Math.floor(secs / 60))}:${pad(s)}`;
+      } else if (currentFormatIndex === 2) {
+        return `${pad(h)}时${pad(m)}分${pad(s)}秒`;
+      }
+      return `${pad(h)}:${pad(m)}:${pad(s)}`;
+    }
+
+    function updateDisplay() {
+      digitsEl.textContent = formatTime(remaining);
+    }
+
+    function startTimer() {
+      if (timerId) return;
+      statusEl.textContent = '倒计时进行中...';
+      toggleBtn.textContent = '⏸ 暂停倒计时';
+      toggleBtn.style.background = '#EF4444';
+      toggleBtn.style.borderColor = '#EF4444';
+
+      timerId = setInterval(() => {
+        if (remaining > 0) {
+          remaining--;
+          updateDisplay();
+        } else {
+          stopTimer();
+          statusEl.textContent = '🎉 倒计时结束！';
+          alert('iClock 提醒：倒计时已结束！');
+          remaining = totalSeconds;
+          updateDisplay();
+        }
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (!timerId) return;
+      clearInterval(timerId);
+      timerId = null;
+      statusEl.textContent = '倒计时已暂停';
+      toggleBtn.textContent = '▶ 继续倒计时';
+      toggleBtn.style.background = 'var(--brand-blue)';
+      toggleBtn.style.borderColor = 'var(--brand-blue)';
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      if (timerId) {
+        stopTimer();
+      } else {
+        startTimer();
+      }
+    });
+
+    resetBtn.addEventListener('click', () => {
+      stopTimer();
+      remaining = totalSeconds;
+      statusEl.textContent = '已重置为 25 分钟';
+      toggleBtn.textContent = '▶ 开始倒计时';
+      toggleBtn.style.background = 'var(--brand-blue)';
+      toggleBtn.style.borderColor = 'var(--brand-blue)';
+      updateDisplay();
+    });
+
+    formatBtn.addEventListener('click', () => {
+      currentFormatIndex = (currentFormatIndex + 1) % formats.length;
+      formatBtn.textContent = `格式: ${formats[currentFormatIndex]}`;
+      updateDisplay();
+    });
+
+    // 拖动仿真时钟交互
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let initialLeft = 0, initialTop = 0;
+
+    clockEl.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = clockEl.getBoundingClientRect();
+      const parentRect = screenEl.getBoundingClientRect();
+      initialLeft = rect.left - parentRect.left;
+      initialTop = rect.top - parentRect.top;
+      clockEl.style.position = 'absolute';
+      clockEl.style.left = `${initialLeft}px`;
+      clockEl.style.top = `${initialTop}px`;
+      clockEl.style.margin = '0';
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      clockEl.style.left = `${initialLeft + dx}px`;
+      clockEl.style.top = `${initialTop + dy}px`;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+      }
+    });
+
+    // 视图切换：动态沙盒 vs 软件真实截图
+    const tabInteractive = document.getElementById('tabInteractive');
+    const tabScreenshot = document.getElementById('tabScreenshot');
+    const realScreenshot = document.getElementById('realScreenshot');
+    const simControls = document.getElementById('simControls');
+    const simTip = document.querySelector('.sim-tip');
+
+    tabInteractive.addEventListener('click', () => {
+      tabInteractive.classList.add('active');
+      tabScreenshot.classList.remove('active');
+      clockEl.style.display = 'block';
+      simControls.style.display = 'flex';
+      simTip.style.display = 'block';
+      realScreenshot.style.display = 'none';
+    });
+
+    tabScreenshot.addEventListener('click', () => {
+      tabScreenshot.classList.add('active');
+      tabInteractive.classList.remove('active');
+      clockEl.style.display = 'none';
+      simControls.style.display = 'none';
+      simTip.style.display = 'none';
+      realScreenshot.style.display = 'block';
+    });
+
+    // 键盘 Space 快捷键响应
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && e.target === document.body) {
+        e.preventDefault();
+        toggleBtn.click();
+      }
+    });
+
+    // 复制剪贴板
+    function copyText(text) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(showToast);
+      } else {
+        const input = document.createElement('input');
+        input.value = text;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        showToast();
+      }
+    }
+
+    function showToast() {
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2000);
+    }
+  </script>
+</body>
+</html>
