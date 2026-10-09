@@ -252,6 +252,40 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: Version comparison and JSON extraction work correctly.");
 
+            // 11. Verify WelcomeDialog and FirstRun logic
+            Type welcomeType = asm.GetType("WelcomeDialog");
+            if (welcomeType == null)
+            {
+                Console.WriteLine("FAIL: WelcomeDialog type missing");
+                return 18;
+            }
+            Form welcomeDlg = (Form)Activator.CreateInstance(welcomeType, new object[] { settings });
+            PropertyInfo startReqProp = welcomeType.GetProperty("StartRequested");
+            if (startReqProp == null || (bool)startReqProp.GetValue(welcomeDlg, null) != false)
+            {
+                Console.WriteLine("FAIL: WelcomeDialog StartRequested should initially be false");
+                return 18;
+            }
+            Button startBtn = null;
+            foreach (Control c in welcomeDlg.Controls)
+            {
+                if (c is Button && (c.Text.Contains("开始") || c.Text.Contains("Start"))) { startBtn = (Button)c; break; }
+            }
+            if (startBtn == null)
+            {
+                Console.WriteLine("FAIL: WelcomeDialog should contain Start Countdown button");
+                return 18;
+            }
+            MethodInfo clickMethod = typeof(Button).GetMethod("OnClick", BindingFlags.NonPublic | BindingFlags.Instance);
+            clickMethod.Invoke(startBtn, new object[] { EventArgs.Empty });
+            if ((bool)startReqProp.GetValue(welcomeDlg, null) != true)
+            {
+                Console.WriteLine("FAIL: Clicking start button should set StartRequested to true");
+                return 18;
+            }
+            welcomeDlg.Dispose();
+            Console.WriteLine("PASS: WelcomeDialog presents concise ready guidance and handles Start countdown correctly.");
+
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 

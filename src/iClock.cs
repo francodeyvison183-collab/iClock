@@ -26,6 +26,7 @@ internal sealed class Settings
     public bool AutoStart;
     public bool EndSound = true;
     public bool EndNotice = true;
+    public bool FirstRun;
 
     public static string FilePath
     {
@@ -37,7 +38,7 @@ internal sealed class Settings
         Settings s = new Settings();
         try
         {
-            if (!File.Exists(FilePath)) return s;
+            if (!File.Exists(FilePath)) { s.FirstRun = true; return s; }
             foreach (string line in File.ReadAllLines(FilePath))
             {
                 int p = line.IndexOf('=');
@@ -59,6 +60,7 @@ internal sealed class Settings
                 else if (k == "AutoStart" && bool.TryParse(v, out b)) s.AutoStart = b;
                 else if (k == "EndSound" && bool.TryParse(v, out b)) s.EndSound = b;
                 else if (k == "EndNotice" && bool.TryParse(v, out b)) s.EndNotice = b;
+                else if (k == "FirstRun" && bool.TryParse(v, out b)) s.FirstRun = b;
             }
         }
         catch { }
@@ -72,7 +74,7 @@ internal sealed class Settings
             "Minutes=" + Minutes, "FontSize=" + FontSize, "X=" + X, "Y=" + Y,
             "HotkeyModifiers=" + HotkeyModifiers, "HotkeyKey=" + HotkeyKey,
             "Color=" + Color, "Format=" + Format, "EndMessage=" + EndMessage, "Language=" + Language, "AutoStart=" + AutoStart,
-            "EndSound=" + EndSound, "EndNotice=" + EndNotice
+            "EndSound=" + EndSound, "EndNotice=" + EndNotice, "FirstRun=" + FirstRun
         });
     }
 }
@@ -470,6 +472,57 @@ internal sealed class NoticeDialog : Form
     }
 }
 
+internal sealed class WelcomeDialog : Form
+{
+    public bool StartRequested { get; private set; }
+
+    public WelcomeDialog(Settings s)
+    {
+        bool en = s.Language == "en";
+        Text = "iClock";
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        ShowInTaskbar = true;
+        ClientSize = new Size(330, 195);
+
+        Label lblTitle = new Label();
+        lblTitle.Text = en ? "iClock is Ready" : "iClock 已就绪";
+        lblTitle.Font = new Font("Segoe UI", 16, FontStyle.Bold, GraphicsUnit.Pixel);
+        lblTitle.ForeColor = Color.FromArgb(28, 114, 190);
+        lblTitle.SetBounds(22, 18, 286, 26);
+        Controls.Add(lblTitle);
+
+        string hotkey = AppContext.HotkeyText(s.HotkeyModifiers, s.HotkeyKey);
+        Label lblDesc = new Label();
+        lblDesc.Text = en
+            ? "Press " + hotkey + " anywhere to start or pause.\r\n\r\nRight-click the system tray icon for settings."
+            : "随时按下快捷键 " + hotkey + " 启动或暂停倒计时。\r\n\r\n右键屏幕右下角托盘图标可进行个性化设置。";
+        lblDesc.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        lblDesc.ForeColor = Color.FromArgb(60, 60, 60);
+        lblDesc.SetBounds(22, 52, 286, 75);
+        Controls.Add(lblDesc);
+
+        Button btnStart = new Button();
+        btnStart.Text = en ? "Start Countdown" : "开始倒计时";
+        btnStart.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        btnStart.SetBounds(95, 142, 120, 34);
+        btnStart.Click += delegate { StartRequested = true; Close(); };
+        Controls.Add(btnStart);
+
+        Button btnOk = new Button();
+        btnOk.Text = en ? "Got it" : "知道了";
+        btnOk.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        btnOk.SetBounds(225, 142, 85, 34);
+        btnOk.Click += delegate { Close(); };
+        Controls.Add(btnOk);
+
+        AcceptButton = btnStart;
+        CancelButton = btnOk;
+    }
+}
+
 internal class AboutDialog : Form
 {
     private AppContext app;
@@ -708,6 +761,25 @@ internal sealed class AppContext : ApplicationContext
         ApplyStartup();
         ResetDisplay();
         TrackAndCheckUpdates();
+        if (settings.FirstRun)
+        {
+            overlay.BeginInvoke(new Action(ShowWelcome));
+        }
+    }
+
+    private void ShowWelcome()
+    {
+        if (!settings.FirstRun) return;
+        settings.FirstRun = false;
+        settings.Save();
+        using (WelcomeDialog dlg = new WelcomeDialog(settings))
+        {
+            dlg.ShowDialog();
+            if (dlg.StartRequested)
+            {
+                Toggle();
+            }
+        }
     }
 
     private ContextMenuStrip MakeMenu()
@@ -944,7 +1016,7 @@ internal sealed class AppContext : ApplicationContext
     }
     protected override void ExitThreadCore() { base.ExitThreadCore(); }
     public void HandleHotkey() { Toggle(); }
-    private static string HotkeyText(int mods, int key)
+    internal static string HotkeyText(int mods, int key)
     {
         string value = "";
         if ((mods & 2) != 0) value += "Ctrl+";
