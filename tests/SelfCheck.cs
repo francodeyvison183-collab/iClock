@@ -152,8 +152,13 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: AboutDialog missing Check Updates button");
                 return 12;
             }
+            if (pb.Width < 280)
+            {
+                Console.WriteLine("FAIL: AboutDialog PictureBox width too narrow: " + pb.Width);
+                return 12;
+            }
             aboutDialog.Close();
-            Console.WriteLine("PASS: AboutDialog and embedded zan.jpg loaded with Check Updates button.");
+            Console.WriteLine("PASS: AboutDialog and embedded zan.jpg loaded with full content width (" + pb.Width + "px) and Check Updates button.");
 
             // 8. Performance check: Overlay cached GDI handles & dynamic timer interval
             Type overlayType = asm.GetType("Overlay");

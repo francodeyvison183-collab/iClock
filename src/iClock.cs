@@ -477,6 +477,16 @@ internal class AboutDialog : Form
     private Button btnCheck;
     private Label lblVersion;
 
+    private sealed class HqPictureBox : PictureBox
+    {
+        protected override void OnPaint(PaintEventArgs pe)
+        {
+            pe.Graphics.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+            pe.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+            base.OnPaint(pe);
+        }
+    }
+
     public AboutDialog(string lang) : this(lang, null) { }
 
     public AboutDialog(string lang, AppContext appContext)
@@ -490,57 +500,57 @@ internal class AboutDialog : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(330, 470);
+        ClientSize = new Size(340, 550);
 
         Label lblTitle = new Label();
         lblTitle.Text = "iClock";
         lblTitle.Font = new Font("Segoe UI", 16, FontStyle.Bold, GraphicsUnit.Pixel);
         lblTitle.ForeColor = Color.FromArgb(28, 114, 190);
-        lblTitle.SetBounds(20, 16, 120, 26);
+        lblTitle.SetBounds(20, 16, 140, 26);
         Controls.Add(lblTitle);
 
         Label lblDesc = new Label();
         lblDesc.Text = en ? "Desktop Floating Countdown Timer" : "桌面极简悬浮倒计时工具";
         lblDesc.Font = new Font("Segoe UI", 11, FontStyle.Regular, GraphicsUnit.Pixel);
         lblDesc.ForeColor = Color.Gray;
-        lblDesc.SetBounds(20, 44, 290, 20);
+        lblDesc.SetBounds(20, 44, 300, 20);
         Controls.Add(lblDesc);
 
         lblVersion = new Label();
         lblVersion.Text = (en ? "Version: v" : "当前版本: v") + AppContext.CURRENT_VERSION;
         lblVersion.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
-        lblVersion.SetBounds(20, 72, 170, 24);
+        lblVersion.SetBounds(20, 72, 180, 24);
         lblVersion.TextAlign = ContentAlignment.MiddleLeft;
         Controls.Add(lblVersion);
 
         btnCheck = new Button();
         btnCheck.Text = en ? "Check Updates" : "检查更新";
         btnCheck.Font = new Font("Segoe UI", 11, FontStyle.Regular, GraphicsUnit.Pixel);
-        btnCheck.SetBounds(196, 70, 114, 26);
+        btnCheck.SetBounds(206, 70, 114, 26);
         btnCheck.Click += OnCheckUpdates;
         Controls.Add(btnCheck);
 
         LinkLabel link = new LinkLabel();
         link.Text = "GitHub: francodeyvison183-collab/iClock";
         link.Font = new Font("Segoe UI", 11, FontStyle.Regular, GraphicsUnit.Pixel);
-        link.SetBounds(20, 102, 290, 20);
+        link.SetBounds(20, 102, 300, 20);
         link.LinkClicked += delegate { try { Process.Start("https://github.com/francodeyvison183-collab/iClock"); } catch { } };
         Controls.Add(link);
 
         Label line = new Label();
         line.BorderStyle = BorderStyle.Fixed3D;
-        line.SetBounds(20, 128, 290, 2);
+        line.SetBounds(20, 128, 300, 2);
         Controls.Add(line);
 
         Label lblSponsor = new Label();
         lblSponsor.Text = en ? "If iClock helps you, thank you for supporting!" : "如果 iClock 对你有帮助，欢迎赞赏支持！";
         lblSponsor.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
         lblSponsor.TextAlign = ContentAlignment.MiddleCenter;
-        lblSponsor.SetBounds(20, 138, 290, 24);
+        lblSponsor.SetBounds(20, 138, 300, 24);
         Controls.Add(lblSponsor);
 
-        PictureBox pic = new PictureBox();
-        pic.SetBounds(60, 166, 210, 210);
+        HqPictureBox pic = new HqPictureBox();
+        pic.SetBounds(20, 166, 300, 300);
         pic.SizeMode = PictureBoxSizeMode.Zoom;
         pic.BorderStyle = BorderStyle.None;
         pic.Image = LoadSponsorImage();
@@ -551,13 +561,13 @@ internal class AboutDialog : Form
         sub.Font = new Font("Segoe UI", 12, FontStyle.Bold, GraphicsUnit.Pixel);
         sub.ForeColor = Color.FromArgb(28, 114, 190);
         sub.TextAlign = ContentAlignment.MiddleCenter;
-        sub.SetBounds(20, 382, 290, 20);
+        sub.SetBounds(20, 472, 300, 20);
         Controls.Add(sub);
 
         Button btnClose = new Button();
         btnClose.Text = en ? "OK" : "确定";
         btnClose.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
-        btnClose.SetBounds(120, 416, 90, 32);
+        btnClose.SetBounds(125, 502, 90, 32);
         btnClose.Click += delegate { Close(); };
         Controls.Add(btnClose);
         AcceptButton = btnClose;
