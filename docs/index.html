@@ -66,10 +66,10 @@
           },
           {
             "@type": "Question",
-            "name": "如何通过 Windows 官方包管理器（WinGet）一键安装？",
+            "name": "如何通过包管理器（WinGet / Scoop）一键安装？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "在 PowerShell 或 CMD 终端中直接运行 winget install FrancoDeyvison.iClock 即可全自动安装并配置环境变量。"
+              "text": "WinGet 用户直接运行 winget install FrancoDeyvison.iClock；Scoop 用户直接运行 scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json 即可全自动安装并配置环境变量。"
             }
           }
         ]
@@ -1523,10 +1523,10 @@
         <div class="faq-card">
           <div class="faq-question">
             <span class="faq-q-icon">Q</span>
-            <span data-i18n="faq_q4">如何通过 Windows 官方包管理器（WinGet）一键安装？</span>
+            <span data-i18n="faq_q4">如何通过包管理器（WinGet / Scoop）一键安装？</span>
           </div>
           <div class="faq-answer" data-i18n="faq_a4">
-            在 PowerShell 或 CMD 终端中直接运行 <code>winget install FrancoDeyvison.iClock</code> 即可全自动下载、安装并配置环境变量，无需手动解压或寻找目录。
+            WinGet 用户在终端运行 <code>winget install FrancoDeyvison.iClock</code>；Scoop 用户运行 <code>scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json</code> 即可全自动下载、安装并配置环境变量。
           </div>
         </div>
       </div>
@@ -1695,8 +1695,8 @@
         faq_a2: "基于 Windows <code>WS_EX_TRANSPARENT</code> 原生 API，倒计时浮窗始终悬浮在桌面最顶层，但所有鼠标点击均直接穿透到下层应用（如代码编辑器、全屏游戏、PPT 播放），丝毫不干扰任何操作。",
         faq_q3: "iClock 是否包含捆绑软件、广告或后台常驻进程？",
         faq_a3: "100% 开源（MIT 协议），单文件绿色免安装。无流氓广告，无后台捆绑服务，退出程序即完全释放所有资源，完全尊重用户隐私。",
-        faq_q4: "如何通过 Windows 官方包管理器（WinGet）一键安装？",
-        faq_a4: "在 PowerShell 或 CMD 终端中直接运行 <code>winget install FrancoDeyvison.iClock</code> 即可全自动下载、安装并配置环境变量，无需手动解压或寻找目录。",
+        faq_q4: "如何通过包管理器（WinGet / Scoop）一键安装？",
+        faq_a4: "WinGet 用户在终端运行 <code>winget install FrancoDeyvison.iClock</code>；Scoop 用户运行 <code>scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json</code> 即可全自动下载、安装并配置环境变量。",
 
         spons_tag: "Community & Sponsor",
         spons_title: "开源精神，致谢支持",
@@ -1848,8 +1848,8 @@
         faq_a2: "Leveraging the Windows <code>WS_EX_TRANSPARENT</code> API, the countdown overlay floats on the topmost layer, but all mouse clicks and scrolls pass through to underlying applications without interruption.",
         faq_q3: "Does iClock contain bundled software, advertisements, or background telemetry?",
         faq_a3: "100% open-source under the MIT license, portable single-file. Zero ads, zero background services, and zero data telemetry. Exiting the app completely frees all resources.",
-        faq_q4: "How do I install iClock using Windows Package Manager (WinGet)?",
-        faq_a4: "Run <code>winget install FrancoDeyvison.iClock</code> in PowerShell or Command Prompt for automated downloading, installation, and environment path setup.",
+        faq_q4: "How do I install iClock using package managers (WinGet / Scoop)?",
+        faq_a4: "Run <code>winget install FrancoDeyvison.iClock</code> in terminal for WinGet, or <code>scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json</code> for Scoop, to enable automated downloading, installation, and PATH configuration.",
 
         spons_tag: "Community & Sponsor",
         spons_title: "Open Source & Appreciation",

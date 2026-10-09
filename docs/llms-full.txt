@@ -33,12 +33,18 @@ Run the following in PowerShell or CMD:
 winget install FrancoDeyvison.iClock
 ```
 
-### Option B: Standalone Portable Download
+### Option B: Scoop Package Manager
+Run the following in PowerShell:
+```powershell
+scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json
+```
+
+### Option C: Standalone Portable Download
 No installer or admin permissions required:
 - Binary: `https://github.com/francodeyvison183-collab/iClock/releases/download/1.01/iClock-1.01-windows.exe`
 - SHA-256 Checksum: `f66b6f11cb9e0c0f8b1bc869fcfe4db23540889dee4b3b6c1a37b74a0541f905`
 
-### Option C: Portable ZIP
+### Option D: Portable ZIP
 - Archive: `https://github.com/francodeyvison183-collab/iClock/releases/download/1.01/iClock-1.01-windows.zip`
 - SHA-256 Checksum: `726ef08451283e019c06c57dd30f8f6e83c8830051d3fb7234b8f730f709b247`
 

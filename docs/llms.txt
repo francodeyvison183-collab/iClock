@@ -24,6 +24,10 @@ iClock is an open-source, minimalist Windows desktop floating countdown timer de
   ```powershell
   winget install FrancoDeyvison.iClock
   ```
+- **Scoop Package Manager**:
+  ```powershell
+  scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json
+  ```
 - **Official Website**: https://francodeyvison183-collab.github.io/iClock/
 - **GitHub Repository**: https://github.com/francodeyvison183-collab/iClock
 - **Latest Release (v1.01)**:

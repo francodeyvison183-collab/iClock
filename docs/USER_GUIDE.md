@@ -6,24 +6,21 @@ Run `iClock.exe`. The overlay is hidden before countdown starts. Press the globa
 
 运行 `iClock.exe` 后，倒计时开始前桌面不显示文字；按全局快捷键后才开始倒计时。默认快捷键为 `Ctrl+Alt+Space`，同一快捷键也可暂停和继续。倒计时结束后文字自动隐藏，并弹出置顶消息提示，需要用户确认后才消失。
 
-Right-click the iClock tray icon to open the menu. The menu can reset the countdown, adjust position, open settings, show today's history, sponsor the author, switch languages, or exit.
+Right-click the iClock tray icon to open the menu. The menu allows you to start/pause, reset the countdown, adjust position, view today's history, open settings, view about & updates, or exit.
 
-右键点击托盘中的 iClock 图标可打开菜单，用于重置倒计时、调整位置、打开设置、查看今日记录、赞赏作者、切换语言或退出。
-
-Choose **Language** from the tray menu, then select **简体中文** or **English**. Simplified Chinese is the default. The selection is saved and restored on the next launch.
-
-在托盘菜单中打开“语言”，选择“简体中文”或“English”。默认语言为简体中文，选择会保存并在下次启动时恢复。
+右键点击托盘中的 iClock 图标可打开菜单，用于开始/暂停、重置倒计时、调整位置、查看今日记录、打开设置、关于与检查更新或退出。
 
 ## Settings / 设置
 
-- **Duration:** 1 to 1,440 minutes. Changing settings while a session is paused keeps the paused session's remaining time; reset to use the newly configured duration.
-- **Text size:** 12 to 120 pixels.
-- **Text color:** select a color using the system color picker.
-- **Display format:** `HH:MM:SS`, total minutes and seconds (`MM:SS`), or unit labels. Unit labels follow the selected UI language.
-- **End message:** optional text shown in the top-most prompt when the countdown finishes. The notification can be disabled separately.
-- **Hotkey:** click the hotkey field and press a key combination containing Ctrl, Alt, or Shift. If another app owns the combination, iClock keeps the previous hotkey.
-- **Startup:** adds or removes iClock from the current user's Windows sign-in Run key.
-- **End sound/notification:** independently control the system sound and the top-most confirmation prompt.
+- **Duration / 倒计时时长:** 1 to 1,440 minutes. Changing settings while a session is paused keeps the paused session's remaining time; reset to use the newly configured duration.
+- **Text size / 文字大小:** 12 to 120 pixels (default: 20 pixels / 默认 20 像素).
+- **Text color / 文字颜色:** select a color using the system color picker (default: Red `#FF0000` / 默认红色).
+- **Display format / 显示格式:** `HH:MM:SS`, total minutes and seconds (`MM:SS`), or unit labels (`Chinese units`). Unit labels follow the selected UI language.
+- **End message / 结束提示词:** optional text shown in the top-most prompt when the countdown finishes.
+- **Start/pause hotkey / 快捷键:** click the hotkey field and press a key combination containing Ctrl, Alt, or Shift. Default is `Ctrl + Alt + Space`.
+- **Interface language / 界面语言:** choose **简体中文** or **English**. The selection is saved and restored on the next launch.
+- **Start with Windows / 开机自启动:** adds or removes iClock from the current user's Windows sign-in Run key (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`).
+- **End sound & notification / 声音与通知:** independently control the system sound and the top-most confirmation prompt.
 
 ## Position and click-through / 位置与点击穿透
 

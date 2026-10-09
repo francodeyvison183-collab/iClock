@@ -36,11 +36,11 @@ Most timer and Pomodoro applications on Windows are bloated **100MB+** Electron 
 **iClock adheres to extreme engineering minimalism**:
 
 * 🪟 **Transparent & Click-Through**: Clean countdown numbers floating naturally on your desktop. Mouse clicks pass straight through to underlying IDEs, documents, or games without stealing window focus.
-* ⚡ **103 KB & 0.0% CPU**: Zero third-party packages or heavy runtimes. Powered by pre-allocated GDI caching and dynamic heartbeat alignment, guaranteeing **0 heap allocations per second** during countdown.
+* ⚡ **126 KB & 0.0% CPU**: Zero third-party packages or heavy runtimes. Powered by pre-allocated GDI caching and dynamic heartbeat alignment, guaranteeing **0 heap allocations per second** during countdown.
 * ⌨️ **Global Hotkey Control**: Start or pause blind from anywhere with `Ctrl + Alt + Space` (customizable) without switching active windows.
 * 🔔 **TopMost Confirmation Alert**: When the countdown completes, the overlay hides cleanly, displaying a persistent topmost dialog and alarm that requires user acknowledgment.
 * 🔒 **100% Local & Private**: Config and logs stay strictly inside your local `%APPDATA%\iClock`. Zero network requests, zero telemetry.
-* 🌍 **Bilingual & History Logs**: Seamlessly switch between English and Simplified Chinese from the tray menu. Daily countdown records are saved as clean TSV files.
+* 🌍 **Bilingual & History Logs**: Seamlessly switch between English and Simplified Chinese in Settings. Daily countdown records are saved as clean TSV files.
 
 ---
 
@@ -48,7 +48,7 @@ Most timer and Pomodoro applications on Windows are bloated **100MB+** Electron 
 
 | Metric | **iClock (This Project)** | Typical Electron Timer | Windows Clock App |
 | :--- | :--- | :--- | :--- |
-| **Package Size** | ⚡ **103 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed |
+| **Package Size** | ⚡ **126 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed |
 | **Memory (RAM)** | ⚡ **~15 MB** (Physical baseline) | 150 MB ~ 300 MB | ~30 MB |
 | **CPU Usage** | ⚡ **0.0%** (Heartbeat aligned) | 0.5% ~ 3.0% (Polling) | 0.0% |
 | **Interaction** | ⚡ **Full click-through, borderless** | Solid window blocking view | Minimized or full window |
@@ -76,7 +76,13 @@ winget install FrancoDeyvison.iClock
 ```
 > Automatically downloads, verifies, installs, and adds `iClock` to system PATH so you can launch it from any terminal.
 
-### Option B: Standalone Portable Binary
+### Option B: Scoop Package Manager
+
+```powershell
+scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json
+```
+
+### Option C: Standalone Portable Binary
 
 1. Go to [GitHub Releases](../../releases/latest) and download `iClock-1.01-windows.zip` or `iClock-1.01-windows.exe`.
 2. Double-click to launch (no installer, no registry residue).
@@ -111,7 +117,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> Output binary is generated at `dist/iClock.exe` (103 KB). See [Build Guide](docs/BUILDING.md).
+> Output binary is generated at `dist/iClock.exe` (126 KB). See [Build Guide](docs/BUILDING.md).
 
 ---
 
