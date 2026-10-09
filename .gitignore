@@ -1,0 +1,17 @@
+# Build output
+/dist/
+/bin/
+/obj/
+/release-assets/*
+!/release-assets/README.md
+
+# Visual Studio / editor files
+.vs/
+*.user
+*.suo
+*.cache
+
+# Local and OS-generated files
+Thumbs.db
+Desktop.ini
+*.log

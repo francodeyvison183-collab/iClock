@@ -1,0 +1,40 @@
+name: Bug report
+description: Report a problem with iClock
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include private countdown history or other personal information.
+  - type: input
+    id: version
+    attributes:
+      label: iClock version or commit
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do before the problem occurred?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+    validations:
+      required: false
