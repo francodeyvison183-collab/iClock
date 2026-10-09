@@ -185,6 +185,25 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: SettingsDialog contains auto update check option.");
 
+            // 10. Verify version comparison and JSON parsing
+            BindingFlags sbf = BindingFlags.NonPublic | BindingFlags.Static;
+            MethodInfo isNewer = appType.GetMethod("IsNewer", sbf);
+            MethodInfo extractJson = appType.GetMethod("ExtractJsonValue", sbf);
+            if (!(bool)isNewer.Invoke(null, new object[] { "1.0.1", "1.0.0" }) ||
+                !(bool)isNewer.Invoke(null, new object[] { "v1.1", "1.0.0" }) ||
+                (bool)isNewer.Invoke(null, new object[] { "1.0.0", "1.0.0" }))
+            {
+                Console.WriteLine("FAIL: Version comparison failed");
+                return 16;
+            }
+            string extracted = (string)extractJson.Invoke(null, new object[] { "{\"latest\":\"1.0.2\",\"url\":\"http://test\"}", "latest" });
+            if (extracted != "1.0.2")
+            {
+                Console.WriteLine("FAIL: JSON value extraction failed");
+                return 17;
+            }
+            Console.WriteLine("PASS: Version comparison and JSON extraction work correctly.");
+
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 

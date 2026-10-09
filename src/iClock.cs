@@ -552,7 +552,10 @@ internal sealed class AppContext : ApplicationContext
     private Settings settings;
     private Overlay overlay;
     private NotifyIcon tray;
-    private ToolStripMenuItem menuStart, menuReset, menuMove, menuSettings, menuHistory, menuSponsor, menuLanguage, menuLanguageChinese, menuLanguageEnglish, menuExit;
+    private ToolStripMenuItem menuStart, menuReset, menuMove, menuSettings, menuHistory, menuSponsor, menuLanguage, menuLanguageChinese, menuLanguageEnglish, menuExit, menuUpdate;
+    private const string CURRENT_VERSION = "1.0.0";
+    private string updateUrl;
+    private string latestVersion;
     private Timer timer;
     private TimeSpan remaining;
     private long deadlineTimestamp;
@@ -573,6 +576,7 @@ internal sealed class AppContext : ApplicationContext
         settings = Settings.Load();
         appIcon = CreateIcon();
         overlay = new Overlay(settings); overlay.PositionChanged += delegate(Point p) { settings.X = p.X; settings.Y = p.Y; settings.Save(); };
+        IntPtr forceOverlayHandle = overlay.Handle;
         messageWindow = new MessageWindow(this);
         activeHotkeyModifiers = 3; activeHotkeyKey = (int)Keys.Space;
         if (!SetHotkey(settings.HotkeyModifiers, settings.HotkeyKey))
@@ -580,10 +584,11 @@ internal sealed class AppContext : ApplicationContext
             settings.HotkeyModifiers = 3; settings.HotkeyKey = (int)Keys.Space; SetHotkey(3, (int)Keys.Space);
         }
         tray = new NotifyIcon(); tray.Icon = appIcon; tray.Text = "iClock"; tray.Visible = true; tray.ContextMenuStrip = MakeMenu();
+        tray.BalloonTipClicked += delegate { if (!string.IsNullOrEmpty(updateUrl)) { try { Process.Start(updateUrl); } catch { } } };
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
         ApplyStartup();
         ResetDisplay();
-        if (settings.CheckUpdates) Track("launch");
+        if (settings.CheckUpdates) TrackAndCheckUpdates();
     }
 
     private ContextMenuStrip MakeMenu()
@@ -622,6 +627,7 @@ internal sealed class AppContext : ApplicationContext
         menuLanguageChinese.Checked = settings.Language == "zh";
         menuLanguageEnglish.Checked = settings.Language == "en";
         menuExit.Text = en ? "Exit iClock" : "退出 iClock";
+        if (menuUpdate != null) menuUpdate.Text = en ? "⭐ Update available (" + latestVersion + ")…" : "⭐ 发现新版本 (" + latestVersion + ")…";
         tray.Text = "iClock";
     }
 
@@ -868,14 +874,16 @@ internal sealed class AppContext : ApplicationContext
         IntPtr h = b.GetHicon(); Icon icon = (Icon)Icon.FromHandle(h).Clone(); DestroyIcon(h); b.Dispose(); return icon;
     }
 
-    private static void Track(string ev, string page = "main")
+    private void TrackAndCheckUpdates()
     {
         System.Threading.ThreadPool.QueueUserWorkItem(delegate
         {
+            string latest = null;
+            string url = null;
             try
             {
                 ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
-                byte[] data = Encoding.UTF8.GetBytes("{\"event\":\"" + ev + "\",\"page\":\"" + page + "\",\"ua\":\"iClock Desktop v1.0\"}");
+                byte[] data = Encoding.UTF8.GetBytes("{\"event\":\"launch\",\"page\":\"main\",\"ua\":\"iClock Desktop v" + CURRENT_VERSION + "\"}");
                 HttpWebRequest req = (HttpWebRequest)WebRequest.Create("https://green-scene-5a6d.francodeyvison183.workers.dev/track");
                 req.Method = "POST";
                 req.ContentType = "application/json";
@@ -883,10 +891,112 @@ internal sealed class AppContext : ApplicationContext
                 req.Timeout = 5000;
                 req.ReadWriteTimeout = 5000;
                 using (Stream s = req.GetRequestStream()) s.Write(data, 0, data.Length);
-                using (WebResponse resp = req.GetResponse()) { }
+                using (WebResponse resp = req.GetResponse())
+                using (StreamReader r = new StreamReader(resp.GetResponseStream()))
+                {
+                    string body = r.ReadToEnd();
+                    latest = ExtractJsonValue(body, "latest");
+                    url = ExtractJsonValue(body, "url");
+                }
             }
             catch { }
+
+            if (string.IsNullOrEmpty(latest))
+            {
+                try
+                {
+                    ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
+                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create("https://api.github.com/repos/francodeyvison183-collab/iClock/releases/latest");
+                    req.Method = "GET";
+                    req.UserAgent = "iClock-Desktop-v" + CURRENT_VERSION;
+                    req.Timeout = 5000;
+                    req.ReadWriteTimeout = 5000;
+                    using (WebResponse resp = req.GetResponse())
+                    using (StreamReader r = new StreamReader(resp.GetResponseStream()))
+                    {
+                        string body = r.ReadToEnd();
+                        latest = ExtractJsonValue(body, "tag_name");
+                        url = ExtractJsonValue(body, "html_url");
+                    }
+                }
+                catch { }
+            }
+
+            if (!string.IsNullOrEmpty(latest) && IsNewer(latest, CURRENT_VERSION))
+            {
+                string foundVer = latest;
+                string targetUrl = url;
+                try
+                {
+                    if (overlay != null && overlay.IsHandleCreated)
+                    {
+                        overlay.BeginInvoke(new MethodInvoker(delegate { OnUpdateFound(foundVer, targetUrl); }));
+                    }
+                }
+                catch { }
+            }
         });
+    }
+
+    private void OnUpdateFound(string newVersion, string url)
+    {
+        if (string.IsNullOrEmpty(url)) url = "https://github.com/francodeyvison183-collab/iClock/releases/latest";
+        latestVersion = newVersion;
+        updateUrl = url;
+        bool en = settings.Language == "en";
+        string title = en ? "iClock Update Available" : "iClock 发现新版本";
+        string text = en ? "New version " + newVersion + " is available. Click to download." : "发现新版本 " + newVersion + "，点击前往下载更新。";
+
+        try { tray.ShowBalloonTip(6000, title, text, ToolTipIcon.Info); } catch { }
+
+        if (menuUpdate == null && tray.ContextMenuStrip != null)
+        {
+            menuUpdate = new ToolStripMenuItem(en ? "⭐ Update available (" + newVersion + ")…" : "⭐ 发现新版本 (" + newVersion + ")…");
+            menuUpdate.ForeColor = Color.FromArgb(28, 114, 190);
+            menuUpdate.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
+            menuUpdate.Click += delegate
+            {
+                try { Process.Start(updateUrl); } catch { }
+            };
+            tray.ContextMenuStrip.Items.Insert(0, menuUpdate);
+            tray.ContextMenuStrip.Items.Insert(1, new ToolStripSeparator());
+        }
+    }
+
+    private static bool IsNewer(string latest, string current)
+    {
+        try
+        {
+            Version v1 = ParseVer(latest);
+            Version v2 = ParseVer(current);
+            return v1 > v2;
+        }
+        catch { return false; }
+    }
+
+    private static Version ParseVer(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return new Version(0, 0, 0);
+        s = s.TrimStart('v', 'V').Trim();
+        string[] parts = s.Split('.');
+        int major = parts.Length > 0 ? int.Parse(parts[0]) : 0;
+        int minor = parts.Length > 1 ? int.Parse(parts[1]) : 0;
+        int build = parts.Length > 2 ? int.Parse(parts[2]) : 0;
+        return new Version(major, minor, build);
+    }
+
+    private static string ExtractJsonValue(string json, string key)
+    {
+        if (string.IsNullOrEmpty(json)) return null;
+        int k = json.IndexOf("\"" + key + "\"", StringComparison.OrdinalIgnoreCase);
+        if (k < 0) return null;
+        int colon = json.IndexOf(':', k + key.Length + 2);
+        if (colon < 0) return null;
+        int q1 = json.IndexOf('"', colon + 1);
+        if (q1 < 0) return null;
+        int q2 = json.IndexOf('"', q1 + 1);
+        if (q2 < 0) return null;
+        return json.Substring(q1 + 1, q2 - q1 - 1);
     }
 
     private sealed class MessageWindow : NativeWindow
