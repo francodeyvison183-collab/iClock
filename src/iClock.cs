@@ -88,6 +88,9 @@ internal sealed class Overlay : Form
     private bool moving;
     private Point dragStart;
     private Point formStart;
+    private Font cachedFont;
+    private SolidBrush cachedBrush;
+    private StringFormat cachedFormat;
     public bool MoveMode { get; private set; }
     public event Action<Point> PositionChanged;
 
@@ -103,6 +106,7 @@ internal sealed class Overlay : Form
         DoubleBuffered = true;
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true);
         Location = new Point(s.X, s.Y);
+        RebuildGdiResources();
         UpdateText("25:00");
         MouseDown += OnMouseDown;
         MouseMove += OnMouseMove;
@@ -131,20 +135,39 @@ internal sealed class Overlay : Form
     public void SetSettings(Settings s)
     {
         settings = s;
-        string current = text; text = null; UpdateText(current);
+        RebuildGdiResources();
+        Invalidate();
+    }
+
+    private void RebuildGdiResources()
+    {
+        if (cachedFont != null) cachedFont.Dispose();
+        if (cachedBrush != null) cachedBrush.Dispose();
+        if (cachedFormat == null)
+        {
+            cachedFormat = new StringFormat();
+            cachedFormat.Alignment = StringAlignment.Center;
+            cachedFormat.LineAlignment = StringAlignment.Center;
+        }
+
+        Color c;
+        try { c = ColorTranslator.FromHtml(settings.Color); } catch { c = Color.White; }
+        cachedFont = new Font("Segoe UI", settings.FontSize, FontStyle.Bold, GraphicsUnit.Pixel);
+        cachedBrush = new SolidBrush(c);
+
+        string template = settings.Format == "Chinese" ? (settings.Language == "en" ? "00h 00m 00s" : "00时00分00秒") : (settings.Format == "MM:SS" ? "00:00" : "00:00:00");
+        using (Bitmap bmp = new Bitmap(1, 1))
+        using (Graphics g = Graphics.FromImage(bmp))
+        {
+            SizeF size = g.MeasureString(template, cachedFont);
+            Size = new Size(Math.Max(100, (int)Math.Ceiling(size.Width) + 16), Math.Max(50, (int)Math.Ceiling(size.Height) + 10));
+        }
     }
 
     public void UpdateText(string value)
     {
         if (text == value) return;
         text = value;
-        using (Font f = new Font("Segoe UI", settings.FontSize, FontStyle.Bold, GraphicsUnit.Pixel))
-        using (Bitmap bmp = new Bitmap(4, 4))
-        using (Graphics g = Graphics.FromImage(bmp))
-        {
-            SizeF size = g.MeasureString(text, f);
-            Size = new Size(Math.Max(100, (int)Math.Ceiling(size.Width) + 12), Math.Max(50, (int)Math.Ceiling(size.Height) + 10));
-        }
         Invalidate();
     }
 
@@ -165,18 +188,23 @@ internal sealed class Overlay : Form
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
-        Color c;
-        try { c = ColorTranslator.FromHtml(settings.Color); } catch { c = Color.White; }
-        using (Font f = new Font("Segoe UI", settings.FontSize, FontStyle.Bold, GraphicsUnit.Pixel))
-        using (SolidBrush b = new SolidBrush(c))
-        using (StringFormat format = new StringFormat())
+        if (text != null && cachedFont != null && cachedBrush != null)
         {
-            format.Alignment = StringAlignment.Center;
-            format.LineAlignment = StringAlignment.Center;
-            e.Graphics.DrawString(text, f, b, ClientRectangle, format);
+            e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
+            e.Graphics.DrawString(text, cachedFont, cachedBrush, ClientRectangle, cachedFormat);
         }
         base.OnPaint(e);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            if (cachedFont != null) { cachedFont.Dispose(); cachedFont = null; }
+            if (cachedBrush != null) { cachedBrush.Dispose(); cachedBrush = null; }
+            if (cachedFormat != null) { cachedFormat.Dispose(); cachedFormat = null; }
+        }
+        base.Dispose(disposing);
     }
 
     private void OnMouseDown(object sender, MouseEventArgs e)
@@ -529,6 +557,7 @@ internal sealed class AppContext : ApplicationContext
     private bool hotkeyRegistered;
     private int activeHotkeyModifiers, activeHotkeyKey;
     private NoticeDialog activeNotice;
+    private long lastSeconds = -1;
     private MessageWindow messageWindow;
     private string exePath = Application.ExecutablePath;
     private Icon appIcon;
@@ -596,18 +625,28 @@ internal sealed class AppContext : ApplicationContext
         if (settings.EndMessage == "倒计时结束" && toEnglish) settings.EndMessage = "Countdown finished";
         else if (settings.EndMessage == "Countdown finished" && !toEnglish) settings.EndMessage = "倒计时结束";
         settings.Language = language;
-        settings.Save(); UpdateMenuText();
+        settings.Save();
+        overlay.SetSettings(settings);
+        UpdateMenuText();
+        if (running || overlay.Visible)
+        {
+            lastSeconds = -1;
+            if (running) Tick(null, EventArgs.Empty);
+            else Display(remaining);
+        }
     }
 
     private void Toggle()
     {
-        if (running) { remaining = ReadRemaining(); running = false; timer.Stop(); Display(remaining); }
+        if (running) { remaining = ReadRemaining(); running = false; timer.Stop(); lastSeconds = -1; Display(remaining); }
         else {
             if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
             if (remaining <= TimeSpan.Zero) remaining = TimeSpan.FromMinutes(settings.Minutes);
             if (!sessionActive) { sessionStart = DateTime.Now; sessionMinutes = settings.Minutes; sessionActive = true; }
             deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency);
             running = true;
+            lastSeconds = -1;
+            timer.Interval = 100;
             timer.Start();
             overlay.Show();
             Tick(null, EventArgs.Empty);
@@ -621,8 +660,8 @@ internal sealed class AppContext : ApplicationContext
     private void Tick(object sender, EventArgs e)
     {
         if (!running) return;
-        TimeSpan left = ReadRemaining();
-        if (left <= TimeSpan.Zero) {
+        long ticksLeft = deadlineTimestamp - Stopwatch.GetTimestamp();
+        if (ticksLeft <= 0) {
             remaining = TimeSpan.Zero;
             running = false;
             timer.Stop();
@@ -632,17 +671,33 @@ internal sealed class AppContext : ApplicationContext
             Finish();
             return;
         }
-        remaining = left; Display(left);
+        double secLeft = (double)ticksLeft / Stopwatch.Frequency;
+        long totalSecs = Math.Max(0, (long)Math.Ceiling(secLeft));
+        remaining = TimeSpan.FromSeconds(secLeft);
+        if (totalSecs != lastSeconds)
+        {
+            lastSeconds = totalSecs;
+            FormatAndDisplay(totalSecs);
+        }
+        double frac = secLeft - Math.Floor(secLeft);
+        if (frac <= 0.001) frac = 1.0;
+        int nextMs = (int)(frac * 1000) + 15;
+        timer.Interval = Math.Max(80, Math.Min(400, nextMs));
     }
-    private void Display(TimeSpan t)
+    private void FormatAndDisplay(long total)
     {
-        long total = Math.Max(0, (long)Math.Ceiling(t.TotalSeconds));
         long h = total / 3600, m = (total / 60) % 60, s = total % 60;
         string value = settings.Format == "MM:SS" ? (total / 60).ToString("00") + ":" + s.ToString("00") :
             settings.Format == "Chinese" ? (settings.Language == "en" ? h.ToString("00") + "h " + m.ToString("00") + "m " + s.ToString("00") + "s" : h.ToString("00") + "时" + m.ToString("00") + "分" + s.ToString("00") + "秒") : h.ToString("00") + ":" + m.ToString("00") + ":" + s.ToString("00");
         overlay.UpdateText(value);
     }
-    private void ResetDisplay() { remaining = TimeSpan.FromMinutes(settings.Minutes); Display(remaining); }
+    private void Display(TimeSpan t)
+    {
+        long total = Math.Max(0, (long)Math.Ceiling(t.TotalSeconds));
+        lastSeconds = total;
+        FormatAndDisplay(total);
+    }
+    private void ResetDisplay() { remaining = TimeSpan.FromMinutes(settings.Minutes); lastSeconds = -1; Display(remaining); }
     private void Finish()
     {
         overlay.Hide();
@@ -685,7 +740,9 @@ internal sealed class AppContext : ApplicationContext
             }
             settings = d.Value; settings.Save(); overlay.SetSettings(settings); ApplyStartup();
             UpdateMenuText();
+            lastSeconds = -1;
             if (!running && !sessionActive) { ResetDisplay(); overlay.Hide(); }
+            else if (running) { Tick(null, EventArgs.Empty); }
         }
     }
     private bool SetHotkey(int modifiers, int key)
@@ -756,7 +813,7 @@ internal sealed class AppContext : ApplicationContext
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
         if (sessionActive) { LogSession("Interrupted"); sessionActive = false; }
         timer.Stop(); tray.Visible = false; if (hotkeyRegistered) UnregisterHotKey(messageWindow.Handle, HOTKEY_ID);
-        overlay.Close(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); ExitThread();
+        overlay.Close(); overlay.Dispose(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); timer.Dispose(); ExitThread();
     }
     protected override void ExitThreadCore() { base.ExitThreadCore(); }
     public void HandleHotkey() { Toggle(); }

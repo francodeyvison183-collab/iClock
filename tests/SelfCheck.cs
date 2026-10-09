@@ -146,6 +146,25 @@ internal static class TestCheck
             sponsorDialog.Close();
             Console.WriteLine("PASS: SponsorDialog and embedded zan.jpg loaded without border.");
 
+            // 8. Performance check: Overlay cached GDI handles & dynamic timer interval
+            Type overlayType = asm.GetType("Overlay");
+            object cachedFont = overlayType.GetField("cachedFont", bf).GetValue(overlay);
+            object cachedBrush = overlayType.GetField("cachedBrush", bf).GetValue(overlay);
+            object cachedFormat = overlayType.GetField("cachedFormat", bf).GetValue(overlay);
+            if (cachedFont == null || cachedBrush == null || cachedFormat == null)
+            {
+                Console.WriteLine("FAIL: Overlay GDI resources not pre-allocated/cached");
+                return 13;
+            }
+            toggle.Invoke(app, null);
+            Timer appTimer = (Timer)appType.GetField("timer", bf).GetValue(app);
+            if (appTimer.Interval < 80 || appTimer.Interval > 400)
+            {
+                Console.WriteLine("FAIL: Timer interval outside expected [80, 400] range: " + appTimer.Interval);
+                return 14;
+            }
+            Console.WriteLine("PASS: Overlay caches GDI handles and timer uses dynamic heartbeat alignment (" + appTimer.Interval + "ms).");
+
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 
