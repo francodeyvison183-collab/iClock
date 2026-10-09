@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>iClock - 桌面极简悬浮倒计时工具 | 仅 125 KB 原生单文件</title>
-  <meta name="description" content="iClock 是一款 Windows 平台上的极简桌面悬浮倒计时工具。单文件仅 125 KB，零依赖、支持置顶悬浮穿透、全局快捷键、自选色彩与格式，专为高效专注打造。">
-  <meta name="keywords" content="iClock, 倒计时, 桌面倒计时, 悬浮倒计时, 番茄钟, Windows 效率工具, 极简倒计时">
+  <title data-i18n="page_title">iClock - 桌面极简悬浮倒计时工具 | 仅 125 KB 原生单文件</title>
+  <meta name="description" data-i18n-meta="description" content="iClock 是一款 Windows 平台上的极简桌面悬浮倒计时工具。单文件仅 125 KB，零依赖、支持置顶悬浮穿透、全局快捷键、自选色彩与格式，专为高效专注打造。">
+  <meta name="keywords" content="iClock, 倒计时, 桌面倒计时, 悬浮倒计时, 番茄钟, Windows 效率工具, 极简倒计时, countdown timer, desktop timer">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱️</text></svg>">
   <style>
     :root {
@@ -118,7 +118,7 @@
     .nav-links {
       display: flex;
       align-items: center;
-      gap: 28px;
+      gap: 26px;
       list-style: none;
     }
 
@@ -139,11 +139,41 @@
       gap: 12px;
     }
 
+    /* 语言切换胶囊按钮 */
+    .lang-switch-pill {
+      display: inline-flex;
+      align-items: center;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-full);
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .lang-pill-item {
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: var(--radius-full);
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+    }
+
+    .lang-pill-item:hover {
+      color: var(--text-main);
+    }
+
+    .lang-pill-item.active {
+      background: #FFFFFF;
+      color: var(--brand-blue);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
     .btn-github {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 8px 14px;
+      padding: 7px 13px;
       font-size: 13px;
       font-weight: 500;
       color: var(--text-main);
@@ -163,8 +193,8 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 9px 18px;
-      font-size: 14px;
+      padding: 8px 16px;
+      font-size: 13px;
       font-weight: 600;
       color: #FFFFFF;
       background: var(--brand-blue);
@@ -182,7 +212,7 @@
     /* 首屏 Hero */
     .hero {
       position: relative;
-      padding: 80px 0 60px;
+      padding: 76px 0 56px;
       text-align: center;
       overflow: hidden;
       background: radial-gradient(circle at 50% 0%, rgba(28, 114, 190, 0.05) 0%, transparent 60%);
@@ -203,12 +233,12 @@
     }
 
     .hero-title {
-      font-size: clamp(34px, 5vw, 54px);
+      font-size: clamp(32px, 5vw, 52px);
       font-weight: 800;
-      line-height: 1.15;
+      line-height: 1.18;
       letter-spacing: -0.03em;
       color: var(--text-main);
-      max-width: 860px;
+      max-width: 880px;
       margin: 0 auto 20px;
     }
 
@@ -219,10 +249,10 @@
     }
 
     .hero-desc {
-      font-size: 18px;
+      font-size: 17px;
       color: var(--text-muted);
-      max-width: 640px;
-      margin: 0 auto 36px;
+      max-width: 660px;
+      margin: 0 auto 34px;
       font-weight: 400;
       line-height: 1.6;
     }
@@ -281,7 +311,7 @@
 
     /* 交互式虚拟演示区 */
     .hero-preview {
-      margin-top: 52px;
+      margin-top: 50px;
       position: relative;
     }
 
@@ -362,13 +392,12 @@
       overflow: hidden;
     }
 
-    /* 仿真桌面悬浮时钟 */
     .simulated-floating-clock {
       padding: 14px 28px;
-      background: rgba(255, 255, 255, 0.7);
+      background: rgba(255, 255, 255, 0.72);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(226, 232, 240, 0.8);
+      border: 1px solid rgba(226, 232, 240, 0.85);
       border-radius: var(--radius-md);
       box-shadow: 0 10px 25px -5px rgba(28, 114, 190, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.04);
       cursor: grab;
@@ -401,6 +430,8 @@
       display: flex;
       gap: 10px;
       margin-top: 24px;
+      flex-wrap: wrap;
+      justify-content: center;
     }
 
     .sim-btn {
@@ -516,6 +547,7 @@
       color: var(--text-main);
       letter-spacing: -0.02em;
       margin-bottom: 14px;
+      line-height: 1.25;
     }
 
     .section-subtitle {
@@ -714,8 +746,7 @@
       position: relative;
     }
 
-    .download-card.primary-card::before {
-      content: "官方推荐";
+    .card-recommend-badge {
       position: absolute;
       top: -12px;
       background: var(--brand-blue);
@@ -919,10 +950,16 @@
         font-size: 36px;
       }
       .hero-title {
-        font-size: 32px;
+        font-size: 30px;
       }
       .board-screen {
         height: 320px;
+      }
+      .nav-actions {
+        gap: 8px;
+      }
+      .btn-github {
+        display: none;
       }
     }
 
@@ -962,14 +999,20 @@
         <span class="version-tag">v1.0.0</span>
       </a>
       <ul class="nav-links">
-        <li><a href="#features">特性矩阵</a></li>
-        <li><a href="#scenarios">适用场景</a></li>
-        <li><a href="#comparison">硬核对比</a></li>
-        <li><a href="#demo">在线试玩</a></li>
-        <li><a href="#download">下载中心</a></li>
-        <li><a href="#sponsor">赞赏支持</a></li>
+        <li><a href="#features" data-i18n="nav_features">特性矩阵</a></li>
+        <li><a href="#scenarios" data-i18n="nav_scenarios">适用场景</a></li>
+        <li><a href="#comparison" data-i18n="nav_comparison">硬核对比</a></li>
+        <li><a href="#demo" data-i18n="nav_demo">在线试玩</a></li>
+        <li><a href="#download" data-i18n="nav_download">下载中心</a></li>
+        <li><a href="#sponsor" data-i18n="nav_sponsor">赞赏支持</a></li>
       </ul>
       <div class="nav-actions">
+        <!-- 语言切换器 -->
+        <div class="lang-switch-pill" role="radiogroup" aria-label="Language">
+          <button class="lang-pill-item active" id="btnLangZh" onclick="switchLanguage('zh')">中文</button>
+          <button class="lang-pill-item" id="btnLangEn" onclick="switchLanguage('en')">EN</button>
+        </div>
+
         <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank" class="btn-github" title="在 GitHub 查看源代码">
           <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
@@ -982,7 +1025,7 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          <span>免费下载</span>
+          <span data-i18n="nav_btn_download">免费下载</span>
         </a>
       </div>
     </div>
@@ -992,13 +1035,13 @@
   <section class="hero">
     <div class="container">
       <div class="badge-pill">
-        <span>✨ iClock 1.0 绿色正式版现已发布</span>
+        <span data-i18n="hero_pill">✨ iClock 1.0 绿色正式版现已发布</span>
       </div>
-      <h1 class="hero-title">
+      <h1 class="hero-title" data-i18n="hero_title">
         极简、置顶、穿透<br>
         <span>重新定义 Windows 桌面倒计时</span>
       </h1>
-      <p class="hero-desc">
+      <p class="hero-desc" data-i18n="hero_desc">
         拒绝动辄百兆的臃肿软件。iClock 是为心流专注而生的原生悬浮计时利器，体积仅 125 KB，零常驻负担，支持全局热键一键启停。
       </p>
       <div class="hero-buttons">
@@ -1008,20 +1051,20 @@
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          <span>下载 Windows 版 (125 KB)</span>
+          <span data-i18n="hero_btn_dl">下载 Windows 版 (125 KB)</span>
         </a>
         <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank" class="btn-secondary">
           <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
           </svg>
-          <span>GitHub 开源主页</span>
+          <span data-i18n="hero_btn_gh">GitHub 开源主页</span>
         </a>
       </div>
       <div class="hero-caption">
-        <span>🟢 纯绿色免安装</span>
-        <span>⚡ 极速冷启动</span>
-        <span>🛡️ 零遥测隐私侵扰</span>
-        <span>💻 适配 Win 7 / 8 / 10 / 11</span>
+        <span data-i18n="hero_cap_portable">🟢 纯绿色免安装</span>
+        <span data-i18n="hero_cap_fast">⚡ 极速冷启动</span>
+        <span data-i18n="hero_cap_privacy">🛡️ 零遥测隐私侵扰</span>
+        <span data-i18n="hero_cap_compat">💻 适配 Win 7 / 8 / 10 / 11</span>
       </div>
 
       <!-- 仿真交互演示面板 -->
@@ -1033,10 +1076,10 @@
               <span class="board-dot yellow"></span>
               <span class="board-dot green"></span>
             </div>
-            <div class="board-title">iClock 交互体验沙盒</div>
+            <div class="board-title" data-i18n="sandbox_title">iClock 交互体验沙盒</div>
             <div class="board-view-switch">
-              <button class="board-tab active" id="tabInteractive">动态沙盒</button>
-              <button class="board-tab" id="tabScreenshot">软件实图</button>
+              <button class="board-tab active" id="tabInteractive" data-i18n="sandbox_tab_demo">动态沙盒</button>
+              <button class="board-tab" id="tabScreenshot" data-i18n="sandbox_tab_shot">软件实图</button>
             </div>
           </div>
           <div class="board-screen" id="boardScreen">
@@ -1052,7 +1095,7 @@
               <button class="sim-btn" id="simFormatBtn">格式: HH:MM:SS</button>
             </div>
 
-            <div class="sim-tip">💡 提示：在上方可按住时钟自由拖动定位，感受半透明悬浮体验</div>
+            <div class="sim-tip" data-i18n="sandbox_tip">💡 提示：在上方可按住时钟自由拖动定位，感受半透明悬浮体验</div>
 
             <!-- 实物截图模式 -->
             <img src="preview.png" alt="iClock 真实桌面运行效果" class="real-screenshot-view" id="realScreenshot">
@@ -1067,24 +1110,24 @@
     <div class="container">
       <div class="metrics-grid">
         <div class="metric-card">
-          <div class="metric-number">125 <span style="font-size: 20px;">KB</span></div>
-          <div class="metric-title">极致超轻单文件</div>
-          <div class="metric-desc">比一张普通壁纸还小，不产生安装垃圾，解压双击秒开</div>
+          <div class="metric-number">125 <span style="font-size: 20px;" data-i18n="metric_1_sub">KB</span></div>
+          <div class="metric-title" data-i18n="metric_1_title">极致超轻单文件</div>
+          <div class="metric-desc" data-i18n="metric_1_desc">比一张普通壁纸还小，不产生安装垃圾，解压双击秒开</div>
         </div>
         <div class="metric-card">
-          <div class="metric-number">0 <span style="font-size: 20px;">依赖</span></div>
-          <div class="metric-title">原生纯净架构</div>
-          <div class="metric-desc">基于 Windows 系统自带 .NET 运行时，绝非内存黑洞 Electron</div>
+          <div class="metric-number">0 <span style="font-size: 20px;" data-i18n="metric_2_sub">依赖</span></div>
+          <div class="metric-title" data-i18n="metric_2_title">原生纯净架构</div>
+          <div class="metric-desc" data-i18n="metric_2_desc">基于 Windows 系统自带 .NET 运行时，绝非内存黑洞 Electron</div>
         </div>
         <div class="metric-card">
           <div class="metric-number">0.0<span style="font-size: 20px;">%</span></div>
-          <div class="metric-title">动态心跳省电</div>
-          <div class="metric-desc">独创毫秒级心跳对齐算法，静止与运行均极致节能省电</div>
+          <div class="metric-title" data-i18n="metric_3_title">动态心跳省电</div>
+          <div class="metric-desc" data-i18n="metric_3_desc">独创毫秒级心跳对齐算法，静止与运行均极致节能省电</div>
         </div>
         <div class="metric-card">
           <div class="metric-number">100<span style="font-size: 20px;">%</span></div>
-          <div class="metric-title">开源本地安全</div>
-          <div class="metric-desc">完全透明开源，倒计时历史均保存在本地，隐私完全自主</div>
+          <div class="metric-title" data-i18n="metric_4_title">开源本地安全</div>
+          <div class="metric-desc" data-i18n="metric_4_desc">完全透明开源，倒计时历史均保存在本地，隐私完全自主</div>
         </div>
       </div>
     </div>
@@ -1094,46 +1137,46 @@
   <section class="section-features" id="features">
     <div class="container">
       <div class="section-header">
-        <span class="section-tag">Features</span>
-        <h2 class="section-title">专注、优雅、克制，满足对桌面时钟的一切想象</h2>
-        <p class="section-subtitle">每一个像素都经过严苛考量，剔除一切无用噱头，保留最纯粹的工作流体验。</p>
+        <span class="section-tag" data-i18n="feat_tag">Features</span>
+        <h2 class="section-title" data-i18n="feat_title">专注、优雅、克制，满足对桌面时钟的一切想象</h2>
+        <p class="section-subtitle" data-i18n="feat_subtitle">每一个像素都经过严苛考量，剔除一切无用噱头，保留最纯粹的工作流体验。</p>
       </div>
 
       <div class="features-grid">
         <div class="feature-card">
           <div class="feature-icon-box">📌</div>
-          <h3 class="feature-name">悬浮置顶与点击穿透</h3>
-          <p class="feature-detail">支持自由调整文字半透明背景与屏幕坐标。调整完毕后文字纯净浮现，绝不阻挡后方窗口的正常点击操作。</p>
+          <h3 class="feature-name" data-i18n="feat_1_title">悬浮置顶与点击穿透</h3>
+          <p class="feature-detail" data-i18n="feat_1_desc">支持自由调整文字半透明背景与屏幕坐标。调整完毕后文字纯净浮现，绝不阻挡后方窗口的正常点击操作。</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon-box">⌨️</div>
-          <h3 class="feature-name">全局热键无缝启停</h3>
-          <p class="feature-detail">默认快捷键 <kbd style="background:#F1F5F9;padding:2px 6px;border-radius:4px;border:1px solid #CBD5E1;font-size:12px;">Ctrl+Alt+Space</kbd>，无论您在全屏写代码、游戏还是 PPT 演讲，无须切换窗口即可一键启停。</p>
+          <h3 class="feature-name" data-i18n="feat_2_title">全局热键无缝启停</h3>
+          <p class="feature-detail" data-i18n="feat_2_desc">默认快捷键 <kbd style="background:#F1F5F9;padding:2px 6px;border-radius:4px;border:1px solid #CBD5E1;font-size:12px;">Ctrl+Alt+Space</kbd>，无论您在全屏写代码、游戏还是 PPT 演讲，无须切换窗口即可一键启停。</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon-box">🎨</div>
-          <h3 class="feature-name">格式与配色随心定制</h3>
-          <p class="feature-detail">内置 <code>HH:MM:SS</code>、<code>MM:SS</code> 及中文时间单位；支持字体大小平滑调节与系统调色板任意选色，完美融入各类壁纸风格。</p>
+          <h3 class="feature-name" data-i18n="feat_3_title">格式与配色随心定制</h3>
+          <p class="feature-detail" data-i18n="feat_3_desc">内置 <code>HH:MM:SS</code>、<code>MM:SS</code> 及中文时间单位；支持字体大小平滑调节与系统调色板任意选色，完美融入各类壁纸风格。</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon-box">🔔</div>
-          <h3 class="feature-name">强力置顶通知与声音</h3>
-          <p class="feature-detail">倒计时归零时弹出 TopMost 顶层视窗与超时累计秒数，配合提示音效，即使沉浸工作中也绝不错过重要节点。</p>
+          <h3 class="feature-name" data-i18n="feat_4_title">强力置顶通知与声音</h3>
+          <p class="feature-detail" data-i18n="feat_4_desc">倒计时归零时弹出 TopMost 顶层视窗与超时累计秒数，配合提示音效，即使沉浸工作中也绝不错过重要节点。</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon-box">📊</div>
-          <h3 class="feature-name">今日专注记录自动归档</h3>
-          <p class="feature-detail">静默将当天每次倒计时的开始时间、时长与结果（完成/重置/中断）归档至标准 TSV 文本，便于日常个人效能复盘。</p>
+          <h3 class="feature-name" data-i18n="feat_5_title">今日专注记录自动归档</h3>
+          <p class="feature-detail" data-i18n="feat_5_desc">静默将当天每次倒计时的开始时间、时长与结果（完成/重置/中断）归档至标准 TSV 文本，便于日常个人效能复盘。</p>
         </div>
 
         <div class="feature-card">
           <div class="feature-icon-box">🌐</div>
-          <h3 class="feature-name">中英双语与静默更新</h3>
-          <p class="feature-detail">支持简体中文与 English 原生切换。冷启动后台无感探测最新版本，发现新版仅轻量提醒，绝不弹窗强制打扰。</p>
+          <h3 class="feature-name" data-i18n="feat_6_title">中英双语与静默更新</h3>
+          <p class="feature-detail" data-i18n="feat_6_desc">支持简体中文与 English 原生切换。冷启动后台无感探测最新版本，发现新版仅轻量提醒，绝不弹窗强制打扰。</p>
         </div>
       </div>
     </div>
@@ -1143,34 +1186,34 @@
   <section class="section-scenarios" id="scenarios">
     <div class="container">
       <div class="section-header">
-        <span class="section-tag">Scenarios</span>
-        <h2 class="section-title">随时待命，融入您的每一段高产时刻</h2>
-        <p class="section-subtitle">不论是团队汇报还是个人深潜，iClock 都能在角落静默护航。</p>
+        <span class="section-tag" data-i18n="scen_tag">Scenarios</span>
+        <h2 class="section-title" data-i18n="scen_title">随时待命，融入您的每一段高产时刻</h2>
+        <p class="section-subtitle" data-i18n="scen_subtitle">不论是团队汇报还是个人深潜，iClock 都能在角落静默护航。</p>
       </div>
 
       <div class="scenarios-grid">
         <div class="scenario-card">
           <span class="scenario-emoji">🎤</span>
-          <h4 class="scenario-title">演讲与会议控时</h4>
-          <p class="scenario-text">汇报时无感挂在投影或屏幕边角，清晰掌控演讲进度，告别时间超时窘境。</p>
+          <h4 class="scenario-title" data-i18n="scen_1_title">演讲与会议控时</h4>
+          <p class="scenario-text" data-i18n="scen_1_desc">汇报时无感挂在投影或屏幕边角，清晰掌控演讲进度，告别时间超时窘境。</p>
         </div>
 
         <div class="scenario-card">
           <span class="scenario-emoji">🍅</span>
-          <h4 class="scenario-title">番茄钟深度专注</h4>
-          <p class="scenario-text">25 分钟番茄心流冲刺，无需频繁查看手机，抬头即见剩余时间，保持思维不掉线。</p>
+          <h4 class="scenario-title" data-i18n="scen_2_title">番茄钟深度专注</h4>
+          <p class="scenario-text" data-i18n="scen_2_desc">25 分钟番茄心流冲刺，无需频繁查看手机，抬头即见剩余时间，保持思维不掉线。</p>
         </div>
 
         <div class="scenario-card">
           <span class="scenario-emoji">🎮</span>
-          <h4 class="scenario-title">全屏游戏与副本计时</h4>
-          <p class="scenario-text">全局快捷键随时唤醒，监控 Boss 刷新或技能冷却周期，全屏画面穿透不穿帮。</p>
+          <h4 class="scenario-title" data-i18n="scen_3_title">全屏游戏与副本计时</h4>
+          <p class="scenario-text" data-i18n="scen_3_desc">全局快捷键随时唤醒，监控 Boss 刷新或技能冷却周期，全屏画面穿透不穿帮。</p>
         </div>
 
         <div class="scenario-card">
           <span class="scenario-emoji">📈</span>
-          <h4 class="scenario-title">交易看盘与开市倒计</h4>
-          <p class="scenario-text">紧盯盘面波动，分秒必争。醒目置顶在行情走势图上方，精准把控挂单节奏。</p>
+          <h4 class="scenario-title" data-i18n="scen_4_title">交易看盘与开市倒计</h4>
+          <p class="scenario-text" data-i18n="scen_4_desc">紧盯盘面波动，分秒必争。醒目置顶在行情走势图上方，精准把控挂单节奏。</p>
         </div>
       </div>
     </div>
@@ -1180,57 +1223,57 @@
   <section class="section-comparison" id="comparison">
     <div class="container">
       <div class="section-header">
-        <span class="section-tag">Comparison</span>
-        <h2 class="section-title">为什么挑剔的效率控都选择 iClock？</h2>
-        <p class="section-subtitle">看一看真正的原生开发与市面常见方案的代差对比。</p>
+        <span class="section-tag" data-i18n="comp_tag">Comparison</span>
+        <h2 class="section-title" data-i18n="comp_title">为什么挑剔的效率控都选择 iClock？</h2>
+        <p class="section-subtitle" data-i18n="comp_subtitle">看一看真正的原生开发与市面常见方案的代差对比。</p>
       </div>
 
       <div class="comparison-table-wrapper">
         <table class="comparison-table">
           <thead>
             <tr>
-              <th>核心维度</th>
-              <th class="highlight">iClock (本项目)</th>
-              <th>主流 Electron 计时工具</th>
-              <th>网页版在线计时器</th>
-              <th>手机自带倒计时</th>
+              <th data-i18n="comp_col_metric">核心维度</th>
+              <th class="highlight" data-i18n="comp_col_iclock">iClock (本项目)</th>
+              <th data-i18n="comp_col_electron">主流 Electron 计时工具</th>
+              <th data-i18n="comp_col_web">网页版在线计时器</th>
+              <th data-i18n="comp_col_mobile">手机自带倒计时</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><strong>可执行体积</strong></td>
-              <td class="highlight">~125 KB (单文件)</td>
-              <td>120 MB ~ 250 MB</td>
-              <td>每次加载数 MB</td>
-              <td>无法投射至电脑</td>
+              <td><strong data-i18n="comp_r1_name">可执行体积</strong></td>
+              <td class="highlight" data-i18n="comp_r1_iclock">~125 KB (单文件)</td>
+              <td data-i18n="comp_r1_electron">120 MB ~ 250 MB</td>
+              <td data-i18n="comp_r1_web">每次加载数 MB</td>
+              <td data-i18n="comp_r1_mobile">无法投射至电脑</td>
             </tr>
             <tr>
-              <td><strong>内存开销</strong></td>
-              <td class="highlight">< 15 MB 静态占用</td>
-              <td>180 MB ~ 400 MB</td>
-              <td>浏览器额外占内存</td>
-              <td>不占电脑内存</td>
+              <td><strong data-i18n="comp_r2_name">内存开销</strong></td>
+              <td class="highlight" data-i18n="comp_r2_iclock">< 15 MB 静态占用</td>
+              <td data-i18n="comp_r2_electron">180 MB ~ 400 MB</td>
+              <td data-i18n="comp_r2_web">浏览器额外占内存</td>
+              <td data-i18n="comp_r2_mobile">不占电脑内存</td>
             </tr>
             <tr>
-              <td><strong>置顶与穿透</strong></td>
-              <td class="highlight"><span class="badge-check">✔</span> 支持置顶+点击穿透</td>
-              <td>部分支持置顶，穿透繁琐</td>
-              <td><span class="badge-cross">✘</span> 必须维持浏览器前置</td>
-              <td><span class="badge-cross">✘</span> 无法贴合电脑屏幕</td>
+              <td><strong data-i18n="comp_r3_name">置顶与穿透</strong></td>
+              <td class="highlight"><span class="badge-check">✔</span> <span data-i18n="comp_r3_iclock">支持置顶+点击穿透</span></td>
+              <td data-i18n="comp_r3_electron">部分支持置顶，穿透繁琐</td>
+              <td><span class="badge-cross">✘</span> <span data-i18n="comp_r3_web">必须维持浏览器前置</span></td>
+              <td><span class="badge-cross">✘</span> <span data-i18n="comp_r3_mobile">无法贴合电脑屏幕</span></td>
             </tr>
             <tr>
-              <td><strong>全局快捷键</strong></td>
-              <td class="highlight"><span class="badge-check">✔</span> 任意窗口秒级启停</td>
-              <td>部分受限</td>
-              <td><span class="badge-cross">✘</span> 需切换至标签页</td>
-              <td><span class="badge-cross">✘</span> 需手动触碰手机</td>
+              <td><strong data-i18n="comp_r4_name">全局快捷键</strong></td>
+              <td class="highlight"><span class="badge-check">✔</span> <span data-i18n="comp_r4_iclock">任意窗口秒级启停</span></td>
+              <td data-i18n="comp_r4_electron">部分受限</td>
+              <td><span class="badge-cross">✘</span> <span data-i18n="comp_r4_web">需切换至标签页</span></td>
+              <td><span class="badge-cross">✘</span> <span data-i18n="comp_r4_mobile">需手动触碰手机</span></td>
             </tr>
             <tr>
-              <td><strong>纯净度与隐私</strong></td>
-              <td class="highlight"><span class="badge-check">✔</span> 0 广告、无常驻遥测</td>
-              <td>常见开机常驻广告</td>
-              <td>常见网页插播广告</td>
-              <td>易被手机通知打断</td>
+              <td><strong data-i18n="comp_r5_name">纯净度与隐私</strong></td>
+              <td class="highlight"><span class="badge-check">✔</span> <span data-i18n="comp_r5_iclock">0 广告、无常驻遥测</span></td>
+              <td data-i18n="comp_r5_electron">常见开机常驻广告</td>
+              <td data-i18n="comp_r5_web">常见网页插播广告</td>
+              <td data-i18n="comp_r5_mobile">易被手机通知打断</td>
             </tr>
           </tbody>
         </table>
@@ -1242,37 +1285,38 @@
   <section class="section-download" id="download">
     <div class="container">
       <div class="section-header">
-        <span class="section-tag">Get Started</span>
-        <h2 class="section-title">立即下载，开启纯粹专注</h2>
-        <p class="section-subtitle">完全免费、绿色无捆绑。支持 Windows 7 SP1、Windows 8、Windows 10 及 Windows 11。</p>
+        <span class="section-tag" data-i18n="dl_tag">Get Started</span>
+        <h2 class="section-title" data-i18n="dl_title">立即下载，开启纯粹专注</h2>
+        <p class="section-subtitle" data-i18n="dl_subtitle">完全免费、绿色无捆绑。支持 Windows 7 SP1、Windows 8、Windows 10 及 Windows 11。</p>
       </div>
 
       <div class="download-grid">
         <div class="download-card primary-card">
+          <span class="card-recommend-badge" data-i18n="dl_c1_rec">官方推荐</span>
           <div class="dl-icon">⚡</div>
-          <h3 class="dl-name">iClock 单文件绿色版</h3>
-          <p class="dl-meta">v1.0.0 · iClock-1.0.0-windows.exe · 125 KB</p>
+          <h3 class="dl-name" data-i18n="dl_c1_title">iClock 单文件绿色版</h3>
+          <p class="dl-meta" data-i18n="dl_c1_meta">v1.0.0 · iClock-1.0.0-windows.exe · 125 KB</p>
           <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.0.0/iClock-1.0.0-windows.exe" class="dl-btn btn-solid">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
               <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
-            <span>直接下载 .exe (推荐)</span>
+            <span data-i18n="dl_c1_btn">直接下载 .exe (推荐)</span>
           </a>
         </div>
 
         <div class="download-card">
           <div class="dl-icon">📦</div>
-          <h3 class="dl-name">iClock 便携压缩包</h3>
-          <p class="dl-meta">v1.0.0 · iClock-1.0.0-windows.zip · 83 KB</p>
+          <h3 class="dl-name" data-i18n="dl_c2_title">iClock 便携压缩包</h3>
+          <p class="dl-meta" data-i18n="dl_c2_meta">v1.0.0 · iClock-1.0.0-windows.zip · 83 KB</p>
           <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.0.0/iClock-1.0.0-windows.zip" class="dl-btn btn-outline">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
               <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
-            <span>下载便携 .zip 格式</span>
+            <span data-i18n="dl_c2_btn">下载便携 .zip 格式</span>
           </a>
         </div>
       </div>
@@ -1280,16 +1324,16 @@
       <!-- SHA256 校验和卡片 -->
       <div class="checksum-box">
         <div class="checksum-header">
-          <span>🔒 文件完整性 SHA-256 校验和</span>
-          <span style="font-size:12px;color:var(--text-light);">可保障下载文件未被篡改</span>
+          <span data-i18n="dl_chk_title">🔒 文件完整性 SHA-256 校验和</span>
+          <span style="font-size:12px;color:var(--text-light);" data-i18n="dl_chk_desc">可保障下载文件未被篡改</span>
         </div>
         <div class="checksum-row">
           <span>iClock-1.0.0-windows.exe: <strong>be6d340a717324380d85ff2e7583188d5e288b9c2e2fc2015306dcfc1739e1b7</strong></span>
-          <button class="copy-btn" onclick="copyText('be6d340a717324380d85ff2e7583188d5e288b9c2e2fc2015306dcfc1739e1b7')">复制</button>
+          <button class="copy-btn" onclick="copyText('be6d340a717324380d85ff2e7583188d5e288b9c2e2fc2015306dcfc1739e1b7')" data-i18n="dl_btn_copy">复制</button>
         </div>
         <div class="checksum-row">
           <span>iClock-1.0.0-windows.zip: <strong>75fd8587d293757a81112b6f96390b461f8d724aa7765f5d7ddc3d793600cfe0</strong></span>
-          <button class="copy-btn" onclick="copyText('75fd8587d293757a81112b6f96390b461f8d724aa7765f5d7ddc3d793600cfe0')">复制</button>
+          <button class="copy-btn" onclick="copyText('75fd8587d293757a81112b6f96390b461f8d724aa7765f5d7ddc3d793600cfe0')" data-i18n="dl_btn_copy">复制</button>
         </div>
       </div>
     </div>
@@ -1299,15 +1343,15 @@
   <section class="section-sponsor" id="sponsor">
     <div class="container">
       <div class="section-header" style="margin-bottom: 30px;">
-        <span class="section-tag">Community & Sponsor</span>
-        <h2 class="section-title">开源精神，致谢支持</h2>
-        <p class="section-subtitle">iClock 是一款完全自由开源的项目。如果它切实提高了您的日常效率，欢迎赞赏支持作者持续迭代！</p>
+        <span class="section-tag" data-i18n="spons_tag">Community & Sponsor</span>
+        <h2 class="section-title" data-i18n="spons_title">开源精神，致谢支持</h2>
+        <p class="section-subtitle" data-i18n="spons_subtitle">iClock 是一款完全自由开源的项目。如果它切实提高了您的日常效率，欢迎赞赏支持作者持续迭代！</p>
       </div>
 
       <div class="sponsor-card">
-        <h4 style="font-size: 16px; font-weight: 700; color: var(--text-main);">微信扫一扫 赞赏支持</h4>
+        <h4 style="font-size: 16px; font-weight: 700; color: var(--text-main);" data-i18n="spons_box_title">微信扫一扫 赞赏支持</h4>
         <img src="zan.jpg" alt="iClock 微信赞赏码" class="sponsor-qr-img">
-        <p class="sponsor-caption">“谢谢使用，恭喜发财！” · 每一份鼓励都是持续打磨的动力</p>
+        <p class="sponsor-caption" data-i18n="spons_caption">“谢谢使用，恭喜发财！” · 每一份鼓励都是持续打磨的动力</p>
       </div>
     </div>
   </section>
@@ -1316,13 +1360,13 @@
   <footer class="footer">
     <div class="container footer-inner">
       <div>
-        <p>© 2026 iClock Project. 采用 MIT 开源协议。</p>
+        <p data-i18n="footer_copy">© 2026 iClock Project. 采用 MIT 开源协议。</p>
       </div>
       <div class="footer-links">
-        <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank">GitHub 仓库</a>
-        <a href="https://github.com/francodeyvison183-collab/iClock/issues" target="_blank">提交反馈 / Issue</a>
-        <a href="https://github.com/francodeyvison183-collab/iClock/releases" target="_blank">历史版本</a>
-        <a href="#">返回顶部 ↑</a>
+        <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank" data-i18n="footer_repo">GitHub 仓库</a>
+        <a href="https://github.com/francodeyvison183-collab/iClock/issues" target="_blank" data-i18n="footer_issues">提交反馈 / Issue</a>
+        <a href="https://github.com/francodeyvison183-collab/iClock/releases" target="_blank" data-i18n="footer_releases">历史版本</a>
+        <a href="#" data-i18n="footer_top">返回顶部 ↑</a>
       </div>
     </div>
   </footer>
@@ -1331,12 +1375,330 @@
   <div class="toast" id="toast">已成功复制到剪贴板</div>
 
   <script>
+    // 国际化文案字典
+    const i18n = {
+      zh: {
+        page_title: "iClock - 桌面极简悬浮倒计时工具 | 仅 125 KB 原生单文件",
+        page_desc: "iClock 是一款 Windows 平台上的极简桌面悬浮倒计时工具。单文件仅 125 KB，零依赖、支持置顶悬浮穿透、全局快捷键、自选色彩与格式，专为高效专注打造。",
+        nav_features: "特性矩阵",
+        nav_scenarios: "适用场景",
+        nav_comparison: "硬核对比",
+        nav_demo: "在线试玩",
+        nav_download: "下载中心",
+        nav_sponsor: "赞赏支持",
+        nav_btn_download: "免费下载",
+
+        hero_pill: "✨ iClock 1.0 绿色正式版现已发布",
+        hero_title: "极简、置顶、穿透<br><span>重新定义 Windows 桌面倒计时</span>",
+        hero_desc: "拒绝动辄百兆的臃肿软件。iClock 是为心流专注而生的原生悬浮计时利器，体积仅 125 KB，零常驻负担，支持全局热键一键启停。",
+        hero_btn_dl: "下载 Windows 版 (125 KB)",
+        hero_btn_gh: "GitHub 开源主页",
+        hero_cap_portable: "🟢 纯绿色免安装",
+        hero_cap_fast: "⚡ 极速冷启动",
+        hero_cap_privacy: "🛡️ 零遥测隐私侵扰",
+        hero_cap_compat: "💻 适配 Win 7 / 8 / 10 / 11",
+
+        sandbox_title: "iClock 交互体验沙盒",
+        sandbox_tab_demo: "动态沙盒",
+        sandbox_tab_shot: "软件实图",
+        sandbox_tip: "💡 提示：在上方可按住时钟自由拖动定位，感受半透明悬浮体验",
+
+        metric_1_sub: "KB",
+        metric_1_title: "极致超轻单文件",
+        metric_1_desc: "比一张普通壁纸还小，不产生安装垃圾，解压双击秒开",
+        metric_2_sub: "依赖",
+        metric_2_title: "原生纯净架构",
+        metric_2_desc: "基于 Windows 系统自带 .NET 运行时，绝非内存黑洞 Electron",
+        metric_3_title: "动态心跳省电",
+        metric_3_desc: "独创毫秒级心跳对齐算法，静止与运行均极致节能省电",
+        metric_4_title: "开源本地安全",
+        metric_4_desc: "完全透明开源，倒计时历史均保存在本地，隐私完全自主",
+
+        feat_tag: "Features",
+        feat_title: "专注、优雅、克制，满足对桌面时钟的一切想象",
+        feat_subtitle: "每一个像素都经过严苛考量，剔除一切无用噱头，保留最纯粹的工作流体验。",
+        feat_1_title: "悬浮置顶与点击穿透",
+        feat_1_desc: "支持自由调整文字半透明背景与屏幕坐标。调整完毕后文字纯净浮现，绝不阻挡后方窗口的正常点击操作。",
+        feat_2_title: "全局热键无缝启停",
+        feat_2_desc: "默认快捷键 <kbd style=\"background:#F1F5F9;padding:2px 6px;border-radius:4px;border:1px solid #CBD5E1;font-size:12px;\">Ctrl+Alt+Space</kbd>，无论您在全屏写代码、游戏还是 PPT 演讲，无须切换窗口即可一键启停。",
+        feat_3_title: "格式与配色随心定制",
+        feat_3_desc: "内置 <code>HH:MM:SS</code>、<code>MM:SS</code> 及中文时间单位；支持字体大小平滑调节与系统调色板任意选色，完美融入各类壁纸风格。",
+        feat_4_title: "强力置顶通知与声音",
+        feat_4_desc: "倒计时归零时弹出 TopMost 顶层视窗与超时累计秒数，配合提示音效，即使沉浸工作中也绝不错过重要节点。",
+        feat_5_title: "今日专注记录自动归档",
+        feat_5_desc: "静默将当天每次倒计时的开始时间、时长与结果（完成/重置/中断）归档至标准 TSV 文本，便于日常个人效能复盘。",
+        feat_6_title: "中英双语与静默更新",
+        feat_6_desc: "支持简体中文与 English 原生切换。冷启动后台无感探测最新版本，发现新版仅轻量提醒，绝不弹窗强制打扰。",
+
+        scen_tag: "Scenarios",
+        scen_title: "随时待命，融入您的每一段高产时刻",
+        scen_subtitle: "不论是团队汇报还是个人深潜，iClock 都能在角落静默护航。",
+        scen_1_title: "演讲与会议控时",
+        scen_1_desc: "汇报时无感挂在投影或屏幕边角，清晰掌控演讲进度，告别时间超时窘境。",
+        scen_2_title: "番茄钟深度专注",
+        scen_2_desc: "25 分钟番茄心流冲刺，无需频繁查看手机，抬头即见剩余时间，保持思维不掉线。",
+        scen_3_title: "全屏游戏与副本计时",
+        scen_3_desc: "全局快捷键随时唤醒，监控 Boss 刷新或技能冷却周期，全屏画面穿透不穿帮。",
+        scen_4_title: "交易看盘与开市倒计",
+        scen_4_desc: "紧盯盘面波动，分秒必争。醒目置顶在行情走势图上方，精准把控挂单节奏。",
+
+        comp_tag: "Comparison",
+        comp_title: "为什么挑剔的效率控都选择 iClock？",
+        comp_subtitle: "看一看真正的原生开发与市面常见方案的代差对比。",
+        comp_col_metric: "核心维度",
+        comp_col_iclock: "iClock (本项目)",
+        comp_col_electron: "主流 Electron 计时工具",
+        comp_col_web: "网页版在线计时器",
+        comp_col_mobile: "手机自带倒计时",
+        comp_r1_name: "可执行体积",
+        comp_r1_iclock: "~125 KB (单文件)",
+        comp_r1_electron: "120 MB ~ 250 MB",
+        comp_r1_web: "每次加载数 MB",
+        comp_r1_mobile: "无法投射至电脑",
+        comp_r2_name: "内存开销",
+        comp_r2_iclock: "< 15 MB 静态占用",
+        comp_r2_electron: "180 MB ~ 400 MB",
+        comp_r2_web: "浏览器额外占内存",
+        comp_r2_mobile: "不占电脑内存",
+        comp_r3_name: "置顶与穿透",
+        comp_r3_iclock: "支持置顶+点击穿透",
+        comp_r3_electron: "部分支持置顶，穿透繁琐",
+        comp_r3_web: "必须维持浏览器前置",
+        comp_r3_mobile: "无法贴合电脑屏幕",
+        comp_r4_name: "全局快捷键",
+        comp_r4_iclock: "任意窗口秒级启停",
+        comp_r4_electron: "部分受限",
+        comp_r4_web: "需切换至标签页",
+        comp_r4_mobile: "需手动触碰手机",
+        comp_r5_name: "纯净度与隐私",
+        comp_r5_iclock: "0 广告、无常驻遥测",
+        comp_r5_electron: "常见开机常驻广告",
+        comp_r5_web: "常见网页插播广告",
+        comp_r5_mobile: "易被手机通知打断",
+
+        dl_tag: "Get Started",
+        dl_title: "立即下载，开启纯粹专注",
+        dl_subtitle: "完全免费、绿色无捆绑。支持 Windows 7 SP1、Windows 8、Windows 10 及 Windows 11。",
+        dl_c1_rec: "官方推荐",
+        dl_c1_title: "iClock 单文件绿色版",
+        dl_c1_meta: "v1.0.0 · iClock-1.0.0-windows.exe · 125 KB",
+        dl_c1_btn: "直接下载 .exe (推荐)",
+        dl_c2_title: "iClock 便携压缩包",
+        dl_c2_meta: "v1.0.0 · iClock-1.0.0-windows.zip · 83 KB",
+        dl_c2_btn: "下载便携 .zip 格式",
+        dl_chk_title: "🔒 文件完整性 SHA-256 校验和",
+        dl_chk_desc: "可保障下载文件未被篡改",
+        dl_btn_copy: "复制",
+        toast_copied: "已成功复制到剪贴板",
+
+        spons_tag: "Community & Sponsor",
+        spons_title: "开源精神，致谢支持",
+        spons_subtitle: "iClock 是一款完全自由开源的项目。如果它切实提高了您的日常效率，欢迎赞赏支持作者持续迭代！",
+        spons_box_title: "微信扫一扫 赞赏支持",
+        spons_caption: "“谢谢使用，恭喜发财！” · 每一份鼓励都是持续打磨的动力",
+
+        footer_copy: "© 2026 iClock Project. 采用 MIT 开源协议。",
+        footer_repo: "GitHub 仓库",
+        footer_issues: "提交反馈 / Issue",
+        footer_releases: "历史版本",
+        footer_top: "返回顶部 ↑",
+
+        // 仿真器动态文案
+        sim_status_idle: "按 Ctrl+Alt+Space 或下方按钮启停",
+        sim_status_running: "倒计时进行中...",
+        sim_status_paused: "倒计时已暂停",
+        sim_status_finished: "🎉 倒计时结束！",
+        sim_status_reset: "已重置为 25 分钟",
+        sim_btn_start: "▶ 开始倒计时",
+        sim_btn_pause: "⏸ 暂停倒计时",
+        sim_btn_resume: "▶ 继续倒计时",
+        sim_btn_reset: "↺ 重置",
+        sim_format_prefix: "格式: ",
+        sim_formats: ['HH:MM:SS', 'MM:SS', '中文单位'],
+        sim_alert_end: "iClock 提醒：倒计时已结束！"
+      },
+      en: {
+        page_title: "iClock - Minimalist Floating Countdown Timer | 125 KB Standalone Portable",
+        page_desc: "iClock is an ultra-lightweight desktop floating countdown timer for Windows. 125 KB standalone executable, zero dependencies, click-through overlay, global hotkey, customizable colors & formats.",
+        nav_features: "Features",
+        nav_scenarios: "Scenarios",
+        nav_comparison: "Comparison",
+        nav_demo: "Demo",
+        nav_download: "Download",
+        nav_sponsor: "Sponsor",
+        nav_btn_download: "Download",
+
+        hero_pill: "✨ iClock 1.0 Stable Release Now Available",
+        hero_title: "Minimal, Floating & Click-Through<br><span>Redefining Desktop Countdown</span>",
+        hero_desc: "Reject bloated 100MB+ Electron tools. iClock is a native floating countdown tool crafted for deep focus, with only 125 KB footprint, zero background load, and global hotkeys.",
+        hero_btn_dl: "Download for Windows (125 KB)",
+        hero_btn_gh: "GitHub Repository",
+        hero_cap_portable: "🟢 100% Portable",
+        hero_cap_fast: "⚡ Instant Startup",
+        hero_cap_privacy: "🛡️ Zero Telemetry",
+        hero_cap_compat: "💻 Win 7 / 8 / 10 / 11",
+
+        sandbox_title: "iClock Interactive Sandbox",
+        sandbox_tab_demo: "Live Sandbox",
+        sandbox_tab_shot: "Screenshots",
+        sandbox_tip: "💡 Tip: Click and drag the clock above to experience translucent floating positioning",
+
+        metric_1_sub: "KB",
+        metric_1_title: "Ultra-Light Single File",
+        metric_1_desc: "Smaller than a wallpaper. Zero installation bloat, instant click-to-run.",
+        metric_2_sub: "Deps",
+        metric_2_title: "Native Architecture",
+        metric_2_desc: "Built with Windows native .NET runtime. Definitely NOT an Electron RAM hog.",
+        metric_3_title: "Heartbeat Efficiency",
+        metric_3_desc: "Smart millisecond heartbeat alignment. Maximizes energy efficiency idle or running.",
+        metric_4_title: "Local & Privacy-First",
+        metric_4_desc: "100% transparent and open-source. Countdown history is saved strictly locally.",
+
+        feat_tag: "Features",
+        feat_title: "Focused, Elegant & Restrained — Everything for Deep Flow",
+        feat_subtitle: "Every pixel is carefully crafted to eliminate distractions and preserve your pure productivity workflow.",
+        feat_1_title: "TopMost Floating & Click-Through",
+        feat_1_desc: "Freely adjust screen position with translucent drag overlay. Once locked, text floats cleanly and clicks pass right through to windows below.",
+        feat_2_title: "Global Hotkey Instant Trigger",
+        feat_2_desc: "Default hotkey <kbd style=\"background:#F1F5F9;padding:2px 6px;border-radius:4px;border:1px solid #CBD5E1;font-size:12px;\">Ctrl+Alt+Space</kbd> starts or pauses anytime, whether in full-screen IDEs, games, or slides.",
+        feat_3_title: "Custom Formats & Colors",
+        feat_3_desc: "Supports <code>HH:MM:SS</code>, <code>MM:SS</code>, and localized time units. Fluid font size adjustments and full RGB color picker.",
+        feat_4_title: "TopMost Alert & Sound Reminder",
+        feat_4_desc: "A TopMost dialog pops up when time is up displaying overrun seconds, paired with sound alerts so you never miss a deadline.",
+        feat_5_title: "Automatic Daily Focus Logs",
+        feat_5_desc: "Silently logs every session's start time, duration, and status (Completed/Reset/Interrupted) into local TSV files for daily review.",
+        feat_6_title: "Bilingual & Silent Auto-Update",
+        feat_6_desc: "Seamless switching between Simplified Chinese and English. Background check detects updates without disruptive popups.",
+
+        scen_tag: "Scenarios",
+        scen_title: "Always on Standby for Every Productive Flow",
+        scen_subtitle: "Whether presenting to an audience or solo in the zone, iClock silently guards your time.",
+        scen_1_title: "Presentations & Meetings",
+        scen_1_desc: "Float discreetly in the corner of your slide deck or presentation, keeping speaking rhythm on track without anxiety.",
+        scen_2_title: "Pomodoro Deep Focus",
+        scen_2_desc: "25-minute Pomodoro sprints. No need to check your phone—a quick glance keeps you in deep flow.",
+        scen_3_title: "Fullscreen Gaming & Cooldowns",
+        scen_3_desc: "Trigger with global hotkeys anytime to monitor boss spawns or ability cooldowns without minimizing games.",
+        scen_4_title: "Market Trading & Market Clocks",
+        scen_4_desc: "Watch market charts with split-second precision. Pin directly above price charts to catch every trading window.",
+
+        comp_tag: "Comparison",
+        comp_title: "Why Power Users Choose iClock",
+        comp_subtitle: "A side-by-side comparison between native engineering and typical bloatware.",
+        comp_col_metric: "Core Metric",
+        comp_col_iclock: "iClock (This Project)",
+        comp_col_electron: "Typical Electron Timers",
+        comp_col_web: "Online Web Timers",
+        comp_col_mobile: "Mobile Phone Timers",
+        comp_r1_name: "Binary Size",
+        comp_r1_iclock: "~125 KB (Single file)",
+        comp_r1_electron: "120 MB ~ 250 MB",
+        comp_r1_web: "Several MBs per visit",
+        comp_r1_mobile: "Cannot pin on PC",
+        comp_r2_name: "RAM Usage",
+        comp_r2_iclock: "< 15 MB static footprint",
+        comp_r2_electron: "180 MB ~ 400 MB",
+        comp_r2_web: "Extra browser tab RAM",
+        comp_r2_mobile: "No PC RAM used",
+        comp_r3_name: "TopMost & Click-Through",
+        comp_r3_iclock: "TopMost + Click-through",
+        comp_r3_electron: "Partial TopMost, cumbersome",
+        comp_r3_web: "Must keep browser focused",
+        comp_r3_mobile: "Cannot stick on PC monitor",
+        comp_r4_name: "Global Hotkey",
+        comp_r4_iclock: "Instant trigger anywhere",
+        comp_r4_electron: "Limited",
+        comp_r4_web: "Must switch to browser tab",
+        comp_r4_mobile: "Must pick up phone",
+        comp_r5_name: "Purity & Privacy",
+        comp_r5_iclock: "0 Ads, Zero telemetry",
+        comp_r5_electron: "Frequent startup ads",
+        comp_r5_web: "Web banners & trackers",
+        comp_r5_mobile: "Easily distracted by notifications",
+
+        dl_tag: "Get Started",
+        dl_title: "Download Now & Start Focusing",
+        dl_subtitle: "Completely free, green, and unbundled. Supports Windows 7 SP1, Windows 8, Windows 10, and Windows 11.",
+        dl_c1_rec: "Recommended",
+        dl_c1_title: "iClock Standalone Portable",
+        dl_c1_meta: "v1.0.0 · iClock-1.0.0-windows.exe · 125 KB",
+        dl_c1_btn: "Download .exe (Recommended)",
+        dl_c2_title: "iClock Portable Archive",
+        dl_c2_meta: "v1.0.0 · iClock-1.0.0-windows.zip · 83 KB",
+        dl_c2_btn: "Download Portable .zip",
+        dl_chk_title: "🔒 File Integrity SHA-256 Checksums",
+        dl_chk_desc: "Guarantees downloaded files are genuine and untampered.",
+        dl_btn_copy: "Copy",
+        toast_copied: "Copied to clipboard successfully",
+
+        spons_tag: "Community & Sponsor",
+        spons_title: "Open Source & Appreciation",
+        spons_subtitle: "iClock is 100% free and open-source. If it improves your productivity, support from you is deeply appreciated!",
+        spons_box_title: "WeChat Pay Sponsor QR Code",
+        spons_caption: "“Thank you for using iClock!” · Every bit of encouragement fuels continuous craftsmanship",
+
+        footer_copy: "© 2026 iClock Project. Released under the MIT License.",
+        footer_repo: "GitHub Repository",
+        footer_issues: "Issues / Feedback",
+        footer_releases: "Release History",
+        footer_top: "Back to Top ↑",
+
+        // 仿真器动态文案
+        sim_status_idle: "Press Ctrl+Alt+Space or click below to start/pause",
+        sim_status_running: "Countdown in progress...",
+        sim_status_paused: "Countdown paused",
+        sim_status_finished: "🎉 Countdown Finished!",
+        sim_status_reset: "Reset to 25 minutes",
+        sim_btn_start: "▶ Start Countdown",
+        sim_btn_pause: "⏸ Pause Countdown",
+        sim_btn_resume: "▶ Resume Countdown",
+        sim_btn_reset: "↺ Reset",
+        sim_format_prefix: "Format: ",
+        sim_formats: ['HH:MM:SS', 'MM:SS', 'Units (h/m/s)'],
+        sim_alert_end: "iClock Notification: Countdown Finished!"
+      }
+    };
+
+    let currentLang = 'zh';
+
+    function getInitialLang() {
+      const saved = localStorage.getItem('iclock_lang');
+      if (saved === 'zh' || saved === 'en') return saved;
+      return (navigator.language && navigator.language.toLowerCase().startsWith('zh')) ? 'zh' : 'en';
+    }
+
+    function switchLanguage(lang) {
+      if (!i18n[lang]) return;
+      currentLang = lang;
+      localStorage.setItem('iclock_lang', lang);
+      document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+      // 切换按钮高亮
+      document.getElementById('btnLangZh').classList.toggle('active', lang === 'zh');
+      document.getElementById('btnLangEn').classList.toggle('active', lang === 'en');
+
+      // 更新网页标题与描述
+      document.title = i18n[lang].page_title;
+      const metaDesc = document.querySelector('meta[name="description"]');
+      if (metaDesc) metaDesc.setAttribute('content', i18n[lang].page_desc);
+
+      // 更新所有带 data-i18n 的元素
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[lang][key]) {
+          el.innerHTML = i18n[lang][key];
+        }
+      });
+
+      // 同步仿真器状态文案
+      updateSimLanguage();
+    }
+
     // 交互式沙盒倒计时逻辑
     let totalSeconds = 25 * 60;
     let remaining = totalSeconds;
     let timerId = null;
-    let currentFormatIndex = 0; // 0: HH:MM:SS, 1: MM:SS, 2: Chinese
-    const formats = ['HH:MM:SS', 'MM:SS', '中文单位'];
+    let currentFormatIndex = 0; // 0: HH:MM:SS, 1: MM:SS, 2: Chinese / units
 
     const digitsEl = document.getElementById('simDigits');
     const statusEl = document.getElementById('simStatus');
@@ -1355,7 +1717,7 @@
       if (currentFormatIndex === 1) {
         return `${pad(Math.floor(secs / 60))}:${pad(s)}`;
       } else if (currentFormatIndex === 2) {
-        return `${pad(h)}时${pad(m)}分${pad(s)}秒`;
+        return currentLang === 'zh' ? `${pad(h)}时${pad(m)}分${pad(s)}秒` : `${pad(h)}h ${pad(m)}m ${pad(s)}s`;
       }
       return `${pad(h)}:${pad(m)}:${pad(s)}`;
     }
@@ -1364,10 +1726,30 @@
       digitsEl.textContent = formatTime(remaining);
     }
 
+    function updateSimLanguage() {
+      const texts = i18n[currentLang];
+      const formats = texts.sim_formats;
+      formatBtn.textContent = `${texts.sim_format_prefix}${formats[currentFormatIndex]}`;
+      resetBtn.textContent = texts.sim_btn_reset;
+
+      if (timerId) {
+        statusEl.textContent = texts.sim_status_running;
+        toggleBtn.textContent = texts.sim_btn_pause;
+      } else if (remaining === totalSeconds) {
+        statusEl.textContent = texts.sim_status_idle;
+        toggleBtn.textContent = texts.sim_btn_start;
+      } else {
+        statusEl.textContent = texts.sim_status_paused;
+        toggleBtn.textContent = texts.sim_btn_resume;
+      }
+      updateDisplay();
+    }
+
     function startTimer() {
       if (timerId) return;
-      statusEl.textContent = '倒计时进行中...';
-      toggleBtn.textContent = '⏸ 暂停倒计时';
+      const texts = i18n[currentLang];
+      statusEl.textContent = texts.sim_status_running;
+      toggleBtn.textContent = texts.sim_btn_pause;
       toggleBtn.style.background = '#EF4444';
       toggleBtn.style.borderColor = '#EF4444';
 
@@ -1377,8 +1759,8 @@
           updateDisplay();
         } else {
           stopTimer();
-          statusEl.textContent = '🎉 倒计时结束！';
-          alert('iClock 提醒：倒计时已结束！');
+          statusEl.textContent = texts.sim_status_finished;
+          alert(texts.sim_alert_end);
           remaining = totalSeconds;
           updateDisplay();
         }
@@ -1389,8 +1771,9 @@
       if (!timerId) return;
       clearInterval(timerId);
       timerId = null;
-      statusEl.textContent = '倒计时已暂停';
-      toggleBtn.textContent = '▶ 继续倒计时';
+      const texts = i18n[currentLang];
+      statusEl.textContent = texts.sim_status_paused;
+      toggleBtn.textContent = texts.sim_btn_resume;
       toggleBtn.style.background = 'var(--brand-blue)';
       toggleBtn.style.borderColor = 'var(--brand-blue)';
     }
@@ -1406,16 +1789,18 @@
     resetBtn.addEventListener('click', () => {
       stopTimer();
       remaining = totalSeconds;
-      statusEl.textContent = '已重置为 25 分钟';
-      toggleBtn.textContent = '▶ 开始倒计时';
+      const texts = i18n[currentLang];
+      statusEl.textContent = texts.sim_status_reset;
+      toggleBtn.textContent = texts.sim_btn_start;
       toggleBtn.style.background = 'var(--brand-blue)';
       toggleBtn.style.borderColor = 'var(--brand-blue)';
       updateDisplay();
     });
 
     formatBtn.addEventListener('click', () => {
+      const formats = i18n[currentLang].sim_formats;
       currentFormatIndex = (currentFormatIndex + 1) % formats.length;
-      formatBtn.textContent = `格式: ${formats[currentFormatIndex]}`;
+      formatBtn.textContent = `${i18n[currentLang].sim_format_prefix}${formats[currentFormatIndex]}`;
       updateDisplay();
     });
 
@@ -1503,11 +1888,18 @@
 
     function showToast() {
       const toast = document.getElementById('toast');
+      toast.textContent = i18n[currentLang].toast_copied;
       toast.classList.add('show');
       setTimeout(() => {
         toast.classList.remove('show');
       }, 2000);
     }
+
+    // 初始化语言
+    window.addEventListener('DOMContentLoaded', () => {
+      const initLang = getInitialLang();
+      switchLanguage(initLang);
+    });
   </script>
 </body>
 </html>
