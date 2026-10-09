@@ -68,7 +68,7 @@
 ## 🚀 快速上手
 
 ### 1. 下载即用
-1. 前往 [GitHub Releases](../../releases/latest) 下载 `iClock-1.0.0-windows.zip`。
+1. 前往 [GitHub Releases](../../releases/latest) 下载 `iClock-1.01-windows.zip`。
 2. 解压得到单个 `iClock.exe`，双击即可运行（无任何安装过程）。
 3. 默认情况下，启动后倒计时处于待命状态（屏幕不显示文字）。
 

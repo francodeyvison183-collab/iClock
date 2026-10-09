@@ -2,6 +2,13 @@
 
 This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY-MM-DD`).
 
+## [1.01] - 2026-10-09
+
+### Changed
+
+- Changed default countdown font size to 20 px for a cleaner desktop overlay.
+- Changed default countdown text color to Red (`#FF0000`).
+
 ## [1.0.0] - 2026-10-09
 
 ### Added

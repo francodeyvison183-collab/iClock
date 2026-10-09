@@ -68,7 +68,7 @@ Most timer and Pomodoro applications on Windows are bloated **100MB+** Electron 
 ## 🚀 Quick Start
 
 ### 1. Download and Run
-1. Go to [GitHub Releases](../../releases/latest) and download `iClock-1.0.0-windows.zip`.
+1. Go to [GitHub Releases](../../releases/latest) and download `iClock-1.01-windows.zip`.
 2. Extract the single `iClock.exe` and double-click to launch (no installer needed).
 3. The overlay stays hidden until you start a countdown.
 
