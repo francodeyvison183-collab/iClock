@@ -21,7 +21,7 @@
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-<img src="docs/preview.svg" alt="iClock Preview" width="860" />
+<img src="docs/preview.png" alt="iClock Preview" width="860" />
 
 </div>
 
