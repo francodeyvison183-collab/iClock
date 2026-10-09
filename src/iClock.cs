@@ -292,7 +292,7 @@ internal sealed class AppContext : ApplicationContext
     private Settings settings;
     private Overlay overlay;
     private NotifyIcon tray;
-    private ToolStripMenuItem menuStart, menuReset, menuMove, menuSettings, menuHistory, menuLanguage, menuLanguageChinese, menuLanguageEnglish, menuVisible, menuExit;
+    private ToolStripMenuItem menuStart, menuReset, menuMove, menuSettings, menuHistory, menuLanguage, menuLanguageChinese, menuLanguageEnglish, menuExit;
     private Timer timer;
     private TimeSpan remaining;
     private long deadlineTimestamp;
@@ -302,6 +302,7 @@ internal sealed class AppContext : ApplicationContext
     private bool running;
     private bool hotkeyRegistered;
     private int activeHotkeyModifiers, activeHotkeyKey;
+    private int noticeActive;
     private MessageWindow messageWindow;
     private string exePath = Application.ExecutablePath;
     private Icon appIcon;
@@ -311,7 +312,6 @@ internal sealed class AppContext : ApplicationContext
         settings = Settings.Load();
         appIcon = CreateIcon();
         overlay = new Overlay(settings); overlay.PositionChanged += delegate(Point p) { settings.X = p.X; settings.Y = p.Y; settings.Save(); };
-        overlay.Show();
         messageWindow = new MessageWindow(this);
         activeHotkeyModifiers = 3; activeHotkeyKey = (int)Keys.Space;
         if (!SetHotkey(settings.HotkeyModifiers, settings.HotkeyKey))
@@ -326,10 +326,9 @@ internal sealed class AppContext : ApplicationContext
 
     private ContextMenuStrip MakeMenu()
     {
-        bool en = settings.Language == "en";
         ContextMenuStrip m = new ContextMenuStrip();
         menuStart = new ToolStripMenuItem(); menuStart.Click += delegate { Toggle(); };
-        menuReset = new ToolStripMenuItem(); menuReset.Click += delegate { running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); };
+        menuReset = new ToolStripMenuItem(); menuReset.Click += delegate { running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.Hide(); };
         menuMove = new ToolStripMenuItem(); menuMove.Click += delegate { ToggleMove(); };
         menuSettings = new ToolStripMenuItem(); menuSettings.Click += delegate { ShowSettings(); };
         menuHistory = new ToolStripMenuItem(); menuHistory.Click += delegate { ShowHistory(); };
@@ -337,10 +336,9 @@ internal sealed class AppContext : ApplicationContext
         menuLanguageChinese = new ToolStripMenuItem("简体中文"); menuLanguageChinese.Click += delegate { SelectLanguage("zh"); };
         menuLanguageEnglish = new ToolStripMenuItem("English"); menuLanguageEnglish.Click += delegate { SelectLanguage("en"); };
         menuLanguage.DropDownItems.Add(menuLanguageChinese); menuLanguage.DropDownItems.Add(menuLanguageEnglish);
-        menuVisible = new ToolStripMenuItem(); menuVisible.Click += delegate { overlay.Visible = !overlay.Visible; };
         menuExit = new ToolStripMenuItem(); menuExit.Click += delegate { Exit(); };
         m.Items.Add(menuStart); m.Items.Add(menuReset); m.Items.Add(menuMove); m.Items.Add(menuSettings);
-        m.Items.Add(menuHistory); m.Items.Add(menuLanguage); m.Items.Add(menuVisible);
+        m.Items.Add(menuHistory); m.Items.Add(menuLanguage);
         m.Items.Add(new ToolStripSeparator());
         m.Items.Add(menuExit);
         UpdateMenuText();
@@ -359,7 +357,6 @@ internal sealed class AppContext : ApplicationContext
         menuLanguage.Text = en ? "Language" : "语言";
         menuLanguageChinese.Checked = settings.Language == "zh";
         menuLanguageEnglish.Checked = settings.Language == "en";
-        menuVisible.Text = en ? "Show / hide text" : "显示 / 隐藏文字";
         menuExit.Text = en ? "Exit iClock" : "退出 iClock";
         tray.Text = "iClock";
     }
@@ -377,7 +374,15 @@ internal sealed class AppContext : ApplicationContext
     private void Toggle()
     {
         if (running) { remaining = ReadRemaining(); running = false; timer.Stop(); Display(remaining); }
-        else { if (remaining <= TimeSpan.Zero) remaining = TimeSpan.FromMinutes(settings.Minutes); if (!sessionActive) { sessionStart = DateTime.Now; sessionMinutes = settings.Minutes; sessionActive = true; } deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency); running = true; timer.Start(); Tick(null, EventArgs.Empty); }
+        else {
+            if (remaining <= TimeSpan.Zero) remaining = TimeSpan.FromMinutes(settings.Minutes);
+            if (!sessionActive) { sessionStart = DateTime.Now; sessionMinutes = settings.Minutes; sessionActive = true; }
+            deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency);
+            running = true;
+            timer.Start();
+            overlay.Show();
+            Tick(null, EventArgs.Empty);
+        }
     }
     private TimeSpan ReadRemaining()
     {
@@ -388,7 +393,16 @@ internal sealed class AppContext : ApplicationContext
     {
         if (!running) return;
         TimeSpan left = ReadRemaining();
-        if (left <= TimeSpan.Zero) { remaining = TimeSpan.Zero; running = false; timer.Stop(); Display(TimeSpan.Zero); if (sessionActive) LogSession("Completed"); sessionActive = false; Finish(); return; }
+        if (left <= TimeSpan.Zero) {
+            remaining = TimeSpan.Zero;
+            running = false;
+            timer.Stop();
+            overlay.Hide();
+            if (sessionActive) LogSession("Completed");
+            sessionActive = false;
+            Finish();
+            return;
+        }
         remaining = left; Display(left);
     }
     private void Display(TimeSpan t)
@@ -402,13 +416,29 @@ internal sealed class AppContext : ApplicationContext
     private void ResetDisplay() { remaining = TimeSpan.FromMinutes(settings.Minutes); Display(remaining); }
     private void Finish()
     {
-        Display(TimeSpan.Zero);
+        overlay.Hide();
         if (settings.EndSound) System.Media.SystemSounds.Exclamation.Play();
-        if (settings.EndNotice) tray.ShowBalloonTip(5000, "iClock", String.IsNullOrEmpty(settings.EndMessage) ? (settings.Language == "en" ? "Countdown finished" : "倒计时结束") : settings.EndMessage, ToolTipIcon.Info);
+        if (settings.EndNotice && System.Threading.Interlocked.CompareExchange(ref noticeActive, 1, 0) == 0)
+        {
+            string msg = String.IsNullOrEmpty(settings.EndMessage) ? (settings.Language == "en" ? "Countdown finished" : "倒计时结束") : settings.EndMessage;
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    ShowNativeMessageBox(IntPtr.Zero, msg, "iClock", 0x00040000 | 0x00010000 | 0x00000040);
+                }
+                finally
+                {
+                    noticeActive = 0;
+                }
+            });
+        }
     }
     private void ToggleMove()
     {
         bool enabled = !overlay.MoveMode; overlay.SetMoveMode(enabled);
+        if (enabled) { if (!sessionActive) ResetDisplay(); overlay.Show(); }
+        else { if (!sessionActive) overlay.Hide(); }
         bool en = settings.Language == "en";
         tray.ShowBalloonTip(2000, "iClock", enabled ? (en ? "Drag the translucent area to move the text. Use the tray menu to finish." : "拖动半透明区域调整文字位置，再次从托盘菜单退出调整模式。") : (en ? "Text position saved." : "文字位置已保存。"), ToolTipIcon.Info);
         UpdateMenuText();
@@ -427,7 +457,7 @@ internal sealed class AppContext : ApplicationContext
             }
             settings = d.Value; settings.Save(); overlay.SetSettings(settings); ApplyStartup();
             UpdateMenuText();
-            if (!running && !sessionActive) ResetDisplay();
+            if (!running && !sessionActive) { ResetDisplay(); overlay.Hide(); }
         }
     }
     private bool SetHotkey(int modifiers, int key)
@@ -526,6 +556,7 @@ internal sealed class AppContext : ApplicationContext
     [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
     [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
     [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr hIcon);
+    [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode)] private static extern int ShowNativeMessageBox(IntPtr hWnd, string lpText, string lpCaption, uint uType);
 }
 
 internal static class Program

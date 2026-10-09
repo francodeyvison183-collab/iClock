@@ -10,7 +10,7 @@ iClock is a lightweight Windows desktop countdown. It displays transparent, alwa
 - Configurable duration, text color, and size; `HH:MM:SS`, `MM:SS`, and Chinese-unit formats.
 - A tray command enables position mode, where a translucent area can be dragged.
 - A configurable global start/pause hotkey; default: `Ctrl+Alt+Space`.
-- Optional system sound and customizable tray notification when the countdown ends.
+- Optional system sound and customizable top-most prompt requiring confirmation when the countdown ends.
 - Daily history for completed, reset, and interrupted countdowns.
 - A tray language picker for Simplified Chinese or English (default: Simplified Chinese); optional per-user startup.
 - A single executable; the current build is about 27 KB and has no installer.
@@ -30,7 +30,7 @@ iClock requires Windows and .NET Framework 4.x; the package does not bundle an i
 .\build.ps1
 ```
 
-At startup, iClock displays the configured duration. Press the hotkey to start. Right-click the tray icon to open settings, view today's history, switch languages, or exit.
+At startup, the overlay is hidden before countdown starts. Press the hotkey to start. When the countdown ends, the text hides automatically and a top-most notification appears. Right-click the tray icon to open settings, view today's history, switch languages, or exit.
 
 ## Data and privacy
 
