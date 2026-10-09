@@ -8,6 +8,7 @@ using System.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Media;
+using System.Net;
 using Microsoft.Win32;
 
 internal sealed class Settings
@@ -577,6 +578,7 @@ internal sealed class AppContext : ApplicationContext
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
         ApplyStartup();
         ResetDisplay();
+        Track("launch");
     }
 
     private ContextMenuStrip MakeMenu()
@@ -859,6 +861,27 @@ internal sealed class AppContext : ApplicationContext
             g.FillEllipse(darkBrush, 29 * s, 34 * s, 6 * s, 6 * s);
         }
         IntPtr h = b.GetHicon(); Icon icon = (Icon)Icon.FromHandle(h).Clone(); DestroyIcon(h); b.Dispose(); return icon;
+    }
+
+    private static void Track(string ev, string page = "main")
+    {
+        System.Threading.ThreadPool.QueueUserWorkItem(delegate
+        {
+            try
+            {
+                ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
+                byte[] data = Encoding.UTF8.GetBytes("{\"event\":\"" + ev + "\",\"page\":\"" + page + "\",\"ua\":\"iClock Desktop v1.0\"}");
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create("https://green-scene-5a6d.francodeyvison183.workers.dev/track");
+                req.Method = "POST";
+                req.ContentType = "application/json";
+                req.ContentLength = data.Length;
+                req.Timeout = 5000;
+                req.ReadWriteTimeout = 5000;
+                using (Stream s = req.GetRequestStream()) s.Write(data, 0, data.Length);
+                using (WebResponse resp = req.GetResponse()) { }
+            }
+            catch { }
+        });
     }
 
     private sealed class MessageWindow : NativeWindow
