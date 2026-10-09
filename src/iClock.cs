@@ -828,13 +828,35 @@ internal sealed class AppContext : ApplicationContext
 
     private static Icon CreateIcon()
     {
+        try
+        {
+            Icon exeIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+            if (exeIcon != null) return exeIcon;
+        }
+        catch { }
         Bitmap b = new Bitmap(32, 32);
         using (Graphics g = Graphics.FromImage(b))
-        using (Font f = new Font("Segoe UI", 16, FontStyle.Bold, GraphicsUnit.Pixel))
-        using (SolidBrush bg = new SolidBrush(Color.FromArgb(28, 114, 190)))
-        using (SolidBrush fg = new SolidBrush(Color.White))
+        using (SolidBrush btnBrush = new SolidBrush(Color.FromArgb(28, 114, 190)))
+        using (SolidBrush darkBrush = new SolidBrush(Color.FromArgb(18, 75, 130)))
+        using (SolidBrush whiteBrush = new SolidBrush(Color.White))
+        using (Pen tickPen = new Pen(Color.FromArgb(160, 175, 195), 1f))
+        using (Pen handPen = new Pen(Color.FromArgb(230, 45, 45), 1.6f))
         {
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias; g.FillEllipse(bg, 1, 1, 30, 30); g.DrawString("i", f, fg, 12, 4);
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            float s = 0.5f;
+            g.FillRectangle(darkBrush, 28 * s, 3 * s, 8 * s, 7 * s);
+            g.FillRectangle(btnBrush, 23 * s, 1 * s, 18 * s, 4 * s);
+            g.FillRectangle(btnBrush, 45 * s, 8 * s, 6 * s, 7 * s);
+            g.FillEllipse(btnBrush, 5 * s, 10 * s, 54 * s, 54 * s);
+            g.FillEllipse(whiteBrush, 10 * s, 15 * s, 44 * s, 44 * s);
+            g.DrawLine(tickPen, 32 * s, 17 * s, 32 * s, 21 * s);
+            g.DrawLine(tickPen, 52 * s, 37 * s, 48 * s, 37 * s);
+            g.DrawLine(tickPen, 32 * s, 57 * s, 32 * s, 53 * s);
+            g.DrawLine(tickPen, 12 * s, 37 * s, 16 * s, 37 * s);
+            handPen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
+            handPen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
+            g.DrawLine(handPen, 32 * s, 37 * s, 45 * s, 24 * s);
+            g.FillEllipse(darkBrush, 29 * s, 34 * s, 6 * s, 6 * s);
         }
         IntPtr h = b.GetHicon(); Icon icon = (Icon)Icon.FromHandle(h).Clone(); DestroyIcon(h); b.Dispose(); return icon;
     }

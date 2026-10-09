@@ -15,10 +15,14 @@ New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 $outputExe = Join-Path $outputDir 'iClock.exe'
 $source = Join-Path $projectRoot 'src\iClock.cs'
 $zan = Join-Path $projectRoot 'src\zan.jpg'
+$appIco = Join-Path $projectRoot 'src\app.ico'
 
 $compilerArgs = @('/nologo', '/target:winexe', '/optimize+', "/out:$outputExe", '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll')
 if (Test-Path -LiteralPath $zan) {
     $compilerArgs += "/resource:$zan,zan.jpg"
+}
+if (Test-Path -LiteralPath $appIco) {
+    $compilerArgs += "/win32icon:$appIco"
 }
 $compilerArgs += $source
 
