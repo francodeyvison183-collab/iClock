@@ -427,6 +427,90 @@ internal sealed class NoticeDialog : Form
     }
 }
 
+internal sealed class SponsorDialog : Form
+{
+    public SponsorDialog(string language)
+    {
+        bool en = language == "en";
+        Text = en ? "Sponsor iClock" : "赞赏 iClock";
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        ShowInTaskbar = false;
+        ClientSize = new Size(300, 370);
+
+        Label lbl = new Label();
+        lbl.Text = en ? "If iClock helps you, thank you for supporting!" : "如果 iClock 对你有帮助，欢迎赞赏支持！";
+        lbl.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        lbl.TextAlign = ContentAlignment.MiddleCenter;
+        lbl.SetBounds(15, 14, 270, 30);
+        Controls.Add(lbl);
+
+        PictureBox pic = new PictureBox();
+        pic.SetBounds(35, 48, 230, 230);
+        pic.SizeMode = PictureBoxSizeMode.Zoom;
+        pic.BorderStyle = BorderStyle.FixedSingle;
+        pic.Image = LoadSponsorImage();
+        Controls.Add(pic);
+
+        Label sub = new Label();
+        sub.Text = en ? "WeChat Pay" : "微信扫一扫 赞赏码";
+        sub.Font = new Font("Segoe UI", 12, FontStyle.Bold, GraphicsUnit.Pixel);
+        sub.ForeColor = Color.FromArgb(28, 114, 190);
+        sub.TextAlign = ContentAlignment.MiddleCenter;
+        sub.SetBounds(15, 286, 270, 20);
+        Controls.Add(sub);
+
+        Button btn = new Button();
+        btn.Text = en ? "Close" : "关闭";
+        btn.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        btn.SetBounds(105, 320, 90, 32);
+        btn.Click += delegate { Close(); };
+        Controls.Add(btn);
+        AcceptButton = btn;
+        CancelButton = btn;
+    }
+
+    private static Image LoadSponsorImage()
+    {
+        try
+        {
+            Stream stream = typeof(AppContext).Assembly.GetManifestResourceStream("zan.jpg");
+            if (stream != null)
+            {
+                using (stream)
+                using (Image temp = Image.FromStream(stream))
+                {
+                    return new Bitmap(temp);
+                }
+            }
+        }
+        catch { }
+        try
+        {
+            string localPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "src", "zan.jpg");
+            if (File.Exists(localPath))
+            {
+                using (Image temp = Image.FromFile(localPath))
+                {
+                    return new Bitmap(temp);
+                }
+            }
+            localPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "zan.jpg");
+            if (File.Exists(localPath))
+            {
+                using (Image temp = Image.FromFile(localPath))
+                {
+                    return new Bitmap(temp);
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+}
+
 internal sealed class AppContext : ApplicationContext
 {
     private const int HOTKEY_ID = 0x4A10;
@@ -435,7 +519,7 @@ internal sealed class AppContext : ApplicationContext
     private Settings settings;
     private Overlay overlay;
     private NotifyIcon tray;
-    private ToolStripMenuItem menuStart, menuReset, menuMove, menuSettings, menuHistory, menuLanguage, menuLanguageChinese, menuLanguageEnglish, menuExit;
+    private ToolStripMenuItem menuStart, menuReset, menuMove, menuSettings, menuHistory, menuSponsor, menuLanguage, menuLanguageChinese, menuLanguageEnglish, menuExit;
     private Timer timer;
     private TimeSpan remaining;
     private long deadlineTimestamp;
@@ -475,13 +559,14 @@ internal sealed class AppContext : ApplicationContext
         menuMove = new ToolStripMenuItem(); menuMove.Click += delegate { ToggleMove(); };
         menuSettings = new ToolStripMenuItem(); menuSettings.Click += delegate { ShowSettings(); };
         menuHistory = new ToolStripMenuItem(); menuHistory.Click += delegate { ShowHistory(); };
+        menuSponsor = new ToolStripMenuItem(); menuSponsor.Click += delegate { ShowSponsor(); };
         menuLanguage = new ToolStripMenuItem();
         menuLanguageChinese = new ToolStripMenuItem("简体中文"); menuLanguageChinese.Click += delegate { SelectLanguage("zh"); };
         menuLanguageEnglish = new ToolStripMenuItem("English"); menuLanguageEnglish.Click += delegate { SelectLanguage("en"); };
         menuLanguage.DropDownItems.Add(menuLanguageChinese); menuLanguage.DropDownItems.Add(menuLanguageEnglish);
         menuExit = new ToolStripMenuItem(); menuExit.Click += delegate { Exit(); };
         m.Items.Add(menuStart); m.Items.Add(menuReset); m.Items.Add(menuMove); m.Items.Add(menuSettings);
-        m.Items.Add(menuHistory); m.Items.Add(menuLanguage);
+        m.Items.Add(menuHistory); m.Items.Add(menuSponsor); m.Items.Add(menuLanguage);
         m.Items.Add(new ToolStripSeparator());
         m.Items.Add(menuExit);
         UpdateMenuText();
@@ -497,6 +582,7 @@ internal sealed class AppContext : ApplicationContext
         menuMove.Text = overlay.MoveMode ? (en ? "Finish position adjustment" : "完成位置调整") : (en ? "Adjust text position" : "调整文字位置");
         menuSettings.Text = en ? "Settings…" : "设置…";
         menuHistory.Text = en ? "View today's history…" : "查看今日记录…";
+        menuSponsor.Text = en ? "Sponsor…" : "赞赏作者…";
         menuLanguage.Text = en ? "Language" : "语言";
         menuLanguageChinese.Checked = settings.Language == "zh";
         menuLanguageEnglish.Checked = settings.Language == "en";
@@ -635,6 +721,13 @@ internal sealed class AppContext : ApplicationContext
         catch { }
         if (list.Items.Count == 0) list.Items.Add(new ListViewItem(en ? "No countdown records today" : "今天还没有倒计时记录"));
         f.Controls.Add(list); f.ShowDialog(); f.Dispose();
+    }
+    private void ShowSponsor()
+    {
+        using (SponsorDialog d = new SponsorDialog(settings.Language))
+        {
+            d.ShowDialog();
+        }
     }
     private void LogSession(string result)
     {

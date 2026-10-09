@@ -119,6 +119,28 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: Overlay is hidden after reset.");
 
+            // 7. Verify SponsorDialog and menuSponsor
+            ToolStripMenuItem menuSponsor = (ToolStripMenuItem)appType.GetField("menuSponsor", bf).GetValue(app);
+            if (menuSponsor == null || menuSponsor.Text != "赞赏作者…")
+            {
+                Console.WriteLine("FAIL: menuSponsor missing or incorrect text");
+                return 10;
+            }
+            Type sponsorType = asm.GetType("SponsorDialog");
+            Form sponsorDialog = (Form)Activator.CreateInstance(sponsorType, new object[] { "zh" });
+            PictureBox pb = null;
+            foreach (Control c in sponsorDialog.Controls)
+            {
+                if (c is PictureBox) pb = (PictureBox)c;
+            }
+            if (pb == null || pb.Image == null || pb.Image.Width != 1152)
+            {
+                Console.WriteLine("FAIL: SponsorDialog image not loaded properly");
+                return 11;
+            }
+            sponsorDialog.Close();
+            Console.WriteLine("PASS: SponsorDialog and embedded zan.jpg loaded successfully.");
+
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 

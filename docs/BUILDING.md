@@ -21,7 +21,7 @@ The script compiles `src/iClock.cs` as a Windows GUI executable and writes `dist
 Equivalent compiler invocation:
 
 ```powershell
-csc.exe /nologo /target:winexe /optimize+ /out:dist\iClock.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll src\iClock.cs
+csc.exe /nologo /target:winexe /optimize+ /out:dist\iClock.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /resource:src\zan.jpg,zan.jpg src\iClock.cs
 ```
 
 ## Release checklist

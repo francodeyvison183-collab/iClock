@@ -14,8 +14,15 @@ $outputDir = Join-Path $projectRoot 'dist'
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 $outputExe = Join-Path $outputDir 'iClock.exe'
 $source = Join-Path $projectRoot 'src\iClock.cs'
+$zan = Join-Path $projectRoot 'src\zan.jpg'
 
-& $compiler /nologo /target:winexe /optimize+ "/out:$outputExe" /r:System.Windows.Forms.dll /r:System.Drawing.dll $source
+$compilerArgs = @('/nologo', '/target:winexe', '/optimize+', "/out:$outputExe", '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll')
+if (Test-Path -LiteralPath $zan) {
+    $compilerArgs += "/resource:$zan,zan.jpg"
+}
+$compilerArgs += $source
+
+& $compiler $compilerArgs
 if ($LASTEXITCODE -ne 0) { throw "Compilation failed with exit code $LASTEXITCODE." }
 
 $size = (Get-Item -LiteralPath $outputExe).Length

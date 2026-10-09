@@ -30,7 +30,7 @@ iClock requires Windows and .NET Framework 4.x; the package does not bundle an i
 .\build.ps1
 ```
 
-At startup, the overlay is hidden before countdown starts. Press the hotkey to start. When the countdown ends, the text hides automatically and a top-most notification appears. Right-click the tray icon to open settings, view today's history, switch languages, or exit.
+At startup, the overlay is hidden before countdown starts. Press the hotkey to start. When the countdown ends, the text hides automatically and a top-most notification appears. Right-click the tray icon to open settings, view today's history, sponsor the author, switch languages, or exit.
 
 ## Data and privacy
 

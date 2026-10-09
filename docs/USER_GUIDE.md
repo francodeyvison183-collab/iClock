@@ -6,9 +6,9 @@ Run `iClock.exe`. The overlay is hidden before countdown starts. Press the globa
 
 运行 `iClock.exe` 后，倒计时开始前桌面不显示文字；按全局快捷键后才开始倒计时。默认快捷键为 `Ctrl+Alt+Space`，同一快捷键也可暂停和继续。倒计时结束后文字自动隐藏，并弹出置顶消息提示，需要用户确认后才消失。
 
-Right-click the iClock tray icon to open the menu. The menu can reset the countdown, adjust position, open settings, show today's history, switch languages, or exit.
+Right-click the iClock tray icon to open the menu. The menu can reset the countdown, adjust position, open settings, show today's history, sponsor the author, switch languages, or exit.
 
-右键点击托盘中的 iClock 图标可打开菜单，用于重置倒计时、调整位置、打开设置、查看今日记录、切换语言或退出。
+右键点击托盘中的 iClock 图标可打开菜单，用于重置倒计时、调整位置、打开设置、查看今日记录、赞赏作者、切换语言或退出。
 
 Choose **Language** from the tray menu, then select **简体中文** or **English**. Simplified Chinese is the default. The selection is saved and restored on the next launch.
 
