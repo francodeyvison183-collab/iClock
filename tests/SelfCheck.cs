@@ -15,6 +15,7 @@ internal static class TestCheck
             string exePath = System.IO.Path.Combine(dir, "iClock.exe");
             Assembly asm = Assembly.LoadFrom(exePath);
             Type appType = asm.GetType("AppContext");
+            Type noticeType = asm.GetType("NoticeDialog");
             BindingFlags bf = BindingFlags.NonPublic | BindingFlags.Instance;
 
             object app = Activator.CreateInstance(appType);
@@ -68,35 +69,60 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: Overlay is hidden after countdown ends.");
 
-            // 5. Restart countdown then Reset -> Overlay becomes hidden
+            // 5. Test NoticeDialog when EndNotice is enabled
+            endNoticeField.SetValue(settings, true);
+            // Trigger finish again with EndNotice = true
+            MethodInfo finish = appType.GetMethod("Finish", bf);
+            finish.Invoke(app, null);
+            Form activeNotice = (Form)appType.GetField("activeNotice", bf).GetValue(app);
+            if (activeNotice == null)
+            {
+                Console.WriteLine("FAIL: activeNotice was not created on finish");
+                return 5;
+            }
+            if (!activeNotice.TopMost)
+            {
+                Console.WriteLine("FAIL: activeNotice TopMost is false");
+                return 6;
+            }
+            // Check that notice dialog contains finish labels
+            bool hasTimeLabel = false, hasFinishLabel = false;
+            foreach (Control c in activeNotice.Controls)
+            {
+                if (c is Label)
+                {
+                    if (c.Text.Contains("00:00")) hasTimeLabel = true;
+                    if (c.Text.Contains("结束时间") || c.Text.Contains("Finished at")) hasFinishLabel = true;
+                }
+            }
+            if (!hasTimeLabel || !hasFinishLabel)
+            {
+                Console.WriteLine("FAIL: NoticeDialog missing time or finish label");
+                return 7;
+            }
+            Console.WriteLine("PASS: NoticeDialog is TopMost and displays countdown finish time.");
+            activeNotice.Close();
+
+            // 6. Restart countdown then Reset -> Overlay becomes hidden
             toggle.Invoke(app, null);
             if (!overlay.Visible)
             {
                 Console.WriteLine("FAIL: Overlay should be visible after restarting countdown");
-                return 5;
+                return 8;
             }
             ToolStripMenuItem menuReset = (ToolStripMenuItem)appType.GetField("menuReset", bf).GetValue(app);
             menuReset.PerformClick();
             if (overlay.Visible)
             {
                 Console.WriteLine("FAIL: Overlay should be hidden after reset");
-                return 6;
+                return 9;
             }
             Console.WriteLine("PASS: Overlay is hidden after reset.");
-
-            // 6. Check ShowNativeMessageBox method exists
-            MethodInfo msgBox = appType.GetMethod("ShowNativeMessageBox", BindingFlags.NonPublic | BindingFlags.Static);
-            if (msgBox == null)
-            {
-                Console.WriteLine("FAIL: ShowNativeMessageBox method missing");
-                return 7;
-            }
-            Console.WriteLine("PASS: ShowNativeMessageBox P/Invoke method is present.");
 
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 
-            Console.WriteLine("ALL 6 CHECKS PASSED!");
+            Console.WriteLine("ALL CHECKS PASSED!");
             return 0;
         }
         catch (Exception ex)

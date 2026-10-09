@@ -7,6 +7,7 @@ using System.IO;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using System.Media;
 using Microsoft.Win32;
 
 internal sealed class Settings
@@ -284,6 +285,148 @@ internal sealed class SettingsDialog : Form
     }
 }
 
+internal sealed class NoticeDialog : Form
+{
+    private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+    private const uint SWP_FLAGS = 0x0043;
+    private Settings settings;
+    private SoundPlayer player;
+    private Timer timer;
+    private DateTime finishTime;
+    private Label finishLabel;
+
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hWnd);
+
+    public NoticeDialog(Settings s, DateTime finishedAt)
+    {
+        settings = s;
+        finishTime = finishedAt;
+        bool en = s.Language == "en";
+        Text = "iClock";
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        ShowInTaskbar = true;
+        TopMost = true;
+        ClientSize = new Size(340, 210);
+
+        string titleText = String.IsNullOrEmpty(s.EndMessage) ? (en ? "Countdown Finished" : "倒计时结束") : s.EndMessage;
+        Label titleLabel = new Label();
+        titleLabel.Text = titleText;
+        titleLabel.Font = new Font("Segoe UI", 16, FontStyle.Bold, GraphicsUnit.Pixel);
+        titleLabel.TextAlign = ContentAlignment.MiddleCenter;
+        titleLabel.SetBounds(20, 18, 300, 28);
+        Controls.Add(titleLabel);
+
+        string timeText = s.Format == "MM:SS" ? "00:00" :
+            (s.Format == "Chinese" ? (en ? "00h 00m 00s" : "00时00分00秒") : "00:00:00");
+        Label timeLabel = new Label();
+        timeLabel.Text = timeText;
+        timeLabel.Font = new Font("Segoe UI", 28, FontStyle.Bold, GraphicsUnit.Pixel);
+        timeLabel.ForeColor = Color.FromArgb(28, 114, 190);
+        timeLabel.TextAlign = ContentAlignment.MiddleCenter;
+        timeLabel.SetBounds(20, 52, 300, 42);
+        Controls.Add(timeLabel);
+
+        finishLabel = new Label();
+        finishLabel.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        finishLabel.ForeColor = Color.Gray;
+        finishLabel.TextAlign = ContentAlignment.MiddleCenter;
+        finishLabel.SetBounds(20, 102, 300, 20);
+        Controls.Add(finishLabel);
+        UpdateFinishLabel();
+
+        Button btn = new Button();
+        btn.Text = en ? "OK" : "确定";
+        btn.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        btn.SetBounds(115, 145, 110, 36);
+        btn.Click += delegate { Close(); };
+        Controls.Add(btn);
+        AcceptButton = btn;
+        CancelButton = btn;
+
+        timer = new Timer();
+        timer.Interval = 1000;
+        timer.Tick += OnTimerTick;
+    }
+
+    private void UpdateFinishLabel()
+    {
+        bool en = settings.Language == "en";
+        int secs = (int)Math.Max(0, (DateTime.Now - finishTime).TotalSeconds);
+        string elapsed = (secs / 60).ToString("00") + ":" + (secs % 60).ToString("00");
+        finishLabel.Text = (en ? "Finished at: " : "结束时间: ") + finishTime.ToString("HH:mm:ss") + (secs > 0 ? " (+" + elapsed + ")" : "");
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        ForceTopMost();
+        StartAlarm();
+        if (timer != null) timer.Start();
+    }
+
+    public void ForceTopMost()
+    {
+        try
+        {
+            TopMost = true;
+            BringToFront();
+            Activate();
+            SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_FLAGS);
+            SetForegroundWindow(Handle);
+            BringWindowToTop(Handle);
+        }
+        catch { }
+    }
+
+    private void OnTimerTick(object sender, EventArgs e)
+    {
+        UpdateFinishLabel();
+        ForceTopMost();
+        if (settings.EndSound && player == null)
+        {
+            try { SystemSounds.Exclamation.Play(); } catch { }
+        }
+    }
+
+    private void StartAlarm()
+    {
+        if (!settings.EndSound) return;
+        try
+        {
+            string wav = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Media", "Alarm01.wav");
+            if (File.Exists(wav))
+            {
+                player = new SoundPlayer(wav);
+                player.PlayLooping();
+                return;
+            }
+        }
+        catch { }
+        try { SystemSounds.Exclamation.Play(); } catch { }
+    }
+
+    private void StopAlarm()
+    {
+        try
+        {
+            if (player != null) { player.Stop(); player.Dispose(); player = null; }
+            if (timer != null) { timer.Stop(); timer.Dispose(); timer = null; }
+        }
+        catch { }
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        base.OnFormClosed(e);
+        StopAlarm();
+    }
+}
+
 internal sealed class AppContext : ApplicationContext
 {
     private const int HOTKEY_ID = 0x4A10;
@@ -302,7 +445,7 @@ internal sealed class AppContext : ApplicationContext
     private bool running;
     private bool hotkeyRegistered;
     private int activeHotkeyModifiers, activeHotkeyKey;
-    private int noticeActive;
+    private NoticeDialog activeNotice;
     private MessageWindow messageWindow;
     private string exePath = Application.ExecutablePath;
     private Icon appIcon;
@@ -328,7 +471,7 @@ internal sealed class AppContext : ApplicationContext
     {
         ContextMenuStrip m = new ContextMenuStrip();
         menuStart = new ToolStripMenuItem(); menuStart.Click += delegate { Toggle(); };
-        menuReset = new ToolStripMenuItem(); menuReset.Click += delegate { running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.Hide(); };
+        menuReset = new ToolStripMenuItem(); menuReset.Click += delegate { if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; } running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.Hide(); };
         menuMove = new ToolStripMenuItem(); menuMove.Click += delegate { ToggleMove(); };
         menuSettings = new ToolStripMenuItem(); menuSettings.Click += delegate { ShowSettings(); };
         menuHistory = new ToolStripMenuItem(); menuHistory.Click += delegate { ShowHistory(); };
@@ -375,6 +518,7 @@ internal sealed class AppContext : ApplicationContext
     {
         if (running) { remaining = ReadRemaining(); running = false; timer.Stop(); Display(remaining); }
         else {
+            if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
             if (remaining <= TimeSpan.Zero) remaining = TimeSpan.FromMinutes(settings.Minutes);
             if (!sessionActive) { sessionStart = DateTime.Now; sessionMinutes = settings.Minutes; sessionActive = true; }
             deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency);
@@ -417,21 +561,20 @@ internal sealed class AppContext : ApplicationContext
     private void Finish()
     {
         overlay.Hide();
-        if (settings.EndSound) System.Media.SystemSounds.Exclamation.Play();
-        if (settings.EndNotice && System.Threading.Interlocked.CompareExchange(ref noticeActive, 1, 0) == 0)
+        if (settings.EndNotice)
         {
-            string msg = String.IsNullOrEmpty(settings.EndMessage) ? (settings.Language == "en" ? "Countdown finished" : "倒计时结束") : settings.EndMessage;
-            System.Threading.ThreadPool.QueueUserWorkItem(delegate
+            if (activeNotice != null && !activeNotice.IsDisposed)
             {
-                try
-                {
-                    ShowNativeMessageBox(IntPtr.Zero, msg, "iClock", 0x00040000 | 0x00010000 | 0x00000040);
-                }
-                finally
-                {
-                    noticeActive = 0;
-                }
-            });
+                activeNotice.ForceTopMost();
+                return;
+            }
+            activeNotice = new NoticeDialog(settings, DateTime.Now);
+            activeNotice.FormClosed += delegate { activeNotice = null; };
+            activeNotice.Show();
+        }
+        else if (settings.EndSound)
+        {
+            System.Media.SystemSounds.Exclamation.Play();
         }
     }
     private void ToggleMove()
@@ -518,6 +661,7 @@ internal sealed class AppContext : ApplicationContext
     }
     private void Exit()
     {
+        if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
         if (sessionActive) { LogSession("Interrupted"); sessionActive = false; }
         timer.Stop(); tray.Visible = false; if (hotkeyRegistered) UnregisterHotKey(messageWindow.Handle, HOTKEY_ID);
         overlay.Close(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); ExitThread();
@@ -556,7 +700,6 @@ internal sealed class AppContext : ApplicationContext
     [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
     [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
     [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr hIcon);
-    [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode)] private static extern int ShowNativeMessageBox(IntPtr hWnd, string lpText, string lpCaption, uint uType);
 }
 
 internal static class Program
