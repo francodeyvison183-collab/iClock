@@ -7,6 +7,76 @@
   <meta name="description" data-i18n-meta="description" content="iClock 是一款 Windows 平台上的极简桌面悬浮倒计时工具。单文件仅 125 KB，零依赖、支持置顶悬浮穿透、全局快捷键、自选色彩与格式，专为高效专注打造。">
   <meta name="keywords" content="iClock, 倒计时, 桌面倒计时, 悬浮倒计时, 番茄钟, Windows 效率工具, 极简倒计时, countdown timer, desktop timer">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱️</text></svg>">
+  <link rel="help" href="llms.txt" type="text/markdown" title="LLM context and documentation">
+
+  <!-- Schema.org 结构化数据 (GEO & SEO 语义增强) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "iClock",
+        "alternateName": "iClock Desktop Timer",
+        "operatingSystem": "Windows 7, Windows 8, Windows 10, Windows 11",
+        "applicationCategory": "UtilitiesApplication",
+        "applicationSubCategory": "Productivity",
+        "fileSize": "126KB",
+        "softwareVersion": "1.01",
+        "description": "Ultra-lightweight (126 KB), zero-dependency, click-through desktop countdown timer for Windows.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "license": "https://opensource.org/licenses/MIT",
+        "downloadUrl": "https://github.com/francodeyvison183-collab/iClock/releases/download/1.01/iClock-1.01-windows.exe",
+        "url": "https://francodeyvison183-collab.github.io/iClock/",
+        "author": {
+          "@type": "Person",
+          "name": "Franco Deyvison"
+        }
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "为什么 iClock 相比传统倒计时软件体积只有 126 KB？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "iClock 拒绝动辄百兆的 Electron 壳与臃肿依赖，采用原生 C# WinForms 与 GDI+ 极简单文件架构，直接调用 Windows 系统底层渲染，运行内存小于 15 MB。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "什么是置顶穿透（Click-Through）？打游戏或写代码时会影响鼠标操作吗？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "基于 Windows WS_EX_TRANSPARENT 原生 API，倒计时浮窗始终悬浮在桌面最顶层，但所有鼠标点击均直接穿透到下层应用，丝毫不干扰任何操作。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "iClock 是否包含捆绑软件、广告或后台常驻进程？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "100% 开源（MIT 协议），单文件绿色免安装，无流氓广告，退出即完全释放。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "如何通过 Windows 官方包管理器（WinGet）一键安装？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "在 PowerShell 或 CMD 终端中直接运行 winget install FrancoDeyvison.iClock 即可全自动安装并配置环境变量。"
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
   <style>
     :root {
       --bg-primary: #FFFFFF;
@@ -903,6 +973,76 @@
       font-weight: 500;
     }
 
+    /* 常见问答 (FAQ) */
+    .section-faq {
+      padding: 80px 0;
+      background: var(--bg-primary);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .faq-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
+    .faq-card {
+      padding: 28px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .faq-card:hover {
+      box-shadow: var(--card-shadow);
+      border-color: rgba(28, 114, 190, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .faq-question {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      line-height: 1.4;
+    }
+
+    .faq-q-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      background: var(--brand-blue-light);
+      color: var(--brand-blue);
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .faq-answer {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    .faq-answer code {
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: var(--brand-blue);
+    }
+
     /* 页脚 (Footer) */
     footer.footer {
       padding: 40px 0;
@@ -931,7 +1071,7 @@
 
     /* 移动端响应式 */
     @media (max-width: 900px) {
-      .features-grid, .metrics-grid, .scenarios-grid {
+      .features-grid, .metrics-grid, .scenarios-grid, .faq-grid {
         grid-template-columns: repeat(2, 1fr);
       }
       .download-grid {
@@ -943,7 +1083,7 @@
       .nav-links {
         display: none;
       }
-      .features-grid, .metrics-grid, .scenarios-grid {
+      .features-grid, .metrics-grid, .scenarios-grid, .faq-grid {
         grid-template-columns: 1fr;
       }
       .simulated-digits {
@@ -1004,6 +1144,7 @@
         <li><a href="#comparison" data-i18n="nav_comparison">硬核对比</a></li>
         <li><a href="#demo" data-i18n="nav_demo">在线试玩</a></li>
         <li><a href="#download" data-i18n="nav_download">下载中心</a></li>
+        <li><a href="#faq" data-i18n="nav_faq">常见问答</a></li>
         <li><a href="#sponsor" data-i18n="nav_sponsor">赞赏支持</a></li>
       </ul>
       <div class="nav-actions">
@@ -1045,7 +1186,7 @@
         拒绝动辄百兆的臃肿软件。iClock 是为心流专注而生的原生悬浮计时利器，体积仅 125 KB，零常驻负担，支持全局热键一键启停。
       </p>
       <div class="hero-buttons">
-        <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.01/iClock-1.01-windows.exe" class="btn-primary btn-large" id="heroDownloadBtn">
+        <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/1.01/iClock-1.01-windows.exe" class="btn-primary btn-large" id="heroDownloadBtn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
@@ -1296,7 +1437,7 @@
           <div class="dl-icon">⚡</div>
           <h3 class="dl-name" data-i18n="dl_c1_title">iClock 单文件绿色版</h3>
           <p class="dl-meta" data-i18n="dl_c1_meta">v1.01 · iClock-1.01-windows.exe · 126 KB</p>
-          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.01/iClock-1.01-windows.exe" class="dl-btn btn-solid">
+          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/1.01/iClock-1.01-windows.exe" class="dl-btn btn-solid">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
@@ -1310,7 +1451,7 @@
           <div class="dl-icon">📦</div>
           <h3 class="dl-name" data-i18n="dl_c2_title">iClock 便携压缩包</h3>
           <p class="dl-meta" data-i18n="dl_c2_meta">v1.01 · iClock-1.01-windows.zip · 85 KB</p>
-          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.01/iClock-1.01-windows.zip" class="dl-btn btn-outline">
+          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/1.01/iClock-1.01-windows.zip" class="dl-btn btn-outline">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
@@ -1334,6 +1475,59 @@
         <div class="checksum-row">
           <span>iClock-1.01-windows.zip: <strong>726ef08451283e019c06c57dd30f8f6e83c8830051d3fb7234b8f730f709b247</strong></span>
           <button class="copy-btn" onclick="copyText('726ef08451283e019c06c57dd30f8f6e83c8830051d3fb7234b8f730f709b247')" data-i18n="dl_btn_copy">复制</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 常见问答 (FAQ) - GEO 与语义搜索增强 -->
+  <section class="section-faq" id="faq">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag" data-i18n="faq_tag">Q & A</span>
+        <h2 class="section-title" data-i18n="faq_title">常见问题与解答</h2>
+        <p class="section-subtitle" data-i18n="faq_subtitle">解答关于极简架构、置顶穿透体验与安全性的核心疑问</p>
+      </div>
+
+      <div class="faq-grid">
+        <div class="faq-card">
+          <div class="faq-question">
+            <span class="faq-q-icon">Q</span>
+            <span data-i18n="faq_q1">为什么 iClock 相比传统倒计时工具体积只有 126 KB？</span>
+          </div>
+          <div class="faq-answer" data-i18n="faq_a1">
+            拒绝动辄百兆的 Electron 壳与臃肿依赖。iClock 采用原生 C# WinForms 与 GDI+ 极简单文件架构，直接调用 Windows 系统底层渲染，运行内存小于 15 MB，随开随走。
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <div class="faq-question">
+            <span class="faq-q-icon">Q</span>
+            <span data-i18n="faq_q2">什么是“置顶穿透（Click-Through）”？打游戏或写代码时会影响鼠标操作吗？</span>
+          </div>
+          <div class="faq-answer" data-i18n="faq_a2">
+            基于 Windows <code>WS_EX_TRANSPARENT</code> 原生 API，倒计时浮窗始终悬浮在桌面最顶层，但所有鼠标点击均直接穿透到下层应用（如代码编辑器、全屏游戏、PPT 播放），丝毫不干扰任何操作。
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <div class="faq-question">
+            <span class="faq-q-icon">Q</span>
+            <span data-i18n="faq_q3">iClock 是否包含捆绑软件、广告或后台常驻进程？</span>
+          </div>
+          <div class="faq-answer" data-i18n="faq_a3">
+            100% 开源（MIT 协议），单文件绿色免安装。无流氓广告，无后台捆绑服务，退出程序即完全释放所有资源，完全尊重用户隐私。
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <div class="faq-question">
+            <span class="faq-q-icon">Q</span>
+            <span data-i18n="faq_q4">如何通过 Windows 官方包管理器（WinGet）一键安装？</span>
+          </div>
+          <div class="faq-answer" data-i18n="faq_a4">
+            在 PowerShell 或 CMD 终端中直接运行 <code>winget install FrancoDeyvison.iClock</code> 即可全自动下载、安装并配置环境变量，无需手动解压或寻找目录。
+          </div>
         </div>
       </div>
     </div>
@@ -1491,6 +1685,19 @@
         dl_btn_copy: "复制",
         toast_copied: "已成功复制到剪贴板",
 
+        nav_faq: "常见问答",
+        faq_tag: "Q & A",
+        faq_title: "常见问题与解答",
+        faq_subtitle: "解答关于极简架构、置顶穿透体验与安全性的核心疑问",
+        faq_q1: "为什么 iClock 相比传统倒计时工具体积只有 126 KB？",
+        faq_a1: "拒绝动辄百兆的 Electron 壳与臃肿依赖。iClock 采用原生 C# WinForms 与 GDI+ 极简单文件架构，直接调用 Windows 系统底层渲染，运行内存小于 15 MB，随开随走。",
+        faq_q2: "什么是“置顶穿透（Click-Through）”？打游戏或写代码时会影响鼠标操作吗？",
+        faq_a2: "基于 Windows <code>WS_EX_TRANSPARENT</code> 原生 API，倒计时浮窗始终悬浮在桌面最顶层，但所有鼠标点击均直接穿透到下层应用（如代码编辑器、全屏游戏、PPT 播放），丝毫不干扰任何操作。",
+        faq_q3: "iClock 是否包含捆绑软件、广告或后台常驻进程？",
+        faq_a3: "100% 开源（MIT 协议），单文件绿色免安装。无流氓广告，无后台捆绑服务，退出程序即完全释放所有资源，完全尊重用户隐私。",
+        faq_q4: "如何通过 Windows 官方包管理器（WinGet）一键安装？",
+        faq_a4: "在 PowerShell 或 CMD 终端中直接运行 <code>winget install FrancoDeyvison.iClock</code> 即可全自动下载、安装并配置环境变量，无需手动解压或寻找目录。",
+
         spons_tag: "Community & Sponsor",
         spons_title: "开源精神，致谢支持",
         spons_subtitle: "iClock 是一款完全自由开源的项目。如果它切实提高了您的日常效率，欢迎赞赏支持作者持续迭代！",
@@ -1630,6 +1837,19 @@
         dl_chk_desc: "Guarantees downloaded files are genuine and untampered.",
         dl_btn_copy: "Copy",
         toast_copied: "Copied to clipboard successfully",
+
+        nav_faq: "FAQ",
+        faq_tag: "Q & A",
+        faq_title: "Frequently Asked Questions",
+        faq_subtitle: "Direct answers regarding architecture, click-through behavior, and security.",
+        faq_q1: "Why is iClock so small (only 126 KB) compared to traditional timers?",
+        faq_a1: "iClock avoids heavyweight Electron wrappers and bloated dependencies. It uses native C# WinForms and GDI+ single-file architecture, directly utilizing Windows native rendering with under 15 MB of RAM.",
+        faq_q2: "What is 'TopMost & Click-Through'? Does it interfere with mouse clicks when gaming or coding?",
+        faq_a2: "Leveraging the Windows <code>WS_EX_TRANSPARENT</code> API, the countdown overlay floats on the topmost layer, but all mouse clicks and scrolls pass through to underlying applications without interruption.",
+        faq_q3: "Does iClock contain bundled software, advertisements, or background telemetry?",
+        faq_a3: "100% open-source under the MIT license, portable single-file. Zero ads, zero background services, and zero data telemetry. Exiting the app completely frees all resources.",
+        faq_q4: "How do I install iClock using Windows Package Manager (WinGet)?",
+        faq_a4: "Run <code>winget install FrancoDeyvison.iClock</code> in PowerShell or Command Prompt for automated downloading, installation, and environment path setup.",
 
         spons_tag: "Community & Sponsor",
         spons_title: "Open Source & Appreciation",

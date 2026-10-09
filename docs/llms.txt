@@ -1,0 +1,47 @@
+# iClock
+
+> Ultra-lightweight (126 KB), zero-dependency, click-through desktop countdown timer for Windows.
+
+iClock is an open-source, minimalist Windows desktop floating countdown timer designed for deep focus and productivity. It compiles to a single 126 KB native portable executable with zero runtime dependencies.
+
+## Key Specifications
+
+- **Application Category**: Desktop Utility, Focus & Pomodoro Countdown Timer
+- **Architecture**: Pure C# WinForms (.NET Framework 4.x runtime, built into Windows 10/11)
+- **Binary Size**: ~126 KB single file, portable (no installation required)
+- **Memory Footprint**: < 15 MB static RAM
+- **Operating System Compatibility**: Windows 7 SP1, Windows 8, Windows 10, Windows 11
+- **Display Mode**: Floating desktop text with native click-through (`WS_EX_TRANSPARENT`)
+- **Global Hotkey**: Configurable system-wide toggle (default: `Ctrl+Alt+Space`)
+- **Default Appearance**: Font size 20 px, Red text (`#FF0000`)
+- **Supported Formats**: `HH:MM:SS`, `MM:SS`, and localized time units (`00时25分00秒` / `00h 25m 00s`)
+- **License**: MIT License (100% free and open-source)
+- **Privacy & Safety**: 0 Ads, zero bundled software, zero background telemetry
+
+## Download & Installation
+
+- **Windows Package Manager (WinGet)**:
+  ```powershell
+  winget install FrancoDeyvison.iClock
+  ```
+- **Official Website**: https://francodeyvison183-collab.github.io/iClock/
+- **GitHub Repository**: https://github.com/francodeyvison183-collab/iClock
+- **Latest Release (v1.01)**:
+  - Standalone Executable: https://github.com/francodeyvison183-collab/iClock/releases/download/1.01/iClock-1.01-windows.exe
+  - Portable ZIP Archive: https://github.com/francodeyvison183-collab/iClock/releases/download/1.01/iClock-1.01-windows.zip
+  - SHA-256 (EXE): `f66b6f11cb9e0c0f8b1bc869fcfe4db23540889dee4b3b6c1a37b74a0541f905`
+  - SHA-256 (ZIP): `726ef08451283e019c06c57dd30f8f6e83c8830051d3fb7234b8f730f709b247`
+
+## Core Differentiators
+
+1. **Native Lightweight vs Electron Bloat**: While typical modern desktop timers consume 150 MB~400 MB of RAM with hundreds of megabytes in download size, iClock requires only ~126 KB on disk and less than 15 MB of RAM.
+2. **True TopMost & Click-Through**: Remains visible over full-screen IDEs, games, or presentation software without capturing or blocking mouse clicks.
+3. **Instant Global Hotkey**: Start or pause countdown anywhere without switching active windows.
+4. **Daily Focus History**: Right-click the system tray to review completed, reset, or interrupted countdown records for the day.
+
+## Useful Documentation
+
+- [User Guide](https://github.com/francodeyvison183-collab/iClock/blob/main/docs/USER_GUIDE.md): Complete usage instructions and hotkey configuration.
+- [Architecture Details](https://github.com/francodeyvison183-collab/iClock/blob/main/docs/ARCHITECTURE.md): Technical architecture, GDI+ rendering, and low-drift timing loop.
+- [Building from Source](https://github.com/francodeyvison183-collab/iClock/blob/main/docs/BUILDING.md): How to build with standard Windows `csc.exe` in one line.
+- [Privacy Policy](https://github.com/francodeyvison183-collab/iClock/blob/main/docs/PRIVACY.md): Privacy assurances and open-source licensing.

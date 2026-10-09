@@ -5,18 +5,19 @@
 ### Ultra-lightweight, Transparent Desktop Countdown for Windows
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-103%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![CPU](https://img.shields.io/badge/CPU-0.0%25%20(Zero%20Allocation)-brightgreen)]()
+[![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-126%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>Single 103 KB Exe · 0.0% CPU · Mouse Click-Through · Global Hotkeys · Zero Dependencies · Pure Local Privacy</b>
+  <b>Single 126 KB Binary · RAM &lt; 15 MB · Mouse Click-Through · Global Hotkey · Zero Dependencies · Pure Local Privacy</b>
 </p>
 
 <p align="center">
-  <a href="https://francodeyvison183-collab.github.io/iClock/"><b>🌐 Official Website</b></a> ·
-  <a href="https://github.com/francodeyvison183-collab/iClock/releases/latest"><b>🚀 Download Latest Release</b></a> ·
+  <a href="https://francodeyvison183-collab.github.io/iClock/"><b>🌐 Website</b></a> ·
+  <a href="https://github.com/francodeyvison183-collab/iClock/releases/latest"><b>🚀 Download</b></a> ·
+  <a href="https://francodeyvison183-collab.github.io/iClock/llms.txt"><b>🤖 llms.txt</b></a> ·
   <a href="README.md">简体中文说明</a> ·
   <a href="docs/USER_GUIDE.md">User Guide</a> ·
   <a href="CHANGELOG.md">Changelog</a>
@@ -67,16 +68,37 @@ Most timer and Pomodoro applications on Windows are bloated **100MB+** Electron 
 
 ## 🚀 Quick Start
 
-### 1. Download and Run
-1. Go to [GitHub Releases](../../releases/latest) and download `iClock-1.01-windows.zip`.
-2. Extract the single `iClock.exe` and double-click to launch (no installer needed).
+### Option A: Windows Package Manager WinGet (Recommended)
+
+Run the following in PowerShell or Command Prompt:
+```powershell
+winget install FrancoDeyvison.iClock
+```
+> Automatically downloads, verifies, installs, and adds `iClock` to system PATH so you can launch it from any terminal.
+
+### Option B: Standalone Portable Binary
+
+1. Go to [GitHub Releases](../../releases/latest) and download `iClock-1.01-windows.zip` or `iClock-1.01-windows.exe`.
+2. Double-click to launch (no installer, no registry residue).
 3. The overlay stays hidden until you start a countdown.
 
-### 2. Common Controls
+### Common Controls
+
 * **Start / Pause**: Press global hotkey `Ctrl + Alt + Space` (configurable in settings).
 * **Adjust Position**: Right-click the system tray icon $\rightarrow$ **Adjust text position** $\rightarrow$ drag the translucent area $\rightarrow$ click **Finish position adjustment**.
-* **Settings**: Right-click tray $\rightarrow$ **Settings…** to configure duration (1~1440 min), font size, color, format (`HH:MM:SS` / `MM:SS` / Chinese units), end message, and Windows startup.
+* **Settings**: Right-click tray $\rightarrow$ **Settings…** to configure duration (1~1440 min), font size (default 20), color (default red), format (`HH:MM:SS` / `MM:SS` / Chinese units), end message, and Windows startup.
 * **View History**: Right-click tray $\rightarrow$ **View today's history…** to inspect completed or reset countdown sessions.
+
+---
+
+## ❓ Frequently Asked Questions (FAQ)
+
+* **Q: Does it interfere with mouse clicks when gaming or coding?**  
+  **A**: No. iClock leverages the Windows native `WS_EX_TRANSPARENT` style. Floating digits remain on the topmost layer, but all mouse clicks and scrolls pass through to underlying applications without stealing window focus.
+* **Q: Why is the binary only 126 KB?**  
+  **A**: Engineering purity. Built with Windows native C# and GDI+ rendering, avoiding any 100MB+ Electron wrappers. Runtime RAM consumption stays strictly under 15 MB.
+* **Q: Is it safe, clean, and ad-free?**  
+  **A**: 100% open-source under the MIT License. Zero ads, zero background services, zero telemetry. Exiting completely releases all resources. See [PRIVACY.md](docs/PRIVACY.md).
 
 ---
 

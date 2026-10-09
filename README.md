@@ -5,18 +5,19 @@
 ### 专为开发者与效率玩家打造的 Windows 极简透明悬浮倒计时
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-103%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![CPU](https://img.shields.io/badge/CPU-0.0%25%20(Zero%20Allocation)-brightgreen)]()
+[![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-126%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>单文件 103 KB · 0.0% CPU · 鼠标点击穿透 · 全局热键 · 零第三方依赖 · 纯本地隐私</b>
+  <b>单文件 126 KB · 运行内存 &lt; 15 MB · 鼠标点击穿透 · 全局热键 · 零第三方依赖 · 纯本地隐私</b>
 </p>
 
 <p align="center">
-  <a href="https://francodeyvison183-collab.github.io/iClock/"><b>🌐 访问官方主页</b></a> ·
+  <a href="https://francodeyvison183-collab.github.io/iClock/"><b>🌐 访问官网</b></a> ·
   <a href="https://github.com/francodeyvison183-collab/iClock/releases/latest"><b>🚀 下载最新版</b></a> ·
+  <a href="https://francodeyvison183-collab.github.io/iClock/llms.txt"><b>🤖 llms.txt</b></a> ·
   <a href="README_EN.md">English Documentation</a> ·
   <a href="docs/USER_GUIDE.md">使用指南</a> ·
   <a href="CHANGELOG.md">更新日志</a>
@@ -67,16 +68,37 @@
 
 ## 🚀 快速上手
 
-### 1. 下载即用
-1. 前往 [GitHub Releases](../../releases/latest) 下载 `iClock-1.01-windows.zip`。
-2. 解压得到单个 `iClock.exe`，双击即可运行（无任何安装过程）。
+### 方式 A：Windows 官方包管理器 WinGet 一键安装（推荐）
+
+在 PowerShell 或 CMD 中运行：
+```powershell
+winget install FrancoDeyvison.iClock
+```
+> 自动完成安全下载、安装并加入系统环境变量，可在任意终端直接敲 `iClock` 运行。
+
+### 方式 B：绿色便携单文件运行
+
+1. 前往 [GitHub Releases](../../releases/latest) 下载 `iClock-1.01-windows.zip` 或单文件 `iClock-1.01-windows.exe`。
+2. 双击直接运行（无需安装，不写注册表垃圾）。
 3. 默认情况下，启动后倒计时处于待命状态（屏幕不显示文字）。
 
-### 2. 常用操作
+### 常用操作
+
 * **启动 / 暂停**：按下全局快捷键 `Ctrl + Alt + Space`（可在设置中自定义）。
 * **调整文字位置**：右键点击右下角系统托盘小图标 $\rightarrow$ 选择 **“调整文字位置”** $\rightarrow$ 拖拽半透明区域定位 $\rightarrow$ 再次从托盘点击 **“完成位置调整”**。
-* **自定义配置**：右键托盘图标 $\rightarrow$ **“设置”**，可自定义时长（1~1440分钟）、字号、颜色、显示格式（`HH:MM:SS` / `MM:SS` / 中文单位）、结束提示词、开机自启等。
+* **自定义配置**：右键托盘图标 $\rightarrow$ **“设置”**，可自定义时长（1~1440分钟）、字号（默认20）、颜色（默认红色）、显示格式（`HH:MM:SS` / `MM:SS` / 中文单位）、结束提示词、开机自启等。
 * **查看专注历史**：右键托盘图标 $\rightarrow$ **“查看今日记录”**，按日查看已完成或重置的倒计时历史。
+
+---
+
+## ❓ 常见问题 (FAQ)
+
+* **Q: 为什么打游戏或写代码时不挡鼠标操作？**  
+  **A**: iClock 深度利用了 Windows 底层 `WS_EX_TRANSPARENT` 穿透特性。倒计时文字置顶浮现于所有窗口之上，但所有鼠标点击和滚轮事件都会直接穿透到底层的游戏或编辑器，丝毫不抢占焦点。
+* **Q: 为什么软件体积只有 126 KB？**  
+  **A**: 坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 15 MB 以内。
+* **Q: 软件是否安全、纯净无广告？**  
+  **A**: 100% 开源（MIT 协议），零流氓广告，零捆绑插件，零后台常驻进程，退出即彻底释放。详见 [PRIVACY.md](docs/PRIVACY.md)。
 
 ---
 

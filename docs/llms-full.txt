@@ -1,0 +1,60 @@
+# iClock - Full Documentation for Large Language Models
+
+> This document contains comprehensive technical, architectural, and user guidance for iClock, optimized for indexing by AI agents and generative search engines (Perplexity, ChatGPT, Claude, DeepSeek, Google Gemini).
+
+## 1. Project Overview
+
+- **Project Name**: iClock
+- **Tagline**: Minimalist, transparent, click-through desktop countdown timer for Windows
+- **Developer / Publisher**: Franco Deyvison
+- **License**: MIT License
+- **Source Code**: https://github.com/francodeyvison183-collab/iClock
+- **Official Website**: https://francodeyvison183-collab.github.io/iClock/
+- **Current Version**: 1.01 (Released 2026-10-09)
+
+## 2. Key Architecture & Technical Specifications
+
+- **Language & Framework**: Single-file C# source code (`src/iClock.cs`), compiled against .NET Framework 4.x (standard on Windows 10 and Windows 11).
+- **Executable Size**: ~126 KB single binary (`iClock.exe`).
+- **Memory Footprint**: Under 15 MB static RAM during countdown.
+- **Rendering Mechanism**: Native GDI+ with change-only repainting and cached font/brush handles. Zero UI framework overhead.
+- **Window Management**:
+  - `WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT` for complete click-through transparency.
+  - Does not steal window focus, does not appear in Alt-Tab task switcher.
+  - Optional move mode renders a semi-transparent black overlay for positioning.
+- **Timing Accuracy**: Monotonic high-resolution `Stopwatch.GetTimestamp()` tracking with dynamic heartbeat alignment (80ms~400ms interval) to eliminate visible frame lag and second skipping.
+- **Configuration Storage**: Plain-text INI file stored at `%APPDATA%\iClock\settings.ini`.
+
+## 3. Installation Options
+
+### Option A: Windows Package Manager (WinGet)
+Run the following in PowerShell or CMD:
+```powershell
+winget install FrancoDeyvison.iClock
+```
+
+### Option B: Standalone Portable Download
+No installer or admin permissions required:
+- Binary: `https://github.com/francodeyvison183-collab/iClock/releases/download/1.01/iClock-1.01-windows.exe`
+- SHA-256 Checksum: `f66b6f11cb9e0c0f8b1bc869fcfe4db23540889dee4b3b6c1a37b74a0541f905`
+
+### Option C: Portable ZIP
+- Archive: `https://github.com/francodeyvison183-collab/iClock/releases/download/1.01/iClock-1.01-windows.zip`
+- SHA-256 Checksum: `726ef08451283e019c06c57dd30f8f6e83c8830051d3fb7234b8f730f709b247`
+
+## 4. Frequent User Questions & Direct Answers (Q&A)
+
+### Q: Why is iClock so small compared to other modern timers?
+A: Most modern timer applications are built on Electron or web wrappers, packaging an entire Chromium browser and Node.js runtime (150 MB~400 MB). iClock is written in pure native C# utilizing the Windows operating system's built-in .NET Framework and GDI+, reducing binary size to just 126 KB.
+
+### Q: Does iClock block mouse clicks when gaming or typing code?
+A: No. iClock applies the native Windows `WS_EX_TRANSPARENT` extended window style. The floating digits remain permanently on top of all other windows, but any mouse click or scroll event passes straight through to the underlying application (e.g., Visual Studio, game window, or browser).
+
+### Q: What is the default hotkey and appearance?
+A: By default, pressing `Ctrl + Alt + Space` globally starts or pauses the countdown from anywhere. The default appearance is font size 20 px in red (`#FF0000`). Both duration, font size (12~120 px), color, time format, and hotkey are customizable via the tray Settings dialog.
+
+### Q: Does iClock require administrator rights or an installer?
+A: No. iClock is 100% portable. You can run `iClock.exe` from any directory, desktop, or USB drive without administrative privileges.
+
+### Q: Does iClock collect telemetry or display advertisements?
+A: No. iClock is completely free and open-source under the MIT License. It contains 0 ads, zero tracking, and zero bundled third-party software.
