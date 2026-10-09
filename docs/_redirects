@@ -1,0 +1,4 @@
+# Cloudflare Pages Redirects
+/download https://github.com/francodeyvison183-collab/iClock/releases/latest 302
+/github https://github.com/francodeyvison183-collab/iClock 302
+/repo https://github.com/francodeyvison183-collab/iClock 302
