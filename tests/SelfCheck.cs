@@ -165,6 +165,26 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: Overlay caches GDI handles and timer uses dynamic heartbeat alignment (" + appTimer.Interval + "ms).");
 
+            // 9. Verify CheckUpdates option in SettingsDialog
+            Type settingsDialogType = asm.GetType("SettingsDialog");
+            Form settingsDialog = (Form)Activator.CreateInstance(settingsDialogType, new object[] { settings });
+            bool hasUpdateCheck = false;
+            foreach (Control c in settingsDialog.Controls)
+            {
+                if (c is CheckBox && (c.Text.Contains("自动检查版本更新") || c.Text.Contains("Check for updates")))
+                {
+                    hasUpdateCheck = true;
+                    break;
+                }
+            }
+            settingsDialog.Dispose();
+            if (!hasUpdateCheck)
+            {
+                Console.WriteLine("FAIL: SettingsDialog missing auto update check option");
+                return 15;
+            }
+            Console.WriteLine("PASS: SettingsDialog contains auto update check option.");
+
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 
