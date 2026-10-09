@@ -26,7 +26,6 @@ internal sealed class Settings
     public bool AutoStart;
     public bool EndSound = true;
     public bool EndNotice = true;
-    public bool CheckUpdates = true;
 
     public static string FilePath
     {
@@ -60,7 +59,6 @@ internal sealed class Settings
                 else if (k == "AutoStart" && bool.TryParse(v, out b)) s.AutoStart = b;
                 else if (k == "EndSound" && bool.TryParse(v, out b)) s.EndSound = b;
                 else if (k == "EndNotice" && bool.TryParse(v, out b)) s.EndNotice = b;
-                else if (k == "CheckUpdates" && bool.TryParse(v, out b)) s.CheckUpdates = b;
             }
         }
         catch { }
@@ -74,7 +72,7 @@ internal sealed class Settings
             "Minutes=" + Minutes, "FontSize=" + FontSize, "X=" + X, "Y=" + Y,
             "HotkeyModifiers=" + HotkeyModifiers, "HotkeyKey=" + HotkeyKey,
             "Color=" + Color, "Format=" + Format, "EndMessage=" + EndMessage, "Language=" + Language, "AutoStart=" + AutoStart,
-            "EndSound=" + EndSound, "EndNotice=" + EndNotice, "CheckUpdates=" + CheckUpdates
+            "EndSound=" + EndSound, "EndNotice=" + EndNotice
         });
     }
 }
@@ -235,7 +233,7 @@ internal sealed class SettingsDialog : Form
     private string selectedColor;
     private TextBox endMessage;
     private ComboBox format;
-    private CheckBox startup, sound, notice, checkUpdates;
+    private CheckBox startup, sound, notice;
     private TextBox hotkeyBox;
     private int hotkeyModifiers, hotkeyKey;
     public Settings Value { get; private set; }
@@ -248,10 +246,9 @@ internal sealed class SettingsDialog : Form
         Value.Color = s.Color; Value.Format = s.Format; Value.EndMessage = s.EndMessage;
         Value.Language = s.Language;
         Value.AutoStart = s.AutoStart; Value.EndSound = s.EndSound; Value.EndNotice = s.EndNotice;
-        Value.CheckUpdates = s.CheckUpdates;
         bool en = Value.Language == "en";
         Text = en ? "iClock Settings" : "iClock 设置"; FormBorderStyle = FormBorderStyle.FixedDialog; StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(350, 386);
+        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(350, 356);
         AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 16, 20); minutes = AddNumber(Value.Minutes, 1, 1440, 150, 16);
         AddLabel(en ? "Text size" : "文字大小", 16, 56); size = AddNumber(Value.FontSize, 12, 120, 150, 52);
         AddLabel(en ? "Text color" : "文字颜色", 16, 92); selectedColor = Value.Color;
@@ -265,9 +262,8 @@ internal sealed class SettingsDialog : Form
         startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 16, 238);
         sound = AddCheck(en ? "Sound at end" : "结束时声音提醒", Value.EndSound, 16, 262);
         notice = AddCheck(en ? "Notification at end" : "结束时系统通知", Value.EndNotice, 16, 286);
-        checkUpdates = AddCheck(en ? "Check for updates automatically" : "自动检查版本更新", Value.CheckUpdates, 16, 310);
-        Button save = new Button(); save.Text = en ? "Save" : "保存"; save.SetBounds(170, 348, 70, 28); save.Click += SaveClick; Controls.Add(save);
-        Button cancel = new Button(); cancel.Text = en ? "Cancel" : "取消"; cancel.SetBounds(250, 348, 70, 28); cancel.DialogResult = DialogResult.Cancel; Controls.Add(cancel);
+        Button save = new Button(); save.Text = en ? "Save" : "保存"; save.SetBounds(170, 320, 70, 28); save.Click += SaveClick; Controls.Add(save);
+        Button cancel = new Button(); cancel.Text = en ? "Cancel" : "取消"; cancel.SetBounds(250, 320, 70, 28); cancel.DialogResult = DialogResult.Cancel; Controls.Add(cancel);
         AcceptButton = save; CancelButton = cancel;
     }
 
@@ -314,7 +310,6 @@ internal sealed class SettingsDialog : Form
         Value.EndMessage = endMessage.Text.Trim();
         Value.Format = format.SelectedIndex == 1 ? "MM:SS" : (format.SelectedIndex == 2 ? "Chinese" : "HH:MM:SS");
         Value.AutoStart = startup.Checked; Value.EndSound = sound.Checked; Value.EndNotice = notice.Checked;
-        Value.CheckUpdates = checkUpdates.Checked;
         DialogResult = DialogResult.OK; Close();
     }
 }
@@ -588,7 +583,7 @@ internal sealed class AppContext : ApplicationContext
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
         ApplyStartup();
         ResetDisplay();
-        if (settings.CheckUpdates) TrackAndCheckUpdates();
+        TrackAndCheckUpdates();
     }
 
     private ContextMenuStrip MakeMenu()
@@ -874,8 +869,11 @@ internal sealed class AppContext : ApplicationContext
         IntPtr h = b.GetHicon(); Icon icon = (Icon)Icon.FromHandle(h).Clone(); DestroyIcon(h); b.Dispose(); return icon;
     }
 
+    private static bool launchReported;
     private void TrackAndCheckUpdates()
     {
+        if (launchReported) return;
+        launchReported = true;
         System.Threading.ThreadPool.QueueUserWorkItem(delegate
         {
             string latest = null;

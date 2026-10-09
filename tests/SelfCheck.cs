@@ -13,6 +13,8 @@ internal static class TestCheck
         {
             string dir = System.IO.Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             string exePath = System.IO.Path.Combine(dir, "iClock.exe");
+            if (!System.IO.File.Exists(exePath)) exePath = System.IO.Path.Combine(dir, "..\\dist\\iClock.exe");
+            exePath = System.IO.Path.GetFullPath(exePath);
             Assembly asm = Assembly.LoadFrom(exePath);
             Type appType = asm.GetType("AppContext");
             Type noticeType = asm.GetType("NoticeDialog");
@@ -165,7 +167,7 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: Overlay caches GDI handles and timer uses dynamic heartbeat alignment (" + appTimer.Interval + "ms).");
 
-            // 9. Verify CheckUpdates option in SettingsDialog
+            // 9. Verify default update check & deduplicated launch reporting
             Type settingsDialogType = asm.GetType("SettingsDialog");
             Form settingsDialog = (Form)Activator.CreateInstance(settingsDialogType, new object[] { settings });
             bool hasUpdateCheck = false;
@@ -178,12 +180,18 @@ internal static class TestCheck
                 }
             }
             settingsDialog.Dispose();
-            if (!hasUpdateCheck)
+            if (hasUpdateCheck)
             {
-                Console.WriteLine("FAIL: SettingsDialog missing auto update check option");
+                Console.WriteLine("FAIL: SettingsDialog should not have manual update check option");
                 return 15;
             }
-            Console.WriteLine("PASS: SettingsDialog contains auto update check option.");
+            FieldInfo launchField = appType.GetField("launchReported", BindingFlags.NonPublic | BindingFlags.Static);
+            if (launchField == null || !(bool)launchField.GetValue(null))
+            {
+                Console.WriteLine("FAIL: launchReported was not set on startup or field missing");
+                return 15;
+            }
+            Console.WriteLine("PASS: Update check runs unconditionally on startup and launchReported is de-duplicated.");
 
             // 10. Verify version comparison and JSON parsing
             BindingFlags sbf = BindingFlags.NonPublic | BindingFlags.Static;
