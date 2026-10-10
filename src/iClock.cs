@@ -1457,15 +1457,16 @@ internal sealed class AppContext : ApplicationContext
 
         MethodInvoker updateColumnWidths = delegate
         {
-            if (list.Columns.Count < 5) return;
+            if (list.Columns.Count < 6) return;
             int clientW = list.ClientSize.Width;
             if (clientW <= 0) return;
-            int c0 = 120, c1 = 120, c2 = 85, c3 = 95;
+            int c0 = 50, c1 = 115, c2 = 115, c3 = 85, c4 = 95;
             list.Columns[0].Width = c0;
             list.Columns[1].Width = c1;
             list.Columns[2].Width = c2;
             list.Columns[3].Width = c3;
-            list.Columns[4].Width = Math.Max(110, clientW - c0 - c1 - c2 - c3);
+            list.Columns[4].Width = c4;
+            list.Columns[5].Width = Math.Max(100, clientW - c0 - c1 - c2 - c3 - c4);
         };
         list.Resize += delegate { updateColumnWidths(); };
         f.Shown += delegate { updateColumnWidths(); };
@@ -1488,11 +1489,12 @@ internal sealed class AppContext : ApplicationContext
         list.DrawItem += delegate(object s, DrawListViewItemEventArgs e) { e.DrawDefault = true; };
         list.DrawSubItem += delegate(object s, DrawListViewSubItemEventArgs e) { e.DrawDefault = true; };
 
-        list.Columns.Add(en ? "Start time" : "开始时间", 120);
-        list.Columns.Add(en ? "End time" : "结束时间", 120);
+        list.Columns.Add(en ? "#" : "序号", 50);
+        list.Columns.Add(en ? "Start time" : "开始时间", 115);
+        list.Columns.Add(en ? "End time" : "结束时间", 115);
         list.Columns.Add(en ? "Duration" : "设定时长", 85);
         list.Columns.Add(en ? "Actual duration" : "实际时长", 95);
-        list.Columns.Add(en ? "Result" : "结果", 190);
+        list.Columns.Add(en ? "Result" : "结果", 150);
 
         int totalSessions = 0, completedSessions = 0;
         long totalActualSecs = 0;
@@ -1513,7 +1515,8 @@ internal sealed class AppContext : ApplicationContext
                 if (isCompleted) completedSessions++;
                 totalActualSecs += actualSecs;
 
-                ListViewItem item = new ListViewItem(cols[0]);
+                ListViewItem item = new ListViewItem(totalSessions.ToString());
+                item.SubItems.Add(cols[0]);
                 item.SubItems.Add(cols[1]);
                 item.SubItems.Add(cols[2] + (en ? " min" : " 分钟"));
                 item.SubItems.Add(FormatDuration(actualSecs, en));
@@ -1522,7 +1525,12 @@ internal sealed class AppContext : ApplicationContext
             }
         }
         catch { }
-        if (list.Items.Count == 0) list.Items.Add(new ListViewItem(en ? "No countdown records today" : "今天还没有倒计时记录"));
+        if (list.Items.Count == 0)
+        {
+            ListViewItem emptyItem = new ListViewItem("-");
+            emptyItem.SubItems.Add(en ? "No records today" : "今天还没有倒计时记录");
+            list.Items.Add(emptyItem);
+        }
 
         Panel summaryPanel = new Panel();
         summaryPanel.SetBounds(12, 332, 616, 36);
