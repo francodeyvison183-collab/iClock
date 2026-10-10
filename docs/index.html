@@ -1226,14 +1226,14 @@
           <div class="board-screen" id="boardScreen">
             <!-- 动态仿真时钟 -->
             <div class="simulated-floating-clock" id="simClock">
-              <div class="simulated-digits" id="simDigits">00:25:00</div>
+              <div class="simulated-digits" id="simDigits">25:00</div>
               <div class="simulated-status" id="simStatus">按 Ctrl+Shift+T 或下方按钮启停</div>
             </div>
 
             <div class="simulated-controls" id="simControls">
               <button class="sim-btn primary" id="simToggleBtn">▶ 开始倒计时</button>
               <button class="sim-btn" id="simResetBtn">↺ 重置</button>
-              <button class="sim-btn" id="simFormatBtn">格式: HH:MM:SS</button>
+              <button class="sim-btn" id="simFormatBtn">格式: MM:SS</button>
             </div>
 
             <div class="sim-tip" data-i18n="sandbox_tip">💡 提示：在上方可按住时钟自由拖动定位，感受半透明悬浮体验</div>
@@ -1721,7 +1721,7 @@
         sim_btn_resume: "▶ 继续倒计时",
         sim_btn_reset: "↺ 重置",
         sim_format_prefix: "格式: ",
-        sim_formats: ['HH:MM:SS', 'MM:SS', '中文单位'],
+        sim_formats: ['MM:SS', 'HH:MM:SS', '中文单位'],
         sim_alert_end: "iClock 提醒：倒计时已结束！"
       },
       en: {
@@ -1874,7 +1874,7 @@
         sim_btn_resume: "▶ Resume Countdown",
         sim_btn_reset: "↺ Reset",
         sim_format_prefix: "Format: ",
-        sim_formats: ['HH:MM:SS', 'MM:SS', 'Units (h/m/s)'],
+        sim_formats: ['MM:SS', 'HH:MM:SS', 'Units (h/m/s)'],
         sim_alert_end: "iClock Notification: Countdown Finished!"
       }
     };
@@ -1934,12 +1934,14 @@
       const s = secs % 60;
       const pad = (n) => n.toString().padStart(2, '0');
 
-      if (currentFormatIndex === 1) {
+      if (currentFormatIndex === 0) {
         return `${pad(Math.floor(secs / 60))}:${pad(s)}`;
+      } else if (currentFormatIndex === 1) {
+        return `${pad(h)}:${pad(m)}:${pad(s)}`;
       } else if (currentFormatIndex === 2) {
         return currentLang === 'zh' ? `${pad(h)}时${pad(m)}分${pad(s)}秒` : `${pad(h)}h ${pad(m)}m ${pad(s)}s`;
       }
-      return `${pad(h)}:${pad(m)}:${pad(s)}`;
+      return `${pad(Math.floor(secs / 60))}:${pad(s)}`;
     }
 
     function updateDisplay() {
