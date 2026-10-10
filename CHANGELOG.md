@@ -2,6 +2,22 @@
 
 This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY-MM-DD`).
 
+## [1.03] - 2026-10-10
+
+### Added
+
+- Reliable default hotkey `Ctrl+Shift+T` replacing Space hotkey, with automatic migration for legacy configurations.
+- Intelligent hotkey auto-fallback cascade and real-time conflict detection with support for standalone `F1`-`F12` function keys.
+- High-DPI optimized tray icon geometry with enhanced visual weight across all display scaling levels.
+- System tray icon left-click direct start / pause trigger.
+- Enforced single active dialog mutual exclusion and active-screen centering for NoticeDialog, WelcomeDialog, and SettingsDialog.
+- Today's countdown history table enhancements: sequence number column (`#`), actual duration tracking, auto-stretching full-width layout, and summary status bar.
+
+### Changed
+
+- Default countdown display format changed to `MM:SS`.
+- Default countdown screen position updated to horizontal center and 60px from top.
+
 ## [1.02] - 2026-10-10
 
 ### Changed
