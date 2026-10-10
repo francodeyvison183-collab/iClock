@@ -174,7 +174,15 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: NoticeDialog missing time or finish label");
                 return 7;
             }
-            Console.WriteLine("PASS: NoticeDialog is TopMost and displays countdown finish time.");
+            Rectangle waNotice = Screen.PrimaryScreen.WorkingArea;
+            int expNoticeX = waNotice.Left + (waNotice.Width - activeNotice.Width) / 2;
+            int expNoticeY = waNotice.Top + (waNotice.Height - activeNotice.Height) / 2;
+            if (Math.Abs(activeNotice.Location.X - expNoticeX) > 20 || Math.Abs(activeNotice.Location.Y - expNoticeY) > 20)
+            {
+                Console.WriteLine("FAIL: NoticeDialog not centered on screen: " + activeNotice.Location + " vs " + expNoticeX + "," + expNoticeY);
+                return 7;
+            }
+            Console.WriteLine("PASS: NoticeDialog is centered, TopMost, and displays countdown finish time.");
             activeNotice.Close();
 
             // 6. Restart countdown then Reset -> Overlay becomes hidden

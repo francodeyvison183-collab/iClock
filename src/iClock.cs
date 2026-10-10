@@ -690,6 +690,8 @@ internal sealed class NoticeDialog : Form
         timer = new Timer();
         timer.Interval = 1000;
         timer.Tick += OnTimerTick;
+
+        AppContext.CenterFormOnScreen(this);
     }
 
     private void UpdateFinishLabel()
@@ -703,6 +705,7 @@ internal sealed class NoticeDialog : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
+        AppContext.CenterFormOnScreen(this);
         ForceTopMost();
         StartAlarm();
         if (timer != null) timer.Start();
@@ -915,6 +918,14 @@ internal sealed class WelcomeDialog : Form
                 Close();
             }
         };
+
+        AppContext.CenterFormOnScreen(this);
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        AppContext.CenterFormOnScreen(this);
     }
 }
 
