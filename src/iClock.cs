@@ -1005,7 +1005,7 @@ internal sealed class AppContext : ApplicationContext
     private ToolStripMenuItem AddMenuItem(ContextMenuStrip m, EventHandler onClick)
     {
         ToolStripMenuItem item = new ToolStripMenuItem();
-        item.Padding = new Padding(12, 6, 12, 6);
+        item.Padding = new Padding(18, 6, 14, 6);
         item.ForeColor = Win11TextPrimary;
         item.Click += onClick;
         m.Items.Add(item);
@@ -1022,7 +1022,7 @@ internal sealed class AppContext : ApplicationContext
         menuHistory.Text = en ? "View today's history…" : "查看今日记录…";
         menuSettings.Text = en ? "Settings…" : "设置…";
         menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
-        menuExit.Text = en ? "Exit iClock" : "退出 iClock";
+        menuExit.Text = en ? "Exit" : "退出";
         if (menuUpdate != null) menuUpdate.Text = en ? "⭐ Update available (" + latestVersion + ")…" : "⭐ 发现新版本 (" + latestVersion + ")…";
         tray.Text = "iClock";
     }
@@ -1533,7 +1533,7 @@ internal sealed class AppContext : ApplicationContext
         {
             menuUpdate = new ToolStripMenuItem(en ? "⭐ Update available (" + newVersion + ")…" : "⭐ 发现新版本 (" + newVersion + ")…");
             menuUpdate.ForeColor = Win11Accent;
-            menuUpdate.Padding = new Padding(12, 6, 12, 6);
+            menuUpdate.Padding = new Padding(18, 6, 14, 6);
             menuUpdate.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
             menuUpdate.Click += delegate
             {
