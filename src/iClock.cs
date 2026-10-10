@@ -876,21 +876,35 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
+        int left = 32;
+        int right = e.Item.Width - 32;
+        int width = Math.Max(0, right - left);
+        e.TextRectangle = new Rectangle(left, e.TextRectangle.Y, width, e.TextRectangle.Height);
+
         if (e.Item.Enabled)
         {
             ToolStripMenuItem mi = e.Item as ToolStripMenuItem;
             if (mi != null && !string.IsNullOrEmpty(mi.ShortcutKeyDisplayString) && e.Text == mi.ShortcutKeyDisplayString)
             {
                 e.TextColor = AppContext.Win11TextSecondary;
-            }
-            else if (!e.Item.ForeColor.IsEmpty && e.Item.ForeColor != SystemColors.ControlText && e.Item.ForeColor != AppContext.Win11TextPrimary)
-            {
-                e.TextColor = e.Item.ForeColor;
+                e.TextFormat = TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
             }
             else
             {
-                e.TextColor = AppContext.Win11TextPrimary;
+                e.TextFormat = TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
+                if (!e.Item.ForeColor.IsEmpty && e.Item.ForeColor != SystemColors.ControlText && e.Item.ForeColor != AppContext.Win11TextPrimary)
+                {
+                    e.TextColor = e.Item.ForeColor;
+                }
+                else
+                {
+                    e.TextColor = AppContext.Win11TextPrimary;
+                }
             }
+        }
+        else
+        {
+            e.TextFormat = TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
         }
         base.OnRenderItemText(e);
     }
@@ -1034,17 +1048,17 @@ internal sealed class AppContext : ApplicationContext
 
         if (running)
         {
-            menuStart.Text = en ? "Pause" : "暂停";
+            menuStart.Text = en ? "Pause countdown" : "暂停倒计时";
             menuStart.ForeColor = Color.FromArgb(202, 80, 16);
         }
         else if (sessionActive)
         {
-            menuStart.Text = en ? "Resume" : "继续";
+            menuStart.Text = en ? "Resume countdown" : "继续倒计时";
             menuStart.ForeColor = Color.FromArgb(16, 124, 65);
         }
         else
         {
-            menuStart.Text = en ? "Start" : "开始";
+            menuStart.Text = en ? "Start countdown" : "开始倒计时";
             menuStart.ForeColor = Color.FromArgb(0, 103, 192);
         }
 

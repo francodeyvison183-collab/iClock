@@ -534,7 +534,7 @@ internal static class TestCheck
             runningField.SetValue(app, false);
             sessionActiveField.SetValue(app, false);
             updateMenuText.Invoke(app, null);
-            if (menuReset.Enabled || (menuStart.Text != "开始" && menuStart.Text != "Start") || menuStart.ForeColor != Color.FromArgb(0, 103, 192))
+            if (menuReset.Enabled || (menuStart.Text != "开始倒计时" && menuStart.Text != "Start countdown") || menuStart.ForeColor != Color.FromArgb(0, 103, 192))
             {
                 Console.WriteLine("FAIL: Idle menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ", Color=" + menuStart.ForeColor + ")");
                 return 24;
@@ -542,7 +542,7 @@ internal static class TestCheck
             runningField.SetValue(app, true);
             sessionActiveField.SetValue(app, true);
             updateMenuText.Invoke(app, null);
-            if (!menuReset.Enabled || (menuStart.Text != "暂停" && menuStart.Text != "Pause") || menuStart.ForeColor != Color.FromArgb(202, 80, 16))
+            if (!menuReset.Enabled || (menuStart.Text != "暂停倒计时" && menuStart.Text != "Pause countdown") || menuStart.ForeColor != Color.FromArgb(202, 80, 16))
             {
                 Console.WriteLine("FAIL: Running menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ", Color=" + menuStart.ForeColor + ")");
                 return 24;
@@ -550,7 +550,7 @@ internal static class TestCheck
             runningField.SetValue(app, false);
             sessionActiveField.SetValue(app, true);
             updateMenuText.Invoke(app, null);
-            if (!menuReset.Enabled || (menuStart.Text != "继续" && menuStart.Text != "Resume") || menuStart.ForeColor != Color.FromArgb(16, 124, 65))
+            if (!menuReset.Enabled || (menuStart.Text != "继续倒计时" && menuStart.Text != "Resume countdown") || menuStart.ForeColor != Color.FromArgb(16, 124, 65))
             {
                 Console.WriteLine("FAIL: Paused menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ", Color=" + menuStart.ForeColor + ")");
                 return 24;
