@@ -1482,14 +1482,30 @@ internal sealed class AppContext : ApplicationContext
                 e.Graphics.DrawLine(p, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
                 e.Graphics.DrawLine(p, e.Bounds.Right - 1, e.Bounds.Top + 3, e.Bounds.Right - 1, e.Bounds.Bottom - 4);
             }
-            TextFormatFlags flags = TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.WordEllipsis;
-            Rectangle textRect = new Rectangle(e.Bounds.X + 8, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 16), e.Bounds.Height);
+            TextFormatFlags flags = (e.ColumnIndex == 0)
+                ? (TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine)
+                : (TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.WordEllipsis);
+            Rectangle textRect = (e.ColumnIndex == 0)
+                ? e.Bounds
+                : new Rectangle(e.Bounds.X + 8, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 16), e.Bounds.Height);
             TextRenderer.DrawText(e.Graphics, e.Header.Text, headerFont, textRect, Color.FromArgb(60, 60, 60), flags);
         };
-        list.DrawItem += delegate(object s, DrawListViewItemEventArgs e) { e.DrawDefault = true; };
-        list.DrawSubItem += delegate(object s, DrawListViewSubItemEventArgs e) { e.DrawDefault = true; };
+        list.DrawItem += delegate(object s, DrawListViewItemEventArgs e) { };
+        list.DrawSubItem += delegate(object s, DrawListViewSubItemEventArgs e)
+        {
+            if (e.ColumnIndex == 0)
+            {
+                e.DrawBackground();
+                Color fg = ((e.ItemState & ListViewItemStates.Selected) != 0) ? SystemColors.HighlightText : e.SubItem.ForeColor;
+                TextRenderer.DrawText(e.Graphics, e.SubItem.Text, e.Item.Font, e.Bounds, fg, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+            }
+            else
+            {
+                e.DrawDefault = true;
+            }
+        };
 
-        list.Columns.Add(en ? "#" : "序号", 50);
+        list.Columns.Add("#", 50, HorizontalAlignment.Center);
         list.Columns.Add(en ? "Start time" : "开始时间", 115);
         list.Columns.Add(en ? "End time" : "结束时间", 115);
         list.Columns.Add(en ? "Duration" : "设定时长", 85);
