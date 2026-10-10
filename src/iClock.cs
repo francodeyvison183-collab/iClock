@@ -259,6 +259,7 @@ internal sealed class SettingsDialog : Form
     private TextBox hotkeyBox;
     private int hotkeyModifiers, hotkeyKey;
     public Settings Value { get; private set; }
+    private static readonly string[] fontFamilies = { "Segoe UI", "Consolas", "Arial", "Impact", "Microsoft YaHei" };
 
     public SettingsDialog(Settings s)
     {
@@ -274,7 +275,9 @@ internal sealed class SettingsDialog : Form
         AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 16, 20); minutes = AddNumber(Value.Minutes, 1, 1440, 150, 16);
         AddLabel(en ? "Text size" : "文字大小", 16, 56); size = AddNumber(Value.FontSize, 12, 120, 150, 52);
         AddLabel(en ? "Font style" : "字体样式", 16, 92);
-        fontCombo = new ComboBox(); fontCombo.DropDownStyle = ComboBoxStyle.DropDownList; fontCombo.SetBounds(150, 88, 150, 24);
+        fontCombo = new ComboBox(); fontCombo.DropDownStyle = ComboBoxStyle.DropDownList;
+        fontCombo.DrawMode = DrawMode.OwnerDrawFixed; fontCombo.ItemHeight = 22;
+        fontCombo.SetBounds(150, 88, 150, 24);
         fontCombo.Items.AddRange(en
             ? new object[] { "Segoe UI (Default)", "Consolas (Monospace)", "Arial", "Impact", "Microsoft YaHei" }
             : new object[] { "Segoe UI (默认)", "Consolas (极客等宽)", "Arial", "Impact (醒目粗黑)", "微软雅黑" });
@@ -282,6 +285,7 @@ internal sealed class SettingsDialog : Form
             (Value.FontFamily == "Arial" ? 2 :
             (Value.FontFamily == "Impact" ? 3 :
             (Value.FontFamily == "Microsoft YaHei" ? 4 : 0)));
+        fontCombo.DrawItem += OnDrawFontItem;
         Controls.Add(fontCombo);
         AddLabel(en ? "Text color" : "文字颜色", 16, 128); selectedColor = Value.Color;
         colorButton = new Button(); colorButton.Text = en ? "Choose…" : "点击选取…"; colorButton.SetBounds(150, 124, 105, 26); colorButton.Click += ChooseColor; Controls.Add(colorButton);
@@ -354,6 +358,34 @@ internal sealed class SettingsDialog : Form
         if ((mods & 4) != 0) value += "Shift+";
         return value + ((Keys)key).ToString();
     }
+    private void OnDrawFontItem(object sender, DrawItemEventArgs e)
+    {
+        if (e.Index < 0 || e.Index >= fontCombo.Items.Count) return;
+        e.DrawBackground();
+        string text = fontCombo.Items[e.Index].ToString();
+        string family = e.Index < fontFamilies.Length ? fontFamilies[e.Index] : "Segoe UI";
+        e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        try
+        {
+            using (Font f = new Font(family, e.Font.Size, FontStyle.Regular, e.Font.Unit))
+            using (SolidBrush b = new SolidBrush(e.ForeColor))
+            using (StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Center })
+            {
+                Rectangle r = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height);
+                e.Graphics.DrawString(text, f, b, r, sf);
+            }
+        }
+        catch
+        {
+            using (SolidBrush b = new SolidBrush(e.ForeColor))
+            using (StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Center })
+            {
+                Rectangle r = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height);
+                e.Graphics.DrawString(text, e.Font, b, r, sf);
+            }
+        }
+        e.DrawFocusRectangle();
+    }
     private void SaveClick(object sender, EventArgs e)
     {
         if (startup.Checked && !Value.AutoStart && AppContext.IsInEphemeralFolder(Application.ExecutablePath))
@@ -370,7 +402,6 @@ internal sealed class SettingsDialog : Form
             }
         }
         Value.Minutes = (int)minutes.Value; Value.FontSize = (int)size.Value; Value.Color = selectedColor;
-        string[] fontFamilies = { "Segoe UI", "Consolas", "Arial", "Impact", "Microsoft YaHei" };
         Value.FontFamily = fontCombo.SelectedIndex >= 0 && fontCombo.SelectedIndex < fontFamilies.Length
             ? fontFamilies[fontCombo.SelectedIndex]
             : "Segoe UI";

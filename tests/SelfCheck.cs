@@ -237,7 +237,15 @@ internal static class TestCheck
                 {
                     ComboBox cb = (ComboBox)c;
                     if (cb.Items.Contains("简体中文")) hasLanguageCombo = true;
-                    if (cb.Items.Contains("Consolas (极客等宽)")) hasFontCombo = true;
+                    if (cb.Items.Contains("Consolas (极客等宽)"))
+                    {
+                        hasFontCombo = true;
+                        if (cb.DrawMode != DrawMode.OwnerDrawFixed)
+                        {
+                            Console.WriteLine("FAIL: fontCombo should have DrawMode OwnerDrawFixed");
+                            return 15;
+                        }
+                    }
                 }
             }
             settingsDialog.Dispose();
@@ -257,7 +265,7 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: launchReported was not set on startup or field missing");
                 return 15;
             }
-            Console.WriteLine("PASS: SettingsDialog contains language and font selection, and launchReported is de-duplicated.");
+            Console.WriteLine("PASS: SettingsDialog contains language and font selection (OwnerDraw preview), and launchReported is de-duplicated.");
 
             // 10. Verify version comparison and JSON parsing
             BindingFlags sbf = BindingFlags.NonPublic | BindingFlags.Static;
