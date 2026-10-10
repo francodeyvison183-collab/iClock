@@ -739,41 +739,39 @@ internal sealed class WelcomeDialog : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = true;
-        ClientSize = new Size(380, 206);
+        ClientSize = new Size(380, 208);
 
-        Label lblTitle = new Label();
-        lblTitle.Text = en ? "Welcome to iClock" : "欢迎使用 iClock";
-        lblTitle.Font = AppContext.GetUiFont(s.Language, 13f, FontStyle.Bold);
-        lblTitle.ForeColor = AppContext.Win11Accent;
-        lblTitle.SetBounds(22, 16, 336, 26);
-        Controls.Add(lblTitle);
-
-        PictureBox iconBox = new PictureBox();
-        iconBox.SetBounds(22, 54, 36, 36);
-        iconBox.SizeMode = PictureBoxSizeMode.Zoom;
         try
         {
             Icon appIcon = AppContext.CreateIcon();
             if (appIcon != null)
             {
                 Icon = appIcon;
-                iconBox.Image = appIcon.ToBitmap();
+                ShowIcon = true;
             }
         }
         catch { }
-        Controls.Add(iconBox);
+
+        Label lblTitle = new Label();
+        lblTitle.Text = en ? "Welcome to iClock" : "欢迎使用 iClock";
+        lblTitle.Font = AppContext.GetUiFont(s.Language, 13.5f, FontStyle.Bold);
+        lblTitle.ForeColor = AppContext.Win11Accent;
+        lblTitle.TextAlign = ContentAlignment.MiddleCenter;
+        lblTitle.SetBounds(0, 16, ClientSize.Width, 26);
+        Controls.Add(lblTitle);
 
         Label lblPrompt = new Label();
         lblPrompt.Text = en ? "Press shortcut to start or pause:" : "按下快捷键启动或暂停倒计时：";
         lblPrompt.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
         lblPrompt.ForeColor = AppContext.Win11TextPrimary;
-        lblPrompt.SetBounds(68, 50, 296, 20);
+        lblPrompt.TextAlign = ContentAlignment.MiddleCenter;
+        lblPrompt.SetBounds(0, 52, ClientSize.Width, 20);
         Controls.Add(lblPrompt);
 
         string hotkey = AppContext.HotkeyText(s.HotkeyModifiers, s.HotkeyKey);
         Label badge = new Label();
         badge.Text = hotkey;
-        badge.Font = new Font("Segoe UI", 10.5f, FontStyle.Bold);
+        badge.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
         badge.ForeColor = AppContext.Win11Accent;
         badge.BackColor = Color.White;
         badge.TextAlign = ContentAlignment.MiddleCenter;
@@ -781,9 +779,9 @@ internal sealed class WelcomeDialog : Form
         using (Graphics g = CreateGraphics())
         {
             SizeF sz = g.MeasureString(hotkey, badge.Font);
-            badgeWidth = Math.Max(70, (int)Math.Ceiling(sz.Width) + 20);
+            badgeWidth = Math.Max(70, (int)Math.Ceiling(sz.Width) + 24);
         }
-        badge.SetBounds(68, 74, badgeWidth, 26);
+        badge.SetBounds((ClientSize.Width - badgeWidth) / 2, 78, badgeWidth, 28);
         badge.Paint += delegate(object sender, PaintEventArgs pe)
         {
             pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
@@ -794,12 +792,49 @@ internal sealed class WelcomeDialog : Form
         };
         Controls.Add(badge);
 
-        Label lblTray = new Label();
-        lblTray.Text = en ? "Right-click system tray icon for settings." : "右键系统托盘图标可进行个性化设置。";
-        lblTray.Font = AppContext.GetUiFont(s.Language, 8.5f, FontStyle.Regular);
-        lblTray.ForeColor = AppContext.Win11TextSecondary;
-        lblTray.SetBounds(68, 108, 296, 20);
-        Controls.Add(lblTray);
+        Panel trayPanel = new Panel();
+        trayPanel.SetBounds(0, 116, ClientSize.Width, 22);
+        trayPanel.BackColor = Color.Transparent;
+
+        string t1 = en ? "Right-click system tray icon" : "右键系统托盘图标";
+        string t2 = en ? "for settings" : "可进行设置";
+        Font trayFont = AppContext.GetUiFont(s.Language, 8.5f, FontStyle.Regular);
+        int w1 = 0, w2 = 0;
+        using (Graphics g = CreateGraphics())
+        {
+            w1 = (int)Math.Ceiling(g.MeasureString(t1, trayFont).Width);
+            w2 = (int)Math.Ceiling(g.MeasureString(t2, trayFont).Width);
+        }
+        int iconSize = 16, gap = 4;
+        int totalTrayW = w1 + gap + iconSize + gap + w2;
+        int trayStartX = (ClientSize.Width - totalTrayW) / 2;
+
+        Label lblT1 = new Label();
+        lblT1.Text = t1;
+        lblT1.Font = trayFont;
+        lblT1.ForeColor = AppContext.Win11TextSecondary;
+        lblT1.SetBounds(trayStartX, 2, w1, 18);
+        trayPanel.Controls.Add(lblT1);
+
+        PictureBox trayIcon = new PictureBox();
+        trayIcon.SetBounds(trayStartX + w1 + gap, 3, iconSize, iconSize);
+        trayIcon.SizeMode = PictureBoxSizeMode.Zoom;
+        try
+        {
+            Icon appIcon = AppContext.CreateIcon();
+            if (appIcon != null) trayIcon.Image = appIcon.ToBitmap();
+        }
+        catch { }
+        trayPanel.Controls.Add(trayIcon);
+
+        Label lblT2 = new Label();
+        lblT2.Text = t2;
+        lblT2.Font = trayFont;
+        lblT2.ForeColor = AppContext.Win11TextSecondary;
+        lblT2.SetBounds(trayStartX + w1 + gap + iconSize + gap, 2, w2, 18);
+        trayPanel.Controls.Add(lblT2);
+
+        Controls.Add(trayPanel);
 
         int totalBtnWidth = 126 + 12 + 86;
         int startX = (ClientSize.Width - totalBtnWidth) / 2;
@@ -807,7 +842,7 @@ internal sealed class WelcomeDialog : Form
         Button btnStart = new Button();
         btnStart.Text = en ? "Start Countdown" : "开始倒计时";
         btnStart.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-        btnStart.SetBounds(startX, 152, 126, 34);
+        btnStart.SetBounds(startX, 154, 126, 34);
         AppContext.StylePrimaryButton(btnStart);
         btnStart.Click += delegate { StartRequested = true; Close(); };
         Controls.Add(btnStart);
@@ -815,7 +850,7 @@ internal sealed class WelcomeDialog : Form
         Button btnOk = new Button();
         btnOk.Text = en ? "Got it" : "知道了";
         btnOk.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-        btnOk.SetBounds(startX + 126 + 12, 152, 86, 34);
+        btnOk.SetBounds(startX + 126 + 12, 154, 86, 34);
         AppContext.StyleSecondaryButton(btnOk);
         btnOk.Click += delegate { Close(); };
         Controls.Add(btnOk);

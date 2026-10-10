@@ -388,6 +388,7 @@ internal static class TestCheck
                 if (c is Button && (c.Text.Contains("开始") || c.Text.Contains("Start"))) startBtn = (Button)c;
                 if (c is Button && (c.Text.Contains("知道了") || c.Text.Contains("Got it"))) okBtn = (Button)c;
                 if (c is PictureBox) hasIcon = true;
+                if (c is Panel) foreach (Control sub in c.Controls) if (sub is PictureBox) hasIcon = true;
                 if (c is Label && (c.Text == "欢迎使用 iClock" || c.Text == "Welcome to iClock")) titleCorrect = true;
             }
             if (startBtn == null || okBtn == null || !hasIcon || !titleCorrect)
