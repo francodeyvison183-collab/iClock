@@ -286,6 +286,65 @@ internal static class TestCheck
             welcomeDlg.Dispose();
             Console.WriteLine("PASS: WelcomeDialog presents concise ready guidance and handles Start countdown correctly.");
 
+            // 12. Verify IsInEphemeralFolder detection and EnsureStartMenuShortcut
+            MethodInfo isEphemeralMethod = appType.GetMethod("IsInEphemeralFolder", BindingFlags.NonPublic | BindingFlags.Static);
+            if (isEphemeralMethod == null)
+            {
+                Console.WriteLine("FAIL: IsInEphemeralFolder method missing");
+                return 19;
+            }
+            string tempFolderExe = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "iClock.exe");
+            string normalExe1 = "C:\\Program Files\\iClock\\iClock.exe";
+            string normalExe2 = "D:\\Tools\\iClock\\iClock.exe";
+            string downloadsExe = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads", "iClock.exe");
+            if (!(bool)isEphemeralMethod.Invoke(null, new object[] { tempFolderExe }) ||
+                !(bool)isEphemeralMethod.Invoke(null, new object[] { downloadsExe }) ||
+                (bool)isEphemeralMethod.Invoke(null, new object[] { normalExe1 }) ||
+                (bool)isEphemeralMethod.Invoke(null, new object[] { normalExe2 }))
+            {
+                Console.WriteLine("FAIL: IsInEphemeralFolder returned incorrect results");
+                return 19;
+            }
+
+            MethodInfo shortcutMethod = appType.GetMethod("EnsureStartMenuShortcut", BindingFlags.NonPublic | BindingFlags.Static);
+            if (shortcutMethod == null)
+            {
+                Console.WriteLine("FAIL: EnsureStartMenuShortcut method missing");
+                return 20;
+            }
+            string testLnk = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "iClock_test_" + Guid.NewGuid().ToString("N") + ".lnk");
+            try
+            {
+                bool resFalse = (bool)shortcutMethod.Invoke(null, new object[] { false, testLnk, exePath });
+                if (resFalse || System.IO.File.Exists(testLnk))
+                {
+                    Console.WriteLine("FAIL: EnsureStartMenuShortcut should not create shortcut when createIfNotExists is false");
+                    return 20;
+                }
+                bool resTrue = (bool)shortcutMethod.Invoke(null, new object[] { true, testLnk, exePath });
+                if (!resTrue || !System.IO.File.Exists(testLnk))
+                {
+                    Console.WriteLine("FAIL: EnsureStartMenuShortcut failed to create shortcut");
+                    return 20;
+                }
+                // Verify update target
+                string newTarget = "C:\\Windows\\notepad.exe";
+                bool resUpdate = (bool)shortcutMethod.Invoke(null, new object[] { false, testLnk, newTarget });
+                if (!resUpdate)
+                {
+                    Console.WriteLine("FAIL: EnsureStartMenuShortcut failed to update existing shortcut");
+                    return 20;
+                }
+            }
+            finally
+            {
+                if (System.IO.File.Exists(testLnk))
+                {
+                    try { System.IO.File.Delete(testLnk); } catch { }
+                }
+            }
+            Console.WriteLine("PASS: IsInEphemeralFolder detection and EnsureStartMenuShortcut self-healing work correctly.");
+
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 

@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Runtime.InteropServices;
+using System.Reflection;
 using System.Windows.Forms;
 using System.Media;
 using System.Net;
@@ -320,6 +321,19 @@ internal sealed class SettingsDialog : Form
     }
     private void SaveClick(object sender, EventArgs e)
     {
+        if (startup.Checked && !Value.AutoStart && AppContext.IsInEphemeralFolder(Application.ExecutablePath))
+        {
+            bool toEnglish = language.SelectedIndex == 1;
+            string msg = toEnglish
+                ? "iClock is currently located in a temporary or download folder:\r\n" + Application.ExecutablePath + "\r\n\r\nIt is recommended to move iClock.exe to a permanent folder (such as Documents or Tools) before enabling auto-start, to prevent accidental deletion during cleanup.\r\n\r\nDo you still want to enable auto-start?"
+                : "检测到当前程序位于临时或下载目录：\r\n" + Application.ExecutablePath + "\r\n\r\n建议将 iClock.exe 移动到固定文件夹（如个人工具目录或文档）后再开启自启，以防清理下载文件时误删。\r\n\r\n是否仍要开启开机自启？";
+            string caption = toEnglish ? "iClock Auto-Start Tip" : "iClock 开机自启提示";
+            if (MessageBox.Show(this, msg, caption, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.No)
+            {
+                startup.Checked = false;
+                return;
+            }
+        }
         Value.Minutes = (int)minutes.Value; Value.FontSize = (int)size.Value; Value.Color = selectedColor;
         Value.HotkeyModifiers = hotkeyModifiers; Value.HotkeyKey = hotkeyKey;
         Value.EndMessage = endMessage.Text.Trim();
@@ -759,6 +773,7 @@ internal sealed class AppContext : ApplicationContext
         tray.BalloonTipClicked += delegate { if (!string.IsNullOrEmpty(updateUrl)) { try { Process.Start(updateUrl); } catch { } } };
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
         ApplyStartup();
+        EnsureStartMenuShortcut(false);
         ResetDisplay();
         TrackAndCheckUpdates();
         if (settings.FirstRun)
@@ -772,6 +787,7 @@ internal sealed class AppContext : ApplicationContext
         if (!settings.FirstRun) return;
         settings.FirstRun = false;
         settings.Save();
+        EnsureStartMenuShortcut(true);
         using (WelcomeDialog dlg = new WelcomeDialog(settings))
         {
             dlg.ShowDialog();
@@ -1023,6 +1039,78 @@ internal sealed class AppContext : ApplicationContext
         if ((mods & 1) != 0) value += "Alt+";
         if ((mods & 4) != 0) value += "Shift+";
         return value + ((Keys)key).ToString();
+    }
+
+    internal static bool IsInEphemeralFolder(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return false;
+        try
+        {
+            string full = Path.GetFullPath(path);
+            string temp = Path.GetFullPath(Path.GetTempPath()).TrimEnd('\\', '/');
+            if (full.StartsWith(temp + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(full, temp, StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrEmpty(userProfile))
+            {
+                string downloads = Path.Combine(userProfile, "Downloads");
+                if (full.StartsWith(downloads + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(full, downloads, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+
+            string lower = full.ToLowerInvariant();
+            if (lower.Contains(@"\appdata\local\temp\") || lower.Contains(@"\downloads\"))
+                return true;
+        }
+        catch { }
+        return false;
+    }
+
+    internal static bool EnsureStartMenuShortcut(bool createIfNotExists, string customLinkPath = null, string targetExe = null)
+    {
+        try
+        {
+            string linkPath = customLinkPath;
+            if (string.IsNullOrEmpty(linkPath))
+            {
+                string programsDir = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+                if (string.IsNullOrEmpty(programsDir)) return false;
+                linkPath = Path.Combine(programsDir, "iClock.lnk");
+            }
+            bool exists = File.Exists(linkPath);
+            if (!exists && !createIfNotExists) return false;
+
+            if (string.IsNullOrEmpty(targetExe)) targetExe = Application.ExecutablePath;
+
+            string dir = Path.GetDirectoryName(linkPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+            Type shellType = Type.GetTypeFromProgID("WScript.Shell");
+            if (shellType == null) return false;
+            object shell = Activator.CreateInstance(shellType);
+            object sc = shellType.InvokeMember("CreateShortcut", BindingFlags.InvokeMethod, null, shell, new object[] { linkPath });
+            if (sc == null) return false;
+            Type scType = sc.GetType();
+
+            if (exists)
+            {
+                string currentTarget = scType.InvokeMember("TargetPath", BindingFlags.GetProperty, null, sc, null) as string;
+                if (string.Equals(currentTarget, targetExe, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            scType.InvokeMember("TargetPath", BindingFlags.SetProperty, null, sc, new object[] { targetExe });
+            scType.InvokeMember("WorkingDirectory", BindingFlags.SetProperty, null, sc, new object[] { Path.GetDirectoryName(targetExe) });
+            scType.InvokeMember("Description", BindingFlags.SetProperty, null, sc, new object[] { "iClock Desktop Floating Countdown Timer" });
+            scType.InvokeMember("Save", BindingFlags.InvokeMethod, null, sc, null);
+            return true;
+        }
+        catch { return false; }
     }
 
     private static Icon CreateIcon()
