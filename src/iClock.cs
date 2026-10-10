@@ -1428,6 +1428,13 @@ internal sealed class AppContext : ApplicationContext
         if (hadHotkey && RegisterHotKey(messageWindow.Handle, HOTKEY_ID, (uint)(oldModifiers | MOD_NOREPEAT), (uint)oldKey)) hotkeyRegistered = true;
         return false;
     }
+    private struct StatSpan
+    {
+        public string Text;
+        public Font Font;
+        public Color Color;
+        public StatSpan(string text, Font font, Color color) { Text = text; Font = font; Color = color; }
+    }
     private void ShowHistory()
     {
         bool en = settings.Language == "en";
@@ -1451,7 +1458,8 @@ internal sealed class AppContext : ApplicationContext
         list.OwnerDraw = true;
 
         Font headerFont = new Font(list.Font, FontStyle.Bold);
-        f.FormClosed += delegate { headerFont.Dispose(); };
+        Font boldFont = new Font(list.Font, FontStyle.Bold);
+        f.FormClosed += delegate { headerFont.Dispose(); boldFont.Dispose(); };
         f.KeyPreview = true;
         f.KeyDown += delegate(object s, KeyEventArgs e) { if (e.KeyCode == Keys.Escape) f.Close(); };
 
@@ -1553,38 +1561,94 @@ internal sealed class AppContext : ApplicationContext
         summaryPanel.SetBounds(12, 332, 616, 36);
         summaryPanel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         summaryPanel.BackColor = Color.FromArgb(243, 244, 246);
-        summaryPanel.Padding = new Padding(1);
-        summaryPanel.Paint += delegate(object s, PaintEventArgs e)
-        {
-            using (Pen p = new Pen(Color.FromArgb(226, 230, 236), 1f))
-            {
-                e.Graphics.DrawRectangle(p, 0, 0, summaryPanel.Width - 1, summaryPanel.Height - 1);
-            }
-        };
 
-        Label lblSummary = new Label();
-        lblSummary.Dock = DockStyle.Fill;
-        lblSummary.TextAlign = ContentAlignment.MiddleCenter;
-        lblSummary.Font = GetUiFont(settings.Language, 9.5f);
-        lblSummary.ForeColor = Win11TextPrimary;
-        lblSummary.BackColor = Color.Transparent;
-
+        StatSpan[] spans;
         if (totalSessions == 0)
         {
-            lblSummary.Text = en
-                ? "📊 Today's Summary: No countdowns | Actual time: 0s | Completion rate: 0%"
-                : "📊 今日统计：暂无倒计时 ｜ 实际计时 0 秒 ｜ 完成率 0%";
+            if (en)
+            {
+                spans = new StatSpan[]
+                {
+                    new StatSpan("📊 Today's Summary: ", list.Font, Win11TextPrimary),
+                    new StatSpan("No countdowns   |   Actual time ", list.Font, Win11TextSecondary),
+                    new StatSpan("0s", boldFont, Win11ShortcutGray),
+                    new StatSpan("   |   Completion rate ", list.Font, Win11TextSecondary),
+                    new StatSpan("0%", boldFont, Win11ShortcutGray)
+                };
+            }
+            else
+            {
+                spans = new StatSpan[]
+                {
+                    new StatSpan("📊 今日统计：", list.Font, Win11TextPrimary),
+                    new StatSpan("暂无倒计时   ｜   实际计时 ", list.Font, Win11TextSecondary),
+                    new StatSpan("0 秒", boldFont, Win11ShortcutGray),
+                    new StatSpan("   ｜   完成率 ", list.Font, Win11TextSecondary),
+                    new StatSpan("0%", boldFont, Win11ShortcutGray)
+                };
+            }
         }
         else
         {
             int rate = (int)Math.Round((double)completedSessions * 100.0 / totalSessions);
             string focusText = FormatDuration(totalActualSecs, en);
-            lblSummary.Text = en
-                ? "📊 Today's Summary: " + totalSessions + (totalSessions == 1 ? " countdown | Actual time: " : " countdowns | Actual time: ") + focusText + " | Completion rate: " + rate + "%"
-                : "📊 今日统计：累计 " + totalSessions + " 次倒计时 ｜ 实际计时 " + focusText + " ｜ 完成率 " + rate + "%";
+            Color rateColor = (rate >= 80) ? Color.FromArgb(16, 124, 65) : Win11Accent;
+            if (en)
+            {
+                spans = new StatSpan[]
+                {
+                    new StatSpan("📊 Today's Summary: ", list.Font, Win11TextPrimary),
+                    new StatSpan(totalSessions.ToString(), boldFont, Win11Accent),
+                    new StatSpan(totalSessions == 1 ? " countdown   |   Actual time " : " countdowns   |   Actual time ", list.Font, Win11TextSecondary),
+                    new StatSpan(focusText, boldFont, Win11Accent),
+                    new StatSpan("   |   Completion rate ", list.Font, Win11TextSecondary),
+                    new StatSpan(rate + "%", boldFont, rateColor)
+                };
+            }
+            else
+            {
+                spans = new StatSpan[]
+                {
+                    new StatSpan("📊 今日统计：", list.Font, Win11TextPrimary),
+                    new StatSpan("累计 ", list.Font, Win11TextSecondary),
+                    new StatSpan(totalSessions.ToString(), boldFont, Win11Accent),
+                    new StatSpan(" 次倒计时   ｜   实际计时 ", list.Font, Win11TextSecondary),
+                    new StatSpan(focusText, boldFont, Win11Accent),
+                    new StatSpan("   ｜   完成率 ", list.Font, Win11TextSecondary),
+                    new StatSpan(rate + "%", boldFont, rateColor)
+                };
+            }
         }
 
-        summaryPanel.Controls.Add(lblSummary);
+        summaryPanel.Paint += delegate(object s, PaintEventArgs e)
+        {
+            using (SolidBrush bg = new SolidBrush(Color.FromArgb(243, 244, 246)))
+            {
+                e.Graphics.FillRectangle(bg, summaryPanel.ClientRectangle);
+            }
+            using (Pen p = new Pen(Color.FromArgb(226, 230, 236), 1f))
+            {
+                e.Graphics.DrawRectangle(p, 0, 0, summaryPanel.Width - 1, summaryPanel.Height - 1);
+            }
+            TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
+            int totalW = 0;
+            int[] widths = new int[spans.Length];
+            for (int i = 0; i < spans.Length; i++)
+            {
+                Size sz = TextRenderer.MeasureText(e.Graphics, spans[i].Text, spans[i].Font, Size.Empty, flags);
+                widths[i] = sz.Width;
+                totalW += sz.Width;
+            }
+            int curX = Math.Max(8, (summaryPanel.Width - totalW) / 2);
+            int y = (summaryPanel.Height - list.Font.Height) / 2;
+            for (int i = 0; i < spans.Length; i++)
+            {
+                TextRenderer.DrawText(e.Graphics, spans[i].Text, spans[i].Font, new Point(curX, y), spans[i].Color, flags);
+                curX += widths[i];
+            }
+        };
+        summaryPanel.Resize += delegate { summaryPanel.Invalidate(); };
+
         f.Controls.Add(list);
         f.Controls.Add(summaryPanel);
         updateColumnWidths();
