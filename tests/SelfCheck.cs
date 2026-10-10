@@ -50,8 +50,18 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: Overlay is hidden before countdown starts.");
 
-            // 2. Tray menu must not contain Show/hide text
+            // 2. Tray menu must not contain Show/hide text and should use ModernMenuRenderer
             ContextMenuStrip menu = tray.ContextMenuStrip;
+            if (menu == null || menu.ShowImageMargin || menu.ShowCheckMargin)
+            {
+                Console.WriteLine("FAIL: Tray menu should have ShowImageMargin and ShowCheckMargin = false");
+                return 2;
+            }
+            if (menu.Renderer == null || menu.Renderer.GetType().Name != "ModernMenuRenderer")
+            {
+                Console.WriteLine("FAIL: Tray menu should use ModernMenuRenderer");
+                return 2;
+            }
             foreach (ToolStripItem item in menu.Items)
             {
                 if (item.Text != null && (item.Text.Contains("显示") || item.Text.Contains("Show / hide")))
@@ -60,7 +70,7 @@ internal static class TestCheck
                     return 2;
                 }
             }
-            Console.WriteLine("PASS: Tray menu does not contain show/hide text.");
+            Console.WriteLine("PASS: Tray menu uses ModernMenuRenderer with clean single-column layout and no show/hide text.");
 
             // 3. Start countdown -> Overlay becomes visible
             MethodInfo toggle = appType.GetMethod("Toggle", bf);

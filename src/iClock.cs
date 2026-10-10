@@ -855,6 +855,62 @@ internal sealed class SponsorDialog : AboutDialog
     public SponsorDialog(string language) : base(language, null) { }
 }
 
+internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
+{
+    public ModernMenuRenderer() : base(new ModernMenuColorTable()) { }
+
+    protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+    {
+        if (!e.Item.Enabled) return;
+        if (e.Item.Selected)
+        {
+            Rectangle rc = new Rectangle(4, 1, e.Item.Width - 8, e.Item.Height - 2);
+            using (GraphicsPath path = AppContext.GetRoundedRectPath(rc, 4))
+            using (SolidBrush brush = new SolidBrush(Color.FromArgb(238, 238, 238)))
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                e.Graphics.FillPath(brush, path);
+            }
+        }
+    }
+
+    protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+    {
+        if (e.Item.Enabled && (e.Item.ForeColor.IsEmpty || e.Item.ForeColor == SystemColors.ControlText))
+        {
+            e.TextColor = AppContext.Win11TextPrimary;
+        }
+        base.OnRenderItemText(e);
+    }
+
+    protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+    {
+        int y = e.Item.Height / 2;
+        using (Pen p = new Pen(AppContext.Win11Border, 1f))
+        {
+            e.Graphics.DrawLine(p, 10, y, e.Item.Width - 10, y);
+        }
+    }
+
+    protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+    {
+        using (Pen p = new Pen(AppContext.Win11Border, 1f))
+        {
+            e.Graphics.DrawRectangle(p, 0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
+        }
+    }
+}
+
+internal sealed class ModernMenuColorTable : ProfessionalColorTable
+{
+    public override Color ToolStripDropDownBackground { get { return AppContext.Win11Bg; } }
+    public override Color ImageMarginGradientBegin { get { return AppContext.Win11Bg; } }
+    public override Color ImageMarginGradientMiddle { get { return AppContext.Win11Bg; } }
+    public override Color ImageMarginGradientEnd { get { return AppContext.Win11Bg; } }
+    public override Color MenuBorder { get { return AppContext.Win11Border; } }
+    public override Color MenuItemBorder { get { return Color.Transparent; } }
+}
+
 internal sealed class AppContext : ApplicationContext
 {
     private const int HOTKEY_ID = 0x4A10;
@@ -927,20 +983,33 @@ internal sealed class AppContext : ApplicationContext
     {
         ContextMenuStrip m = new ContextMenuStrip();
         m.Font = GetUiFont(settings.Language, 9.5f);
-        menuStart = new ToolStripMenuItem(); menuStart.Click += delegate { Toggle(); };
-        menuReset = new ToolStripMenuItem(); menuReset.Click += delegate { if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; } running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); };
-        menuMove = new ToolStripMenuItem(); menuMove.Click += delegate { ToggleMove(); };
-        menuHistory = new ToolStripMenuItem(); menuHistory.Click += delegate { ShowHistory(); };
-        menuSettings = new ToolStripMenuItem(); menuSettings.Click += delegate { ShowSettings(); };
-        menuAbout = new ToolStripMenuItem(); menuAbout.Click += delegate { ShowAbout(); };
-        menuExit = new ToolStripMenuItem(); menuExit.Click += delegate { Exit(); };
-        m.Items.Add(menuStart); m.Items.Add(menuReset); m.Items.Add(menuMove);
+        m.Renderer = new ModernMenuRenderer();
+        m.ShowImageMargin = false;
+        m.ShowCheckMargin = false;
+        m.Padding = new Padding(2, 4, 2, 4);
+        m.Opened += delegate { ApplyModernWindowStyle(m); };
+
+        menuStart = AddMenuItem(m, delegate { Toggle(); });
+        menuReset = AddMenuItem(m, delegate { if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; } running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); });
+        menuMove = AddMenuItem(m, delegate { ToggleMove(); });
         m.Items.Add(new ToolStripSeparator());
-        m.Items.Add(menuHistory); m.Items.Add(menuSettings); m.Items.Add(menuAbout);
+        menuHistory = AddMenuItem(m, delegate { ShowHistory(); });
+        menuSettings = AddMenuItem(m, delegate { ShowSettings(); });
+        menuAbout = AddMenuItem(m, delegate { ShowAbout(); });
         m.Items.Add(new ToolStripSeparator());
-        m.Items.Add(menuExit);
+        menuExit = AddMenuItem(m, delegate { Exit(); });
         UpdateMenuText();
         return m;
+    }
+
+    private ToolStripMenuItem AddMenuItem(ContextMenuStrip m, EventHandler onClick)
+    {
+        ToolStripMenuItem item = new ToolStripMenuItem();
+        item.Padding = new Padding(12, 6, 12, 6);
+        item.ForeColor = Win11TextPrimary;
+        item.Click += onClick;
+        m.Items.Add(item);
+        return item;
     }
 
     private void UpdateMenuText()
@@ -1212,13 +1281,13 @@ internal sealed class AppContext : ApplicationContext
     internal static readonly Color Win11TextSecondary = Color.FromArgb(95, 95, 95);
     internal static readonly Color Win11Border = Color.FromArgb(228, 228, 228);
 
-    internal static void ApplyModernWindowStyle(Form form)
+    internal static void ApplyModernWindowStyle(Control ctrl)
     {
-        if (form == null) return;
+        if (ctrl == null) return;
         try
         {
             int preference = DWMWCP_ROUND;
-            DwmSetWindowAttribute(form.Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
+            DwmSetWindowAttribute(ctrl.Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
         }
         catch { }
     }
@@ -1463,7 +1532,8 @@ internal sealed class AppContext : ApplicationContext
         if (menuUpdate == null && tray.ContextMenuStrip != null)
         {
             menuUpdate = new ToolStripMenuItem(en ? "⭐ Update available (" + newVersion + ")…" : "⭐ 发现新版本 (" + newVersion + ")…");
-            menuUpdate.ForeColor = Color.FromArgb(28, 114, 190);
+            menuUpdate.ForeColor = Win11Accent;
+            menuUpdate.Padding = new Padding(12, 6, 12, 6);
             menuUpdate.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
             menuUpdate.Click += delegate
             {
