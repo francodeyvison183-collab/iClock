@@ -1072,6 +1072,22 @@ internal class AboutDialog : Form
     }
 }
 
+internal sealed class ModernContextMenu : ContextMenuStrip
+{
+    protected override void OnLayout(LayoutEventArgs e)
+    {
+        base.OnLayout(e);
+        int w = ClientSize.Width;
+        foreach (ToolStripItem item in Items)
+        {
+            if (item != null && item.Width != w)
+            {
+                item.Size = new Size(w, item.Height);
+            }
+        }
+    }
+}
+
 internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
 {
     public ModernMenuRenderer() : base(new ModernMenuColorTable()) { }
@@ -1081,8 +1097,7 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
         if (!e.Item.Enabled) return;
         if (e.Item.Selected)
         {
-            int w = (e.ToolStrip != null && e.ToolStrip.ClientSize.Width > 0) ? e.ToolStrip.ClientSize.Width : e.Item.Width;
-            Rectangle rc = new Rectangle(4, 2, w - 8, e.Item.Height - 4);
+            Rectangle rc = new Rectangle(4, 2, e.Item.Width - 8, e.Item.Height - 4);
             using (GraphicsPath path = AppContext.GetRoundedRectPath(rc, 4))
             using (SolidBrush brush = new SolidBrush(Color.FromArgb(238, 238, 238)))
             {
@@ -1094,9 +1109,8 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
-        int menuWidth = (e.ToolStrip != null && e.ToolStrip.ClientSize.Width > 0) ? e.ToolStrip.ClientSize.Width : e.Item.Width;
         int left = 32;
-        int right = menuWidth - 24;
+        int right = e.Item.Width - 24;
         int width = Math.Max(0, right - left);
         e.TextRectangle = new Rectangle(left, 0, width, e.Item.Height);
 
@@ -1122,10 +1136,9 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
     {
         int y = e.Item.Height / 2;
-        int w = (e.ToolStrip != null && e.ToolStrip.ClientSize.Width > 0) ? e.ToolStrip.ClientSize.Width : e.Item.Width;
         using (Pen p = new Pen(AppContext.Win11Border, 1f))
         {
-            e.Graphics.DrawLine(p, 32, y, w - 32, y);
+            e.Graphics.DrawLine(p, 32, y, e.Item.Width - 32, y);
         }
     }
 
@@ -1230,7 +1243,7 @@ internal sealed class AppContext : ApplicationContext
 
     private ContextMenuStrip MakeMenu()
     {
-        ContextMenuStrip m = new ContextMenuStrip();
+        ContextMenuStrip m = new ModernContextMenu();
         m.Font = GetUiFont(settings.Language, 9.5f);
         m.Renderer = new ModernMenuRenderer();
         m.ShowImageMargin = false;
