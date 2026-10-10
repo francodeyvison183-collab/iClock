@@ -65,12 +65,40 @@ internal static class TestCheck
             // 3. Start countdown -> Overlay becomes visible
             MethodInfo toggle = appType.GetMethod("Toggle", bf);
             toggle.Invoke(app, null);
-            if (!overlay.Visible)
+            if (!overlay.Visible || Math.Abs(overlay.Opacity - 1.0) > 0.01)
             {
-                Console.WriteLine("FAIL: Overlay should be visible after starting countdown");
+                Console.WriteLine("FAIL: Overlay should be visible and have Opacity 1.0 after starting countdown");
                 return 3;
             }
-            Console.WriteLine("PASS: Overlay is visible after starting countdown.");
+            // Pause countdown -> Overlay remains visible with Opacity 0.50
+            toggle.Invoke(app, null);
+            if (!overlay.Visible || Math.Abs(overlay.Opacity - 0.50) > 0.01)
+            {
+                Console.WriteLine("FAIL: Overlay should have Opacity 0.50 when paused (got " + overlay.Opacity + ")");
+                return 3;
+            }
+            // Resume countdown -> Overlay Opacity returns to 1.0
+            toggle.Invoke(app, null);
+            if (!overlay.Visible || Math.Abs(overlay.Opacity - 1.0) > 0.01)
+            {
+                Console.WriteLine("FAIL: Overlay should return to Opacity 1.0 when resumed");
+                return 3;
+            }
+            // Verify MoveMode White background and 50% opacity
+            MethodInfo setMoveMode = overlay.GetType().GetMethod("SetMoveMode");
+            setMoveMode.Invoke(overlay, new object[] { true, true });
+            if (overlay.BackColor != Color.White || Math.Abs(overlay.Opacity - 0.50) > 0.01)
+            {
+                Console.WriteLine("FAIL: MoveMode should have BackColor = White and Opacity = 0.50");
+                return 3;
+            }
+            setMoveMode.Invoke(overlay, new object[] { false, true });
+            if (overlay.BackColor != Color.Fuchsia || Math.Abs(overlay.Opacity - 1.0) > 0.01)
+            {
+                Console.WriteLine("FAIL: Exiting MoveMode should restore BackColor = Fuchsia and Opacity = 1.0");
+                return 3;
+            }
+            Console.WriteLine("PASS: Overlay has 50% opacity when paused and MoveMode uses White background with 50% opacity.");
 
             // 4. Finish countdown -> Overlay becomes hidden
             FieldInfo deadlineField = appType.GetField("deadlineTimestamp", bf);

@@ -179,16 +179,24 @@ internal sealed class Overlay : Form
         Invalidate();
     }
 
-    public void SetMoveMode(bool enabled)
+    public void SetPaused(bool paused)
+    {
+        if (!MoveMode)
+        {
+            Opacity = paused ? 0.50 : 1.0;
+        }
+    }
+
+    public void SetMoveMode(bool enabled, bool isRunning = true)
     {
         MoveMode = enabled;
         if (enabled)
         {
-            TransparencyKey = Color.Empty; BackColor = Color.Black; Opacity = 0.40; TopMost = true;
+            TransparencyKey = Color.Empty; BackColor = Color.White; Opacity = 0.50; TopMost = true;
         }
         else
         {
-            Opacity = 1.0; BackColor = Color.Fuchsia; TransparencyKey = Color.Fuchsia;
+            BackColor = Color.Fuchsia; TransparencyKey = Color.Fuchsia; Opacity = isRunning ? 1.0 : 0.50;
         }
         RecreateHandle();
         Invalidate();
@@ -196,6 +204,13 @@ internal sealed class Overlay : Form
 
     protected override void OnPaint(PaintEventArgs e)
     {
+        if (MoveMode)
+        {
+            using (Pen borderPen = new Pen(Color.FromArgb(180, 28, 114, 190), 1f))
+            {
+                e.Graphics.DrawRectangle(borderPen, 0, 0, Width - 1, Height - 1);
+            }
+        }
         if (text != null && cachedFont != null && cachedBrush != null)
         {
             e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
@@ -826,7 +841,7 @@ internal sealed class AppContext : ApplicationContext
     {
         ContextMenuStrip m = new ContextMenuStrip();
         menuStart = new ToolStripMenuItem(); menuStart.Click += delegate { Toggle(); };
-        menuReset = new ToolStripMenuItem(); menuReset.Click += delegate { if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; } running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.Hide(); };
+        menuReset = new ToolStripMenuItem(); menuReset.Click += delegate { if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; } running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); };
         menuMove = new ToolStripMenuItem(); menuMove.Click += delegate { ToggleMove(); };
         menuHistory = new ToolStripMenuItem(); menuHistory.Click += delegate { ShowHistory(); };
         menuSettings = new ToolStripMenuItem(); menuSettings.Click += delegate { ShowSettings(); };
@@ -876,7 +891,7 @@ internal sealed class AppContext : ApplicationContext
 
     private void Toggle()
     {
-        if (running) { remaining = ReadRemaining(); running = false; timer.Stop(); lastSeconds = -1; Display(remaining); }
+        if (running) { remaining = ReadRemaining(); running = false; timer.Stop(); lastSeconds = -1; overlay.SetPaused(true); Display(remaining); }
         else {
             if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
             if (remaining <= TimeSpan.Zero) remaining = TimeSpan.FromMinutes(settings.Minutes);
@@ -886,6 +901,7 @@ internal sealed class AppContext : ApplicationContext
             lastSeconds = -1;
             timer.Interval = 100;
             timer.Start();
+            overlay.SetPaused(false);
             overlay.Show();
             Tick(null, EventArgs.Empty);
         }
@@ -903,6 +919,7 @@ internal sealed class AppContext : ApplicationContext
             remaining = TimeSpan.Zero;
             running = false;
             timer.Stop();
+            overlay.SetPaused(false);
             overlay.Hide();
             if (sessionActive) LogSession("Completed");
             sessionActive = false;
@@ -938,6 +955,7 @@ internal sealed class AppContext : ApplicationContext
     private void ResetDisplay() { remaining = TimeSpan.FromMinutes(settings.Minutes); lastSeconds = -1; Display(remaining); }
     private void Finish()
     {
+        overlay.SetPaused(false);
         overlay.Hide();
         if (settings.EndNotice)
         {
@@ -957,7 +975,7 @@ internal sealed class AppContext : ApplicationContext
     }
     private void ToggleMove()
     {
-        bool enabled = !overlay.MoveMode; overlay.SetMoveMode(enabled);
+        bool enabled = !overlay.MoveMode; overlay.SetMoveMode(enabled, running);
         if (enabled) { if (!sessionActive) ResetDisplay(); overlay.Show(); }
         else { if (!sessionActive) overlay.Hide(); }
         bool en = settings.Language == "en";
@@ -979,8 +997,9 @@ internal sealed class AppContext : ApplicationContext
             settings = d.Value; settings.Save(); overlay.SetSettings(settings); ApplyStartup();
             UpdateMenuText();
             lastSeconds = -1;
-            if (!running && !sessionActive) { ResetDisplay(); overlay.Hide(); }
+            if (!running && !sessionActive) { ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); }
             else if (running) { Tick(null, EventArgs.Empty); }
+            else { overlay.SetPaused(true); Display(remaining); }
         }
     }
     private bool SetHotkey(int modifiers, int key)
