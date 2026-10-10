@@ -888,7 +888,7 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
         int y = e.Item.Height / 2;
         using (Pen p = new Pen(AppContext.Win11Border, 1f))
         {
-            e.Graphics.DrawLine(p, 10, y, e.Item.Width - 10, y);
+            e.Graphics.DrawLine(p, 12, y, e.Item.Width - 12, y);
         }
     }
 
@@ -986,7 +986,7 @@ internal sealed class AppContext : ApplicationContext
         m.Renderer = new ModernMenuRenderer();
         m.ShowImageMargin = false;
         m.ShowCheckMargin = false;
-        m.Padding = new Padding(2, 4, 2, 4);
+        m.Padding = new Padding(2, 6, 2, 5);
         m.Opened += delegate { ApplyModernWindowStyle(m); };
 
         menuStart = AddMenuItem(m, delegate { Toggle(); });
@@ -1005,7 +1005,7 @@ internal sealed class AppContext : ApplicationContext
     private ToolStripMenuItem AddMenuItem(ContextMenuStrip m, EventHandler onClick)
     {
         ToolStripMenuItem item = new ToolStripMenuItem();
-        item.Padding = new Padding(18, 6, 14, 6);
+        item.Padding = new Padding(18, 4, 14, 4);
         item.ForeColor = Win11TextPrimary;
         item.Click += onClick;
         m.Items.Add(item);
@@ -1016,9 +1016,9 @@ internal sealed class AppContext : ApplicationContext
     {
         bool en = settings.Language == "en";
         if (menuStart == null) return;
-        menuStart.Text = (en ? "Start / pause  (" : "开始 / 暂停  (") + HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey) + ")";
+        menuStart.Text = (en ? "Start / pause (" : "开始 / 暂停 (") + HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey) + ")";
         menuReset.Text = en ? "Reset countdown" : "重置倒计时";
-        menuMove.Text = overlay.MoveMode ? (en ? "Finish position adjustment" : "完成位置调整") : (en ? "Adjust text position" : "调整文字位置");
+        menuMove.Text = overlay.MoveMode ? (en ? "✓ Finish position adjustment" : "✓ 完成位置调整") : (en ? "Adjust text position" : "调整文字位置");
         menuHistory.Text = en ? "View today's history…" : "查看今日记录…";
         menuSettings.Text = en ? "Settings…" : "设置…";
         menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
@@ -1533,7 +1533,7 @@ internal sealed class AppContext : ApplicationContext
         {
             menuUpdate = new ToolStripMenuItem(en ? "⭐ Update available (" + newVersion + ")…" : "⭐ 发现新版本 (" + newVersion + ")…");
             menuUpdate.ForeColor = Win11Accent;
-            menuUpdate.Padding = new Padding(18, 6, 14, 6);
+            menuUpdate.Padding = new Padding(18, 4, 14, 4);
             menuUpdate.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
             menuUpdate.Click += delegate
             {
