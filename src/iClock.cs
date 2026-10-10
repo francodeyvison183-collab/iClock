@@ -1445,6 +1445,31 @@ internal sealed class AppContext : ApplicationContext
         list.ForeColor = Win11TextPrimary;
         list.BorderStyle = BorderStyle.FixedSingle;
         list.View = View.Details; list.FullRowSelect = true; list.GridLines = true; list.SetBounds(12, 12, 596, 306);
+        list.OwnerDraw = true;
+
+        Font headerFont = new Font(list.Font, FontStyle.Bold);
+        f.FormClosed += delegate { headerFont.Dispose(); };
+        f.KeyPreview = true;
+        f.KeyDown += delegate(object s, KeyEventArgs e) { if (e.KeyCode == Keys.Escape) f.Close(); };
+
+        list.DrawColumnHeader += delegate(object s, DrawListViewColumnHeaderEventArgs e)
+        {
+            using (SolidBrush b = new SolidBrush(Color.FromArgb(243, 244, 246)))
+            {
+                e.Graphics.FillRectangle(b, e.Bounds);
+            }
+            using (Pen p = new Pen(Color.FromArgb(226, 230, 236)))
+            {
+                e.Graphics.DrawLine(p, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
+                e.Graphics.DrawLine(p, e.Bounds.Right - 1, e.Bounds.Top + 3, e.Bounds.Right - 1, e.Bounds.Bottom - 4);
+            }
+            TextFormatFlags flags = TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.WordEllipsis;
+            Rectangle textRect = new Rectangle(e.Bounds.X + 8, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 16), e.Bounds.Height);
+            TextRenderer.DrawText(e.Graphics, e.Header.Text, headerFont, textRect, Color.FromArgb(60, 60, 60), flags);
+        };
+        list.DrawItem += delegate(object s, DrawListViewItemEventArgs e) { e.DrawDefault = true; };
+        list.DrawSubItem += delegate(object s, DrawListViewSubItemEventArgs e) { e.DrawDefault = true; };
+
         list.Columns.Add(en ? "Start time" : "开始时间", 145); list.Columns.Add(en ? "End time" : "结束时间", 145); list.Columns.Add(en ? "Duration" : "设定时长", 90); list.Columns.Add(en ? "Result" : "结果", 170);
         try
         {
