@@ -994,7 +994,7 @@ internal sealed class AppContext : ApplicationContext
         m.Renderer = new ModernMenuRenderer();
         m.ShowImageMargin = false;
         m.ShowCheckMargin = false;
-        m.MinimumSize = new Size(190, 0);
+        m.MinimumSize = new Size(220, 0);
         m.Padding = new Padding(2, 6, 2, 6);
         m.Opened += delegate { ApplyModernWindowStyle(m); };
         m.Opening += delegate { UpdateMenuText(); };
@@ -1016,7 +1016,7 @@ internal sealed class AppContext : ApplicationContext
     private ToolStripMenuItem AddMenuItem(ContextMenuStrip m, EventHandler onClick)
     {
         ToolStripMenuItem item = new ToolStripMenuItem();
-        item.Padding = new Padding(16, 6, 16, 6);
+        item.Padding = new Padding(16, 7, 16, 7);
         item.ForeColor = Win11TextPrimary;
         item.Click += onClick;
         m.Items.Add(item);
@@ -1027,20 +1027,21 @@ internal sealed class AppContext : ApplicationContext
     {
         bool en = settings.Language == "en";
         if (menuStart == null) return;
+
         string actionText;
-        if (running) actionText = en ? "Pause" : "暂停";
-        else if (sessionActive) actionText = en ? "Resume" : "继续";
-        else actionText = en ? "Start" : "开始";
+        if (running) actionText = en ? "⏸ Pause" : "⏸ 暂停";
+        else if (sessionActive) actionText = en ? "▶ Resume" : "▶ 继续";
+        else actionText = en ? "▶ Start" : "▶ 开始";
 
         menuStart.Text = actionText;
         menuStart.ShortcutKeyDisplayString = HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey);
         menuReset.Text = en ? "Reset countdown" : "重置倒计时";
         menuReset.Enabled = running || sessionActive;
         menuMove.Text = overlay.MoveMode ? (en ? "✓ Finish position adjustment" : "✓ 完成位置调整") : (en ? "Adjust text position" : "调整文字位置");
-        menuHistory.Text = en ? "View today's history…" : "查看今日记录…";
+        menuHistory.Text = en ? "View today's history" : "查看今日记录";
         menuSettings.Text = en ? "Settings…" : "设置…";
         menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
-        menuExit.Text = en ? "Exit" : "退出";
+        menuExit.Text = en ? "\u23FB Exit" : "\u23FB 退出";
         if (menuUpdate != null) menuUpdate.Text = en ? "⭐ Update available (" + latestVersion + ")…" : "⭐ 发现新版本 (" + latestVersion + ")…";
         tray.Text = "iClock";
     }

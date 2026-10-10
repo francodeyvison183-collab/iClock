@@ -508,19 +508,19 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: menuAbout text must be '关于 iClock…' / 'About iClock…', got: " + menuAbout.Text);
                 return 24;
             }
-            if (menuHistory.Text != "查看今日记录…" && menuHistory.Text != "View today's history…")
+            if (menuHistory.Text != "查看今日记录" && menuHistory.Text != "View today's history")
             {
-                Console.WriteLine("FAIL: menuHistory text should be '查看今日记录…' / 'View today\'s history…', got: " + menuHistory.Text);
+                Console.WriteLine("FAIL: menuHistory text should be '查看今日记录' / 'View today\'s history' without ellipsis, got: " + menuHistory.Text);
                 return 24;
             }
-            if (menuExit.Text != "退出" && menuExit.Text != "Exit")
+            if (!menuExit.Text.Contains("退出") && !menuExit.Text.Contains("Exit"))
             {
-                Console.WriteLine("FAIL: menuExit text should be '退出' / 'Exit', got: " + menuExit.Text);
+                Console.WriteLine("FAIL: menuExit text should contain '退出' / 'Exit', got: " + menuExit.Text);
                 return 24;
             }
-            if (tray.ContextMenuStrip.MinimumSize.Width < 190)
+            if (tray.ContextMenuStrip.MinimumSize.Width < 220)
             {
-                Console.WriteLine("FAIL: Tray menu MinimumSize.Width should be >= 190");
+                Console.WriteLine("FAIL: Tray menu MinimumSize.Width should be >= 220, got: " + tray.ContextMenuStrip.MinimumSize.Width);
                 return 24;
             }
             MethodInfo updateMenuText = appType.GetMethod("UpdateMenuText", bf);
@@ -529,7 +529,7 @@ internal static class TestCheck
             runningField.SetValue(app, false);
             sessionActiveField.SetValue(app, false);
             updateMenuText.Invoke(app, null);
-            if (menuReset.Enabled || (menuStart.Text != "开始" && menuStart.Text != "Start"))
+            if (menuReset.Enabled || (!menuStart.Text.Contains("开始") && !menuStart.Text.Contains("Start")))
             {
                 Console.WriteLine("FAIL: Idle menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ")");
                 return 24;
@@ -537,7 +537,7 @@ internal static class TestCheck
             runningField.SetValue(app, true);
             sessionActiveField.SetValue(app, true);
             updateMenuText.Invoke(app, null);
-            if (!menuReset.Enabled || (menuStart.Text != "暂停" && menuStart.Text != "Pause"))
+            if (!menuReset.Enabled || (!menuStart.Text.Contains("暂停") && !menuStart.Text.Contains("Pause")))
             {
                 Console.WriteLine("FAIL: Running menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ")");
                 return 24;
@@ -545,12 +545,12 @@ internal static class TestCheck
             runningField.SetValue(app, false);
             sessionActiveField.SetValue(app, true);
             updateMenuText.Invoke(app, null);
-            if (!menuReset.Enabled || (menuStart.Text != "继续" && menuStart.Text != "Resume"))
+            if (!menuReset.Enabled || (!menuStart.Text.Contains("继续") && !menuStart.Text.Contains("Resume")))
             {
                 Console.WriteLine("FAIL: Paused menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ")");
                 return 24;
             }
-            Console.WriteLine("PASS: Modern Context Menu layout, hero action font, dynamic state transitions, and concise copy verified.");
+            Console.WriteLine("PASS: Modern Context Menu layout, status header, hero action font, dynamic state transitions, and concise copy verified.");
 
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
