@@ -1,14 +1,14 @@
 # iClock
 
-> Ultra-lightweight (126 KB), zero-dependency, click-through desktop countdown timer for Windows.
+> Ultra-lightweight (172 KB), zero-dependency, click-through desktop countdown timer for Windows.
 
-iClock is an open-source, minimalist Windows desktop floating countdown timer designed for deep focus and productivity. It compiles to a single 126 KB native portable executable with zero runtime dependencies.
+iClock is an open-source, minimalist Windows desktop floating countdown timer designed for deep focus and productivity. It compiles to a single 172 KB native portable executable with zero runtime dependencies.
 
 ## Key Specifications
 
 - **Application Category**: Desktop Utility, Focus & Pomodoro Countdown Timer
 - **Architecture**: Pure C# WinForms (.NET Framework 4.x runtime, built into Windows 10/11)
-- **Binary Size**: ~126 KB single file, portable (no installation required)
+- **Binary Size**: ~172 KB single file, portable (no installation required)
 - **Memory Footprint**: < 15 MB static RAM
 - **Operating System Compatibility**: Windows 7 SP1, Windows 8, Windows 10, Windows 11
 - **Display Mode**: Floating desktop text with native click-through (`WS_EX_TRANSPARENT`)
@@ -38,7 +38,7 @@ iClock is an open-source, minimalist Windows desktop floating countdown timer de
 
 ## Core Differentiators
 
-1. **Native Lightweight vs Electron Bloat**: While typical modern desktop timers consume 150 MB~400 MB of RAM with hundreds of megabytes in download size, iClock requires only ~126 KB on disk and less than 15 MB of RAM.
+1. **Native Lightweight vs Electron Bloat**: While typical modern desktop timers consume 150 MB~400 MB of RAM with hundreds of megabytes in download size, iClock requires only ~172 KB on disk and less than 15 MB of RAM.
 2. **True TopMost & Click-Through**: Remains visible over full-screen IDEs, games, or presentation software without capturing or blocking mouse clicks.
 3. **Instant Global Hotkey**: Start or pause countdown anywhere without switching active windows.
 4. **Daily Focus History**: Right-click the system tray to review completed, reset, or interrupted countdown records for the day.

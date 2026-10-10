@@ -6,12 +6,12 @@
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-126%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-172%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>单文件 126 KB · 运行内存 &lt; 15 MB · 鼠标点击穿透 · 全局热键 · 零第三方依赖 · 纯本地隐私</b>
+  <b>单文件 172 KB · 运行内存 &lt; 15 MB · 鼠标点击穿透 · 全局热键 · 零第三方依赖 · 纯本地隐私</b>
 </p>
 
 <p align="center">
@@ -36,7 +36,7 @@
 **iClock 坚持极致的工程师极简克制哲学**：
 
 * 🪟 **透明置顶 & 鼠标穿透**：倒计时文字自然悬浮于桌面之上，默认处于完全点击穿透状态，鼠标可直接穿透点击下方的 IDE、文档或游戏，完全不抢焦点、不阻挡操作。
-* ⚡ **单文件 126 KB & 0.0% CPU**：不含任何第三方依赖或庞大运行时。经过深度的 GDI 资源预分配与动态心跳对齐优化，运行期间每秒 **0 堆内存分配**，唤醒开销降至极限，笔记本长驻运行零耗电。
+* ⚡ **单文件 172 KB & 0.0% CPU**：不含任何第三方依赖或庞大运行时。经过深度的 GDI 资源预分配与动态心跳对齐优化，运行期间每秒 **0 堆内存分配**，唤醒开销降至极限，笔记本长驻运行零耗电。
 * ⌨️ **全局热键与托盘交互**：默认 `Ctrl + Shift + T` 一键盲开/暂停（若被占自动顺延备选 `Ctrl + Alt + T` 等），并支持鼠标左键单击托盘图标直接启停。
 * 🔔 **结束置顶强提醒**：倒计时结束时文字自动隐去，弹出强置顶提示窗口与循环提示音，必须手动确认才关闭，绝不错过关键节点。
 * 🔒 **纯本地、零网络请求**：设置与历史记录仅保存在本地应用目录，不联网、不收集任何隐私遥测，干净透明。
@@ -48,7 +48,7 @@
 
 | 核心维度 | **iClock (本项目)** | 常见 Electron 计时器 | Windows 自带闹钟 |
 | :--- | :--- | :--- | :--- |
-| **安装包体积** | ⚡ **126 KB** (绿色单文件，即下即用) | 120 MB ~ 250 MB | 预装应用 |
+| **安装包体积** | ⚡ **172 KB** (绿色单文件，即下即用) | 120 MB ~ 250 MB | 预装应用 |
 | **常驻内存** | ⚡ **~15 MB** (物理基线) | 150 MB ~ 300 MB | ~30 MB |
 | **CPU 占用** | ⚡ **0.0%** (动态心跳对齐) | 0.5% ~ 3.0% (后台轮询) | 0.0% |
 | **交互阻碍** | ⚡ **完全点击穿透，无边框** | 实体窗口遮挡代码与网页 | 最小化或全屏窗口 |
@@ -101,7 +101,7 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 * **Q: 为什么打游戏或写代码时不挡鼠标操作？**  
   **A**: iClock 深度利用了 Windows 底层 `WS_EX_TRANSPARENT` 穿透特性。倒计时文字置顶浮现于所有窗口之上，但所有鼠标点击和滚轮事件都会直接穿透到底层的游戏或编辑器，丝毫不抢占焦点。
-* **Q: 为什么软件体积只有 126 KB？**  
+* **Q: 为什么软件体积只有 172 KB？**  
   **A**: 坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 15 MB 以内。
 * **Q: 软件是否安全、纯净无广告？**  
   **A**: 100% 开源（MIT 协议），零流氓广告，零捆绑插件，零后台常驻进程，退出即彻底释放。详见 [PRIVACY.md](docs/PRIVACY.md)。
@@ -117,7 +117,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> 编译耗时不到 1 秒，产物输出在 `dist/iClock.exe`（单文件约 126 KB）。详见[构建说明](docs/BUILDING.md)。
+> 编译耗时不到 1 秒，产物输出在 `dist/iClock.exe`（单文件约 172 KB）。详见[构建说明](docs/BUILDING.md)。
 
 ---
 
