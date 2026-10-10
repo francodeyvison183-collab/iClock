@@ -600,6 +600,106 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: Modern Context Menu layout, 32px padding, three-state ForeColor, dynamic state transitions, and concise copy verified.");
 
+            // 17. Verify real-time hotkey conflict detection, function key support, and safe fallback
+            MethodInfo probeHotkey = appType.GetMethod("ProbeHotkey", BindingFlags.NonPublic | BindingFlags.Static);
+            if (probeHotkey == null)
+            {
+                Console.WriteLine("FAIL: ProbeHotkey method missing in AppContext");
+                return 25;
+            }
+            int testKey = (int)Keys.F11;
+            int testMods = 2 | 1; // Ctrl+Alt
+            bool initiallyFree = (bool)probeHotkey.Invoke(null, new object[] { testMods, testKey });
+            if (!initiallyFree)
+            {
+                testKey = (int)Keys.F12;
+                initiallyFree = (bool)probeHotkey.Invoke(null, new object[] { testMods, testKey });
+            }
+
+            NativeWindow probeHolder = new NativeWindow();
+            probeHolder.CreateHandle(new CreateParams());
+            MethodInfo regHotKey = appType.GetMethod("RegisterHotKey", BindingFlags.NonPublic | BindingFlags.Static);
+            MethodInfo unregHotKey = appType.GetMethod("UnregisterHotKey", BindingFlags.NonPublic | BindingFlags.Static);
+            bool held = (bool)regHotKey.Invoke(null, new object[] { probeHolder.Handle, 0x1234, (uint)(testMods | 0x4000), (uint)testKey });
+            if (held)
+            {
+                bool probeOccupied = (bool)probeHotkey.Invoke(null, new object[] { testMods, testKey });
+                unregHotKey.Invoke(null, new object[] { probeHolder.Handle, 0x1234 });
+                probeHolder.DestroyHandle();
+                bool probeRestored = (bool)probeHotkey.Invoke(null, new object[] { testMods, testKey });
+                if (probeOccupied || !probeRestored)
+                {
+                    Console.WriteLine("FAIL: ProbeHotkey failed: probeOccupied=" + probeOccupied + ", probeRestored=" + probeRestored);
+                    return 25;
+                }
+            }
+            else
+            {
+                probeHolder.DestroyHandle();
+            }
+
+            Form dlg = (Form)Activator.CreateInstance(settingsDialogType, new object[] { settings });
+            TextBox box = (TextBox)settingsDialogType.GetField("hotkeyBox", bf).GetValue(dlg);
+            Button save = (Button)settingsDialogType.GetField("saveBtn", bf).GetValue(dlg);
+            MethodInfo capture = settingsDialogType.GetMethod("CaptureHotkey", bf);
+
+            // 17a. Standalone function key (F10) without modifiers should be accepted
+            KeyEventArgs keF10 = new KeyEventArgs(Keys.F10);
+            capture.Invoke(dlg, new object[] { box, keF10 });
+            if (!save.Enabled || box.Text != "F10")
+            {
+                Console.WriteLine("FAIL: Standalone F10 should be accepted (save.Enabled=" + save.Enabled + ", text=" + box.Text + ")");
+                return 25;
+            }
+
+            // 17b. Normal key without modifier (Space) should be rejected
+            KeyEventArgs keSpace = new KeyEventArgs(Keys.Space);
+            capture.Invoke(dlg, new object[] { box, keSpace });
+            if (save.Enabled || (!box.Text.Contains("修饰键") && !box.Text.Contains("modifier")))
+            {
+                Console.WriteLine("FAIL: Lone space should be rejected (save.Enabled=" + save.Enabled + ", text=" + box.Text + ")");
+                return 25;
+            }
+
+            // 17c. Occupied key should be flagged and save button disabled
+            NativeWindow holder2 = new NativeWindow();
+            holder2.CreateHandle(new CreateParams());
+            bool held2 = (bool)regHotKey.Invoke(null, new object[] { holder2.Handle, 0x5678, (uint)(testMods | 0x4000), (uint)testKey });
+            if (held2)
+            {
+                KeyEventArgs keOccupied = new KeyEventArgs((Keys)testKey | Keys.Control | Keys.Alt);
+                capture.Invoke(dlg, new object[] { box, keOccupied });
+                unregHotKey.Invoke(null, new object[] { holder2.Handle, 0x5678 });
+                holder2.DestroyHandle();
+                if (save.Enabled || (!box.Text.Contains("已被占用") && !box.Text.Contains("Occupied")))
+                {
+                    Console.WriteLine("FAIL: Occupied hotkey should disable save (save.Enabled=" + save.Enabled + ", text=" + box.Text + ")");
+                    return 25;
+                }
+            }
+            else
+            {
+                holder2.DestroyHandle();
+            }
+
+            // 17d. Current hotkey should remain valid (isCurrent)
+            int currMods = (int)settingsType.GetField("HotkeyModifiers").GetValue(settings);
+            int currKey = (int)settingsType.GetField("HotkeyKey").GetValue(settings);
+            Keys currentKeyCombination = (Keys)currKey;
+            if ((currMods & 2) != 0) currentKeyCombination |= Keys.Control;
+            if ((currMods & 1) != 0) currentKeyCombination |= Keys.Alt;
+            if ((currMods & 4) != 0) currentKeyCombination |= Keys.Shift;
+            KeyEventArgs keCurrent = new KeyEventArgs(currentKeyCombination);
+            capture.Invoke(dlg, new object[] { box, keCurrent });
+            if (!save.Enabled)
+            {
+                Console.WriteLine("FAIL: Current hotkey should be valid (save.Enabled=" + save.Enabled + ", text=" + box.Text + ")");
+                return 25;
+            }
+
+            dlg.Dispose();
+            Console.WriteLine("PASS: Hotkey conflict probe, standalone function key support, and real-time occupied warnings verified.");
+
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 

@@ -259,7 +259,7 @@ internal sealed class SettingsDialog : Form
     private ComboBox format, language, fontCombo;
     private CheckBox startup, sound, notice;
     private TextBox hotkeyBox;
-    private int hotkeyModifiers, hotkeyKey;
+    private int hotkeyModifiers, hotkeyKey, candidateMods, candidateKey;
     private Label lblMinutes, lblSize, lblFont, lblColor, lblFormat, lblEndMsg, lblHotkey, lblLanguage;
     private Button saveBtn, cancelBtn;
     public Settings Value { get; private set; }
@@ -370,6 +370,7 @@ internal sealed class SettingsDialog : Form
         format.DrawItem += OnDrawComboItem;
         Controls.Add(format);
         hotkeyModifiers = Value.HotkeyModifiers; hotkeyKey = Value.HotkeyKey;
+        candidateMods = hotkeyModifiers; candidateKey = hotkeyKey;
         lblEndMsg = AddLabel(en ? "End message" : "结束时弹出消息", 18, 200);
         endMessage = new TextBox();
         endMessage.SetBounds(172, 196, 188, 36);
@@ -446,6 +447,21 @@ internal sealed class SettingsDialog : Form
             ? new object[] { "Segoe UI (Default)", "Consolas (Monospace)", "Arial", "Impact", "Microsoft YaHei" }
             : new object[] { "Segoe UI (默认)", "Consolas (极客等宽)", "Arial", "Impact (醒目粗黑)", "微软雅黑" });
         fontCombo.SelectedIndex = fontSel >= 0 ? fontSel : 0;
+        if (saveBtn.Enabled)
+        {
+            hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey);
+            hotkeyBox.ForeColor = AppContext.Win11TextPrimary;
+        }
+        else if (candidateMods == 0 && !((candidateKey >= (int)Keys.F1 && candidateKey <= (int)Keys.F12) || candidateKey == (int)Keys.Pause || candidateKey == (int)Keys.Scroll))
+        {
+            hotkeyBox.Text = toEnglish ? "Use a modifier + key" : "请按修饰键 + 按键";
+            hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
+        }
+        else
+        {
+            hotkeyBox.Text = AppContext.HotkeyText(candidateMods, candidateKey) + (toEnglish ? " (Occupied)" : " (已被占用)");
+            hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
+        }
 
         UpdateInputPadding(minutes);
         UpdateInputPadding(size);
@@ -471,15 +487,39 @@ internal sealed class SettingsDialog : Form
     }
     private void CaptureHotkey(object sender, KeyEventArgs e)
     {
-        e.SuppressKeyPress = true; e.Handled = true;
         Keys key = e.KeyCode;
+        if (key == Keys.Escape && (e.Modifiers & (Keys.Control | Keys.Alt | Keys.Shift)) == 0) return;
+        e.SuppressKeyPress = true; e.Handled = true;
         if (key == Keys.ControlKey || key == Keys.ShiftKey || key == Keys.Menu || key == Keys.LWin || key == Keys.RWin) return;
         int mods = 0;
         if ((e.Modifiers & Keys.Control) != 0) mods |= 2;
         if ((e.Modifiers & Keys.Alt) != 0) mods |= 1;
         if ((e.Modifiers & Keys.Shift) != 0) mods |= 4;
-        if (mods == 0) { hotkeyBox.Text = Value.Language == "en" ? "Use a modifier + key" : "请按修饰键 + 按键"; return; }
-        hotkeyModifiers = mods; hotkeyKey = (int)key; hotkeyBox.Text = AppContext.HotkeyText(mods, (int)key);
+        bool isFunctionKey = (key >= Keys.F1 && key <= Keys.F12) || key == Keys.Pause || key == Keys.Scroll;
+        candidateMods = mods; candidateKey = (int)key;
+        if (mods == 0 && !isFunctionKey)
+        {
+            hotkeyBox.Text = language.SelectedIndex == 1 ? "Use a modifier + key" : "请按修饰键 + 按键";
+            hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
+            saveBtn.Enabled = false;
+            return;
+        }
+        string text = AppContext.HotkeyText(mods, (int)key);
+        bool isCurrent = (mods == Value.HotkeyModifiers && (int)key == Value.HotkeyKey);
+        bool available = isCurrent || AppContext.ProbeHotkey(mods, (int)key);
+        if (!available)
+        {
+            hotkeyBox.Text = text + (language.SelectedIndex == 1 ? " (Occupied)" : " (已被占用)");
+            hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
+            saveBtn.Enabled = false;
+        }
+        else
+        {
+            hotkeyModifiers = mods; hotkeyKey = (int)key;
+            hotkeyBox.Text = text;
+            hotkeyBox.ForeColor = AppContext.Win11TextPrimary;
+            saveBtn.Enabled = true;
+        }
     }
     private void OnDrawFontItem(object sender, DrawItemEventArgs e)
     {
@@ -1044,9 +1084,12 @@ internal sealed class AppContext : ApplicationContext
         IntPtr forceOverlayHandle = overlay.Handle;
         messageWindow = new MessageWindow(this);
         activeHotkeyModifiers = 3; activeHotkeyKey = (int)Keys.Space;
+        bool hotkeyOccupiedOnStartup = false;
         if (!SetHotkey(settings.HotkeyModifiers, settings.HotkeyKey))
         {
-            settings.HotkeyModifiers = 3; settings.HotkeyKey = (int)Keys.Space; SetHotkey(3, (int)Keys.Space);
+            hotkeyOccupiedOnStartup = true;
+            settings.HotkeyModifiers = 3; settings.HotkeyKey = (int)Keys.Space;
+            SetHotkey(3, (int)Keys.Space);
         }
         tray = new NotifyIcon(); tray.Icon = appIcon; tray.Text = "iClock"; tray.Visible = true; tray.ContextMenuStrip = MakeMenu();
         tray.BalloonTipClicked += delegate { if (!string.IsNullOrEmpty(updateUrl)) { try { Process.Start(updateUrl); } catch { } } };
@@ -1055,6 +1098,14 @@ internal sealed class AppContext : ApplicationContext
         EnsureStartMenuShortcut(false);
         ResetDisplay();
         TrackAndCheckUpdates();
+        if (hotkeyOccupiedOnStartup)
+        {
+            bool en = settings.Language == "en";
+            string tipText = hotkeyRegistered
+                ? (en ? "Configured hotkey was occupied by another app. Switched to Ctrl+Alt+Space." : "设定的快捷键已被其他程序占用，已自动切换为默认快捷键 Ctrl+Alt+Space。")
+                : (en ? "Hotkey registration failed (occupied by another app). Please set a new hotkey in Settings." : "快捷键注册失败（已被其他程序占用），请在设置中重新指定快捷键。");
+            tray.ShowBalloonTip(4000, "iClock", tipText, ToolTipIcon.Warning);
+        }
         if (settings.FirstRun)
         {
             overlay.BeginInvoke(new Action(ShowWelcome));
@@ -1259,12 +1310,11 @@ internal sealed class AppContext : ApplicationContext
         using (SettingsDialog d = new SettingsDialog(settings))
         {
             if (d.ShowDialog() != DialogResult.OK) return;
+            bool hotkeyFailed = false;
             if (!SetHotkey(d.Value.HotkeyModifiers, d.Value.HotkeyKey))
             {
                 d.Value.HotkeyModifiers = activeHotkeyModifiers; d.Value.HotkeyKey = activeHotkeyKey;
-                bool en = d.Value.Language == "en";
-                MessageBox.Show(en ? "That hotkey is already in use. The previous hotkey was kept." : "该快捷键已被其他程序占用，快捷键设置未更改。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                hotkeyFailed = true;
             }
             settings = d.Value; settings.Save(); overlay.SetSettings(settings); ApplyStartup();
             if (tray != null && tray.ContextMenuStrip != null)
@@ -1277,6 +1327,12 @@ internal sealed class AppContext : ApplicationContext
             if (!running && !sessionActive) { ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); }
             else if (running) { Tick(null, EventArgs.Empty); }
             else { overlay.SetPaused(true); Display(remaining); }
+
+            if (hotkeyFailed)
+            {
+                bool en = settings.Language == "en";
+                MessageBox.Show(en ? "That hotkey is already occupied by another application. The previous hotkey was kept, but other settings were saved." : "该快捷键已被其他程序占用，快捷键已保留为原设置，其他设置已成功保存。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
     }
     private bool SetHotkey(int modifiers, int key)
@@ -1369,6 +1425,24 @@ internal sealed class AppContext : ApplicationContext
         if ((mods & 1) != 0) value += "Alt+";
         if ((mods & 4) != 0) value += "Shift+";
         return value + ((Keys)key).ToString();
+    }
+
+    internal static bool ProbeHotkey(int modifiers, int key)
+    {
+        NativeWindow nw = new NativeWindow();
+        try
+        {
+            nw.CreateHandle(new CreateParams());
+            int testId = 0x55AA;
+            bool ok = RegisterHotKey(nw.Handle, testId, (uint)(modifiers | MOD_NOREPEAT), (uint)key);
+            if (ok) UnregisterHotKey(nw.Handle, testId);
+            return ok;
+        }
+        catch { return false; }
+        finally
+        {
+            try { nw.DestroyHandle(); } catch { }
+        }
     }
 
     internal static Font GetUiFont(string lang, float sizePt = 9.5f, FontStyle style = FontStyle.Regular)
