@@ -423,8 +423,11 @@ internal sealed class SettingsDialog : Form
         saveBtn.Click += SaveClick; Controls.Add(saveBtn);
         cancelBtn = new Button(); cancelBtn.Text = en ? "Cancel" : "取消"; cancelBtn.SetBounds(284, 398, 76, 28);
         AppContext.StyleSecondaryButton(cancelBtn);
-        cancelBtn.DialogResult = DialogResult.Cancel; Controls.Add(cancelBtn);
+        cancelBtn.DialogResult = DialogResult.Cancel;
+        cancelBtn.Click += delegate { DialogResult = DialogResult.Cancel; Close(); };
+        Controls.Add(cancelBtn);
         AcceptButton = saveBtn; CancelButton = cancelBtn;
+        AppContext.CenterFormOnScreen(this);
     }
 
     private void OnLanguageChanged(object sender, EventArgs e)
@@ -986,6 +989,7 @@ internal class AboutDialog : Form
                 Close();
             }
         };
+        AppContext.CenterFormOnScreen(this);
     }
 
     private void OnCheckUpdates(object sender, EventArgs e)
@@ -1738,6 +1742,7 @@ internal sealed class AppContext : ApplicationContext
         f.Controls.Add(list);
         f.Controls.Add(summaryPanel);
         updateColumnWidths();
+        CenterFormOnScreen(f);
         f.Show();
     }
     private void ShowAbout()
@@ -1869,6 +1874,15 @@ internal sealed class AppContext : ApplicationContext
             DwmSetWindowAttribute(ctrl.Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
         }
         catch { }
+    }
+
+    internal static void CenterFormOnScreen(Form f)
+    {
+        if (f == null) return;
+        Screen scr = Screen.FromPoint(Cursor.Position) ?? Screen.PrimaryScreen;
+        Rectangle wa = scr.WorkingArea;
+        f.StartPosition = FormStartPosition.Manual;
+        f.Location = new Point(wa.Left + Math.Max(0, (wa.Width - f.Width) / 2), wa.Top + Math.Max(0, (wa.Height - f.Height) / 2));
     }
 
     internal static void StylePrimaryButton(Button btn)

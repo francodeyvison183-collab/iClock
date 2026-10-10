@@ -828,15 +828,27 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: ShowSettings did not close History or set settings");
                 return 27;
             }
-            // Closing dialog should clear activeDialog
-            dlg3.Close();
-            Form dlgCleared = (Form)activeDlgField.GetValue(app);
-            if (dlgCleared != null)
+            // Test cancel button closes SettingsDialog
+            Button cancelBtn = (Button)dlg3.GetType().GetField("cancelBtn", bf).GetValue(dlg3);
+            cancelBtn.PerformClick();
+            if (!dlg3.IsDisposed || activeDlgField.GetValue(app) != null)
             {
-                Console.WriteLine("FAIL: Closing dialog did not clear activeDialog");
+                Console.WriteLine("FAIL: Cancel button did not close SettingsDialog");
                 return 27;
             }
-            Console.WriteLine("PASS: Single active dialog mutual exclusion, smooth switching, and activation verified.");
+            // Reopen About to verify center positioning
+            showAbout.Invoke(app, null);
+            Form dlgAbout = (Form)activeDlgField.GetValue(app);
+            Rectangle wa = Screen.PrimaryScreen.WorkingArea;
+            int expAboutX = wa.Left + (wa.Width - dlgAbout.Width) / 2;
+            int expAboutY = wa.Top + (wa.Height - dlgAbout.Height) / 2;
+            if (Math.Abs(dlgAbout.Location.X - expAboutX) > 20 || Math.Abs(dlgAbout.Location.Y - expAboutY) > 20)
+            {
+                Console.WriteLine("FAIL: AboutDialog not centered on screen: " + dlgAbout.Location + " vs " + expAboutX + "," + expAboutY);
+                return 27;
+            }
+            dlgAbout.Close();
+            Console.WriteLine("PASS: Single active dialog mutual exclusion, screen centering, and cancel button verified.");
 
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
