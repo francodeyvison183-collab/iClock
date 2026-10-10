@@ -432,6 +432,43 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: GetUiFont returns high-DPI modern fonts (Segoe UI for en, Microsoft YaHei UI for zh).");
 
+            // 15. Verify Win11 Fluent styling: BackColor = #FAFAFA, Primary Button = #0067C0, Secondary Button styling, and GetRoundedRectPath
+            FieldInfo win11BgField = appType.GetField("Win11Bg", BindingFlags.NonPublic | BindingFlags.Static);
+            FieldInfo win11AccentField = appType.GetField("Win11Accent", BindingFlags.NonPublic | BindingFlags.Static);
+            if (win11BgField == null || (Color)win11BgField.GetValue(null) != Color.FromArgb(250, 250, 250) ||
+                win11AccentField == null || (Color)win11AccentField.GetValue(null) != Color.FromArgb(0, 103, 192))
+            {
+                Console.WriteLine("FAIL: Win11 palette constants incorrect");
+                return 23;
+            }
+            Button testBtnPrimary = new Button();
+            Button testBtnSecondary = new Button();
+            MethodInfo stylePrimary = appType.GetMethod("StylePrimaryButton", BindingFlags.NonPublic | BindingFlags.Static);
+            MethodInfo styleSecondary = appType.GetMethod("StyleSecondaryButton", BindingFlags.NonPublic | BindingFlags.Static);
+            stylePrimary.Invoke(null, new object[] { testBtnPrimary });
+            styleSecondary.Invoke(null, new object[] { testBtnSecondary });
+            if (testBtnPrimary.BackColor != Color.FromArgb(0, 103, 192) || testBtnPrimary.ForeColor != Color.White || testBtnPrimary.FlatStyle != FlatStyle.Flat)
+            {
+                Console.WriteLine("FAIL: Primary button styling incorrect");
+                return 23;
+            }
+            if (testBtnSecondary.BackColor != Color.White || testBtnSecondary.FlatStyle != FlatStyle.Flat)
+            {
+                Console.WriteLine("FAIL: Secondary button styling incorrect");
+                return 23;
+            }
+            MethodInfo getRoundedRect = appType.GetMethod("GetRoundedRectPath", BindingFlags.NonPublic | BindingFlags.Static);
+            object pathObj = getRoundedRect.Invoke(null, new object[] { new Rectangle(0, 0, 100, 50), 6 });
+            if (pathObj == null || !(pathObj is System.Drawing.Drawing2D.GraphicsPath))
+            {
+                Console.WriteLine("FAIL: GetRoundedRectPath failed to return GraphicsPath");
+                return 23;
+            }
+            ((System.Drawing.Drawing2D.GraphicsPath)pathObj).Dispose();
+            testBtnPrimary.Dispose();
+            testBtnSecondary.Dispose();
+            Console.WriteLine("PASS: Win11 Fluent design system (surface colors, primary/secondary button hierarchy, rounded path) verified.");
+
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 

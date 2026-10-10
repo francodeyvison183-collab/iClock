@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Drawing.Text;
+using System.Drawing.Drawing2D;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -206,9 +207,11 @@ internal sealed class Overlay : Form
     {
         if (MoveMode)
         {
-            using (Pen borderPen = new Pen(Color.FromArgb(180, 28, 114, 190), 1f))
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using (GraphicsPath path = AppContext.GetRoundedRectPath(new Rectangle(1, 1, Width - 3, Height - 3), 6))
+            using (Pen borderPen = new Pen(AppContext.Win11Accent, 1.5f))
             {
-                e.Graphics.DrawRectangle(borderPen, 0, 0, Width - 1, Height - 1);
+                e.Graphics.DrawPath(borderPen, path);
             }
         }
         if (text != null && cachedFont != null && cachedBrush != null)
@@ -273,6 +276,8 @@ internal sealed class SettingsDialog : Form
         Value.AutoStart = s.AutoStart; Value.EndSound = s.EndSound; Value.EndNotice = s.EndNotice;
         bool en = Value.Language == "en";
         Font = AppContext.GetUiFont(Value.Language, 9.5f);
+        BackColor = AppContext.Win11Bg;
+        AppContext.ApplyModernWindowStyle(this);
         Text = en ? "iClock Settings" : "iClock 设置"; FormBorderStyle = FormBorderStyle.FixedDialog; StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 440);
         lblMinutes = AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 18, 20); minutes = AddNumber(Value.Minutes, 1, 1440, 172, 16);
@@ -291,7 +296,9 @@ internal sealed class SettingsDialog : Form
         fontCombo.DrawItem += OnDrawFontItem;
         Controls.Add(fontCombo);
         lblColor = AddLabel(en ? "Text color" : "文字颜色", 18, 128); selectedColor = Value.Color;
-        colorButton = new Button(); colorButton.Text = en ? "Choose…" : "点击选取…"; colorButton.SetBounds(172, 124, 128, 26); colorButton.Click += ChooseColor; Controls.Add(colorButton);
+        colorButton = new Button(); colorButton.Text = en ? "Choose…" : "点击选取…"; colorButton.SetBounds(172, 124, 128, 26);
+        AppContext.StyleSecondaryButton(colorButton);
+        colorButton.Click += ChooseColor; Controls.Add(colorButton);
         colorPreview = new Panel(); colorPreview.SetBounds(308, 126, 52, 22); colorPreview.BorderStyle = BorderStyle.FixedSingle; UpdateColorPreview(); Controls.Add(colorPreview);
         lblFormat = AddLabel(en ? "Display format" : "显示格式", 18, 164); format = new ComboBox(); format.DropDownStyle = ComboBoxStyle.DropDownList; format.SetBounds(172, 160, 188, 24);
         format.Items.AddRange(en ? new object[] { "HH:MM:SS", "MM:SS", "H:M:S units (00h 25m 00s)" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位 (00时25分00秒)" }); format.SelectedIndex = Value.Format == "MM:SS" ? 1 : (Value.Format == "Chinese" ? 2 : 0); Controls.Add(format);
@@ -303,8 +310,14 @@ internal sealed class SettingsDialog : Form
         startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 18, 310);
         sound = AddCheck(en ? "Play sound at end" : "结束时声音提醒", Value.EndSound, 18, 336);
         notice = AddCheck(en ? "Show notification at end" : "结束时系统通知", Value.EndNotice, 18, 362);
-        saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存"; saveBtn.SetBounds(196, 398, 76, 28); saveBtn.Click += SaveClick; Controls.Add(saveBtn);
-        cancelBtn = new Button(); cancelBtn.Text = en ? "Cancel" : "取消"; cancelBtn.SetBounds(284, 398, 76, 28); cancelBtn.DialogResult = DialogResult.Cancel; Controls.Add(cancelBtn);
+
+        Label footerLine = new Label(); footerLine.BackColor = AppContext.Win11Border; footerLine.BorderStyle = BorderStyle.None; footerLine.SetBounds(18, 388, 344, 1); Controls.Add(footerLine);
+        saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存"; saveBtn.SetBounds(196, 398, 76, 28);
+        AppContext.StylePrimaryButton(saveBtn);
+        saveBtn.Click += SaveClick; Controls.Add(saveBtn);
+        cancelBtn = new Button(); cancelBtn.Text = en ? "Cancel" : "取消"; cancelBtn.SetBounds(284, 398, 76, 28);
+        AppContext.StyleSecondaryButton(cancelBtn);
+        cancelBtn.DialogResult = DialogResult.Cancel; Controls.Add(cancelBtn);
         AcceptButton = saveBtn; CancelButton = cancelBtn;
     }
 
@@ -345,9 +358,9 @@ internal sealed class SettingsDialog : Form
         fontCombo.SelectedIndex = fontSel >= 0 ? fontSel : 0;
     }
 
-    private Label AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.SetBounds(x, y, 148, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); return l; }
+    private Label AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.ForeColor = AppContext.Win11TextPrimary; l.SetBounds(x, y, 148, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); return l; }
     private NumericUpDown AddNumber(int v, int min, int max, int x, int y) { NumericUpDown n = new NumericUpDown(); n.Minimum = min; n.Maximum = max; n.Value = Math.Min(max, Math.Max(min, v)); n.SetBounds(x, y, 188, 24); Controls.Add(n); return n; }
-    private CheckBox AddCheck(string t, bool v, int x, int y) { CheckBox c = new CheckBox(); c.Text = t; c.Checked = v; c.SetBounds(x, y, 344, 24); Controls.Add(c); return c; }
+    private CheckBox AddCheck(string t, bool v, int x, int y) { CheckBox c = new CheckBox(); c.Text = t; c.Checked = v; c.ForeColor = AppContext.Win11TextPrimary; c.SetBounds(x, y, 344, 24); Controls.Add(c); return c; }
     private void ChooseColor(object sender, EventArgs e)
     {
         Color initial; try { initial = ColorTranslator.FromHtml(selectedColor); } catch { initial = Color.Red; }
@@ -457,6 +470,8 @@ internal sealed class NoticeDialog : Form
         finishTime = finishedAt;
         bool en = s.Language == "en";
         Font = AppContext.GetUiFont(s.Language, 9.5f);
+        BackColor = AppContext.Win11Bg;
+        AppContext.ApplyModernWindowStyle(this);
         Text = "iClock";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
@@ -470,6 +485,7 @@ internal sealed class NoticeDialog : Form
         Label titleLabel = new Label();
         titleLabel.Text = titleText;
         titleLabel.Font = AppContext.GetUiFont(s.Language, 13f, FontStyle.Bold);
+        titleLabel.ForeColor = AppContext.Win11TextPrimary;
         titleLabel.TextAlign = ContentAlignment.MiddleCenter;
         titleLabel.SetBounds(20, 18, 310, 28);
         Controls.Add(titleLabel);
@@ -479,14 +495,14 @@ internal sealed class NoticeDialog : Form
         Label timeLabel = new Label();
         timeLabel.Text = timeText;
         timeLabel.Font = AppContext.GetUiFont(s.Language, 22f, FontStyle.Bold);
-        timeLabel.ForeColor = Color.FromArgb(28, 114, 190);
+        timeLabel.ForeColor = AppContext.Win11Accent;
         timeLabel.TextAlign = ContentAlignment.MiddleCenter;
         timeLabel.SetBounds(20, 52, 310, 42);
         Controls.Add(timeLabel);
 
         finishLabel = new Label();
         finishLabel.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-        finishLabel.ForeColor = Color.Gray;
+        finishLabel.ForeColor = AppContext.Win11TextSecondary;
         finishLabel.TextAlign = ContentAlignment.MiddleCenter;
         finishLabel.SetBounds(20, 102, 310, 22);
         Controls.Add(finishLabel);
@@ -496,6 +512,7 @@ internal sealed class NoticeDialog : Form
         btn.Text = en ? "OK" : "确定";
         btn.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
         btn.SetBounds(120, 150, 110, 36);
+        AppContext.StylePrimaryButton(btn);
         btn.Click += delegate { Close(); };
         Controls.Add(btn);
         AcceptButton = btn;
@@ -588,6 +605,8 @@ internal sealed class WelcomeDialog : Form
     {
         bool en = s.Language == "en";
         Font = AppContext.GetUiFont(s.Language, 9.5f);
+        BackColor = AppContext.Win11Bg;
+        AppContext.ApplyModernWindowStyle(this);
         Text = "iClock";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
@@ -599,7 +618,7 @@ internal sealed class WelcomeDialog : Form
         Label lblTitle = new Label();
         lblTitle.Text = en ? "iClock is Ready" : "iClock 已就绪";
         lblTitle.Font = AppContext.GetUiFont(s.Language, 14f, FontStyle.Bold);
-        lblTitle.ForeColor = Color.FromArgb(28, 114, 190);
+        lblTitle.ForeColor = AppContext.Win11Accent;
         lblTitle.SetBounds(22, 18, 306, 28);
         Controls.Add(lblTitle);
 
@@ -609,14 +628,15 @@ internal sealed class WelcomeDialog : Form
             ? "Press " + hotkey + " anywhere to start or pause.\r\n\r\nRight-click the system tray icon for settings."
             : "随时按下快捷键 " + hotkey + " 启动或暂停倒计时。\r\n\r\n右键屏幕右下角托盘图标可进行个性化设置。";
         lblDesc.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-        lblDesc.ForeColor = Color.FromArgb(60, 60, 60);
+        lblDesc.ForeColor = AppContext.Win11TextSecondary;
         lblDesc.SetBounds(22, 54, 306, 78);
         Controls.Add(lblDesc);
 
         Button btnStart = new Button();
         btnStart.Text = en ? "Start Countdown" : "开始倒计时";
         btnStart.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-        btnStart.SetBounds(105, 148, 130, 36);
+        btnStart.SetBounds(95, 148, 140, 36);
+        AppContext.StylePrimaryButton(btnStart);
         btnStart.Click += delegate { StartRequested = true; Close(); };
         Controls.Add(btnStart);
 
@@ -624,6 +644,7 @@ internal sealed class WelcomeDialog : Form
         btnOk.Text = en ? "Got it" : "知道了";
         btnOk.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
         btnOk.SetBounds(245, 148, 85, 36);
+        AppContext.StyleSecondaryButton(btnOk);
         btnOk.Click += delegate { Close(); };
         Controls.Add(btnOk);
 
@@ -657,6 +678,8 @@ internal class AboutDialog : Form
         app = appContext;
         bool en = language == "en";
         Font = AppContext.GetUiFont(language, 9.5f);
+        BackColor = AppContext.Win11Bg;
+        AppContext.ApplyModernWindowStyle(this);
         Text = en ? "About iClock" : "关于 iClock";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
@@ -668,20 +691,21 @@ internal class AboutDialog : Form
         Label lblTitle = new Label();
         lblTitle.Text = "iClock";
         lblTitle.Font = AppContext.GetUiFont(language, 14f, FontStyle.Bold);
-        lblTitle.ForeColor = Color.FromArgb(28, 114, 190);
+        lblTitle.ForeColor = AppContext.Win11Accent;
         lblTitle.SetBounds(20, 16, 140, 26);
         Controls.Add(lblTitle);
 
         Label lblDesc = new Label();
         lblDesc.Text = en ? "Desktop Floating Countdown Timer" : "桌面极简悬浮倒计时工具";
         lblDesc.Font = AppContext.GetUiFont(language, 9f, FontStyle.Regular);
-        lblDesc.ForeColor = Color.Gray;
+        lblDesc.ForeColor = AppContext.Win11TextSecondary;
         lblDesc.SetBounds(20, 44, 310, 20);
         Controls.Add(lblDesc);
 
         lblVersion = new Label();
         lblVersion.Text = (en ? "Version: v" : "当前版本: v") + AppContext.CURRENT_VERSION;
         lblVersion.Font = AppContext.GetUiFont(language, 9.5f, FontStyle.Regular);
+        lblVersion.ForeColor = AppContext.Win11TextPrimary;
         lblVersion.SetBounds(20, 72, 180, 24);
         lblVersion.TextAlign = ContentAlignment.MiddleLeft;
         Controls.Add(lblVersion);
@@ -690,24 +714,28 @@ internal class AboutDialog : Form
         btnCheck.Text = en ? "Check Updates" : "检查更新";
         btnCheck.Font = AppContext.GetUiFont(language, 9f, FontStyle.Regular);
         btnCheck.SetBounds(210, 70, 120, 26);
+        AppContext.StyleSecondaryButton(btnCheck);
         btnCheck.Click += OnCheckUpdates;
         Controls.Add(btnCheck);
 
         LinkLabel link = new LinkLabel();
         link.Text = "GitHub: francodeyvison183-collab/iClock";
         link.Font = AppContext.GetUiFont(language, 9f, FontStyle.Regular);
+        link.LinkColor = AppContext.Win11Accent;
         link.SetBounds(20, 102, 310, 20);
         link.LinkClicked += delegate { try { Process.Start("https://github.com/francodeyvison183-collab/iClock"); } catch { } };
         Controls.Add(link);
 
         Label line = new Label();
-        line.BorderStyle = BorderStyle.Fixed3D;
-        line.SetBounds(20, 128, 310, 2);
+        line.BackColor = AppContext.Win11Border;
+        line.BorderStyle = BorderStyle.None;
+        line.SetBounds(20, 128, 310, 1);
         Controls.Add(line);
 
         Label lblSponsor = new Label();
         lblSponsor.Text = en ? "If iClock helps you, thank you for supporting!" : "如果 iClock 对你有帮助，欢迎赞赏支持！";
         lblSponsor.Font = AppContext.GetUiFont(language, 9.5f, FontStyle.Regular);
+        lblSponsor.ForeColor = AppContext.Win11TextPrimary;
         lblSponsor.TextAlign = ContentAlignment.MiddleCenter;
         lblSponsor.SetBounds(20, 138, 310, 24);
         Controls.Add(lblSponsor);
@@ -722,7 +750,7 @@ internal class AboutDialog : Form
         Label sub = new Label();
         sub.Text = en ? "WeChat Pay" : "微信扫一扫 赞赏码";
         sub.Font = AppContext.GetUiFont(language, 9.5f, FontStyle.Bold);
-        sub.ForeColor = Color.FromArgb(28, 114, 190);
+        sub.ForeColor = AppContext.Win11Accent;
         sub.TextAlign = ContentAlignment.MiddleCenter;
         sub.SetBounds(20, 472, 310, 20);
         Controls.Add(sub);
@@ -731,6 +759,7 @@ internal class AboutDialog : Form
         btnClose.Text = en ? "OK" : "确定";
         btnClose.Font = AppContext.GetUiFont(language, 9.5f, FontStyle.Regular);
         btnClose.SetBounds(130, 502, 90, 32);
+        AppContext.StylePrimaryButton(btnClose);
         btnClose.Click += delegate { Close(); };
         Controls.Add(btnClose);
         AcceptButton = btnClose;
@@ -1081,12 +1110,17 @@ internal sealed class AppContext : ApplicationContext
         string path = Path.Combine(Path.GetDirectoryName(Settings.FilePath), "history-" + DateTime.Now.ToString("yyyyMMdd") + ".tsv");
         Form f = new Form();
         f.Font = GetUiFont(settings.Language, 9.5f);
+        f.BackColor = Win11Bg;
+        ApplyModernWindowStyle(f);
         f.Text = en ? "iClock - Today's countdown history" : "iClock - 今日倒计时记录";
         f.StartPosition = FormStartPosition.CenterScreen;
         f.ClientSize = new Size(620, 330);
         f.MinimizeBox = false; f.MaximizeBox = false;
         ListView list = new ListView();
         list.Font = GetUiFont(settings.Language, 9.5f);
+        list.BackColor = Color.White;
+        list.ForeColor = Win11TextPrimary;
+        list.BorderStyle = BorderStyle.FixedSingle;
         list.View = View.Details; list.FullRowSelect = true; list.GridLines = true; list.SetBounds(12, 12, 596, 306);
         list.Columns.Add(en ? "Start time" : "开始时间", 145); list.Columns.Add(en ? "End time" : "结束时间", 145); list.Columns.Add(en ? "Duration" : "设定时长", 90); list.Columns.Add(en ? "Result" : "结果", 170);
         try
@@ -1165,6 +1199,67 @@ internal sealed class AppContext : ApplicationContext
             try { return new Font("Microsoft YaHei", sizePt, style, GraphicsUnit.Point); }
             catch { return SystemFonts.MessageBoxFont; }
         }
+    }
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    private const int DWMWCP_ROUND = 2;
+
+    internal static readonly Color Win11Bg = Color.FromArgb(250, 250, 250);
+    internal static readonly Color Win11Accent = Color.FromArgb(0, 103, 192);
+    internal static readonly Color Win11TextPrimary = Color.FromArgb(31, 31, 31);
+    internal static readonly Color Win11TextSecondary = Color.FromArgb(95, 95, 95);
+    internal static readonly Color Win11Border = Color.FromArgb(228, 228, 228);
+
+    internal static void ApplyModernWindowStyle(Form form)
+    {
+        if (form == null) return;
+        try
+        {
+            int preference = DWMWCP_ROUND;
+            DwmSetWindowAttribute(form.Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
+        }
+        catch { }
+    }
+
+    internal static void StylePrimaryButton(Button btn)
+    {
+        if (btn == null) return;
+        btn.FlatStyle = FlatStyle.Flat;
+        btn.FlatAppearance.BorderSize = 0;
+        btn.BackColor = Win11Accent;
+        btn.ForeColor = Color.White;
+        btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(25, 117, 197);
+        btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 90, 168);
+        btn.Cursor = Cursors.Hand;
+    }
+
+    internal static void StyleSecondaryButton(Button btn)
+    {
+        if (btn == null) return;
+        btn.FlatStyle = FlatStyle.Flat;
+        btn.FlatAppearance.BorderColor = Color.FromArgb(209, 209, 209);
+        btn.FlatAppearance.BorderSize = 1;
+        btn.BackColor = Color.White;
+        btn.ForeColor = Win11TextPrimary;
+        btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(245, 245, 245);
+        btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(235, 235, 235);
+        btn.Cursor = Cursors.Hand;
+    }
+
+    internal static GraphicsPath GetRoundedRectPath(Rectangle rect, int radius)
+    {
+        GraphicsPath path = new GraphicsPath();
+        int d = radius * 2;
+        if (d > rect.Width) d = rect.Width;
+        if (d > rect.Height) d = rect.Height;
+        path.AddArc(rect.X, rect.Y, d, d, 180, 90);
+        path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
+        path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
+        path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 
     internal static bool IsInEphemeralFolder(string path)
