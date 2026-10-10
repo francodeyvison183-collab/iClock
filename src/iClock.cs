@@ -2065,35 +2065,67 @@ internal sealed class AppContext : ApplicationContext
 
     internal static Icon CreateIcon()
     {
+        Size targetSize = SystemInformation.SmallIconSize;
+        try
+        {
+            using (Stream s = typeof(AppContext).Assembly.GetManifestResourceStream("app.ico"))
+            {
+                if (s != null) return new Icon(s, targetSize.Width, targetSize.Height);
+            }
+        }
+        catch { }
+        try
+        {
+            string localIco = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "src\\app.ico");
+            if (!File.Exists(localIco)) localIco = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
+            if (File.Exists(localIco))
+            {
+                return new Icon(localIco, targetSize.Width, targetSize.Height);
+            }
+        }
+        catch { }
         try
         {
             Icon exeIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
-            if (exeIcon != null) return exeIcon;
+            if (exeIcon != null) return new Icon(exeIcon, targetSize.Width, targetSize.Height);
         }
         catch { }
-        Bitmap b = new Bitmap(32, 32);
+        int sz = Math.Max(16, targetSize.Width);
+        Bitmap b = new Bitmap(sz, sz);
         using (Graphics g = Graphics.FromImage(b))
         using (SolidBrush btnBrush = new SolidBrush(Color.FromArgb(28, 114, 190)))
         using (SolidBrush darkBrush = new SolidBrush(Color.FromArgb(18, 75, 130)))
         using (SolidBrush whiteBrush = new SolidBrush(Color.White))
-        using (Pen tickPen = new Pen(Color.FromArgb(160, 175, 195), 1f))
-        using (Pen handPen = new Pen(Color.FromArgb(230, 45, 45), 1.6f))
+        using (Pen handPen = new Pen(Color.FromArgb(230, 45, 45), Math.Max(1.4f, sz * 0.08f)))
         {
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            float s = 0.5f;
-            g.FillRectangle(darkBrush, 28 * s, 3 * s, 8 * s, 7 * s);
-            g.FillRectangle(btnBrush, 23 * s, 1 * s, 18 * s, 4 * s);
-            g.FillRectangle(btnBrush, 45 * s, 8 * s, 6 * s, 7 * s);
-            g.FillEllipse(btnBrush, 5 * s, 10 * s, 54 * s, 54 * s);
-            g.FillEllipse(whiteBrush, 10 * s, 15 * s, 44 * s, 44 * s);
-            g.DrawLine(tickPen, 32 * s, 17 * s, 32 * s, 21 * s);
-            g.DrawLine(tickPen, 52 * s, 37 * s, 48 * s, 37 * s);
-            g.DrawLine(tickPen, 32 * s, 57 * s, 32 * s, 53 * s);
-            g.DrawLine(tickPen, 12 * s, 37 * s, 16 * s, 37 * s);
-            handPen.StartCap = System.Drawing.Drawing2D.LineCap.Round;
-            handPen.EndCap = System.Drawing.Drawing2D.LineCap.Round;
-            g.DrawLine(handPen, 32 * s, 37 * s, 45 * s, 24 * s);
-            g.FillEllipse(darkBrush, 29 * s, 34 * s, 6 * s, 6 * s);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            float cx = sz / 2.0f;
+            float crownTop = sz <= 16 ? 0.0f : (sz <= 24 ? 0.5f : sz * 0.02f);
+            float barH = sz <= 16 ? 1.0f : (sz <= 24 ? 1.5f : sz * 0.05f);
+            float barW = sz <= 16 ? 5.0f : (float)Math.Round(sz * 0.28f);
+            float stemH = sz <= 16 ? 1.0f : (sz <= 24 ? 1.5f : sz * 0.04f);
+            float stemW = sz <= 16 ? 2.0f : (float)Math.Round(sz * 0.12f);
+            float dialY = crownTop + barH + stemH;
+            float dialDiam = sz - dialY - (sz <= 16 ? 0.0f : 0.5f);
+            float strokeW = sz <= 16 ? 1.8f : sz * 0.11f;
+
+            g.FillRectangle(darkBrush, cx - barW / 2.0f, crownTop, barW, barH);
+            g.FillRectangle(btnBrush, cx - stemW / 2.0f, crownTop + barH, stemW, stemH);
+
+            float dialX = (sz - dialDiam) / 2.0f;
+            g.FillEllipse(btnBrush, dialX, dialY, dialDiam, dialDiam);
+
+            float innerDiam = dialDiam - 2.0f * strokeW;
+            g.FillEllipse(whiteBrush, dialX + strokeW, dialY + strokeW, innerDiam, innerDiam);
+
+            float dialCy = dialY + dialDiam / 2.0f;
+            handPen.StartCap = LineCap.Round;
+            handPen.EndCap = LineCap.Round;
+            float handLen = innerDiam * 0.38f;
+            g.DrawLine(handPen, cx, dialCy, cx + handLen * 0.7071f, dialCy - handLen * 0.7071f);
+
+            float pivotR = Math.Max(1.2f, sz * 0.08f);
+            g.FillEllipse(darkBrush, cx - pivotR, dialCy - pivotR, pivotR * 2.0f, pivotR * 2.0f);
         }
         IntPtr h = b.GetHicon(); Icon icon = (Icon)Icon.FromHandle(h).Clone(); DestroyIcon(h); b.Dispose(); return icon;
     }
