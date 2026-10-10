@@ -1488,7 +1488,8 @@ internal sealed class AppContext : ApplicationContext
             Rectangle textRect = (e.ColumnIndex == 0)
                 ? e.Bounds
                 : new Rectangle(e.Bounds.X + 8, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 16), e.Bounds.Height);
-            TextRenderer.DrawText(e.Graphics, e.Header.Text, headerFont, textRect, Color.FromArgb(60, 60, 60), flags);
+            Color headerColor = (e.ColumnIndex == 0) ? Win11ShortcutGray : Color.FromArgb(60, 60, 60);
+            TextRenderer.DrawText(e.Graphics, e.Header.Text, headerFont, textRect, headerColor, flags);
         };
         list.DrawItem += delegate(object s, DrawListViewItemEventArgs e) { };
         list.DrawSubItem += delegate(object s, DrawListViewSubItemEventArgs e)
@@ -1496,7 +1497,7 @@ internal sealed class AppContext : ApplicationContext
             if (e.ColumnIndex == 0)
             {
                 e.DrawBackground();
-                Color fg = ((e.ItemState & ListViewItemStates.Selected) != 0) ? SystemColors.HighlightText : e.SubItem.ForeColor;
+                Color fg = ((e.ItemState & ListViewItemStates.Selected) != 0) ? SystemColors.HighlightText : Win11ShortcutGray;
                 TextRenderer.DrawText(e.Graphics, e.SubItem.Text, e.Item.Font, e.Bounds, fg, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
             }
             else
