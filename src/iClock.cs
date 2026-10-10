@@ -879,7 +879,7 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
         int left = 32;
         int right = e.Item.Width - 32;
         int width = Math.Max(0, right - left);
-        e.TextRectangle = new Rectangle(left, e.TextRectangle.Y, width, e.TextRectangle.Height);
+        e.TextRectangle = new Rectangle(left, 0, width, e.Item.Height);
 
         if (e.Item.Enabled)
         {
