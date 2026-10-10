@@ -1445,12 +1445,27 @@ internal sealed class AppContext : ApplicationContext
         list.ForeColor = Win11TextPrimary;
         list.BorderStyle = BorderStyle.FixedSingle;
         list.View = View.Details; list.FullRowSelect = true; list.GridLines = true; list.SetBounds(12, 12, 596, 306);
+        list.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         list.OwnerDraw = true;
 
         Font headerFont = new Font(list.Font, FontStyle.Bold);
         f.FormClosed += delegate { headerFont.Dispose(); };
         f.KeyPreview = true;
         f.KeyDown += delegate(object s, KeyEventArgs e) { if (e.KeyCode == Keys.Escape) f.Close(); };
+
+        MethodInvoker updateColumnWidths = delegate
+        {
+            if (list.Columns.Count < 4) return;
+            int clientW = list.ClientSize.Width;
+            if (clientW <= 0) return;
+            int c0 = 145, c1 = 145, c2 = 95;
+            list.Columns[0].Width = c0;
+            list.Columns[1].Width = c1;
+            list.Columns[2].Width = c2;
+            list.Columns[3].Width = Math.Max(120, clientW - c0 - c1 - c2);
+        };
+        list.Resize += delegate { updateColumnWidths(); };
+        f.Shown += delegate { updateColumnWidths(); };
 
         list.DrawColumnHeader += delegate(object s, DrawListViewColumnHeaderEventArgs e)
         {
@@ -1470,7 +1485,7 @@ internal sealed class AppContext : ApplicationContext
         list.DrawItem += delegate(object s, DrawListViewItemEventArgs e) { e.DrawDefault = true; };
         list.DrawSubItem += delegate(object s, DrawListViewSubItemEventArgs e) { e.DrawDefault = true; };
 
-        list.Columns.Add(en ? "Start time" : "开始时间", 145); list.Columns.Add(en ? "End time" : "结束时间", 145); list.Columns.Add(en ? "Duration" : "设定时长", 90); list.Columns.Add(en ? "Result" : "结果", 170);
+        list.Columns.Add(en ? "Start time" : "开始时间", 145); list.Columns.Add(en ? "End time" : "结束时间", 145); list.Columns.Add(en ? "Duration" : "设定时长", 95); list.Columns.Add(en ? "Result" : "结果", 207);
         try
         {
             if (File.Exists(path)) foreach (string row in File.ReadAllLines(path, Encoding.UTF8))
@@ -1484,6 +1499,7 @@ internal sealed class AppContext : ApplicationContext
         }
         catch { }
         if (list.Items.Count == 0) list.Items.Add(new ListViewItem(en ? "No countdown records today" : "今天还没有倒计时记录"));
+        updateColumnWidths();
         f.Controls.Add(list); f.ShowDialog(); f.Dispose();
     }
     private void ShowAbout()
