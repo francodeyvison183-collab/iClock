@@ -3,7 +3,6 @@ using System.Drawing;
 using System.Drawing.Text;
 using System.Drawing.Drawing2D;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Runtime.InteropServices;
@@ -383,7 +382,7 @@ internal sealed class SettingsDialog : Form
         hotkeyBox = new TextBox();
         hotkeyBox.ReadOnly = true;
         hotkeyBox.SetBounds(172, 240, 188, 24);
-        hotkeyBox.Text = HotkeyText(hotkeyModifiers, hotkeyKey);
+        hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey);
         hotkeyBox.KeyDown += CaptureHotkey;
         ApplyInputPadding(hotkeyBox);
         Controls.Add(hotkeyBox);
@@ -480,56 +479,32 @@ internal sealed class SettingsDialog : Form
         if ((e.Modifiers & Keys.Alt) != 0) mods |= 1;
         if ((e.Modifiers & Keys.Shift) != 0) mods |= 4;
         if (mods == 0) { hotkeyBox.Text = Value.Language == "en" ? "Use a modifier + key" : "请按修饰键 + 按键"; return; }
-        hotkeyModifiers = mods; hotkeyKey = (int)key; hotkeyBox.Text = HotkeyText(mods, (int)key);
-    }
-    private static string HotkeyText(int mods, int key)
-    {
-        string value = "";
-        if ((mods & 2) != 0) value += "Ctrl+";
-        if ((mods & 1) != 0) value += "Alt+";
-        if ((mods & 4) != 0) value += "Shift+";
-        return value + ((Keys)key).ToString();
+        hotkeyModifiers = mods; hotkeyKey = (int)key; hotkeyBox.Text = AppContext.HotkeyText(mods, (int)key);
     }
     private void OnDrawFontItem(object sender, DrawItemEventArgs e)
     {
         if (e.Index < 0 || e.Index >= fontCombo.Items.Count) return;
-        e.DrawBackground();
-        string text = fontCombo.Items[e.Index].ToString();
         string family = e.Index < fontFamilies.Length ? fontFamilies[e.Index] : "Segoe UI";
-        e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-        try
-        {
-            using (Font f = new Font(family, e.Font.Size, FontStyle.Regular, e.Font.Unit))
-            using (SolidBrush b = new SolidBrush(e.ForeColor))
-            using (StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Center })
-            {
-                Rectangle r = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height);
-                e.Graphics.DrawString(text, f, b, r, sf);
-            }
-        }
-        catch
-        {
-            using (SolidBrush b = new SolidBrush(e.ForeColor))
-            using (StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Center })
-            {
-                Rectangle r = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height);
-                e.Graphics.DrawString(text, e.Font, b, r, sf);
-            }
-        }
-        e.DrawFocusRectangle();
+        Font f = null;
+        try { f = new Font(family, e.Font.Size, FontStyle.Regular, e.Font.Unit); } catch { }
+        DrawComboItem(e, fontCombo.Items[e.Index].ToString(), f ?? e.Font);
+        if (f != null) f.Dispose();
     }
     private void OnDrawComboItem(object sender, DrawItemEventArgs e)
     {
         ComboBox cb = sender as ComboBox;
         if (cb == null || e.Index < 0 || e.Index >= cb.Items.Count) return;
+        DrawComboItem(e, cb.Items[e.Index].ToString(), e.Font);
+    }
+    private static void DrawComboItem(DrawItemEventArgs e, string text, Font font)
+    {
         e.DrawBackground();
-        string text = cb.Items[e.Index].ToString();
         e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
         using (SolidBrush b = new SolidBrush(e.ForeColor))
         using (StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Center })
         {
             Rectangle r = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height);
-            e.Graphics.DrawString(text, e.Font, b, r, sf);
+            e.Graphics.DrawString(text, font, b, r, sf);
         }
         e.DrawFocusRectangle();
     }
@@ -961,11 +936,6 @@ internal class AboutDialog : Form
     }
 }
 
-internal sealed class SponsorDialog : AboutDialog
-{
-    public SponsorDialog(string language) : base(language, null) { }
-}
-
 internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
 {
     public ModernMenuRenderer() : base(new ModernMenuColorTable()) { }
@@ -992,30 +962,21 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
         int width = Math.Max(0, right - left);
         e.TextRectangle = new Rectangle(left, 0, width, e.Item.Height);
 
-        if (e.Item.Enabled)
+        ToolStripMenuItem mi = e.Item as ToolStripMenuItem;
+        bool isShortcut = mi != null && !string.IsNullOrEmpty(mi.ShortcutKeyDisplayString) && e.Text == mi.ShortcutKeyDisplayString;
+
+        if (isShortcut)
         {
-            ToolStripMenuItem mi = e.Item as ToolStripMenuItem;
-            if (mi != null && !string.IsNullOrEmpty(mi.ShortcutKeyDisplayString) && e.Text == mi.ShortcutKeyDisplayString)
-            {
-                e.TextColor = AppContext.Win11ShortcutGray;
-                e.TextFormat = TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
-            }
-            else
-            {
-                e.TextFormat = TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
-                if (!e.Item.ForeColor.IsEmpty && e.Item.ForeColor != SystemColors.ControlText && e.Item.ForeColor != AppContext.Win11TextPrimary)
-                {
-                    e.TextColor = e.Item.ForeColor;
-                }
-                else
-                {
-                    e.TextColor = AppContext.Win11TextPrimary;
-                }
-            }
+            e.TextColor = AppContext.Win11ShortcutGray;
+            e.TextFormat = TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
         }
         else
         {
             e.TextFormat = TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
+            if (e.Item.Enabled && !e.Item.ForeColor.IsEmpty && e.Item.ForeColor != SystemColors.ControlText && e.Item.ForeColor != AppContext.Win11TextPrimary)
+                e.TextColor = e.Item.ForeColor;
+            else if (e.Item.Enabled)
+                e.TextColor = AppContext.Win11TextPrimary;
         }
         base.OnRenderItemText(e);
     }
@@ -1130,7 +1091,7 @@ internal sealed class AppContext : ApplicationContext
 
         menuStart = AddMenuItem(m, delegate { Toggle(); });
         menuStart.Font = new Font(m.Font, FontStyle.Bold);
-        menuReset = AddMenuItem(m, delegate { if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; } running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); UpdateMenuText(); });
+        menuReset = AddMenuItem(m, delegate { Reset(); });
         menuMove = AddMenuItem(m, delegate { ToggleMove(); });
         m.Items.Add(new ToolStripSeparator());
         menuHistory = AddMenuItem(m, delegate { ShowHistory(); });
@@ -1140,6 +1101,19 @@ internal sealed class AppContext : ApplicationContext
         menuExit = AddMenuItem(m, delegate { Exit(); });
         UpdateMenuText();
         return m;
+    }
+
+    private void Reset()
+    {
+        if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
+        running = false;
+        timer.Stop();
+        if (sessionActive) LogSession("Reset");
+        sessionActive = false;
+        ResetDisplay();
+        overlay.SetPaused(false);
+        overlay.Hide();
+        UpdateMenuText();
     }
 
     private ToolStripMenuItem AddMenuItem(ContextMenuStrip m, EventHandler onClick)
@@ -1183,29 +1157,6 @@ internal sealed class AppContext : ApplicationContext
         menuExit.Text = en ? "Exit" : "退出";
         if (menuUpdate != null) menuUpdate.Text = en ? "⭐ Update available (" + latestVersion + ")…" : "⭐ 发现新版本 (" + latestVersion + ")…";
         tray.Text = "iClock";
-    }
-
-    public void SelectLanguage(string language)
-    {
-        bool toEnglish = language == "en";
-        if (settings.Language == language) return;
-        if (settings.EndMessage == "倒计时结束" && toEnglish) settings.EndMessage = "Countdown finished";
-        else if (settings.EndMessage == "Countdown finished" && !toEnglish) settings.EndMessage = "倒计时结束";
-        settings.Language = language;
-        settings.Save();
-        overlay.SetSettings(settings);
-        if (tray != null && tray.ContextMenuStrip != null)
-        {
-            tray.ContextMenuStrip.Font = GetUiFont(language, 9.5f);
-            if (menuStart != null) menuStart.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
-        }
-        UpdateMenuText();
-        if (running || overlay.Visible)
-        {
-            lastSeconds = -1;
-            if (running) Tick(null, EventArgs.Empty);
-            else Display(remaining);
-        }
     }
 
     private void Toggle()
@@ -1316,6 +1267,11 @@ internal sealed class AppContext : ApplicationContext
                 return;
             }
             settings = d.Value; settings.Save(); overlay.SetSettings(settings); ApplyStartup();
+            if (tray != null && tray.ContextMenuStrip != null)
+            {
+                tray.ContextMenuStrip.Font = GetUiFont(settings.Language, 9.5f);
+                if (menuStart != null) menuStart.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
+            }
             UpdateMenuText();
             lastSeconds = -1;
             if (!running && !sessionActive) { ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); }
@@ -1328,10 +1284,10 @@ internal sealed class AppContext : ApplicationContext
         bool hadHotkey = hotkeyRegistered;
         int oldModifiers = activeHotkeyModifiers, oldKey = activeHotkeyKey;
         if (hadHotkey) UnregisterHotKey(messageWindow.Handle, HOTKEY_ID);
-        bool ok = RegisterHotKey(messageWindow.Handle, HOTKEY_ID, (uint)(modifiers | 0x4000), (uint)key);
+        bool ok = RegisterHotKey(messageWindow.Handle, HOTKEY_ID, (uint)(modifiers | MOD_NOREPEAT), (uint)key);
         if (ok) { activeHotkeyModifiers = modifiers; activeHotkeyKey = key; hotkeyRegistered = true; return true; }
         hotkeyRegistered = false;
-        if (hadHotkey && RegisterHotKey(messageWindow.Handle, HOTKEY_ID, (uint)(oldModifiers | 0x4000), (uint)oldKey)) hotkeyRegistered = true;
+        if (hadHotkey && RegisterHotKey(messageWindow.Handle, HOTKEY_ID, (uint)(oldModifiers | MOD_NOREPEAT), (uint)oldKey)) hotkeyRegistered = true;
         return false;
     }
     private void ShowHistory()
@@ -1375,7 +1331,6 @@ internal sealed class AppContext : ApplicationContext
             d.ShowDialog();
         }
     }
-    private void ShowSponsor() { ShowAbout(); }
     private void LogSession(string result)
     {
         try
@@ -1406,7 +1361,6 @@ internal sealed class AppContext : ApplicationContext
         timer.Stop(); tray.Visible = false; if (hotkeyRegistered) UnregisterHotKey(messageWindow.Handle, HOTKEY_ID);
         overlay.Close(); overlay.Dispose(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); timer.Dispose(); ExitThread();
     }
-    protected override void ExitThreadCore() { base.ExitThreadCore(); }
     public void HandleHotkey() { Toggle(); }
     internal static string HotkeyText(int mods, int key)
     {
@@ -1695,7 +1649,7 @@ internal sealed class AppContext : ApplicationContext
         {
             menuUpdate = new ToolStripMenuItem(en ? "⭐ Update available (" + newVersion + ")…" : "⭐ 发现新版本 (" + newVersion + ")…");
             menuUpdate.ForeColor = Win11Accent;
-            menuUpdate.Padding = new Padding(18, 4, 14, 4);
+            menuUpdate.Padding = new Padding(32, 7, 32, 7);
             menuUpdate.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
             menuUpdate.Click += delegate
             {
