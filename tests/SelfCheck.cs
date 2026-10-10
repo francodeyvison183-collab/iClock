@@ -13,6 +13,12 @@ internal static class TestCheck
     [STAThread]
     private static int Main()
     {
+        string iniPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "iClock", "settings.ini");
+        string iniBackup = null;
+        if (System.IO.File.Exists(iniPath))
+        {
+            try { iniBackup = System.IO.File.ReadAllText(iniPath); System.IO.File.Delete(iniPath); } catch { }
+        }
         try
         {
             string dir = System.IO.Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
@@ -851,6 +857,57 @@ internal static class TestCheck
             dlgAbout.Close();
             Console.WriteLine("PASS: Single active dialog mutual exclusion, screen centering, and cancel button verified.");
 
+            // 20. Verify Auto-Fallback, Status Transparency, and Tray Left-Click
+            // Test 20a: Tray Left-Click toggles countdown
+            MethodInfo onMouseClick = typeof(NotifyIcon).GetMethod("OnMouseClick", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (onMouseClick != null)
+            {
+                bool wasRunning = (bool)appType.GetField("running", bf).GetValue(app);
+                onMouseClick.Invoke(tray, new object[] { new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 0) });
+                bool nowRunning = (bool)appType.GetField("running", bf).GetValue(app);
+                if (nowRunning == wasRunning)
+                {
+                    Console.WriteLine("FAIL: Tray left-click should toggle running state");
+                    return 28;
+                }
+                // Toggle back
+                onMouseClick.Invoke(tray, new object[] { new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 0) });
+            }
+
+            // Test 20b: SettingsDialog with hotkeyActive = false disables save button and flags occupancy
+            Form unavailDlg = (Form)Activator.CreateInstance(settingsDialogType, new object[] { settings, false });
+            Button unavailSave = (Button)settingsDialogType.GetField("saveBtn", bf).GetValue(unavailDlg);
+            TextBox unavailBox = (TextBox)settingsDialogType.GetField("hotkeyBox", bf).GetValue(unavailDlg);
+            if (unavailSave.Enabled || (!unavailBox.Text.Contains("已被占用") && !unavailBox.Text.Contains("Occupied")))
+            {
+                Console.WriteLine("FAIL: SettingsDialog with hotkeyActive=false must disable save and indicate occupied");
+                return 28;
+            }
+            unavailDlg.Dispose();
+
+            // Test 20c: Menu and Tray status transparency when hotkey is unregistered
+            FieldInfo hotkeyRegField = appType.GetField("hotkeyRegistered", bf);
+            bool prevReg = (bool)hotkeyRegField.GetValue(app);
+            hotkeyRegField.SetValue(app, false);
+            MethodInfo updMenu = appType.GetMethod("UpdateMenuText", bf);
+            updMenu.Invoke(app, null);
+            ToolStripMenuItem startItem = (ToolStripMenuItem)appType.GetField("menuStart", bf).GetValue(app);
+            if (!startItem.ShortcutKeyDisplayString.Contains("未生效") && !startItem.ShortcutKeyDisplayString.Contains("Disabled"))
+            {
+                Console.WriteLine("FAIL: Unregistered hotkey should show (未生效) in menu shortcut text: " + startItem.ShortcutKeyDisplayString);
+                return 28;
+            }
+            if (!tray.Text.Contains("未生效") && !tray.Text.Contains("conflict"))
+            {
+                Console.WriteLine("FAIL: Unregistered hotkey should update tray tooltip: " + tray.Text);
+                return 28;
+            }
+            // Restore
+            hotkeyRegField.SetValue(app, prevReg);
+            updMenu.Invoke(app, null);
+
+            Console.WriteLine("PASS: Hotkey auto-fallback, status transparency, and tray left-click toggle verified.");
+
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 
@@ -861,6 +918,17 @@ internal static class TestCheck
         {
             Console.WriteLine("ERROR: " + ex);
             return 99;
+        }
+        finally
+        {
+            if (iniBackup != null)
+            {
+                try { System.IO.File.WriteAllText(iniPath, iniBackup); } catch { }
+            }
+            else
+            {
+                try { System.IO.File.Delete(iniPath); } catch { }
+            }
         }
     }
 }

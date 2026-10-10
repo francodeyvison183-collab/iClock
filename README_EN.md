@@ -37,7 +37,7 @@ Most timer and Pomodoro applications on Windows are bloated **100MB+** Electron 
 
 * 🪟 **Transparent & Click-Through**: Clean countdown numbers floating naturally on your desktop. Mouse clicks pass straight through to underlying IDEs, documents, or games without stealing window focus.
 * ⚡ **126 KB & 0.0% CPU**: Zero third-party packages or heavy runtimes. Powered by pre-allocated GDI caching and dynamic heartbeat alignment, guaranteeing **0 heap allocations per second** during countdown.
-* ⌨️ **Global Hotkey Control**: Start or pause blind from anywhere with `Ctrl + Alt + Space` (customizable) without switching active windows.
+* ⌨️ **Global Hotkey & Tray Interaction**: Start or pause blind from anywhere with `Ctrl + Alt + Space` (auto-fallback to `Ctrl + Shift + T` if occupied) or simple left-click on the tray icon.
 * 🔔 **TopMost Confirmation Alert**: When the countdown completes, the overlay hides cleanly, displaying a persistent topmost dialog and alarm that requires user acknowledgment.
 * 🔒 **100% Local & Private**: Config and logs stay strictly inside your local `%APPDATA%\iClock`. Zero network requests, zero telemetry.
 * 🌍 **Bilingual & History Logs**: Seamlessly switch between English and Simplified Chinese in Settings. Daily countdown records are saved as clean TSV files.
@@ -90,7 +90,7 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 ### Common Controls
 
-* **Start / Pause**: Press global hotkey `Ctrl + Alt + Space` (configurable in settings).
+* **Start / Pause**: Press global hotkey `Ctrl + Alt + Space` (with smart fallback if occupied) or left-click the system tray icon.
 * **Adjust Position**: Right-click the system tray icon $\rightarrow$ **Adjust text position** $\rightarrow$ drag the translucent area $\rightarrow$ click **Finish position adjustment**.
 * **Settings**: Right-click tray $\rightarrow$ **Settings…** to configure duration (1~1440 min), font size (default 20), color (default red), format (default `MM:SS`, `HH:MM:SS` / Chinese units), end message, and Windows startup.
 * **View History**: Right-click tray $\rightarrow$ **View today's history…** to inspect completed or reset countdown sessions.

@@ -275,6 +275,7 @@ internal sealed class SettingsDialog : Form
     private CheckBox startup, sound, notice;
     private TextBox hotkeyBox;
     private int hotkeyModifiers, hotkeyKey, candidateMods, candidateKey;
+    private bool hotkeyActive;
     private Label lblMinutes, lblSize, lblFont, lblColor, lblFormat, lblEndMsg, lblHotkey, lblLanguage;
     private Button saveBtn, cancelBtn;
     public Settings Value { get; private set; }
@@ -340,8 +341,11 @@ internal sealed class SettingsDialog : Form
         }
     }
 
-    public SettingsDialog(Settings s)
+    public SettingsDialog(Settings s) : this(s, true) { }
+
+    public SettingsDialog(Settings s, bool hotkeyActive)
     {
+        this.hotkeyActive = hotkeyActive;
         Value = new Settings();
         Value.Minutes = s.Minutes; Value.FontSize = s.FontSize; Value.X = s.X; Value.Y = s.Y;
         Value.HotkeyModifiers = s.HotkeyModifiers; Value.HotkeyKey = s.HotkeyKey;
@@ -398,7 +402,15 @@ internal sealed class SettingsDialog : Form
         hotkeyBox = new TextBox();
         hotkeyBox.ReadOnly = true;
         hotkeyBox.SetBounds(172, 240, 188, 24);
-        hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey);
+        if (!hotkeyActive)
+        {
+            hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey) + (en ? " (Occupied)" : " (已被占用)");
+            hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
+        }
+        else
+        {
+            hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey);
+        }
         hotkeyBox.KeyDown += CaptureHotkey;
         ApplyInputPadding(hotkeyBox);
         Controls.Add(hotkeyBox);
@@ -420,6 +432,7 @@ internal sealed class SettingsDialog : Form
         Label footerLine = new Label(); footerLine.BackColor = AppContext.Win11Border; footerLine.BorderStyle = BorderStyle.None; footerLine.SetBounds(18, 388, 344, 1); Controls.Add(footerLine);
         saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存"; saveBtn.SetBounds(196, 398, 76, 28);
         AppContext.StylePrimaryButton(saveBtn);
+        if (!hotkeyActive) saveBtn.Enabled = false;
         saveBtn.Click += SaveClick; Controls.Add(saveBtn);
         cancelBtn = new Button(); cancelBtn.Text = en ? "Cancel" : "取消"; cancelBtn.SetBounds(284, 398, 76, 28);
         AppContext.StyleSecondaryButton(cancelBtn);
@@ -523,7 +536,7 @@ internal sealed class SettingsDialog : Form
             return;
         }
         string text = AppContext.HotkeyText(mods, (int)key);
-        bool isCurrent = (mods == Value.HotkeyModifiers && (int)key == Value.HotkeyKey);
+        bool isCurrent = hotkeyActive && (mods == Value.HotkeyModifiers && (int)key == Value.HotkeyKey);
         bool available = isCurrent || AppContext.ProbeHotkey(mods, (int)key);
         if (!available)
         {
@@ -745,7 +758,9 @@ internal sealed class WelcomeDialog : Form
 {
     public bool StartRequested { get; private set; }
 
-    public WelcomeDialog(Settings s)
+    public WelcomeDialog(Settings s) : this(s, true, false) { }
+
+    public WelcomeDialog(Settings s, bool hotkeyActive, bool fallbackUsed = false)
     {
         bool en = s.Language == "en";
         Font = AppContext.GetUiFont(s.Language, 9.5f);
@@ -769,18 +784,31 @@ internal sealed class WelcomeDialog : Form
         Controls.Add(lblTitle);
 
         Label lblPrompt = new Label();
-        lblPrompt.Text = en ? "Press shortcut to start or pause:" : "按下快捷键启动或暂停倒计时：";
+        if (!hotkeyActive)
+        {
+            lblPrompt.Text = en ? "Candidate hotkeys occupied. Click Start below:" : "候选快捷键均被占用，可点击下方按钮开始：";
+            lblPrompt.ForeColor = Color.FromArgb(202, 80, 16);
+        }
+        else if (fallbackUsed)
+        {
+            lblPrompt.Text = en ? "Default hotkey occupied. Switched to backup:" : "默认快捷键已被占用，已自动启用备用键：";
+            lblPrompt.ForeColor = Color.FromArgb(202, 80, 16);
+        }
+        else
+        {
+            lblPrompt.Text = en ? "Press shortcut to start or pause:" : "按下快捷键启动或暂停倒计时：";
+            lblPrompt.ForeColor = AppContext.Win11TextPrimary;
+        }
         lblPrompt.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-        lblPrompt.ForeColor = AppContext.Win11TextPrimary;
         lblPrompt.TextAlign = ContentAlignment.MiddleCenter;
         lblPrompt.SetBounds(0, 52, ClientSize.Width, 20);
         Controls.Add(lblPrompt);
 
-        string hotkey = AppContext.HotkeyText(s.HotkeyModifiers, s.HotkeyKey);
+        string hotkey = hotkeyActive ? AppContext.HotkeyText(s.HotkeyModifiers, s.HotkeyKey) : (en ? "(No Hotkey)" : "(快捷键未生效)");
         Label badge = new Label();
         badge.Text = hotkey;
         badge.Font = new Font("Segoe UI", 11f, FontStyle.Bold);
-        badge.ForeColor = AppContext.Win11Accent;
+        badge.ForeColor = hotkeyActive ? (fallbackUsed ? Color.FromArgb(202, 80, 16) : AppContext.Win11Accent) : Color.FromArgb(202, 80, 16);
         badge.BackColor = Color.White;
         badge.TextAlign = ContentAlignment.MiddleCenter;
         int badgeWidth = 120;
@@ -1123,7 +1151,9 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
 
         if (isShortcut)
         {
-            e.TextColor = AppContext.Win11ShortcutGray;
+            e.TextColor = (e.Text.Contains("未生效") || e.Text.Contains("Disabled"))
+                ? Color.FromArgb(202, 80, 16)
+                : AppContext.Win11ShortcutGray;
             e.TextFormat = TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
         }
         else
@@ -1200,42 +1230,77 @@ internal sealed class AppContext : ApplicationContext
         overlay = new Overlay(settings); overlay.PositionChanged += delegate(Point p) { settings.X = p.X; settings.Y = p.Y; settings.Save(); };
         IntPtr forceOverlayHandle = overlay.Handle;
         messageWindow = new MessageWindow(this);
-        activeHotkeyModifiers = 3; activeHotkeyKey = (int)Keys.Space;
-        bool hotkeyOccupiedOnStartup = false;
+        activeHotkeyModifiers = settings.HotkeyModifiers; activeHotkeyKey = settings.HotkeyKey;
+        int originalMods = settings.HotkeyModifiers, originalKey = settings.HotkeyKey;
+        bool fallbackUsed = false;
         if (!SetHotkey(settings.HotkeyModifiers, settings.HotkeyKey))
         {
-            hotkeyOccupiedOnStartup = true;
-            settings.HotkeyModifiers = 3; settings.HotkeyKey = (int)Keys.Space;
-            SetHotkey(3, (int)Keys.Space);
+            int[][] fallbacks = new int[][]
+            {
+                new int[] { 3, (int)Keys.Space }, // Ctrl + Alt + Space
+                new int[] { 6, (int)Keys.T },     // Ctrl + Shift + T
+                new int[] { 5, (int)Keys.C },     // Alt + Shift + C
+                new int[] { 0, (int)Keys.F8 }     // F8
+            };
+            for (int i = 0; i < fallbacks.Length; i++)
+            {
+                int m = fallbacks[i][0], k = fallbacks[i][1];
+                if (m == originalMods && k == originalKey) continue;
+                if (SetHotkey(m, k))
+                {
+                    settings.HotkeyModifiers = m;
+                    settings.HotkeyKey = k;
+                    settings.Save();
+                    fallbackUsed = true;
+                    break;
+                }
+            }
         }
         tray = new NotifyIcon(); tray.Icon = appIcon; tray.Text = "iClock"; tray.Visible = true; tray.ContextMenuStrip = MakeMenu();
         tray.BalloonTipClicked += delegate { if (!string.IsNullOrEmpty(updateUrl)) { try { Process.Start(updateUrl); } catch { } } };
+        tray.MouseClick += delegate(object sender, MouseEventArgs e) { if (e.Button == MouseButtons.Left) { Toggle(); } };
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
         ApplyStartup();
         EnsureStartMenuShortcut(false);
         ResetDisplay();
         TrackAndCheckUpdates();
-        if (hotkeyOccupiedOnStartup)
+        if (fallbackUsed && !settings.FirstRun)
         {
             bool en = settings.Language == "en";
-            string tipText = hotkeyRegistered
-                ? (en ? "Configured hotkey was occupied by another app. Switched to Ctrl+Alt+Space." : "设定的快捷键已被其他程序占用，已自动切换为默认快捷键 Ctrl+Alt+Space。")
-                : (en ? "Hotkey registration failed (occupied by another app). Please set a new hotkey in Settings." : "快捷键注册失败（已被其他程序占用），请在设置中重新指定快捷键。");
-            tray.ShowBalloonTip(4000, "iClock", tipText, ToolTipIcon.Warning);
+            string oldKeyText = HotkeyText(originalMods, originalKey);
+            string newKeyText = HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey);
+            string msg = en
+                ? "The configured hotkey (" + oldKeyText + ") was occupied by another application.\r\n\r\niClock has automatically switched to backup hotkey: " + newKeyText + "\r\n\r\nYou can customize it at any time in Settings."
+                : "快捷键 " + oldKeyText + " 已被其他程序占用。\r\n\r\niClock 已自动为您切换至备选快捷键：" + newKeyText + "\r\n\r\n您随时可在“右键托盘 -> 设置”中自定义快捷键。";
+            overlay.BeginInvoke(new Action(delegate { MessageBox.Show(msg, "iClock", MessageBoxButtons.OK, MessageBoxIcon.Information); }));
+        }
+        else if (!hotkeyRegistered && !settings.FirstRun)
+        {
+            bool en = settings.Language == "en";
+            string msg = en
+                ? "All candidate hotkeys are occupied by other applications. Hotkey is currently disabled.\r\n\r\nWould you like to open Settings now to configure a custom hotkey?"
+                : "所有备选快捷键均已被其他程序占用，当前快捷键未生效。\r\n\r\n是否立即打开“设置”手动指定新的快捷键？";
+            overlay.BeginInvoke(new Action(delegate
+            {
+                if (MessageBox.Show(msg, "iClock", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+                {
+                    ShowSettings();
+                }
+            }));
         }
         if (settings.FirstRun)
         {
-            overlay.BeginInvoke(new Action(ShowWelcome));
+            overlay.BeginInvoke(new Action(delegate { ShowWelcome(fallbackUsed); }));
         }
     }
 
-    private void ShowWelcome()
+    private void ShowWelcome(bool fallbackUsed = false)
     {
         if (!settings.FirstRun) return;
         settings.FirstRun = false;
         settings.Save();
         EnsureStartMenuShortcut(true);
-        using (WelcomeDialog dlg = new WelcomeDialog(settings))
+        using (WelcomeDialog dlg = new WelcomeDialog(settings, hotkeyRegistered, fallbackUsed))
         {
             dlg.ShowDialog();
             if (dlg.StartRequested)
@@ -1330,7 +1395,9 @@ internal sealed class AppContext : ApplicationContext
             menuStart.ForeColor = Color.FromArgb(0, 103, 192);
         }
 
-        menuStart.ShortcutKeyDisplayString = HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey);
+        menuStart.ShortcutKeyDisplayString = hotkeyRegistered
+            ? HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey)
+            : (en ? "(Disabled)" : "(未生效)");
         menuReset.Text = en ? "Reset countdown" : "重置倒计时";
         menuReset.Enabled = running || sessionActive;
         menuMove.Text = overlay.MoveMode ? (en ? "✓ Finish position adjustment" : "✓ 完成位置调整") : (en ? "Adjust text position" : "调整文字位置");
@@ -1339,7 +1406,7 @@ internal sealed class AppContext : ApplicationContext
         menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
         menuExit.Text = en ? "Exit" : "退出";
         if (menuUpdate != null) menuUpdate.Text = en ? "⭐ Update available (" + latestVersion + ")…" : "⭐ 发现新版本 (" + latestVersion + ")…";
-        tray.Text = "iClock";
+        tray.Text = hotkeyRegistered ? "iClock" : (en ? "iClock (Hotkey conflict)" : "iClock (快捷键未生效)");
     }
 
     private void Toggle()
@@ -1455,7 +1522,7 @@ internal sealed class AppContext : ApplicationContext
             if (activeDialog is SettingsDialog) { ActivateWindow(activeDialog); return; }
             activeDialog.Close();
         }
-        SettingsDialog d = new SettingsDialog(settings);
+        SettingsDialog d = new SettingsDialog(settings, hotkeyRegistered);
         activeDialog = d;
         d.FormClosed += delegate
         {
