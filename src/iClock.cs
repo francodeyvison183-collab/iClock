@@ -739,18 +739,8 @@ internal sealed class WelcomeDialog : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = true;
+        ShowIcon = false;
         ClientSize = new Size(380, 208);
-
-        try
-        {
-            Icon appIcon = AppContext.CreateIcon();
-            if (appIcon != null)
-            {
-                Icon = appIcon;
-                ShowIcon = true;
-            }
-        }
-        catch { }
 
         Label lblTitle = new Label();
         lblTitle.Text = en ? "Welcome to iClock" : "欢迎使用 iClock";
