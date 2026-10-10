@@ -33,18 +33,28 @@ internal static class TestCheck
             endNoticeField.SetValue(settings, false);
             endSoundField.SetValue(settings, false);
 
-            // 0. Verify default settings: FontSize = 20, Color = "#FF0000"
+            // 0. Verify default settings: FontSize = 20, Color = "#FF0000", X = -1 (center), Y = 90
             Type settingsType = asm.GetType("Settings");
             object defaultSettings = Activator.CreateInstance(settingsType);
             int defSize = (int)settingsType.GetField("FontSize").GetValue(defaultSettings);
             string defColor = (string)settingsType.GetField("Color").GetValue(defaultSettings);
             string defFont = (string)settingsType.GetField("FontFamily").GetValue(defaultSettings);
-            if (defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI")
+            int defX = (int)settingsType.GetField("X").GetValue(defaultSettings);
+            int defY = (int)settingsType.GetField("Y").GetValue(defaultSettings);
+            if (defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 90)
             {
-                Console.WriteLine("FAIL: Default FontSize (" + defSize + "), Color (" + defColor + "), or FontFamily (" + defFont + ") incorrect");
+                Console.WriteLine("FAIL: Default FontSize (" + defSize + "), Color (" + defColor + "), FontFamily (" + defFont + "), X (" + defX + "), or Y (" + defY + ") incorrect");
                 return 18;
             }
-            Console.WriteLine("PASS: Default settings have FontSize = 20, Color = #FF0000 (red), and FontFamily = Segoe UI.");
+            Rectangle screen = Screen.PrimaryScreen.Bounds;
+            int expectedX = screen.Left + (screen.Width - overlay.Width) / 2;
+            int expectedY = screen.Top + 90;
+            if (overlay.Location.Y != expectedY || Math.Abs(overlay.Location.X - expectedX) > 2)
+            {
+                Console.WriteLine("FAIL: Overlay default position incorrect: Got (" + overlay.Location.X + ", " + overlay.Location.Y + "), expected (" + expectedX + ", " + expectedY + ")");
+                return 18;
+            }
+            Console.WriteLine("PASS: Default settings have FontSize = 20, Color = #FF0000, FontFamily = Segoe UI, overlay horizontally centered and 90px from top.");
 
             // 1. Overlay must be hidden before countdown starts
             if (overlay.Visible)
@@ -780,6 +790,53 @@ internal static class TestCheck
                 else if (System.IO.File.Exists(testHistoryPath)) System.IO.File.Delete(testHistoryPath);
             }
             Console.WriteLine("PASS: FormatDuration helper, 5-column session tracking (actual duration calculation), and logging verified.");
+
+            // 19. Verify single active dialog mutual exclusion & activation
+            FieldInfo activeDlgField = appType.GetField("activeDialog", bf);
+            MethodInfo showAbout = appType.GetMethod("ShowAbout", bf);
+            MethodInfo showHistory = appType.GetMethod("ShowHistory", bf);
+            MethodInfo showSettings = appType.GetMethod("ShowSettings", bf);
+
+            showAbout.Invoke(app, null);
+            Form dlg1 = (Form)activeDlgField.GetValue(app);
+            if (dlg1 == null || dlg1.IsDisposed || dlg1.GetType().Name != "AboutDialog")
+            {
+                Console.WriteLine("FAIL: ShowAbout did not set activeDialog");
+                return 27;
+            }
+            // Reopening about should keep the same instance
+            showAbout.Invoke(app, null);
+            Form dlg1Reopen = (Form)activeDlgField.GetValue(app);
+            if (dlg1Reopen != dlg1)
+            {
+                Console.WriteLine("FAIL: Reopening AboutDialog did not preserve single instance");
+                return 27;
+            }
+            // Opening history should close AboutDialog and set history
+            showHistory.Invoke(app, null);
+            Form dlg2 = (Form)activeDlgField.GetValue(app);
+            if (!dlg1.IsDisposed || dlg2 == null || dlg2.Tag as string != "history")
+            {
+                Console.WriteLine("FAIL: ShowHistory did not close AboutDialog or set history");
+                return 27;
+            }
+            // Opening settings should close History and set settings
+            showSettings.Invoke(app, null);
+            Form dlg3 = (Form)activeDlgField.GetValue(app);
+            if (!dlg2.IsDisposed || dlg3 == null || dlg3.GetType().Name != "SettingsDialog")
+            {
+                Console.WriteLine("FAIL: ShowSettings did not close History or set settings");
+                return 27;
+            }
+            // Closing dialog should clear activeDialog
+            dlg3.Close();
+            Form dlgCleared = (Form)activeDlgField.GetValue(app);
+            if (dlgCleared != null)
+            {
+                Console.WriteLine("FAIL: Closing dialog did not clear activeDialog");
+                return 27;
+            }
+            Console.WriteLine("PASS: Single active dialog mutual exclusion, smooth switching, and activation verified.");
 
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);

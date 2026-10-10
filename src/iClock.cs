@@ -16,8 +16,8 @@ internal sealed class Settings
 {
     public int Minutes = 25;
     public int FontSize = 20;
-    public int X = 80;
-    public int Y = 80;
+    public int X = -1;
+    public int Y = 90;
     public int HotkeyModifiers = 3;
     public int HotkeyKey = (int)Keys.Space;
     public string Color = "#FF0000";
@@ -65,6 +65,7 @@ internal sealed class Settings
                 else if (k == "EndNotice" && bool.TryParse(v, out b)) s.EndNotice = b;
                 else if (k == "FirstRun" && bool.TryParse(v, out b)) s.FirstRun = b;
             }
+            if (s.X == 80 && s.Y == 80) { s.X = -1; s.Y = 90; }
         }
         catch { }
         return s;
@@ -111,12 +112,25 @@ internal sealed class Overlay : Form
         TopMost = true;
         DoubleBuffered = true;
         SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true);
-        Location = new Point(s.X, s.Y);
         RebuildGdiResources();
+        UpdateLocation();
         UpdateText("25:00");
         MouseDown += OnMouseDown;
         MouseMove += OnMouseMove;
         MouseUp += OnMouseUp;
+    }
+
+    private void UpdateLocation()
+    {
+        if (settings.X < 0)
+        {
+            Rectangle screen = Screen.PrimaryScreen.Bounds;
+            Location = new Point(screen.Left + Math.Max(0, (screen.Width - Width) / 2), screen.Top + settings.Y);
+        }
+        else
+        {
+            Location = new Point(settings.X, settings.Y);
+        }
     }
 
     protected override CreateParams CreateParams
@@ -142,6 +156,7 @@ internal sealed class Overlay : Form
     {
         settings = s;
         RebuildGdiResources();
+        UpdateLocation();
         Invalidate();
     }
 
@@ -1155,6 +1170,7 @@ internal sealed class AppContext : ApplicationContext
     private bool hotkeyRegistered;
     private int activeHotkeyModifiers, activeHotkeyKey;
     private NoticeDialog activeNotice;
+    private Form activeDialog;
     private long lastSeconds = -1;
     private MessageWindow messageWindow;
     private string exePath = Application.ExecutablePath;
@@ -1404,34 +1420,61 @@ internal sealed class AppContext : ApplicationContext
         tray.ShowBalloonTip(2000, "iClock", enabled ? (en ? "Drag the translucent area to move the text. Use the tray menu to finish." : "拖动半透明区域调整文字位置，再次从托盘菜单退出调整模式。") : (en ? "Text position saved." : "文字位置已保存。"), ToolTipIcon.Info);
         UpdateMenuText();
     }
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    private static void ActivateWindow(Form f)
+    {
+        if (f == null || f.IsDisposed) return;
+        if (f.WindowState == FormWindowState.Minimized) f.WindowState = FormWindowState.Normal;
+        f.BringToFront();
+        f.Activate();
+        try { SetForegroundWindow(f.Handle); } catch { }
+    }
+
     private void ShowSettings()
     {
-        using (SettingsDialog d = new SettingsDialog(settings))
+        if (activeDialog != null && !activeDialog.IsDisposed)
         {
-            if (d.ShowDialog() != DialogResult.OK) return;
-            bool hotkeyFailed = false;
-            if (!SetHotkey(d.Value.HotkeyModifiers, d.Value.HotkeyKey))
+            if (activeDialog is SettingsDialog) { ActivateWindow(activeDialog); return; }
+            activeDialog.Close();
+        }
+        SettingsDialog d = new SettingsDialog(settings);
+        activeDialog = d;
+        d.FormClosed += delegate
+        {
+            if (d.DialogResult == DialogResult.OK)
             {
-                d.Value.HotkeyModifiers = activeHotkeyModifiers; d.Value.HotkeyKey = activeHotkeyKey;
-                hotkeyFailed = true;
+                ApplySavedSettings(d.Value);
             }
-            settings = d.Value; settings.Save(); overlay.SetSettings(settings); ApplyStartup();
-            if (tray != null && tray.ContextMenuStrip != null)
-            {
-                tray.ContextMenuStrip.Font = GetUiFont(settings.Language, 9.5f);
-                if (menuStart != null) menuStart.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
-            }
-            UpdateMenuText();
-            lastSeconds = -1;
-            if (!running && !sessionActive) { ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); }
-            else if (running) { Tick(null, EventArgs.Empty); }
-            else { overlay.SetPaused(true); Display(remaining); }
+            if (activeDialog == d) activeDialog = null;
+        };
+        d.Show();
+    }
 
-            if (hotkeyFailed)
-            {
-                bool en = settings.Language == "en";
-                MessageBox.Show(en ? "That hotkey is already occupied by another application. The previous hotkey was kept, but other settings were saved." : "该快捷键已被其他程序占用，快捷键已保留为原设置，其他设置已成功保存。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+    private void ApplySavedSettings(Settings newSettings)
+    {
+        bool hotkeyFailed = false;
+        if (!SetHotkey(newSettings.HotkeyModifiers, newSettings.HotkeyKey))
+        {
+            newSettings.HotkeyModifiers = activeHotkeyModifiers; newSettings.HotkeyKey = activeHotkeyKey;
+            hotkeyFailed = true;
+        }
+        settings = newSettings; settings.Save(); overlay.SetSettings(settings); ApplyStartup();
+        if (tray != null && tray.ContextMenuStrip != null)
+        {
+            tray.ContextMenuStrip.Font = GetUiFont(settings.Language, 9.5f);
+            if (menuStart != null) menuStart.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
+        }
+        UpdateMenuText();
+        lastSeconds = -1;
+        if (!running && !sessionActive) { ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); }
+        else if (running) { Tick(null, EventArgs.Empty); }
+        else { overlay.SetPaused(true); Display(remaining); }
+
+        if (hotkeyFailed)
+        {
+            bool en = settings.Language == "en";
+            MessageBox.Show(en ? "That hotkey is already occupied by another application. The previous hotkey was kept, but other settings were saved." : "该快捷键已被其他程序占用，快捷键已保留为原设置，其他设置已成功保存。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
     private bool SetHotkey(int modifiers, int key)
@@ -1454,9 +1497,16 @@ internal sealed class AppContext : ApplicationContext
     }
     private void ShowHistory()
     {
+        if (activeDialog != null && !activeDialog.IsDisposed)
+        {
+            if (activeDialog.Tag as string == "history") { ActivateWindow(activeDialog); return; }
+            activeDialog.Close();
+        }
         bool en = settings.Language == "en";
         string path = Path.Combine(Path.GetDirectoryName(Settings.FilePath), "history-" + DateTime.Now.ToString("yyyyMMdd") + ".tsv");
         Form f = new Form();
+        f.Tag = "history";
+        activeDialog = f;
         f.Font = GetUiFont(settings.Language, 9.5f);
         f.BackColor = Win11Bg;
         ApplyModernWindowStyle(f);
@@ -1464,6 +1514,7 @@ internal sealed class AppContext : ApplicationContext
         f.StartPosition = FormStartPosition.CenterScreen;
         f.ClientSize = new Size(640, 380);
         f.MinimizeBox = false; f.MaximizeBox = false;
+        f.ShowInTaskbar = false;
         ListView list = new ListView();
         list.Font = GetUiFont(settings.Language, 9.5f);
         list.BackColor = Color.White;
@@ -1476,7 +1527,12 @@ internal sealed class AppContext : ApplicationContext
 
         Font headerFont = new Font(list.Font, FontStyle.Bold);
         Font boldFont = new Font(list.Font, FontStyle.Bold);
-        f.FormClosed += delegate { headerFont.Dispose(); boldFont.Dispose(); };
+        f.FormClosed += delegate
+        {
+            headerFont.Dispose();
+            boldFont.Dispose();
+            if (activeDialog == f) activeDialog = null;
+        };
         f.KeyPreview = true;
         f.KeyDown += delegate(object s, KeyEventArgs e) { if (e.KeyCode == Keys.Escape) f.Close(); };
 
@@ -1669,15 +1725,22 @@ internal sealed class AppContext : ApplicationContext
         f.Controls.Add(list);
         f.Controls.Add(summaryPanel);
         updateColumnWidths();
-        f.ShowDialog();
-        f.Dispose();
+        f.Show();
     }
     private void ShowAbout()
     {
-        using (AboutDialog d = new AboutDialog(settings.Language, this))
+        if (activeDialog != null && !activeDialog.IsDisposed)
         {
-            d.ShowDialog();
+            if (activeDialog is AboutDialog) { ActivateWindow(activeDialog); return; }
+            activeDialog.Close();
         }
+        AboutDialog d = new AboutDialog(settings.Language, this);
+        activeDialog = d;
+        d.FormClosed += delegate
+        {
+            if (activeDialog == d) activeDialog = null;
+        };
+        d.Show();
     }
     private void LogSession(string result)
     {
@@ -1708,6 +1771,7 @@ internal sealed class AppContext : ApplicationContext
     private void Exit()
     {
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
+        if (activeDialog != null && !activeDialog.IsDisposed) { activeDialog.Close(); activeDialog = null; }
         if (running) remaining = ReadRemaining();
         if (sessionActive) { LogSession("Interrupted"); sessionActive = false; }
         timer.Stop(); tray.Visible = false; if (hotkeyRegistered) UnregisterHotKey(messageWindow.Handle, HOTKEY_ID);
