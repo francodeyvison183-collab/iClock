@@ -799,25 +799,28 @@ internal sealed class WelcomeDialog : Form
         string t1 = en ? "Right-click system tray icon" : "右键系统托盘图标";
         string t2 = en ? "for settings" : "可进行设置";
         Font trayFont = AppContext.GetUiFont(s.Language, 8.5f, FontStyle.Regular);
-        int w1 = 0, w2 = 0;
-        using (Graphics g = CreateGraphics())
-        {
-            w1 = (int)Math.Ceiling(g.MeasureString(t1, trayFont).Width);
-            w2 = (int)Math.Ceiling(g.MeasureString(t2, trayFont).Width);
-        }
-        int iconSize = 16, gap = 4;
-        int totalTrayW = w1 + gap + iconSize + gap + w2;
-        int trayStartX = (ClientSize.Width - totalTrayW) / 2;
 
         Label lblT1 = new Label();
+        lblT1.AutoSize = true;
         lblT1.Text = t1;
         lblT1.Font = trayFont;
         lblT1.ForeColor = AppContext.Win11TextSecondary;
-        lblT1.SetBounds(trayStartX, 2, w1, 18);
+
+        Label lblT2 = new Label();
+        lblT2.AutoSize = true;
+        lblT2.Text = t2;
+        lblT2.Font = trayFont;
+        lblT2.ForeColor = AppContext.Win11TextSecondary;
+
+        int iconSize = 16, gap = 4;
+        int totalTrayW = lblT1.PreferredWidth + gap + iconSize + gap + lblT2.PreferredWidth;
+        int trayStartX = (ClientSize.Width - totalTrayW) / 2;
+
+        lblT1.Location = new Point(trayStartX, 2);
         trayPanel.Controls.Add(lblT1);
 
         PictureBox trayIcon = new PictureBox();
-        trayIcon.SetBounds(trayStartX + w1 + gap, 3, iconSize, iconSize);
+        trayIcon.SetBounds(trayStartX + lblT1.PreferredWidth + gap, 3, iconSize, iconSize);
         trayIcon.SizeMode = PictureBoxSizeMode.Zoom;
         try
         {
@@ -827,11 +830,7 @@ internal sealed class WelcomeDialog : Form
         catch { }
         trayPanel.Controls.Add(trayIcon);
 
-        Label lblT2 = new Label();
-        lblT2.Text = t2;
-        lblT2.Font = trayFont;
-        lblT2.ForeColor = AppContext.Win11TextSecondary;
-        lblT2.SetBounds(trayStartX + w1 + gap + iconSize + gap, 2, w2, 18);
+        lblT2.Location = new Point(trayStartX + lblT1.PreferredWidth + gap + iconSize + gap, 2);
         trayPanel.Controls.Add(lblT2);
 
         Controls.Add(trayPanel);
