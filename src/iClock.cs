@@ -21,6 +21,7 @@ internal sealed class Settings
     public int HotkeyModifiers = 3;
     public int HotkeyKey = (int)Keys.Space;
     public string Color = "#FF0000";
+    public string FontFamily = "Segoe UI";
     public string Format = "HH:MM:SS";
     public string EndMessage = "倒计时结束";
     public string Language = "zh";
@@ -55,6 +56,7 @@ internal sealed class Settings
                 else if (k == "HotkeyModifiers" && int.TryParse(v, out n)) s.HotkeyModifiers = n & 7;
                 else if (k == "HotkeyKey" && int.TryParse(v, out n) && n > 0) s.HotkeyKey = n;
                 else if (k == "Color") s.Color = v;
+                else if (k == "FontFamily" && !string.IsNullOrEmpty(v)) s.FontFamily = v;
                 else if (k == "Format" && (v == "HH:MM:SS" || v == "MM:SS" || v == "Chinese")) s.Format = v;
                 else if (k == "EndMessage") s.EndMessage = v;
                 else if (k == "Language" && (v == "zh" || v == "en")) s.Language = v;
@@ -74,7 +76,7 @@ internal sealed class Settings
         File.WriteAllLines(FilePath, new string[] {
             "Minutes=" + Minutes, "FontSize=" + FontSize, "X=" + X, "Y=" + Y,
             "HotkeyModifiers=" + HotkeyModifiers, "HotkeyKey=" + HotkeyKey,
-            "Color=" + Color, "Format=" + Format, "EndMessage=" + EndMessage, "Language=" + Language, "AutoStart=" + AutoStart,
+            "Color=" + Color, "FontFamily=" + FontFamily, "Format=" + Format, "EndMessage=" + EndMessage, "Language=" + Language, "AutoStart=" + AutoStart,
             "EndSound=" + EndSound, "EndNotice=" + EndNotice, "FirstRun=" + FirstRun
         });
     }
@@ -156,7 +158,9 @@ internal sealed class Overlay : Form
 
         Color c;
         try { c = ColorTranslator.FromHtml(settings.Color); } catch { c = Color.Red; }
-        cachedFont = new Font("Segoe UI", settings.FontSize, FontStyle.Bold, GraphicsUnit.Pixel);
+        string family = string.IsNullOrEmpty(settings.FontFamily) ? "Segoe UI" : settings.FontFamily;
+        try { cachedFont = new Font(family, settings.FontSize, FontStyle.Bold, GraphicsUnit.Pixel); }
+        catch { cachedFont = new Font("Segoe UI", settings.FontSize, FontStyle.Bold, GraphicsUnit.Pixel); }
         cachedBrush = new SolidBrush(c);
 
         string template = settings.Format == "Chinese" ? (settings.Language == "en" ? "00h 00m 00s" : "00时00分00秒") : (settings.Format == "MM:SS" ? "00:00" : "00:00:00");
@@ -235,7 +239,7 @@ internal sealed class SettingsDialog : Form
     private Panel colorPreview;
     private string selectedColor;
     private TextBox endMessage;
-    private ComboBox format, language;
+    private ComboBox format, language, fontCombo;
     private CheckBox startup, sound, notice;
     private TextBox hotkeyBox;
     private int hotkeyModifiers, hotkeyKey;
@@ -246,29 +250,39 @@ internal sealed class SettingsDialog : Form
         Value = new Settings();
         Value.Minutes = s.Minutes; Value.FontSize = s.FontSize; Value.X = s.X; Value.Y = s.Y;
         Value.HotkeyModifiers = s.HotkeyModifiers; Value.HotkeyKey = s.HotkeyKey;
-        Value.Color = s.Color; Value.Format = s.Format; Value.EndMessage = s.EndMessage;
+        Value.Color = s.Color; Value.FontFamily = s.FontFamily; Value.Format = s.Format; Value.EndMessage = s.EndMessage;
         Value.Language = s.Language;
         Value.AutoStart = s.AutoStart; Value.EndSound = s.EndSound; Value.EndNotice = s.EndNotice;
         bool en = Value.Language == "en";
         Text = en ? "iClock Settings" : "iClock 设置"; FormBorderStyle = FormBorderStyle.FixedDialog; StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(350, 396);
+        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(350, 432);
         AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 16, 20); minutes = AddNumber(Value.Minutes, 1, 1440, 150, 16);
         AddLabel(en ? "Text size" : "文字大小", 16, 56); size = AddNumber(Value.FontSize, 12, 120, 150, 52);
-        AddLabel(en ? "Text color" : "文字颜色", 16, 92); selectedColor = Value.Color;
-        colorButton = new Button(); colorButton.Text = en ? "Choose…" : "点击选取…"; colorButton.SetBounds(150, 88, 105, 26); colorButton.Click += ChooseColor; Controls.Add(colorButton);
-        colorPreview = new Panel(); colorPreview.SetBounds(265, 90, 40, 22); colorPreview.BorderStyle = BorderStyle.FixedSingle; UpdateColorPreview(); Controls.Add(colorPreview);
-        AddLabel(en ? "Display format" : "显示格式", 16, 128); format = new ComboBox(); format.DropDownStyle = ComboBoxStyle.DropDownList; format.SetBounds(150, 124, 150, 24);
+        AddLabel(en ? "Font style" : "字体样式", 16, 92);
+        fontCombo = new ComboBox(); fontCombo.DropDownStyle = ComboBoxStyle.DropDownList; fontCombo.SetBounds(150, 88, 150, 24);
+        fontCombo.Items.AddRange(en
+            ? new object[] { "Segoe UI (Default)", "Consolas (Monospace)", "Arial", "Impact", "Microsoft YaHei" }
+            : new object[] { "Segoe UI (默认)", "Consolas (极客等宽)", "Arial", "Impact (醒目粗黑)", "微软雅黑" });
+        fontCombo.SelectedIndex = Value.FontFamily == "Consolas" ? 1 :
+            (Value.FontFamily == "Arial" ? 2 :
+            (Value.FontFamily == "Impact" ? 3 :
+            (Value.FontFamily == "Microsoft YaHei" ? 4 : 0)));
+        Controls.Add(fontCombo);
+        AddLabel(en ? "Text color" : "文字颜色", 16, 128); selectedColor = Value.Color;
+        colorButton = new Button(); colorButton.Text = en ? "Choose…" : "点击选取…"; colorButton.SetBounds(150, 124, 105, 26); colorButton.Click += ChooseColor; Controls.Add(colorButton);
+        colorPreview = new Panel(); colorPreview.SetBounds(265, 126, 40, 22); colorPreview.BorderStyle = BorderStyle.FixedSingle; UpdateColorPreview(); Controls.Add(colorPreview);
+        AddLabel(en ? "Display format" : "显示格式", 16, 164); format = new ComboBox(); format.DropDownStyle = ComboBoxStyle.DropDownList; format.SetBounds(150, 160, 150, 24);
         format.Items.AddRange(en ? new object[] { "HH:MM:SS", "MM:SS", "Chinese units" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位" }); format.SelectedIndex = Value.Format == "MM:SS" ? 1 : (Value.Format == "Chinese" ? 2 : 0); Controls.Add(format);
-        AddLabel(en ? "End message" : "结束时弹出消息", 16, 160); endMessage = new TextBox(); endMessage.SetBounds(150, 160, 180, 36); endMessage.Multiline = true; endMessage.MaxLength = 200; endMessage.Text = Value.EndMessage; Controls.Add(endMessage);
         hotkeyModifiers = Value.HotkeyModifiers; hotkeyKey = Value.HotkeyKey;
-        AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 16, 208); hotkeyBox = new TextBox(); hotkeyBox.ReadOnly = true; hotkeyBox.SetBounds(150, 208, 180, 24); hotkeyBox.Text = HotkeyText(hotkeyModifiers, hotkeyKey); hotkeyBox.KeyDown += CaptureHotkey; Controls.Add(hotkeyBox);
-        AddLabel(en ? "Interface language" : "界面语言", 16, 246); language = new ComboBox(); language.DropDownStyle = ComboBoxStyle.DropDownList; language.SetBounds(150, 242, 150, 24);
+        AddLabel(en ? "End message" : "结束时弹出消息", 16, 200); endMessage = new TextBox(); endMessage.SetBounds(150, 196, 180, 36); endMessage.Multiline = true; endMessage.MaxLength = 200; endMessage.Text = Value.EndMessage; Controls.Add(endMessage);
+        AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 16, 244); hotkeyBox = new TextBox(); hotkeyBox.ReadOnly = true; hotkeyBox.SetBounds(150, 240, 180, 24); hotkeyBox.Text = HotkeyText(hotkeyModifiers, hotkeyKey); hotkeyBox.KeyDown += CaptureHotkey; Controls.Add(hotkeyBox);
+        AddLabel(en ? "Interface language" : "界面语言", 16, 280); language = new ComboBox(); language.DropDownStyle = ComboBoxStyle.DropDownList; language.SetBounds(150, 276, 150, 24);
         language.Items.AddRange(new object[] { "简体中文", "English" }); language.SelectedIndex = Value.Language == "en" ? 1 : 0; language.SelectedIndexChanged += OnLanguageChanged; Controls.Add(language);
-        startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 16, 276);
-        sound = AddCheck(en ? "Sound at end" : "结束时声音提醒", Value.EndSound, 16, 300);
-        notice = AddCheck(en ? "Notification at end" : "结束时系统通知", Value.EndNotice, 16, 324);
-        Button save = new Button(); save.Text = en ? "Save" : "保存"; save.SetBounds(170, 358, 70, 28); save.Click += SaveClick; Controls.Add(save);
-        Button cancel = new Button(); cancel.Text = en ? "Cancel" : "取消"; cancel.SetBounds(250, 358, 70, 28); cancel.DialogResult = DialogResult.Cancel; Controls.Add(cancel);
+        startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 16, 308);
+        sound = AddCheck(en ? "Sound at end" : "结束时声音提醒", Value.EndSound, 16, 332);
+        notice = AddCheck(en ? "Notification at end" : "结束时系统通知", Value.EndNotice, 16, 356);
+        Button save = new Button(); save.Text = en ? "Save" : "保存"; save.SetBounds(170, 392, 70, 28); save.Click += SaveClick; Controls.Add(save);
+        Button cancel = new Button(); cancel.Text = en ? "Cancel" : "取消"; cancel.SetBounds(250, 392, 70, 28); cancel.DialogResult = DialogResult.Cancel; Controls.Add(cancel);
         AcceptButton = save; CancelButton = cancel;
     }
 
@@ -281,6 +295,12 @@ internal sealed class SettingsDialog : Form
         format.Items.Clear();
         format.Items.AddRange(toEnglish ? new object[] { "HH:MM:SS", "MM:SS", "Chinese units" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位" });
         format.SelectedIndex = sel >= 0 ? sel : 0;
+        int fontSel = fontCombo.SelectedIndex;
+        fontCombo.Items.Clear();
+        fontCombo.Items.AddRange(toEnglish
+            ? new object[] { "Segoe UI (Default)", "Consolas (Monospace)", "Arial", "Impact", "Microsoft YaHei" }
+            : new object[] { "Segoe UI (默认)", "Consolas (极客等宽)", "Arial", "Impact (醒目粗黑)", "微软雅黑" });
+        fontCombo.SelectedIndex = fontSel >= 0 ? fontSel : 0;
     }
 
     private void AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.SetBounds(x, y, 132, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); }
@@ -335,6 +355,10 @@ internal sealed class SettingsDialog : Form
             }
         }
         Value.Minutes = (int)minutes.Value; Value.FontSize = (int)size.Value; Value.Color = selectedColor;
+        string[] fontFamilies = { "Segoe UI", "Consolas", "Arial", "Impact", "Microsoft YaHei" };
+        Value.FontFamily = fontCombo.SelectedIndex >= 0 && fontCombo.SelectedIndex < fontFamilies.Length
+            ? fontFamilies[fontCombo.SelectedIndex]
+            : "Segoe UI";
         Value.HotkeyModifiers = hotkeyModifiers; Value.HotkeyKey = hotkeyKey;
         Value.EndMessage = endMessage.Text.Trim();
         Value.Format = format.SelectedIndex == 1 ? "MM:SS" : (format.SelectedIndex == 2 ? "Chinese" : "HH:MM:SS");

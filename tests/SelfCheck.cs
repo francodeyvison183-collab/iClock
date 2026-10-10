@@ -34,12 +34,13 @@ internal static class TestCheck
             object defaultSettings = Activator.CreateInstance(settingsType);
             int defSize = (int)settingsType.GetField("FontSize").GetValue(defaultSettings);
             string defColor = (string)settingsType.GetField("Color").GetValue(defaultSettings);
-            if (defSize != 20 || defColor != "#FF0000")
+            string defFont = (string)settingsType.GetField("FontFamily").GetValue(defaultSettings);
+            if (defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI")
             {
-                Console.WriteLine("FAIL: Default FontSize (" + defSize + ") should be 20 and Color (" + defColor + ") should be #FF0000");
+                Console.WriteLine("FAIL: Default FontSize (" + defSize + "), Color (" + defColor + "), or FontFamily (" + defFont + ") incorrect");
                 return 18;
             }
-            Console.WriteLine("PASS: Default settings have FontSize = 20 and Color = #FF0000 (red).");
+            Console.WriteLine("PASS: Default settings have FontSize = 20, Color = #FF0000 (red), and FontFamily = Segoe UI.");
 
             // 1. Overlay must be hidden before countdown starts
             if (overlay.Visible)
@@ -196,6 +197,7 @@ internal static class TestCheck
             Form settingsDialog = (Form)Activator.CreateInstance(settingsDialogType, new object[] { settings });
             bool hasUpdateCheck = false;
             bool hasLanguageCombo = false;
+            bool hasFontCombo = false;
             foreach (Control c in settingsDialog.Controls)
             {
                 if (c is CheckBox && (c.Text.Contains("自动检查版本更新") || c.Text.Contains("Check for updates")))
@@ -203,9 +205,11 @@ internal static class TestCheck
                     hasUpdateCheck = true;
                     break;
                 }
-                if (c is ComboBox && ((ComboBox)c).Items.Contains("简体中文"))
+                if (c is ComboBox)
                 {
-                    hasLanguageCombo = true;
+                    ComboBox cb = (ComboBox)c;
+                    if (cb.Items.Contains("简体中文")) hasLanguageCombo = true;
+                    if (cb.Items.Contains("Consolas (极客等宽)")) hasFontCombo = true;
                 }
             }
             settingsDialog.Dispose();
@@ -214,9 +218,9 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: SettingsDialog should not have manual update check option");
                 return 15;
             }
-            if (!hasLanguageCombo)
+            if (!hasLanguageCombo || !hasFontCombo)
             {
-                Console.WriteLine("FAIL: SettingsDialog missing language option");
+                Console.WriteLine("FAIL: SettingsDialog missing language or font option");
                 return 15;
             }
             FieldInfo launchField = appType.GetField("launchReported", BindingFlags.NonPublic | BindingFlags.Static);
@@ -225,7 +229,7 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: launchReported was not set on startup or field missing");
                 return 15;
             }
-            Console.WriteLine("PASS: SettingsDialog contains language selection and launchReported is de-duplicated.");
+            Console.WriteLine("PASS: SettingsDialog contains language and font selection, and launchReported is de-duplicated.");
 
             // 10. Verify version comparison and JSON parsing
             BindingFlags sbf = BindingFlags.NonPublic | BindingFlags.Static;
@@ -344,6 +348,19 @@ internal static class TestCheck
                 }
             }
             Console.WriteLine("PASS: IsInEphemeralFolder detection and EnsureStartMenuShortcut self-healing work correctly.");
+
+            // 13. Verify FontFamily setting dynamically updates Overlay cachedFont
+            FieldInfo fontField = settingsType.GetField("FontFamily");
+            fontField.SetValue(settings, "Consolas");
+            MethodInfo setSettings = overlayType.GetMethod("SetSettings");
+            setSettings.Invoke(overlay, new object[] { settings });
+            Font updatedFont = (Font)overlayType.GetField("cachedFont", bf).GetValue(overlay);
+            if (updatedFont == null || updatedFont.FontFamily.Name != "Consolas")
+            {
+                Console.WriteLine("FAIL: Overlay did not update cachedFont to Consolas (got " + (updatedFont == null ? "null" : updatedFont.FontFamily.Name) + ")");
+                return 21;
+            }
+            Console.WriteLine("PASS: FontFamily setting dynamically updates Overlay cachedFont to Consolas.");
 
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
