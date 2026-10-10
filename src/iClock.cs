@@ -864,7 +864,7 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
         if (!e.Item.Enabled) return;
         if (e.Item.Selected)
         {
-            Rectangle rc = new Rectangle(4, 1, e.Item.Width - 8, e.Item.Height - 2);
+            Rectangle rc = new Rectangle(4, 2, e.Item.Width - 8, e.Item.Height - 4);
             using (GraphicsPath path = AppContext.GetRoundedRectPath(rc, 4))
             using (SolidBrush brush = new SolidBrush(Color.FromArgb(238, 238, 238)))
             {
@@ -896,7 +896,7 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
         int y = e.Item.Height / 2;
         using (Pen p = new Pen(AppContext.Win11Border, 1f))
         {
-            e.Graphics.DrawLine(p, 12, y, e.Item.Width - 12, y);
+            e.Graphics.DrawLine(p, 14, y, e.Item.Width - 14, y);
         }
     }
 
@@ -994,7 +994,8 @@ internal sealed class AppContext : ApplicationContext
         m.Renderer = new ModernMenuRenderer();
         m.ShowImageMargin = false;
         m.ShowCheckMargin = false;
-        m.Padding = new Padding(2, 6, 2, 5);
+        m.MinimumSize = new Size(190, 0);
+        m.Padding = new Padding(2, 6, 2, 6);
         m.Opened += delegate { ApplyModernWindowStyle(m); };
         m.Opening += delegate { UpdateMenuText(); };
 
@@ -1015,7 +1016,7 @@ internal sealed class AppContext : ApplicationContext
     private ToolStripMenuItem AddMenuItem(ContextMenuStrip m, EventHandler onClick)
     {
         ToolStripMenuItem item = new ToolStripMenuItem();
-        item.Padding = new Padding(18, 4, 14, 4);
+        item.Padding = new Padding(16, 6, 16, 6);
         item.ForeColor = Win11TextPrimary;
         item.Click += onClick;
         m.Items.Add(item);
@@ -1036,7 +1037,7 @@ internal sealed class AppContext : ApplicationContext
         menuReset.Text = en ? "Reset countdown" : "重置倒计时";
         menuReset.Enabled = running || sessionActive;
         menuMove.Text = overlay.MoveMode ? (en ? "✓ Finish position adjustment" : "✓ 完成位置调整") : (en ? "Adjust text position" : "调整文字位置");
-        menuHistory.Text = en ? "Today's history…" : "今日记录…";
+        menuHistory.Text = en ? "View today's history…" : "查看今日记录…";
         menuSettings.Text = en ? "Settings…" : "设置…";
         menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
         menuExit.Text = en ? "Exit" : "退出";

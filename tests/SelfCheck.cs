@@ -508,14 +508,19 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: menuAbout text must be '关于 iClock…' / 'About iClock…', got: " + menuAbout.Text);
                 return 24;
             }
-            if (menuHistory.Text != "今日记录…" && menuHistory.Text != "Today's history…")
+            if (menuHistory.Text != "查看今日记录…" && menuHistory.Text != "View today's history…")
             {
-                Console.WriteLine("FAIL: menuHistory text should be '今日记录…' / 'Today\'s history…', got: " + menuHistory.Text);
+                Console.WriteLine("FAIL: menuHistory text should be '查看今日记录…' / 'View today\'s history…', got: " + menuHistory.Text);
                 return 24;
             }
             if (menuExit.Text != "退出" && menuExit.Text != "Exit")
             {
                 Console.WriteLine("FAIL: menuExit text should be '退出' / 'Exit', got: " + menuExit.Text);
+                return 24;
+            }
+            if (tray.ContextMenuStrip.MinimumSize.Width < 190)
+            {
+                Console.WriteLine("FAIL: Tray menu MinimumSize.Width should be >= 190");
                 return 24;
             }
             MethodInfo updateMenuText = appType.GetMethod("UpdateMenuText", bf);
