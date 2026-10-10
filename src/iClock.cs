@@ -686,7 +686,7 @@ internal class AboutDialog : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(350, 550);
+        ClientSize = new Size(350, 508);
 
         Label lblTitle = new Label();
         lblTitle.Text = "iClock";
@@ -755,15 +755,15 @@ internal class AboutDialog : Form
         sub.SetBounds(20, 472, 310, 20);
         Controls.Add(sub);
 
-        Button btnClose = new Button();
-        btnClose.Text = en ? "OK" : "确定";
-        btnClose.Font = AppContext.GetUiFont(language, 9.5f, FontStyle.Regular);
-        btnClose.SetBounds(130, 502, 90, 32);
-        AppContext.StylePrimaryButton(btnClose);
-        btnClose.Click += delegate { Close(); };
-        Controls.Add(btnClose);
-        AcceptButton = btnClose;
-        CancelButton = btnClose;
+        KeyPreview = true;
+        KeyDown += delegate(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Escape)
+            {
+                e.Handled = true;
+                Close();
+            }
+        };
     }
 
     private void OnCheckUpdates(object sender, EventArgs e)
@@ -876,9 +876,17 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
-        if (e.Item.Enabled && (e.Item.ForeColor.IsEmpty || e.Item.ForeColor == SystemColors.ControlText))
+        if (e.Item.Enabled)
         {
-            e.TextColor = AppContext.Win11TextPrimary;
+            ToolStripMenuItem mi = e.Item as ToolStripMenuItem;
+            if (mi != null && !string.IsNullOrEmpty(mi.ShortcutKeyDisplayString) && e.Text == mi.ShortcutKeyDisplayString)
+            {
+                e.TextColor = AppContext.Win11TextSecondary;
+            }
+            else if (e.Item.ForeColor.IsEmpty || e.Item.ForeColor == SystemColors.ControlText)
+            {
+                e.TextColor = AppContext.Win11TextPrimary;
+            }
         }
         base.OnRenderItemText(e);
     }
@@ -988,9 +996,11 @@ internal sealed class AppContext : ApplicationContext
         m.ShowCheckMargin = false;
         m.Padding = new Padding(2, 6, 2, 5);
         m.Opened += delegate { ApplyModernWindowStyle(m); };
+        m.Opening += delegate { UpdateMenuText(); };
 
         menuStart = AddMenuItem(m, delegate { Toggle(); });
-        menuReset = AddMenuItem(m, delegate { if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; } running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); });
+        menuStart.Font = new Font(m.Font, FontStyle.Bold);
+        menuReset = AddMenuItem(m, delegate { if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; } running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); UpdateMenuText(); });
         menuMove = AddMenuItem(m, delegate { ToggleMove(); });
         m.Items.Add(new ToolStripSeparator());
         menuHistory = AddMenuItem(m, delegate { ShowHistory(); });
@@ -1016,10 +1026,17 @@ internal sealed class AppContext : ApplicationContext
     {
         bool en = settings.Language == "en";
         if (menuStart == null) return;
-        menuStart.Text = (en ? "Start / pause (" : "开始 / 暂停 (") + HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey) + ")";
+        string actionText;
+        if (running) actionText = en ? "Pause" : "暂停";
+        else if (sessionActive) actionText = en ? "Resume" : "继续";
+        else actionText = en ? "Start" : "开始";
+
+        menuStart.Text = actionText;
+        menuStart.ShortcutKeyDisplayString = HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey);
         menuReset.Text = en ? "Reset countdown" : "重置倒计时";
+        menuReset.Enabled = running || sessionActive;
         menuMove.Text = overlay.MoveMode ? (en ? "✓ Finish position adjustment" : "✓ 完成位置调整") : (en ? "Adjust text position" : "调整文字位置");
-        menuHistory.Text = en ? "View today's history…" : "查看今日记录…";
+        menuHistory.Text = en ? "Today's history…" : "今日记录…";
         menuSettings.Text = en ? "Settings…" : "设置…";
         menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
         menuExit.Text = en ? "Exit" : "退出";
@@ -1039,6 +1056,7 @@ internal sealed class AppContext : ApplicationContext
         if (tray != null && tray.ContextMenuStrip != null)
         {
             tray.ContextMenuStrip.Font = GetUiFont(language, 9.5f);
+            if (menuStart != null) menuStart.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
         }
         UpdateMenuText();
         if (running || overlay.Visible)
@@ -1065,6 +1083,7 @@ internal sealed class AppContext : ApplicationContext
             overlay.Show();
             Tick(null, EventArgs.Empty);
         }
+        UpdateMenuText();
     }
     private TimeSpan ReadRemaining()
     {
@@ -1117,6 +1136,7 @@ internal sealed class AppContext : ApplicationContext
     {
         overlay.SetPaused(false);
         overlay.Hide();
+        UpdateMenuText();
         if (settings.EndNotice)
         {
             if (activeNotice != null && !activeNotice.IsDisposed)

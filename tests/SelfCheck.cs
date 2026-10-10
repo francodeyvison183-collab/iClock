@@ -183,10 +183,12 @@ internal static class TestCheck
             Form aboutDialog = (Form)Activator.CreateInstance(aboutType, new object[] { "zh" });
             PictureBox pb = null;
             Button btnCheck = null;
+            Button btnOk = null;
             foreach (Control c in aboutDialog.Controls)
             {
                 if (c is PictureBox) pb = (PictureBox)c;
                 if (c is Button && (c.Text == "检查更新" || c.Text == "Check Updates")) btnCheck = (Button)c;
+                if (c is Button && (c.Text == "确定" || c.Text == "OK")) btnOk = (Button)c;
             }
             if (pb == null || pb.Image == null || pb.Image.Width != 1152)
             {
@@ -203,13 +205,18 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: AboutDialog missing Check Updates button");
                 return 12;
             }
+            if (btnOk != null)
+            {
+                Console.WriteLine("FAIL: AboutDialog should not contain OK button");
+                return 12;
+            }
             if (pb.Width < 280)
             {
                 Console.WriteLine("FAIL: AboutDialog PictureBox width too narrow: " + pb.Width);
                 return 12;
             }
             aboutDialog.Close();
-            Console.WriteLine("PASS: AboutDialog and embedded zan.jpg loaded with full content width (" + pb.Width + "px) and Check Updates button.");
+            Console.WriteLine("PASS: AboutDialog loaded without OK button, with embedded zan.jpg and Check Updates button.");
 
             // 8. Performance check: Overlay cached GDI handles & dynamic timer interval
             Type overlayType = asm.GetType("Overlay");
@@ -478,6 +485,67 @@ internal static class TestCheck
             testBtnPrimary.Dispose();
             testBtnSecondary.Dispose();
             Console.WriteLine("PASS: Win11 Fluent design system (surface colors, primary/secondary button hierarchy, rounded path) verified.");
+
+            // 16. Verify context menu hero bold font, shortcut string, dynamic states, and concise copy
+            ToolStripMenuItem menuStart = (ToolStripMenuItem)appType.GetField("menuStart", bf).GetValue(app);
+            menuReset = (ToolStripMenuItem)appType.GetField("menuReset", bf).GetValue(app);
+            menuAbout = (ToolStripMenuItem)appType.GetField("menuAbout", bf).GetValue(app);
+            ToolStripMenuItem menuHistory = (ToolStripMenuItem)appType.GetField("menuHistory", bf).GetValue(app);
+            ToolStripMenuItem menuExit = (ToolStripMenuItem)appType.GetField("menuExit", bf).GetValue(app);
+
+            if (menuStart == null || !menuStart.Font.Bold)
+            {
+                Console.WriteLine("FAIL: menuStart should have bold font");
+                return 24;
+            }
+            if (string.IsNullOrEmpty(menuStart.ShortcutKeyDisplayString))
+            {
+                Console.WriteLine("FAIL: menuStart should have ShortcutKeyDisplayString set");
+                return 24;
+            }
+            if (menuAbout.Text != "关于 iClock…" && menuAbout.Text != "About iClock…")
+            {
+                Console.WriteLine("FAIL: menuAbout text must be '关于 iClock…' / 'About iClock…', got: " + menuAbout.Text);
+                return 24;
+            }
+            if (menuHistory.Text != "今日记录…" && menuHistory.Text != "Today's history…")
+            {
+                Console.WriteLine("FAIL: menuHistory text should be '今日记录…' / 'Today\'s history…', got: " + menuHistory.Text);
+                return 24;
+            }
+            if (menuExit.Text != "退出" && menuExit.Text != "Exit")
+            {
+                Console.WriteLine("FAIL: menuExit text should be '退出' / 'Exit', got: " + menuExit.Text);
+                return 24;
+            }
+            MethodInfo updateMenuText = appType.GetMethod("UpdateMenuText", bf);
+            FieldInfo runningField = appType.GetField("running", bf);
+            FieldInfo sessionActiveField = appType.GetField("sessionActive", bf);
+            runningField.SetValue(app, false);
+            sessionActiveField.SetValue(app, false);
+            updateMenuText.Invoke(app, null);
+            if (menuReset.Enabled || (menuStart.Text != "开始" && menuStart.Text != "Start"))
+            {
+                Console.WriteLine("FAIL: Idle menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ")");
+                return 24;
+            }
+            runningField.SetValue(app, true);
+            sessionActiveField.SetValue(app, true);
+            updateMenuText.Invoke(app, null);
+            if (!menuReset.Enabled || (menuStart.Text != "暂停" && menuStart.Text != "Pause"))
+            {
+                Console.WriteLine("FAIL: Running menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ")");
+                return 24;
+            }
+            runningField.SetValue(app, false);
+            sessionActiveField.SetValue(app, true);
+            updateMenuText.Invoke(app, null);
+            if (!menuReset.Enabled || (menuStart.Text != "继续" && menuStart.Text != "Resume"))
+            {
+                Console.WriteLine("FAIL: Paused menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ")");
+                return 24;
+            }
+            Console.WriteLine("PASS: Modern Context Menu layout, hero action font, dynamic state transitions, and concise copy verified.");
 
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
