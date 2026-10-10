@@ -164,9 +164,9 @@ internal static class TestCheck
 
             // 7. Verify AboutDialog and menuAbout
             ToolStripMenuItem menuAbout = (ToolStripMenuItem)appType.GetField("menuAbout", bf).GetValue(app);
-            if (menuAbout == null || menuAbout.Text != "关于 iClock…")
+            if (menuAbout == null || (menuAbout.Text != "关于 iClock…" && menuAbout.Text != "About iClock…"))
             {
-                Console.WriteLine("FAIL: menuAbout missing or incorrect text");
+                Console.WriteLine("FAIL: menuAbout missing or incorrect text: " + (menuAbout == null ? "null" : menuAbout.Text));
                 return 10;
             }
             Type aboutType = asm.GetType("AboutDialog");
@@ -237,7 +237,7 @@ internal static class TestCheck
                 {
                     ComboBox cb = (ComboBox)c;
                     if (cb.Items.Contains("简体中文")) hasLanguageCombo = true;
-                    if (cb.Items.Contains("Consolas (极客等宽)"))
+                    if (cb.Items.Contains("Consolas (极客等宽)") || cb.Items.Contains("Consolas (Monospace)"))
                     {
                         hasFontCombo = true;
                         if (cb.DrawMode != DrawMode.OwnerDrawFixed)
@@ -247,6 +247,19 @@ internal static class TestCheck
                         }
                     }
                 }
+            }
+            ComboBox langBox = (ComboBox)settingsDialogType.GetField("language", bf).GetValue(settingsDialog);
+            langBox.SelectedIndex = 1; // English
+            if (settingsDialog.Font.FontFamily.Name != "Segoe UI" || settingsDialog.Text != "iClock Settings")
+            {
+                Console.WriteLine("FAIL: SettingsDialog did not update font/title on language switch to en");
+                return 15;
+            }
+            langBox.SelectedIndex = 0; // Chinese
+            if (!settingsDialog.Font.FontFamily.Name.Contains("YaHei") && settingsDialog.Font.FontFamily.Name != SystemFonts.MessageBoxFont.FontFamily.Name)
+            {
+                Console.WriteLine("FAIL: SettingsDialog did not update font on language switch to zh");
+                return 15;
             }
             settingsDialog.Dispose();
             if (hasUpdateCheck)
@@ -397,6 +410,27 @@ internal static class TestCheck
                 return 21;
             }
             Console.WriteLine("PASS: FontFamily setting dynamically updates Overlay cachedFont to Consolas.");
+
+            // 14. Verify AppContext.GetUiFont returns Segoe UI for English and Microsoft YaHei UI (or Microsoft YaHei) for Chinese
+            MethodInfo getUiFont = appType.GetMethod("GetUiFont", BindingFlags.NonPublic | BindingFlags.Static);
+            if (getUiFont == null)
+            {
+                Console.WriteLine("FAIL: GetUiFont method missing");
+                return 22;
+            }
+            Font fontEn = (Font)getUiFont.Invoke(null, new object[] { "en", 9.5f, FontStyle.Regular });
+            Font fontZh = (Font)getUiFont.Invoke(null, new object[] { "zh", 9.5f, FontStyle.Regular });
+            if (fontEn == null || fontEn.FontFamily.Name != "Segoe UI")
+            {
+                Console.WriteLine("FAIL: GetUiFont('en') did not return Segoe UI (got " + (fontEn == null ? "null" : fontEn.FontFamily.Name) + ")");
+                return 22;
+            }
+            if (fontZh == null || (!fontZh.FontFamily.Name.Contains("YaHei") && fontZh.FontFamily.Name != SystemFonts.MessageBoxFont.FontFamily.Name))
+            {
+                Console.WriteLine("FAIL: GetUiFont('zh') did not return YaHei (got " + (fontZh == null ? "null" : fontZh.FontFamily.Name) + ")");
+                return 22;
+            }
+            Console.WriteLine("PASS: GetUiFont returns high-DPI modern fonts (Segoe UI for en, Microsoft YaHei UI for zh).");
 
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);

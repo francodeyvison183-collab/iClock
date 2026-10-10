@@ -258,6 +258,8 @@ internal sealed class SettingsDialog : Form
     private CheckBox startup, sound, notice;
     private TextBox hotkeyBox;
     private int hotkeyModifiers, hotkeyKey;
+    private Label lblMinutes, lblSize, lblFont, lblColor, lblFormat, lblEndMsg, lblHotkey, lblLanguage;
+    private Button saveBtn, cancelBtn;
     public Settings Value { get; private set; }
     private static readonly string[] fontFamilies = { "Segoe UI", "Consolas", "Arial", "Impact", "Microsoft YaHei" };
 
@@ -270,14 +272,15 @@ internal sealed class SettingsDialog : Form
         Value.Language = s.Language;
         Value.AutoStart = s.AutoStart; Value.EndSound = s.EndSound; Value.EndNotice = s.EndNotice;
         bool en = Value.Language == "en";
+        Font = AppContext.GetUiFont(Value.Language, 9.5f);
         Text = en ? "iClock Settings" : "iClock 设置"; FormBorderStyle = FormBorderStyle.FixedDialog; StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(350, 432);
-        AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 16, 20); minutes = AddNumber(Value.Minutes, 1, 1440, 150, 16);
-        AddLabel(en ? "Text size" : "文字大小", 16, 56); size = AddNumber(Value.FontSize, 12, 120, 150, 52);
-        AddLabel(en ? "Font style" : "字体样式", 16, 92);
+        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 440);
+        lblMinutes = AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 18, 20); minutes = AddNumber(Value.Minutes, 1, 1440, 172, 16);
+        lblSize = AddLabel(en ? "Text size" : "文字大小", 18, 56); size = AddNumber(Value.FontSize, 12, 120, 172, 52);
+        lblFont = AddLabel(en ? "Font style" : "字体样式", 18, 92);
         fontCombo = new ComboBox(); fontCombo.DropDownStyle = ComboBoxStyle.DropDownList;
         fontCombo.DrawMode = DrawMode.OwnerDrawFixed; fontCombo.ItemHeight = 22;
-        fontCombo.SetBounds(150, 88, 150, 24);
+        fontCombo.SetBounds(172, 88, 188, 24);
         fontCombo.Items.AddRange(en
             ? new object[] { "Segoe UI (Default)", "Consolas (Monospace)", "Arial", "Impact", "Microsoft YaHei" }
             : new object[] { "Segoe UI (默认)", "Consolas (极客等宽)", "Arial", "Impact (醒目粗黑)", "微软雅黑" });
@@ -287,32 +290,52 @@ internal sealed class SettingsDialog : Form
             (Value.FontFamily == "Microsoft YaHei" ? 4 : 0)));
         fontCombo.DrawItem += OnDrawFontItem;
         Controls.Add(fontCombo);
-        AddLabel(en ? "Text color" : "文字颜色", 16, 128); selectedColor = Value.Color;
-        colorButton = new Button(); colorButton.Text = en ? "Choose…" : "点击选取…"; colorButton.SetBounds(150, 124, 105, 26); colorButton.Click += ChooseColor; Controls.Add(colorButton);
-        colorPreview = new Panel(); colorPreview.SetBounds(265, 126, 40, 22); colorPreview.BorderStyle = BorderStyle.FixedSingle; UpdateColorPreview(); Controls.Add(colorPreview);
-        AddLabel(en ? "Display format" : "显示格式", 16, 164); format = new ComboBox(); format.DropDownStyle = ComboBoxStyle.DropDownList; format.SetBounds(150, 160, 150, 24);
-        format.Items.AddRange(en ? new object[] { "HH:MM:SS", "MM:SS", "Chinese units" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位" }); format.SelectedIndex = Value.Format == "MM:SS" ? 1 : (Value.Format == "Chinese" ? 2 : 0); Controls.Add(format);
+        lblColor = AddLabel(en ? "Text color" : "文字颜色", 18, 128); selectedColor = Value.Color;
+        colorButton = new Button(); colorButton.Text = en ? "Choose…" : "点击选取…"; colorButton.SetBounds(172, 124, 128, 26); colorButton.Click += ChooseColor; Controls.Add(colorButton);
+        colorPreview = new Panel(); colorPreview.SetBounds(308, 126, 52, 22); colorPreview.BorderStyle = BorderStyle.FixedSingle; UpdateColorPreview(); Controls.Add(colorPreview);
+        lblFormat = AddLabel(en ? "Display format" : "显示格式", 18, 164); format = new ComboBox(); format.DropDownStyle = ComboBoxStyle.DropDownList; format.SetBounds(172, 160, 188, 24);
+        format.Items.AddRange(en ? new object[] { "HH:MM:SS", "MM:SS", "H:M:S units (00h 25m 00s)" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位 (00时25分00秒)" }); format.SelectedIndex = Value.Format == "MM:SS" ? 1 : (Value.Format == "Chinese" ? 2 : 0); Controls.Add(format);
         hotkeyModifiers = Value.HotkeyModifiers; hotkeyKey = Value.HotkeyKey;
-        AddLabel(en ? "End message" : "结束时弹出消息", 16, 200); endMessage = new TextBox(); endMessage.SetBounds(150, 196, 180, 36); endMessage.Multiline = true; endMessage.MaxLength = 200; endMessage.Text = Value.EndMessage; Controls.Add(endMessage);
-        AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 16, 244); hotkeyBox = new TextBox(); hotkeyBox.ReadOnly = true; hotkeyBox.SetBounds(150, 240, 180, 24); hotkeyBox.Text = HotkeyText(hotkeyModifiers, hotkeyKey); hotkeyBox.KeyDown += CaptureHotkey; Controls.Add(hotkeyBox);
-        AddLabel(en ? "Interface language" : "界面语言", 16, 280); language = new ComboBox(); language.DropDownStyle = ComboBoxStyle.DropDownList; language.SetBounds(150, 276, 150, 24);
+        lblEndMsg = AddLabel(en ? "End message" : "结束时弹出消息", 18, 200); endMessage = new TextBox(); endMessage.SetBounds(172, 196, 188, 36); endMessage.Multiline = true; endMessage.MaxLength = 200; endMessage.Text = Value.EndMessage; Controls.Add(endMessage);
+        lblHotkey = AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 18, 244); hotkeyBox = new TextBox(); hotkeyBox.ReadOnly = true; hotkeyBox.SetBounds(172, 240, 188, 24); hotkeyBox.Text = HotkeyText(hotkeyModifiers, hotkeyKey); hotkeyBox.KeyDown += CaptureHotkey; Controls.Add(hotkeyBox);
+        lblLanguage = AddLabel(en ? "Interface language" : "界面语言", 18, 280); language = new ComboBox(); language.DropDownStyle = ComboBoxStyle.DropDownList; language.SetBounds(172, 276, 188, 24);
         language.Items.AddRange(new object[] { "简体中文", "English" }); language.SelectedIndex = Value.Language == "en" ? 1 : 0; language.SelectedIndexChanged += OnLanguageChanged; Controls.Add(language);
-        startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 16, 308);
-        sound = AddCheck(en ? "Sound at end" : "结束时声音提醒", Value.EndSound, 16, 332);
-        notice = AddCheck(en ? "Notification at end" : "结束时系统通知", Value.EndNotice, 16, 356);
-        Button save = new Button(); save.Text = en ? "Save" : "保存"; save.SetBounds(170, 392, 70, 28); save.Click += SaveClick; Controls.Add(save);
-        Button cancel = new Button(); cancel.Text = en ? "Cancel" : "取消"; cancel.SetBounds(250, 392, 70, 28); cancel.DialogResult = DialogResult.Cancel; Controls.Add(cancel);
-        AcceptButton = save; CancelButton = cancel;
+        startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 18, 310);
+        sound = AddCheck(en ? "Play sound at end" : "结束时声音提醒", Value.EndSound, 18, 336);
+        notice = AddCheck(en ? "Show notification at end" : "结束时系统通知", Value.EndNotice, 18, 362);
+        saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存"; saveBtn.SetBounds(196, 398, 76, 28); saveBtn.Click += SaveClick; Controls.Add(saveBtn);
+        cancelBtn = new Button(); cancelBtn.Text = en ? "Cancel" : "取消"; cancelBtn.SetBounds(284, 398, 76, 28); cancelBtn.DialogResult = DialogResult.Cancel; Controls.Add(cancelBtn);
+        AcceptButton = saveBtn; CancelButton = cancelBtn;
     }
 
     private void OnLanguageChanged(object sender, EventArgs e)
     {
         bool toEnglish = language.SelectedIndex == 1;
+        Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9.5f);
+        Text = toEnglish ? "iClock Settings" : "iClock 设置";
         if (toEnglish && endMessage.Text == "倒计时结束") endMessage.Text = "Countdown finished";
         else if (!toEnglish && endMessage.Text == "Countdown finished") endMessage.Text = "倒计时结束";
+
+        lblMinutes.Text = toEnglish ? "Duration (minutes)" : "倒计时（分钟）";
+        lblSize.Text = toEnglish ? "Text size" : "文字大小";
+        lblFont.Text = toEnglish ? "Font style" : "字体样式";
+        lblColor.Text = toEnglish ? "Text color" : "文字颜色";
+        colorButton.Text = toEnglish ? "Choose…" : "点击选取…";
+        lblFormat.Text = toEnglish ? "Display format" : "显示格式";
+        lblEndMsg.Text = toEnglish ? "End message" : "结束时弹出消息";
+        lblHotkey.Text = toEnglish ? "Start/pause hotkey" : "启动/暂停快捷键";
+        lblLanguage.Text = toEnglish ? "Interface language" : "界面语言";
+        startup.Text = toEnglish ? "Start with Windows" : "开机自启动";
+        sound.Text = toEnglish ? "Play sound at end" : "结束时声音提醒";
+        notice.Text = toEnglish ? "Show notification at end" : "结束时系统通知";
+        saveBtn.Text = toEnglish ? "Save" : "保存";
+        cancelBtn.Text = toEnglish ? "Cancel" : "取消";
+
         int sel = format.SelectedIndex;
         format.Items.Clear();
-        format.Items.AddRange(toEnglish ? new object[] { "HH:MM:SS", "MM:SS", "Chinese units" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位" });
+        format.Items.AddRange(toEnglish
+            ? new object[] { "HH:MM:SS", "MM:SS", "H:M:S units (00h 25m 00s)" }
+            : new object[] { "HH:MM:SS", "MM:SS", "中文单位 (00时25分00秒)" });
         format.SelectedIndex = sel >= 0 ? sel : 0;
         int fontSel = fontCombo.SelectedIndex;
         fontCombo.Items.Clear();
@@ -322,9 +345,9 @@ internal sealed class SettingsDialog : Form
         fontCombo.SelectedIndex = fontSel >= 0 ? fontSel : 0;
     }
 
-    private void AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.SetBounds(x, y, 132, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); }
-    private NumericUpDown AddNumber(int v, int min, int max, int x, int y) { NumericUpDown n = new NumericUpDown(); n.Minimum = min; n.Maximum = max; n.Value = Math.Min(max, Math.Max(min, v)); n.SetBounds(x, y, 150, 24); Controls.Add(n); return n; }
-    private CheckBox AddCheck(string t, bool v, int x, int y) { CheckBox c = new CheckBox(); c.Text = t; c.Checked = v; c.SetBounds(x, y, 220, 24); Controls.Add(c); return c; }
+    private Label AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.SetBounds(x, y, 148, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); return l; }
+    private NumericUpDown AddNumber(int v, int min, int max, int x, int y) { NumericUpDown n = new NumericUpDown(); n.Minimum = min; n.Maximum = max; n.Value = Math.Min(max, Math.Max(min, v)); n.SetBounds(x, y, 188, 24); Controls.Add(n); return n; }
+    private CheckBox AddCheck(string t, bool v, int x, int y) { CheckBox c = new CheckBox(); c.Text = t; c.Checked = v; c.SetBounds(x, y, 344, 24); Controls.Add(c); return c; }
     private void ChooseColor(object sender, EventArgs e)
     {
         Color initial; try { initial = ColorTranslator.FromHtml(selectedColor); } catch { initial = Color.Red; }
@@ -433,6 +456,7 @@ internal sealed class NoticeDialog : Form
         settings = s;
         finishTime = finishedAt;
         bool en = s.Language == "en";
+        Font = AppContext.GetUiFont(s.Language, 9.5f);
         Text = "iClock";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
@@ -440,38 +464,38 @@ internal sealed class NoticeDialog : Form
         MinimizeBox = false;
         ShowInTaskbar = true;
         TopMost = true;
-        ClientSize = new Size(340, 210);
+        ClientSize = new Size(350, 215);
 
         string titleText = String.IsNullOrEmpty(s.EndMessage) ? (en ? "Countdown Finished" : "倒计时结束") : s.EndMessage;
         Label titleLabel = new Label();
         titleLabel.Text = titleText;
-        titleLabel.Font = new Font("Segoe UI", 16, FontStyle.Bold, GraphicsUnit.Pixel);
+        titleLabel.Font = AppContext.GetUiFont(s.Language, 13f, FontStyle.Bold);
         titleLabel.TextAlign = ContentAlignment.MiddleCenter;
-        titleLabel.SetBounds(20, 18, 300, 28);
+        titleLabel.SetBounds(20, 18, 310, 28);
         Controls.Add(titleLabel);
 
         string timeText = s.Format == "MM:SS" ? "00:00" :
             (s.Format == "Chinese" ? (en ? "00h 00m 00s" : "00时00分00秒") : "00:00:00");
         Label timeLabel = new Label();
         timeLabel.Text = timeText;
-        timeLabel.Font = new Font("Segoe UI", 28, FontStyle.Bold, GraphicsUnit.Pixel);
+        timeLabel.Font = AppContext.GetUiFont(s.Language, 22f, FontStyle.Bold);
         timeLabel.ForeColor = Color.FromArgb(28, 114, 190);
         timeLabel.TextAlign = ContentAlignment.MiddleCenter;
-        timeLabel.SetBounds(20, 52, 300, 42);
+        timeLabel.SetBounds(20, 52, 310, 42);
         Controls.Add(timeLabel);
 
         finishLabel = new Label();
-        finishLabel.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        finishLabel.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
         finishLabel.ForeColor = Color.Gray;
         finishLabel.TextAlign = ContentAlignment.MiddleCenter;
-        finishLabel.SetBounds(20, 102, 300, 20);
+        finishLabel.SetBounds(20, 102, 310, 22);
         Controls.Add(finishLabel);
         UpdateFinishLabel();
 
         Button btn = new Button();
         btn.Text = en ? "OK" : "确定";
-        btn.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
-        btn.SetBounds(115, 145, 110, 36);
+        btn.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
+        btn.SetBounds(120, 150, 110, 36);
         btn.Click += delegate { Close(); };
         Controls.Add(btn);
         AcceptButton = btn;
@@ -563,19 +587,20 @@ internal sealed class WelcomeDialog : Form
     public WelcomeDialog(Settings s)
     {
         bool en = s.Language == "en";
+        Font = AppContext.GetUiFont(s.Language, 9.5f);
         Text = "iClock";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = true;
-        ClientSize = new Size(330, 195);
+        ClientSize = new Size(350, 205);
 
         Label lblTitle = new Label();
         lblTitle.Text = en ? "iClock is Ready" : "iClock 已就绪";
-        lblTitle.Font = new Font("Segoe UI", 16, FontStyle.Bold, GraphicsUnit.Pixel);
+        lblTitle.Font = AppContext.GetUiFont(s.Language, 14f, FontStyle.Bold);
         lblTitle.ForeColor = Color.FromArgb(28, 114, 190);
-        lblTitle.SetBounds(22, 18, 286, 26);
+        lblTitle.SetBounds(22, 18, 306, 28);
         Controls.Add(lblTitle);
 
         string hotkey = AppContext.HotkeyText(s.HotkeyModifiers, s.HotkeyKey);
@@ -583,22 +608,22 @@ internal sealed class WelcomeDialog : Form
         lblDesc.Text = en
             ? "Press " + hotkey + " anywhere to start or pause.\r\n\r\nRight-click the system tray icon for settings."
             : "随时按下快捷键 " + hotkey + " 启动或暂停倒计时。\r\n\r\n右键屏幕右下角托盘图标可进行个性化设置。";
-        lblDesc.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        lblDesc.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
         lblDesc.ForeColor = Color.FromArgb(60, 60, 60);
-        lblDesc.SetBounds(22, 52, 286, 75);
+        lblDesc.SetBounds(22, 54, 306, 78);
         Controls.Add(lblDesc);
 
         Button btnStart = new Button();
         btnStart.Text = en ? "Start Countdown" : "开始倒计时";
-        btnStart.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
-        btnStart.SetBounds(95, 142, 120, 34);
+        btnStart.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
+        btnStart.SetBounds(105, 148, 130, 36);
         btnStart.Click += delegate { StartRequested = true; Close(); };
         Controls.Add(btnStart);
 
         Button btnOk = new Button();
         btnOk.Text = en ? "Got it" : "知道了";
-        btnOk.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
-        btnOk.SetBounds(225, 142, 85, 34);
+        btnOk.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
+        btnOk.SetBounds(245, 148, 85, 36);
         btnOk.Click += delegate { Close(); };
         Controls.Add(btnOk);
 
@@ -631,63 +656,64 @@ internal class AboutDialog : Form
         language = lang;
         app = appContext;
         bool en = language == "en";
+        Font = AppContext.GetUiFont(language, 9.5f);
         Text = en ? "About iClock" : "关于 iClock";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(340, 550);
+        ClientSize = new Size(350, 550);
 
         Label lblTitle = new Label();
         lblTitle.Text = "iClock";
-        lblTitle.Font = new Font("Segoe UI", 16, FontStyle.Bold, GraphicsUnit.Pixel);
+        lblTitle.Font = AppContext.GetUiFont(language, 14f, FontStyle.Bold);
         lblTitle.ForeColor = Color.FromArgb(28, 114, 190);
         lblTitle.SetBounds(20, 16, 140, 26);
         Controls.Add(lblTitle);
 
         Label lblDesc = new Label();
         lblDesc.Text = en ? "Desktop Floating Countdown Timer" : "桌面极简悬浮倒计时工具";
-        lblDesc.Font = new Font("Segoe UI", 11, FontStyle.Regular, GraphicsUnit.Pixel);
+        lblDesc.Font = AppContext.GetUiFont(language, 9f, FontStyle.Regular);
         lblDesc.ForeColor = Color.Gray;
-        lblDesc.SetBounds(20, 44, 300, 20);
+        lblDesc.SetBounds(20, 44, 310, 20);
         Controls.Add(lblDesc);
 
         lblVersion = new Label();
         lblVersion.Text = (en ? "Version: v" : "当前版本: v") + AppContext.CURRENT_VERSION;
-        lblVersion.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        lblVersion.Font = AppContext.GetUiFont(language, 9.5f, FontStyle.Regular);
         lblVersion.SetBounds(20, 72, 180, 24);
         lblVersion.TextAlign = ContentAlignment.MiddleLeft;
         Controls.Add(lblVersion);
 
         btnCheck = new Button();
         btnCheck.Text = en ? "Check Updates" : "检查更新";
-        btnCheck.Font = new Font("Segoe UI", 11, FontStyle.Regular, GraphicsUnit.Pixel);
-        btnCheck.SetBounds(206, 70, 114, 26);
+        btnCheck.Font = AppContext.GetUiFont(language, 9f, FontStyle.Regular);
+        btnCheck.SetBounds(210, 70, 120, 26);
         btnCheck.Click += OnCheckUpdates;
         Controls.Add(btnCheck);
 
         LinkLabel link = new LinkLabel();
         link.Text = "GitHub: francodeyvison183-collab/iClock";
-        link.Font = new Font("Segoe UI", 11, FontStyle.Regular, GraphicsUnit.Pixel);
-        link.SetBounds(20, 102, 300, 20);
+        link.Font = AppContext.GetUiFont(language, 9f, FontStyle.Regular);
+        link.SetBounds(20, 102, 310, 20);
         link.LinkClicked += delegate { try { Process.Start("https://github.com/francodeyvison183-collab/iClock"); } catch { } };
         Controls.Add(link);
 
         Label line = new Label();
         line.BorderStyle = BorderStyle.Fixed3D;
-        line.SetBounds(20, 128, 300, 2);
+        line.SetBounds(20, 128, 310, 2);
         Controls.Add(line);
 
         Label lblSponsor = new Label();
         lblSponsor.Text = en ? "If iClock helps you, thank you for supporting!" : "如果 iClock 对你有帮助，欢迎赞赏支持！";
-        lblSponsor.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
+        lblSponsor.Font = AppContext.GetUiFont(language, 9.5f, FontStyle.Regular);
         lblSponsor.TextAlign = ContentAlignment.MiddleCenter;
-        lblSponsor.SetBounds(20, 138, 300, 24);
+        lblSponsor.SetBounds(20, 138, 310, 24);
         Controls.Add(lblSponsor);
 
         HqPictureBox pic = new HqPictureBox();
-        pic.SetBounds(20, 166, 300, 300);
+        pic.SetBounds(25, 166, 300, 300);
         pic.SizeMode = PictureBoxSizeMode.Zoom;
         pic.BorderStyle = BorderStyle.None;
         pic.Image = LoadSponsorImage();
@@ -695,16 +721,16 @@ internal class AboutDialog : Form
 
         Label sub = new Label();
         sub.Text = en ? "WeChat Pay" : "微信扫一扫 赞赏码";
-        sub.Font = new Font("Segoe UI", 12, FontStyle.Bold, GraphicsUnit.Pixel);
+        sub.Font = AppContext.GetUiFont(language, 9.5f, FontStyle.Bold);
         sub.ForeColor = Color.FromArgb(28, 114, 190);
         sub.TextAlign = ContentAlignment.MiddleCenter;
-        sub.SetBounds(20, 472, 300, 20);
+        sub.SetBounds(20, 472, 310, 20);
         Controls.Add(sub);
 
         Button btnClose = new Button();
         btnClose.Text = en ? "OK" : "确定";
-        btnClose.Font = new Font("Segoe UI", 12, FontStyle.Regular, GraphicsUnit.Pixel);
-        btnClose.SetBounds(125, 502, 90, 32);
+        btnClose.Font = AppContext.GetUiFont(language, 9.5f, FontStyle.Regular);
+        btnClose.SetBounds(130, 502, 90, 32);
         btnClose.Click += delegate { Close(); };
         Controls.Add(btnClose);
         AcceptButton = btnClose;
@@ -871,6 +897,7 @@ internal sealed class AppContext : ApplicationContext
     private ContextMenuStrip MakeMenu()
     {
         ContextMenuStrip m = new ContextMenuStrip();
+        m.Font = GetUiFont(settings.Language, 9.5f);
         menuStart = new ToolStripMenuItem(); menuStart.Click += delegate { Toggle(); };
         menuReset = new ToolStripMenuItem(); menuReset.Click += delegate { if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; } running = false; timer.Stop(); if (sessionActive) LogSession("Reset"); sessionActive = false; ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); };
         menuMove = new ToolStripMenuItem(); menuMove.Click += delegate { ToggleMove(); };
@@ -911,6 +938,10 @@ internal sealed class AppContext : ApplicationContext
         settings.Language = language;
         settings.Save();
         overlay.SetSettings(settings);
+        if (tray != null && tray.ContextMenuStrip != null)
+        {
+            tray.ContextMenuStrip.Font = GetUiFont(language, 9.5f);
+        }
         UpdateMenuText();
         if (running || overlay.Visible)
         {
@@ -1048,8 +1079,15 @@ internal sealed class AppContext : ApplicationContext
     {
         bool en = settings.Language == "en";
         string path = Path.Combine(Path.GetDirectoryName(Settings.FilePath), "history-" + DateTime.Now.ToString("yyyyMMdd") + ".tsv");
-        Form f = new Form(); f.Text = en ? "iClock - Today's countdown history" : "iClock - 今日倒计时记录"; f.StartPosition = FormStartPosition.CenterScreen; f.ClientSize = new Size(610, 320); f.MinimizeBox = false; f.MaximizeBox = false;
-        ListView list = new ListView(); list.View = View.Details; list.FullRowSelect = true; list.GridLines = true; list.SetBounds(12, 12, 586, 296);
+        Form f = new Form();
+        f.Font = GetUiFont(settings.Language, 9.5f);
+        f.Text = en ? "iClock - Today's countdown history" : "iClock - 今日倒计时记录";
+        f.StartPosition = FormStartPosition.CenterScreen;
+        f.ClientSize = new Size(620, 330);
+        f.MinimizeBox = false; f.MaximizeBox = false;
+        ListView list = new ListView();
+        list.Font = GetUiFont(settings.Language, 9.5f);
+        list.View = View.Details; list.FullRowSelect = true; list.GridLines = true; list.SetBounds(12, 12, 596, 306);
         list.Columns.Add(en ? "Start time" : "开始时间", 145); list.Columns.Add(en ? "End time" : "结束时间", 145); list.Columns.Add(en ? "Duration" : "设定时长", 90); list.Columns.Add(en ? "Result" : "结果", 170);
         try
         {
@@ -1113,6 +1151,20 @@ internal sealed class AppContext : ApplicationContext
         if ((mods & 1) != 0) value += "Alt+";
         if ((mods & 4) != 0) value += "Shift+";
         return value + ((Keys)key).ToString();
+    }
+
+    internal static Font GetUiFont(string lang, float sizePt = 9.5f, FontStyle style = FontStyle.Regular)
+    {
+        string family = (lang == "en") ? "Segoe UI" : "Microsoft YaHei UI";
+        try
+        {
+            return new Font(family, sizePt, style, GraphicsUnit.Point);
+        }
+        catch
+        {
+            try { return new Font("Microsoft YaHei", sizePt, style, GraphicsUnit.Point); }
+            catch { return SystemFonts.MessageBoxFont; }
+        }
     }
 
     internal static bool IsInEphemeralFolder(string path)
