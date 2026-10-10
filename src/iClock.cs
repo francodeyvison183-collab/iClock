@@ -1547,16 +1547,16 @@ internal sealed class AppContext : ApplicationContext
         if (totalSessions == 0)
         {
             lblSummary.Text = en
-                ? "📊 Today's Summary: No sessions | Actual focus: 0s | Completion rate: 0%"
-                : "📊 今日统计：暂无会话 ｜ 实际专注 0 秒 ｜ 完成率 0%";
+                ? "📊 Today's Summary: No countdowns | Actual time: 0s | Completion rate: 0%"
+                : "📊 今日统计：暂无倒计时 ｜ 实际计时 0 秒 ｜ 完成率 0%";
         }
         else
         {
             int rate = (int)Math.Round((double)completedSessions * 100.0 / totalSessions);
             string focusText = FormatDuration(totalActualSecs, en);
             lblSummary.Text = en
-                ? "📊 Today's Summary: " + totalSessions + " sessions | Actual focus: " + focusText + " | Completion rate: " + rate + "%"
-                : "📊 今日统计：累计 " + totalSessions + " 次会话 ｜ 实际专注 " + focusText + " ｜ 完成率 " + rate + "%";
+                ? "📊 Today's Summary: " + totalSessions + (totalSessions == 1 ? " countdown | Actual time: " : " countdowns | Actual time: ") + focusText + " | Completion rate: " + rate + "%"
+                : "📊 今日统计：累计 " + totalSessions + " 次倒计时 ｜ 实际计时 " + focusText + " ｜ 完成率 " + rate + "%";
         }
 
         summaryPanel.Controls.Add(lblSummary);
