@@ -1238,6 +1238,7 @@ internal sealed class AppContext : ApplicationContext
     private void Reset()
     {
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
+        if (running) remaining = ReadRemaining();
         running = false;
         timer.Stop();
         if (sessionActive) LogSession("Reset");
@@ -1437,14 +1438,15 @@ internal sealed class AppContext : ApplicationContext
         ApplyModernWindowStyle(f);
         f.Text = en ? "iClock - Today's countdown history" : "iClock - 今日倒计时记录";
         f.StartPosition = FormStartPosition.CenterScreen;
-        f.ClientSize = new Size(620, 330);
+        f.ClientSize = new Size(640, 380);
         f.MinimizeBox = false; f.MaximizeBox = false;
         ListView list = new ListView();
         list.Font = GetUiFont(settings.Language, 9.5f);
         list.BackColor = Color.White;
         list.ForeColor = Win11TextPrimary;
         list.BorderStyle = BorderStyle.FixedSingle;
-        list.View = View.Details; list.FullRowSelect = true; list.GridLines = true; list.SetBounds(12, 12, 596, 306);
+        list.View = View.Details; list.FullRowSelect = true; list.GridLines = true;
+        list.SetBounds(12, 12, 616, 312);
         list.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         list.OwnerDraw = true;
 
@@ -1455,14 +1457,15 @@ internal sealed class AppContext : ApplicationContext
 
         MethodInvoker updateColumnWidths = delegate
         {
-            if (list.Columns.Count < 4) return;
+            if (list.Columns.Count < 5) return;
             int clientW = list.ClientSize.Width;
             if (clientW <= 0) return;
-            int c0 = 145, c1 = 145, c2 = 95;
+            int c0 = 120, c1 = 120, c2 = 85, c3 = 95;
             list.Columns[0].Width = c0;
             list.Columns[1].Width = c1;
             list.Columns[2].Width = c2;
-            list.Columns[3].Width = Math.Max(120, clientW - c0 - c1 - c2);
+            list.Columns[3].Width = c3;
+            list.Columns[4].Width = Math.Max(110, clientW - c0 - c1 - c2 - c3);
         };
         list.Resize += delegate { updateColumnWidths(); };
         f.Shown += delegate { updateColumnWidths(); };
@@ -1485,22 +1488,83 @@ internal sealed class AppContext : ApplicationContext
         list.DrawItem += delegate(object s, DrawListViewItemEventArgs e) { e.DrawDefault = true; };
         list.DrawSubItem += delegate(object s, DrawListViewSubItemEventArgs e) { e.DrawDefault = true; };
 
-        list.Columns.Add(en ? "Start time" : "开始时间", 145); list.Columns.Add(en ? "End time" : "结束时间", 145); list.Columns.Add(en ? "Duration" : "设定时长", 95); list.Columns.Add(en ? "Result" : "结果", 207);
+        list.Columns.Add(en ? "Start time" : "开始时间", 120);
+        list.Columns.Add(en ? "End time" : "结束时间", 120);
+        list.Columns.Add(en ? "Duration" : "设定时长", 85);
+        list.Columns.Add(en ? "Actual duration" : "实际时长", 95);
+        list.Columns.Add(en ? "Result" : "结果", 190);
+
+        int totalSessions = 0, completedSessions = 0;
+        long totalActualSecs = 0;
+
         try
         {
             if (File.Exists(path)) foreach (string row in File.ReadAllLines(path, Encoding.UTF8))
             {
-                string[] cols = row.Split('\t'); if (cols.Length < 4) continue;
-                string result = cols[3];
-                if (en) result = result == "Completed" || result == "已完成" ? "Completed" : (result == "Reset" || result == "已重置" ? "Reset" : (result == "Interrupted" || result == "已中断" ? "Interrupted" : result));
-                else result = result == "Completed" ? "已完成" : (result == "Reset" ? "已重置" : (result == "Interrupted" ? "已中断" : result));
-                ListViewItem item = new ListViewItem(cols[0]); item.SubItems.Add(cols[1]); item.SubItems.Add(cols[2] + (en ? " min" : " 分钟")); item.SubItems.Add(result); list.Items.Add(item);
+                string[] cols = row.Split('\t'); if (cols.Length < 5) continue;
+                long actualSecs = 0;
+                long.TryParse(cols[3], out actualSecs);
+                string result = cols[4];
+                bool isCompleted = result == "Completed" || result == "已完成";
+                if (en) result = isCompleted ? "Completed" : (result == "Reset" || result == "已重置" ? "Reset" : (result == "Interrupted" || result == "已中断" ? "Interrupted" : result));
+                else result = isCompleted ? "已完成" : (result == "Reset" ? "已重置" : (result == "Interrupted" ? "已中断" : result));
+
+                totalSessions++;
+                if (isCompleted) completedSessions++;
+                totalActualSecs += actualSecs;
+
+                ListViewItem item = new ListViewItem(cols[0]);
+                item.SubItems.Add(cols[1]);
+                item.SubItems.Add(cols[2] + (en ? " min" : " 分钟"));
+                item.SubItems.Add(FormatDuration(actualSecs, en));
+                item.SubItems.Add(result);
+                list.Items.Add(item);
             }
         }
         catch { }
         if (list.Items.Count == 0) list.Items.Add(new ListViewItem(en ? "No countdown records today" : "今天还没有倒计时记录"));
+
+        Panel summaryPanel = new Panel();
+        summaryPanel.SetBounds(12, 332, 616, 36);
+        summaryPanel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+        summaryPanel.BackColor = Color.FromArgb(243, 244, 246);
+        summaryPanel.Padding = new Padding(1);
+        summaryPanel.Paint += delegate(object s, PaintEventArgs e)
+        {
+            using (Pen p = new Pen(Color.FromArgb(226, 230, 236), 1f))
+            {
+                e.Graphics.DrawRectangle(p, 0, 0, summaryPanel.Width - 1, summaryPanel.Height - 1);
+            }
+        };
+
+        Label lblSummary = new Label();
+        lblSummary.Dock = DockStyle.Fill;
+        lblSummary.TextAlign = ContentAlignment.MiddleCenter;
+        lblSummary.Font = GetUiFont(settings.Language, 9.5f);
+        lblSummary.ForeColor = Win11TextPrimary;
+        lblSummary.BackColor = Color.Transparent;
+
+        if (totalSessions == 0)
+        {
+            lblSummary.Text = en
+                ? "📊 Today's Summary: No sessions | Actual focus: 0s | Completion rate: 0%"
+                : "📊 今日统计：暂无会话 ｜ 实际专注 0 秒 ｜ 完成率 0%";
+        }
+        else
+        {
+            int rate = (int)Math.Round((double)completedSessions * 100.0 / totalSessions);
+            string focusText = FormatDuration(totalActualSecs, en);
+            lblSummary.Text = en
+                ? "📊 Today's Summary: " + totalSessions + " sessions | Actual focus: " + focusText + " | Completion rate: " + rate + "%"
+                : "📊 今日统计：累计 " + totalSessions + " 次会话 ｜ 实际专注 " + focusText + " ｜ 完成率 " + rate + "%";
+        }
+
+        summaryPanel.Controls.Add(lblSummary);
+        f.Controls.Add(list);
+        f.Controls.Add(summaryPanel);
         updateColumnWidths();
-        f.Controls.Add(list); f.ShowDialog(); f.Dispose();
+        f.ShowDialog();
+        f.Dispose();
     }
     private void ShowAbout()
     {
@@ -1513,9 +1577,12 @@ internal sealed class AppContext : ApplicationContext
     {
         try
         {
+            long actualSecs = (result == "Completed")
+                ? sessionMinutes * 60L
+                : Math.Max(0L, Math.Min(sessionMinutes * 60L, (long)(TimeSpan.FromMinutes(sessionMinutes) - remaining).TotalSeconds));
             string dir = Path.GetDirectoryName(Settings.FilePath); Directory.CreateDirectory(dir);
             string path = Path.Combine(dir, "history-" + sessionStart.ToString("yyyyMMdd") + ".tsv");
-            string row = sessionStart.ToString("HH:mm:ss") + "\t" + DateTime.Now.ToString("HH:mm:ss") + "\t" + sessionMinutes + "\t" + result + Environment.NewLine;
+            string row = sessionStart.ToString("HH:mm:ss") + "\t" + DateTime.Now.ToString("HH:mm:ss") + "\t" + sessionMinutes + "\t" + actualSecs + "\t" + result + Environment.NewLine;
             File.AppendAllText(path, row, new UTF8Encoding(false));
         }
         catch { }
@@ -1535,9 +1602,26 @@ internal sealed class AppContext : ApplicationContext
     private void Exit()
     {
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
+        if (running) remaining = ReadRemaining();
         if (sessionActive) { LogSession("Interrupted"); sessionActive = false; }
         timer.Stop(); tray.Visible = false; if (hotkeyRegistered) UnregisterHotKey(messageWindow.Handle, HOTKEY_ID);
         overlay.Close(); overlay.Dispose(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); timer.Dispose(); ExitThread();
+    }
+    internal static string FormatDuration(long secs, bool en)
+    {
+        if (secs < 60) return secs + (en ? "s" : " 秒");
+        long m = secs / 60;
+        long s = secs % 60;
+        if (m < 60)
+        {
+            if (s == 0) return m + (en ? " min" : " 分钟");
+            return en ? m + "m " + s + "s" : m + " 分 " + s + " 秒";
+        }
+        long h = m / 60;
+        m = m % 60;
+        if (s == 0 && m == 0) return h + (en ? "h" : " 小时");
+        if (s == 0) return en ? h + "h " + m + "m" : h + " 小时 " + m + " 分钟";
+        return en ? h + "h " + m + "m " + s + "s" : h + " 小时 " + m + " 分 " + s + " 秒";
     }
     public void HandleHotkey() { Toggle(); }
     internal static string HotkeyText(int mods, int key)

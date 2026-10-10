@@ -713,6 +713,74 @@ internal static class TestCheck
             dlg.Dispose();
             Console.WriteLine("PASS: Hotkey conflict probe, standalone function key support, and real-time occupied warnings verified.");
 
+            // 18. Verify FormatDuration and 5-column History logging
+            MethodInfo fmtDuration = appType.GetMethod("FormatDuration", BindingFlags.NonPublic | BindingFlags.Static);
+            if (fmtDuration == null)
+            {
+                Console.WriteLine("FAIL: FormatDuration method missing");
+                return 26;
+            }
+            if ((string)fmtDuration.Invoke(null, new object[] { 0L, false }) != "0 秒" ||
+                (string)fmtDuration.Invoke(null, new object[] { 45L, false }) != "45 秒" ||
+                (string)fmtDuration.Invoke(null, new object[] { 60L, false }) != "1 分钟" ||
+                (string)fmtDuration.Invoke(null, new object[] { 125L, false }) != "2 分 5 秒" ||
+                (string)fmtDuration.Invoke(null, new object[] { 1500L, false }) != "25 分钟" ||
+                (string)fmtDuration.Invoke(null, new object[] { 3600L, false }) != "1 小时" ||
+                (string)fmtDuration.Invoke(null, new object[] { 5100L, false }) != "1 小时 25 分钟" ||
+                (string)fmtDuration.Invoke(null, new object[] { 45L, true }) != "45s" ||
+                (string)fmtDuration.Invoke(null, new object[] { 125L, true }) != "2m 5s" ||
+                (string)fmtDuration.Invoke(null, new object[] { 1500L, true }) != "25 min" ||
+                (string)fmtDuration.Invoke(null, new object[] { 5100L, true }) != "1h 25m")
+            {
+                Console.WriteLine("FAIL: FormatDuration produced unexpected output");
+                return 26;
+            }
+
+            // Test LogSession with 5 columns
+            string historyDir = System.IO.Path.GetDirectoryName((string)settingsType.GetProperty("FilePath", BindingFlags.Public | BindingFlags.Static).GetValue(null, null));
+            string testHistoryPath = System.IO.Path.Combine(historyDir, "history-" + DateTime.Now.ToString("yyyyMMdd") + ".tsv");
+            string backupHistory = null;
+            if (System.IO.File.Exists(testHistoryPath)) backupHistory = System.IO.File.ReadAllText(testHistoryPath, System.Text.Encoding.UTF8);
+
+            try
+            {
+                FieldInfo sStart = appType.GetField("sessionStart", bf);
+                FieldInfo sMins = appType.GetField("sessionMinutes", bf);
+                FieldInfo rem = appType.GetField("remaining", bf);
+                sStart.SetValue(app, DateTime.Now);
+                sMins.SetValue(app, 25);
+                rem.SetValue(app, TimeSpan.FromMinutes(10)); // 15 mins (900s) elapsed
+
+                MethodInfo logSession = appType.GetMethod("LogSession", bf);
+                logSession.Invoke(app, new object[] { "Reset" });
+                logSession.Invoke(app, new object[] { "Completed" });
+
+                string[] lines = System.IO.File.ReadAllLines(testHistoryPath, System.Text.Encoding.UTF8);
+                if (lines.Length < 2)
+                {
+                    Console.WriteLine("FAIL: Expected at least 2 logged rows");
+                    return 26;
+                }
+                string[] lastResetCols = lines[lines.Length - 2].Split('\t');
+                string[] lastCompletedCols = lines[lines.Length - 1].Split('\t');
+                if (lastResetCols.Length != 5 || lastResetCols[2] != "25" || lastResetCols[3] != "900" || lastResetCols[4] != "Reset")
+                {
+                    Console.WriteLine("FAIL: Reset session logged row incorrect: " + lines[lines.Length - 2]);
+                    return 26;
+                }
+                if (lastCompletedCols.Length != 5 || lastCompletedCols[2] != "25" || lastCompletedCols[3] != "1500" || lastCompletedCols[4] != "Completed")
+                {
+                    Console.WriteLine("FAIL: Completed session logged row incorrect: " + lines[lines.Length - 1]);
+                    return 26;
+                }
+            }
+            finally
+            {
+                if (backupHistory != null) System.IO.File.WriteAllText(testHistoryPath, backupHistory, System.Text.Encoding.UTF8);
+                else if (System.IO.File.Exists(testHistoryPath)) System.IO.File.Delete(testHistoryPath);
+            }
+            Console.WriteLine("PASS: FormatDuration helper, 5-column session tracking (actual duration calculation), and logging verified.");
+
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 
