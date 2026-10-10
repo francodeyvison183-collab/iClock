@@ -883,7 +883,11 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
             {
                 e.TextColor = AppContext.Win11TextSecondary;
             }
-            else if (e.Item.ForeColor.IsEmpty || e.Item.ForeColor == SystemColors.ControlText)
+            else if (!e.Item.ForeColor.IsEmpty && e.Item.ForeColor != SystemColors.ControlText && e.Item.ForeColor != AppContext.Win11TextPrimary)
+            {
+                e.TextColor = e.Item.ForeColor;
+            }
+            else
             {
                 e.TextColor = AppContext.Win11TextPrimary;
             }
@@ -896,7 +900,7 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
         int y = e.Item.Height / 2;
         using (Pen p = new Pen(AppContext.Win11Border, 1f))
         {
-            e.Graphics.DrawLine(p, 14, y, e.Item.Width - 14, y);
+            e.Graphics.DrawLine(p, 32, y, e.Item.Width - 32, y);
         }
     }
 
@@ -994,7 +998,7 @@ internal sealed class AppContext : ApplicationContext
         m.Renderer = new ModernMenuRenderer();
         m.ShowImageMargin = false;
         m.ShowCheckMargin = false;
-        m.MinimumSize = new Size(220, 0);
+        m.MinimumSize = new Size(240, 0);
         m.Padding = new Padding(2, 6, 2, 6);
         m.Opened += delegate { ApplyModernWindowStyle(m); };
         m.Opening += delegate { UpdateMenuText(); };
@@ -1016,7 +1020,7 @@ internal sealed class AppContext : ApplicationContext
     private ToolStripMenuItem AddMenuItem(ContextMenuStrip m, EventHandler onClick)
     {
         ToolStripMenuItem item = new ToolStripMenuItem();
-        item.Padding = new Padding(16, 7, 16, 7);
+        item.Padding = new Padding(32, 7, 32, 7);
         item.ForeColor = Win11TextPrimary;
         item.Click += onClick;
         m.Items.Add(item);
@@ -1028,12 +1032,22 @@ internal sealed class AppContext : ApplicationContext
         bool en = settings.Language == "en";
         if (menuStart == null) return;
 
-        string actionText;
-        if (running) actionText = en ? "⏸ Pause" : "⏸ 暂停";
-        else if (sessionActive) actionText = en ? "▶ Resume" : "▶ 继续";
-        else actionText = en ? "▶ Start" : "▶ 开始";
+        if (running)
+        {
+            menuStart.Text = en ? "Pause" : "暂停";
+            menuStart.ForeColor = Color.FromArgb(202, 80, 16);
+        }
+        else if (sessionActive)
+        {
+            menuStart.Text = en ? "Resume" : "继续";
+            menuStart.ForeColor = Color.FromArgb(16, 124, 65);
+        }
+        else
+        {
+            menuStart.Text = en ? "Start" : "开始";
+            menuStart.ForeColor = Color.FromArgb(0, 103, 192);
+        }
 
-        menuStart.Text = actionText;
         menuStart.ShortcutKeyDisplayString = HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey);
         menuReset.Text = en ? "Reset countdown" : "重置倒计时";
         menuReset.Enabled = running || sessionActive;
@@ -1041,7 +1055,7 @@ internal sealed class AppContext : ApplicationContext
         menuHistory.Text = en ? "View today's history" : "查看今日记录";
         menuSettings.Text = en ? "Settings…" : "设置…";
         menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
-        menuExit.Text = en ? "\u23FB Exit" : "\u23FB 退出";
+        menuExit.Text = en ? "Exit" : "退出";
         if (menuUpdate != null) menuUpdate.Text = en ? "⭐ Update available (" + latestVersion + ")…" : "⭐ 发现新版本 (" + latestVersion + ")…";
         tray.Text = "iClock";
     }

@@ -513,14 +513,19 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: menuHistory text should be '查看今日记录' / 'View today\'s history' without ellipsis, got: " + menuHistory.Text);
                 return 24;
             }
-            if (!menuExit.Text.Contains("退出") && !menuExit.Text.Contains("Exit"))
+            if (menuExit.Text != "退出" && menuExit.Text != "Exit")
             {
-                Console.WriteLine("FAIL: menuExit text should contain '退出' / 'Exit', got: " + menuExit.Text);
+                Console.WriteLine("FAIL: menuExit text should be '退出' / 'Exit', got: " + menuExit.Text);
                 return 24;
             }
-            if (tray.ContextMenuStrip.MinimumSize.Width < 220)
+            if (tray.ContextMenuStrip.MinimumSize.Width < 240)
             {
-                Console.WriteLine("FAIL: Tray menu MinimumSize.Width should be >= 220, got: " + tray.ContextMenuStrip.MinimumSize.Width);
+                Console.WriteLine("FAIL: Tray menu MinimumSize.Width should be >= 240, got: " + tray.ContextMenuStrip.MinimumSize.Width);
+                return 24;
+            }
+            if (menuStart.Padding.Left != 32 || menuStart.Padding.Right != 32)
+            {
+                Console.WriteLine("FAIL: menuStart padding should be 32px on left and right, got: " + menuStart.Padding);
                 return 24;
             }
             MethodInfo updateMenuText = appType.GetMethod("UpdateMenuText", bf);
@@ -529,28 +534,28 @@ internal static class TestCheck
             runningField.SetValue(app, false);
             sessionActiveField.SetValue(app, false);
             updateMenuText.Invoke(app, null);
-            if (menuReset.Enabled || (!menuStart.Text.Contains("开始") && !menuStart.Text.Contains("Start")))
+            if (menuReset.Enabled || (menuStart.Text != "开始" && menuStart.Text != "Start") || menuStart.ForeColor != Color.FromArgb(0, 103, 192))
             {
-                Console.WriteLine("FAIL: Idle menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ")");
+                Console.WriteLine("FAIL: Idle menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ", Color=" + menuStart.ForeColor + ")");
                 return 24;
             }
             runningField.SetValue(app, true);
             sessionActiveField.SetValue(app, true);
             updateMenuText.Invoke(app, null);
-            if (!menuReset.Enabled || (!menuStart.Text.Contains("暂停") && !menuStart.Text.Contains("Pause")))
+            if (!menuReset.Enabled || (menuStart.Text != "暂停" && menuStart.Text != "Pause") || menuStart.ForeColor != Color.FromArgb(202, 80, 16))
             {
-                Console.WriteLine("FAIL: Running menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ")");
+                Console.WriteLine("FAIL: Running menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ", Color=" + menuStart.ForeColor + ")");
                 return 24;
             }
             runningField.SetValue(app, false);
             sessionActiveField.SetValue(app, true);
             updateMenuText.Invoke(app, null);
-            if (!menuReset.Enabled || (!menuStart.Text.Contains("继续") && !menuStart.Text.Contains("Resume")))
+            if (!menuReset.Enabled || (menuStart.Text != "继续" && menuStart.Text != "Resume") || menuStart.ForeColor != Color.FromArgb(16, 124, 65))
             {
-                Console.WriteLine("FAIL: Paused menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ")");
+                Console.WriteLine("FAIL: Paused menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ", Color=" + menuStart.ForeColor + ")");
                 return 24;
             }
-            Console.WriteLine("PASS: Modern Context Menu layout, status header, hero action font, dynamic state transitions, and concise copy verified.");
+            Console.WriteLine("PASS: Modern Context Menu layout, 32px padding, three-state ForeColor, dynamic state transitions, and concise copy verified.");
 
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
