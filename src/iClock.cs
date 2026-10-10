@@ -886,7 +886,7 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
             ToolStripMenuItem mi = e.Item as ToolStripMenuItem;
             if (mi != null && !string.IsNullOrEmpty(mi.ShortcutKeyDisplayString) && e.Text == mi.ShortcutKeyDisplayString)
             {
-                e.TextColor = AppContext.Win11TextSecondary;
+                e.TextColor = AppContext.Win11ShortcutGray;
                 e.TextFormat = TextFormatFlags.Right | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding;
             }
             else
@@ -1013,7 +1013,7 @@ internal sealed class AppContext : ApplicationContext
         m.ShowImageMargin = false;
         m.ShowCheckMargin = false;
         m.MinimumSize = new Size(240, 0);
-        m.Padding = new Padding(2, 6, 2, 6);
+        m.Padding = new Padding(2, 14, 2, 6);
         m.Opened += delegate { ApplyModernWindowStyle(m); };
         m.Opening += delegate { UpdateMenuText(); };
 
@@ -1329,6 +1329,7 @@ internal sealed class AppContext : ApplicationContext
     internal static readonly Color Win11Accent = Color.FromArgb(0, 103, 192);
     internal static readonly Color Win11TextPrimary = Color.FromArgb(31, 31, 31);
     internal static readonly Color Win11TextSecondary = Color.FromArgb(95, 95, 95);
+    internal static readonly Color Win11ShortcutGray = Color.FromArgb(130, 130, 130);
     internal static readonly Color Win11Border = Color.FromArgb(228, 228, 228);
 
     internal static void ApplyModernWindowStyle(Control ctrl)
