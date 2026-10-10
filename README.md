@@ -84,7 +84,7 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 ### 方式 C：绿色便携单文件运行
 
-1. 前往 [GitHub Releases](../../releases/latest) 下载 `iClock-1.01-windows.zip` 或单文件 `iClock-1.01-windows.exe`。
+1. 前往 [GitHub Releases](../../releases/latest) 下载 `iClock-1.02-windows.zip` 或单文件 `iClock-1.02-windows.exe`。
 2. 双击直接运行（无需安装，不写注册表垃圾）。
 3. 默认情况下，启动后倒计时处于待命状态（屏幕不显示文字）。
 

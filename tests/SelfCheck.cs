@@ -343,16 +343,16 @@ internal static class TestCheck
             // 10. Verify version comparison and JSON parsing
             BindingFlags sbf = BindingFlags.NonPublic | BindingFlags.Static;
             FieldInfo verField = appType.GetField("CURRENT_VERSION", sbf);
-            if (verField == null || (string)verField.GetValue(null) != "1.01")
+            if (verField == null || (string)verField.GetValue(null) != "1.02")
             {
-                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.01");
+                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.02");
                 return 16;
             }
             MethodInfo isNewer = appType.GetMethod("IsNewer", sbf);
             MethodInfo extractJson = appType.GetMethod("ExtractJsonValue", sbf);
-            if (!(bool)isNewer.Invoke(null, new object[] { "1.02", "1.01" }) ||
-                !(bool)isNewer.Invoke(null, new object[] { "v2.0", "1.01" }) ||
-                (bool)isNewer.Invoke(null, new object[] { "1.01", "1.01" }))
+            if (!(bool)isNewer.Invoke(null, new object[] { "1.03", "1.02" }) ||
+                !(bool)isNewer.Invoke(null, new object[] { "v2.0", "1.02" }) ||
+                (bool)isNewer.Invoke(null, new object[] { "1.02", "1.02" }))
             {
                 Console.WriteLine("FAIL: Version comparison failed");
                 return 16;

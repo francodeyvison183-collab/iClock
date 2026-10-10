@@ -2,6 +2,16 @@
 
 This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY-MM-DD`).
 
+## [1.02] - 2026-10-10
+
+### Changed
+
+- Standardized tray menu with 32px padding, centered text alignment, and dynamic 3-state ForeColor highlights for countdown status.
+- Aligned menu item text with horizontal dividers and right-aligned shortcut indicators in distinct tertiary gray.
+- Added 4px native internal padding to all dropdown options and input box text items in Settings dialog.
+- Unified owner-draw item rendering across font style, time format, and language dropdowns.
+- Cleaned up redundant dead classes, duplicate formatting methods, and streamlined menu delegates.
+
 ## [1.01] - 2026-10-09
 
 ### Changed

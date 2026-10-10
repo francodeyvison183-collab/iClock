@@ -84,7 +84,7 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 ### Option C: Standalone Portable Binary
 
-1. Go to [GitHub Releases](../../releases/latest) and download `iClock-1.01-windows.zip` or `iClock-1.01-windows.exe`.
+1. Go to [GitHub Releases](../../releases/latest) and download `iClock-1.02-windows.zip` or `iClock-1.02-windows.exe`.
 2. Double-click to launch (no installer, no registry residue).
 3. The overlay stays hidden until you start a countdown.
 
