@@ -2,9 +2,9 @@
 
 ## Getting started / 开始使用
 
-Run `iClock.exe`. The overlay is hidden before countdown starts. Press the global hotkey to start counting. The default is `Ctrl+Alt+Space`. The same hotkey pauses and resumes the current session. When the countdown finishes, the text hides automatically and a top-most notification appears, requiring confirmation to dismiss.
+Run `iClock.exe`. The overlay is hidden before countdown starts. Press the global hotkey to start counting. The default is `Ctrl+Shift+T`. The same hotkey pauses and resumes the current session. When the countdown finishes, the text hides automatically and a top-most notification appears, requiring confirmation to dismiss.
 
-运行 `iClock.exe` 后，倒计时开始前桌面不显示文字；按全局快捷键后才开始倒计时。默认快捷键为 `Ctrl+Alt+Space`，同一快捷键也可暂停和继续。倒计时结束后文字自动隐藏，并弹出置顶消息提示，需要用户确认后才消失。
+运行 `iClock.exe` 后，倒计时开始前桌面不显示文字；按全局快捷键后才开始倒计时。默认快捷键为 `Ctrl+Shift+T`，同一快捷键也可暂停和继续。倒计时结束后文字自动隐藏，并弹出置顶消息提示，需要用户确认后才消失。
 
 Right-click the iClock tray icon to open the menu. The menu allows you to start/pause, reset the countdown, adjust position, view today's history, open settings, view about & updates, or exit.
 
@@ -17,7 +17,7 @@ Right-click the iClock tray icon to open the menu. The menu allows you to start/
 - **Text color / 文字颜色:** select a color using the system color picker (default: Red `#FF0000` / 默认红色).
 - **Display format / 显示格式:** total minutes and seconds (`MM:SS`, default / 默认), hours/minutes/seconds (`HH:MM:SS`), or unit labels (`Chinese units`). Unit labels follow the selected UI language.
 - **End message / 结束提示词:** optional text shown in the top-most prompt when the countdown finishes.
-- **Start/pause hotkey / 快捷键:** click the hotkey field and press a key combination containing Ctrl, Alt, or Shift. Default is `Ctrl + Alt + Space`.
+- **Start/pause hotkey / 快捷键:** click the hotkey field and press a key combination containing Ctrl, Alt, or Shift. Default is `Ctrl + Shift + T`.
 - **Interface language / 界面语言:** choose **简体中文** or **English**. The selection is saved and restored on the next launch.
 - **Start with Windows / 开机自启动:** adds or removes iClock from the current user's Windows sign-in Run key (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`).
 - **End sound & notification / 声音与通知:** independently control the system sound and the top-most confirmation prompt.

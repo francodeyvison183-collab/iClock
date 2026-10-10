@@ -18,8 +18,8 @@ internal sealed class Settings
     public int FontSize = 20;
     public int X = -1;
     public int Y = 60;
-    public int HotkeyModifiers = 3;
-    public int HotkeyKey = (int)Keys.Space;
+    public int HotkeyModifiers = 6;
+    public int HotkeyKey = (int)Keys.T;
     public string Color = "#FF0000";
     public string FontFamily = "Segoe UI";
     public string Format = "MM:SS";
@@ -407,6 +407,11 @@ internal sealed class SettingsDialog : Form
             hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey) + (en ? " (Occupied)" : " (已被占用)");
             hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
         }
+        else if (Value.HotkeyKey == (int)Keys.Space && (Value.HotkeyModifiers & 3) != 0)
+        {
+            hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey) + (en ? " (IME Conflict)" : " (与输入法冲突)");
+            hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
+        }
         else
         {
             hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey);
@@ -432,7 +437,7 @@ internal sealed class SettingsDialog : Form
         Label footerLine = new Label(); footerLine.BackColor = AppContext.Win11Border; footerLine.BorderStyle = BorderStyle.None; footerLine.SetBounds(18, 388, 344, 1); Controls.Add(footerLine);
         saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存"; saveBtn.SetBounds(196, 398, 76, 28);
         AppContext.StylePrimaryButton(saveBtn);
-        if (!hotkeyActive) saveBtn.Enabled = false;
+        if (!hotkeyActive || (Value.HotkeyKey == (int)Keys.Space && (Value.HotkeyModifiers & 3) != 0)) saveBtn.Enabled = false;
         saveBtn.Click += SaveClick; Controls.Add(saveBtn);
         cancelBtn = new Button(); cancelBtn.Text = en ? "Cancel" : "取消"; cancelBtn.SetBounds(284, 398, 76, 28);
         AppContext.StyleSecondaryButton(cancelBtn);
@@ -536,6 +541,13 @@ internal sealed class SettingsDialog : Form
             return;
         }
         string text = AppContext.HotkeyText(mods, (int)key);
+        if (key == Keys.Space && (mods & 3) != 0)
+        {
+            hotkeyBox.Text = text + (language.SelectedIndex == 1 ? " (IME Conflict)" : " (与输入法冲突)");
+            hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
+            saveBtn.Enabled = false;
+            return;
+        }
         bool isCurrent = hotkeyActive && (mods == Value.HotkeyModifiers && (int)key == Value.HotkeyKey);
         bool available = isCurrent || AppContext.ProbeHotkey(mods, (int)key);
         if (!available)
@@ -1233,12 +1245,18 @@ internal sealed class AppContext : ApplicationContext
         activeHotkeyModifiers = settings.HotkeyModifiers; activeHotkeyKey = settings.HotkeyKey;
         int originalMods = settings.HotkeyModifiers, originalKey = settings.HotkeyKey;
         bool fallbackUsed = false;
+        if (settings.HotkeyKey == (int)Keys.Space && (settings.HotkeyModifiers & 3) != 0)
+        {
+            settings.HotkeyModifiers = 6;
+            settings.HotkeyKey = (int)Keys.T;
+            fallbackUsed = true;
+        }
         if (!SetHotkey(settings.HotkeyModifiers, settings.HotkeyKey))
         {
             int[][] fallbacks = new int[][]
             {
-                new int[] { 3, (int)Keys.Space }, // Ctrl + Alt + Space
                 new int[] { 6, (int)Keys.T },     // Ctrl + Shift + T
+                new int[] { 3, (int)Keys.T },     // Ctrl + Alt + T
                 new int[] { 5, (int)Keys.C },     // Alt + Shift + C
                 new int[] { 0, (int)Keys.F8 }     // F8
             };
@@ -1256,6 +1274,10 @@ internal sealed class AppContext : ApplicationContext
                 }
             }
         }
+        else if (fallbackUsed)
+        {
+            settings.Save();
+        }
         tray = new NotifyIcon(); tray.Icon = appIcon; tray.Text = "iClock"; tray.Visible = true; tray.ContextMenuStrip = MakeMenu();
         tray.BalloonTipClicked += delegate { if (!string.IsNullOrEmpty(updateUrl)) { try { Process.Start(updateUrl); } catch { } } };
         tray.MouseClick += delegate(object sender, MouseEventArgs e) { if (e.Button == MouseButtons.Left) { Toggle(); } };
@@ -1270,8 +1292,8 @@ internal sealed class AppContext : ApplicationContext
             string oldKeyText = HotkeyText(originalMods, originalKey);
             string newKeyText = HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey);
             string msg = en
-                ? "The configured hotkey (" + oldKeyText + ") was occupied by another application.\r\n\r\niClock has automatically switched to backup hotkey: " + newKeyText + "\r\n\r\nYou can customize it at any time in Settings."
-                : "快捷键 " + oldKeyText + " 已被其他程序占用。\r\n\r\niClock 已自动为您切换至备选快捷键：" + newKeyText + "\r\n\r\n您随时可在“右键托盘 -> 设置”中自定义快捷键。";
+                ? "The hotkey (" + oldKeyText + ") is unavailable or conflicts with Windows IME.\r\n\r\niClock has automatically switched to a reliable backup: " + newKeyText + "\r\n\r\nYou can customize it at any time in Settings."
+                : "快捷键 " + oldKeyText + " 在当前系统下不可用（已被占用或与系统输入法冲突）。\r\n\r\niClock 已自动为您切换至稳定快捷键：" + newKeyText + "\r\n\r\n您随时可在“右键托盘 -> 设置”中自定义快捷键。";
             overlay.BeginInvoke(new Action(delegate { MessageBox.Show(msg, "iClock", MessageBoxButtons.OK, MessageBoxIcon.Information); }));
         }
         else if (!hotkeyRegistered && !settings.FirstRun)
@@ -1538,7 +1560,7 @@ internal sealed class AppContext : ApplicationContext
     private void ApplySavedSettings(Settings newSettings)
     {
         bool hotkeyFailed = false;
-        if (!SetHotkey(newSettings.HotkeyModifiers, newSettings.HotkeyKey))
+        if ((newSettings.HotkeyKey == (int)Keys.Space && (newSettings.HotkeyModifiers & 3) != 0) || !SetHotkey(newSettings.HotkeyModifiers, newSettings.HotkeyKey))
         {
             newSettings.HotkeyModifiers = activeHotkeyModifiers; newSettings.HotkeyKey = activeHotkeyKey;
             hotkeyFailed = true;
@@ -1558,7 +1580,7 @@ internal sealed class AppContext : ApplicationContext
         if (hotkeyFailed)
         {
             bool en = settings.Language == "en";
-            MessageBox.Show(en ? "That hotkey is already occupied by another application. The previous hotkey was kept, but other settings were saved." : "该快捷键已被其他程序占用，快捷键已保留为原设置，其他设置已成功保存。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(en ? "That hotkey conflicts with system input or is occupied. The previous hotkey was kept, but other settings were saved." : "该快捷键已被占用或与系统输入法冲突，快捷键已保留为原设置，其他设置已成功保存。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
     private bool SetHotkey(int modifiers, int key)

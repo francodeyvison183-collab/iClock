@@ -12,7 +12,7 @@ iClock is an open-source, minimalist Windows desktop floating countdown timer de
 - **Memory Footprint**: < 15 MB static RAM
 - **Operating System Compatibility**: Windows 7 SP1, Windows 8, Windows 10, Windows 11
 - **Display Mode**: Floating desktop text with native click-through (`WS_EX_TRANSPARENT`)
-- **Global Hotkey**: Configurable system-wide toggle (default: `Ctrl+Alt+Space`)
+- **Global Hotkey**: Configurable system-wide toggle (default: `Ctrl+Shift+T`)
 - **Default Appearance**: Font size 20 px, Red text (`#FF0000`)
 - **Supported Formats**: `HH:MM:SS`, `MM:SS`, and localized time units (`00时25分00秒` / `00h 25m 00s`)
 - **License**: MIT License (100% free and open-source)

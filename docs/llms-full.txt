@@ -57,7 +57,7 @@ A: Most modern timer applications are built on Electron or web wrappers, packagi
 A: No. iClock applies the native Windows `WS_EX_TRANSPARENT` extended window style. The floating digits remain permanently on top of all other windows, but any mouse click or scroll event passes straight through to the underlying application (e.g., Visual Studio, game window, or browser).
 
 ### Q: What is the default hotkey and appearance?
-A: By default, pressing `Ctrl + Alt + Space` globally starts or pauses the countdown from anywhere. The default appearance is font size 20 px in red (`#FF0000`). Both duration, font size (12~120 px), color, time format, and hotkey are customizable via the tray Settings dialog.
+A: By default, pressing `Ctrl + Shift + T` globally starts or pauses the countdown from anywhere. The default appearance is font size 20 px in red (`#FF0000`). Both duration, font size (12~120 px), color, time format, and hotkey are customizable via the tray Settings dialog.
 
 ### Q: Does iClock require administrator rights or an installer?
 A: No. iClock is 100% portable. You can run `iClock.exe` from any directory, desktop, or USB drive without administrative privileges.

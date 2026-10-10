@@ -17,7 +17,7 @@ Description: |
   Features:
   - 126 KB single binary with zero external dependencies
   - Topmost and mouse click-through support
-  - Global hotkey toggle (Ctrl+Alt+Space by default)
+  - Global hotkey toggle (Ctrl+Shift+T by default)
   - Memory footprint under 15 MB
   - 100% green and ad-free
 Tags:
