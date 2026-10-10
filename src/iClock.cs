@@ -266,6 +266,66 @@ internal sealed class SettingsDialog : Form
     public Settings Value { get; private set; }
     private static readonly string[] fontFamilies = { "Segoe UI", "Consolas", "Arial", "Impact", "Microsoft YaHei" };
 
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+    private const int EM_SETMARGINS = 0x00D3;
+    private const int EM_SETRECTNP = 0x00B4;
+    private const int EC_LEFTMARGIN = 0x0001;
+    private const int EC_RIGHTMARGIN = 0x0002;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, ref RECT lParam);
+
+    private static void UpdateInputPadding(Control ctrl)
+    {
+        if (ctrl == null) return;
+        if (ctrl is TextBox)
+        {
+            TextBox tb = (TextBox)ctrl;
+            if (tb.IsHandleCreated)
+            {
+                SendMessage(tb.Handle, EM_SETMARGINS, (IntPtr)(EC_LEFTMARGIN | EC_RIGHTMARGIN), (IntPtr)(4 | (4 << 16)));
+                if (tb.Multiline)
+                {
+                    RECT r = new RECT { Left = 4, Top = 4, Right = Math.Max(0, tb.ClientSize.Width - 4), Bottom = Math.Max(0, tb.ClientSize.Height - 4) };
+                    SendMessage(tb.Handle, EM_SETRECTNP, IntPtr.Zero, ref r);
+                }
+            }
+        }
+        else if (ctrl is NumericUpDown)
+        {
+            foreach (Control child in ctrl.Controls)
+            {
+                if (child is TextBox) UpdateInputPadding(child);
+            }
+        }
+    }
+
+    private static void ApplyInputPadding(Control ctrl)
+    {
+        if (ctrl == null) return;
+        IntPtr forceHandle = ctrl.Handle;
+        if (ctrl is TextBox)
+        {
+            TextBox tb = (TextBox)ctrl;
+            UpdateInputPadding(tb);
+            tb.HandleCreated += (s, e) => UpdateInputPadding(tb);
+            tb.FontChanged += (s, e) => UpdateInputPadding(tb);
+            tb.SizeChanged += (s, e) => UpdateInputPadding(tb);
+        }
+        else if (ctrl is NumericUpDown)
+        {
+            NumericUpDown nud = (NumericUpDown)ctrl;
+            foreach (Control child in nud.Controls)
+            {
+                if (child is TextBox) ApplyInputPadding(child);
+            }
+            nud.ControlAdded += (s, e) => { if (e.Control is TextBox) ApplyInputPadding(e.Control); };
+        }
+    }
+
     public SettingsDialog(Settings s)
     {
         Value = new Settings();
@@ -300,13 +360,44 @@ internal sealed class SettingsDialog : Form
         AppContext.StyleSecondaryButton(colorButton);
         colorButton.Click += ChooseColor; Controls.Add(colorButton);
         colorPreview = new Panel(); colorPreview.SetBounds(308, 126, 52, 22); colorPreview.BorderStyle = BorderStyle.FixedSingle; UpdateColorPreview(); Controls.Add(colorPreview);
-        lblFormat = AddLabel(en ? "Display format" : "显示格式", 18, 164); format = new ComboBox(); format.DropDownStyle = ComboBoxStyle.DropDownList; format.SetBounds(172, 160, 188, 24);
-        format.Items.AddRange(en ? new object[] { "HH:MM:SS", "MM:SS", "H:M:S units (00h 25m 00s)" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位 (00时25分00秒)" }); format.SelectedIndex = Value.Format == "MM:SS" ? 1 : (Value.Format == "Chinese" ? 2 : 0); Controls.Add(format);
+        lblFormat = AddLabel(en ? "Display format" : "显示格式", 18, 164);
+        format = new ComboBox();
+        format.DropDownStyle = ComboBoxStyle.DropDownList;
+        format.DrawMode = DrawMode.OwnerDrawFixed;
+        format.ItemHeight = 22;
+        format.SetBounds(172, 160, 188, 24);
+        format.Items.AddRange(en ? new object[] { "HH:MM:SS", "MM:SS", "H:M:S units (00h 25m 00s)" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位 (00时25分00秒)" });
+        format.SelectedIndex = Value.Format == "MM:SS" ? 1 : (Value.Format == "Chinese" ? 2 : 0);
+        format.DrawItem += OnDrawComboItem;
+        Controls.Add(format);
         hotkeyModifiers = Value.HotkeyModifiers; hotkeyKey = Value.HotkeyKey;
-        lblEndMsg = AddLabel(en ? "End message" : "结束时弹出消息", 18, 200); endMessage = new TextBox(); endMessage.SetBounds(172, 196, 188, 36); endMessage.Multiline = true; endMessage.MaxLength = 200; endMessage.Text = Value.EndMessage; Controls.Add(endMessage);
-        lblHotkey = AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 18, 244); hotkeyBox = new TextBox(); hotkeyBox.ReadOnly = true; hotkeyBox.SetBounds(172, 240, 188, 24); hotkeyBox.Text = HotkeyText(hotkeyModifiers, hotkeyKey); hotkeyBox.KeyDown += CaptureHotkey; Controls.Add(hotkeyBox);
-        lblLanguage = AddLabel(en ? "Interface language" : "界面语言", 18, 280); language = new ComboBox(); language.DropDownStyle = ComboBoxStyle.DropDownList; language.SetBounds(172, 276, 188, 24);
-        language.Items.AddRange(new object[] { "简体中文", "English" }); language.SelectedIndex = Value.Language == "en" ? 1 : 0; language.SelectedIndexChanged += OnLanguageChanged; Controls.Add(language);
+        lblEndMsg = AddLabel(en ? "End message" : "结束时弹出消息", 18, 200);
+        endMessage = new TextBox();
+        endMessage.SetBounds(172, 196, 188, 36);
+        endMessage.Multiline = true;
+        endMessage.MaxLength = 200;
+        endMessage.Text = Value.EndMessage;
+        ApplyInputPadding(endMessage);
+        Controls.Add(endMessage);
+        lblHotkey = AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 18, 244);
+        hotkeyBox = new TextBox();
+        hotkeyBox.ReadOnly = true;
+        hotkeyBox.SetBounds(172, 240, 188, 24);
+        hotkeyBox.Text = HotkeyText(hotkeyModifiers, hotkeyKey);
+        hotkeyBox.KeyDown += CaptureHotkey;
+        ApplyInputPadding(hotkeyBox);
+        Controls.Add(hotkeyBox);
+        lblLanguage = AddLabel(en ? "Interface language" : "界面语言", 18, 280);
+        language = new ComboBox();
+        language.DropDownStyle = ComboBoxStyle.DropDownList;
+        language.DrawMode = DrawMode.OwnerDrawFixed;
+        language.ItemHeight = 22;
+        language.SetBounds(172, 276, 188, 24);
+        language.Items.AddRange(new object[] { "简体中文", "English" });
+        language.SelectedIndex = Value.Language == "en" ? 1 : 0;
+        language.SelectedIndexChanged += OnLanguageChanged;
+        language.DrawItem += OnDrawComboItem;
+        Controls.Add(language);
         startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 18, 310);
         sound = AddCheck(en ? "Play sound at end" : "结束时声音提醒", Value.EndSound, 18, 336);
         notice = AddCheck(en ? "Show notification at end" : "结束时系统通知", Value.EndNotice, 18, 362);
@@ -356,10 +447,15 @@ internal sealed class SettingsDialog : Form
             ? new object[] { "Segoe UI (Default)", "Consolas (Monospace)", "Arial", "Impact", "Microsoft YaHei" }
             : new object[] { "Segoe UI (默认)", "Consolas (极客等宽)", "Arial", "Impact (醒目粗黑)", "微软雅黑" });
         fontCombo.SelectedIndex = fontSel >= 0 ? fontSel : 0;
+
+        UpdateInputPadding(minutes);
+        UpdateInputPadding(size);
+        UpdateInputPadding(endMessage);
+        UpdateInputPadding(hotkeyBox);
     }
 
     private Label AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.ForeColor = AppContext.Win11TextPrimary; l.SetBounds(x, y, 148, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); return l; }
-    private NumericUpDown AddNumber(int v, int min, int max, int x, int y) { NumericUpDown n = new NumericUpDown(); n.Minimum = min; n.Maximum = max; n.Value = Math.Min(max, Math.Max(min, v)); n.SetBounds(x, y, 188, 24); Controls.Add(n); return n; }
+    private NumericUpDown AddNumber(int v, int min, int max, int x, int y) { NumericUpDown n = new NumericUpDown(); n.Minimum = min; n.Maximum = max; n.Value = Math.Min(max, Math.Max(min, v)); n.SetBounds(x, y, 188, 24); ApplyInputPadding(n); Controls.Add(n); return n; }
     private CheckBox AddCheck(string t, bool v, int x, int y) { CheckBox c = new CheckBox(); c.Text = t; c.Checked = v; c.ForeColor = AppContext.Win11TextPrimary; c.SetBounds(x, y, 344, 24); Controls.Add(c); return c; }
     private void ChooseColor(object sender, EventArgs e)
     {
@@ -419,6 +515,21 @@ internal sealed class SettingsDialog : Form
                 Rectangle r = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height);
                 e.Graphics.DrawString(text, e.Font, b, r, sf);
             }
+        }
+        e.DrawFocusRectangle();
+    }
+    private void OnDrawComboItem(object sender, DrawItemEventArgs e)
+    {
+        ComboBox cb = sender as ComboBox;
+        if (cb == null || e.Index < 0 || e.Index >= cb.Items.Count) return;
+        e.DrawBackground();
+        string text = cb.Items[e.Index].ToString();
+        e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        using (SolidBrush b = new SolidBrush(e.ForeColor))
+        using (StringFormat sf = new StringFormat { LineAlignment = StringAlignment.Center })
+        {
+            Rectangle r = new Rectangle(e.Bounds.X + 4, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height);
+            e.Graphics.DrawString(text, e.Font, b, r, sf);
         }
         e.DrawFocusRectangle();
     }
