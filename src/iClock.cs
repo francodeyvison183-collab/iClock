@@ -739,29 +739,75 @@ internal sealed class WelcomeDialog : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = true;
-        ClientSize = new Size(350, 205);
+        ClientSize = new Size(380, 206);
 
         Label lblTitle = new Label();
-        lblTitle.Text = en ? "iClock is Ready" : "iClock 已就绪";
-        lblTitle.Font = AppContext.GetUiFont(s.Language, 14f, FontStyle.Bold);
+        lblTitle.Text = en ? "Welcome to iClock" : "欢迎使用 iClock";
+        lblTitle.Font = AppContext.GetUiFont(s.Language, 13f, FontStyle.Bold);
         lblTitle.ForeColor = AppContext.Win11Accent;
-        lblTitle.SetBounds(22, 18, 306, 28);
+        lblTitle.SetBounds(22, 16, 336, 26);
         Controls.Add(lblTitle);
 
+        PictureBox iconBox = new PictureBox();
+        iconBox.SetBounds(22, 54, 36, 36);
+        iconBox.SizeMode = PictureBoxSizeMode.Zoom;
+        try
+        {
+            Icon appIcon = AppContext.CreateIcon();
+            if (appIcon != null)
+            {
+                Icon = appIcon;
+                iconBox.Image = appIcon.ToBitmap();
+            }
+        }
+        catch { }
+        Controls.Add(iconBox);
+
+        Label lblPrompt = new Label();
+        lblPrompt.Text = en ? "Press shortcut to start or pause:" : "按下快捷键启动或暂停倒计时：";
+        lblPrompt.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
+        lblPrompt.ForeColor = AppContext.Win11TextPrimary;
+        lblPrompt.SetBounds(68, 50, 296, 20);
+        Controls.Add(lblPrompt);
+
         string hotkey = AppContext.HotkeyText(s.HotkeyModifiers, s.HotkeyKey);
-        Label lblDesc = new Label();
-        lblDesc.Text = en
-            ? "Press " + hotkey + " anywhere to start or pause.\r\n\r\nRight-click the system tray icon for settings."
-            : "随时按下快捷键 " + hotkey + " 启动或暂停倒计时。\r\n\r\n右键屏幕右下角托盘图标可进行个性化设置。";
-        lblDesc.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-        lblDesc.ForeColor = AppContext.Win11TextSecondary;
-        lblDesc.SetBounds(22, 54, 306, 78);
-        Controls.Add(lblDesc);
+        Label badge = new Label();
+        badge.Text = hotkey;
+        badge.Font = new Font("Segoe UI", 10.5f, FontStyle.Bold);
+        badge.ForeColor = AppContext.Win11Accent;
+        badge.BackColor = Color.White;
+        badge.TextAlign = ContentAlignment.MiddleCenter;
+        int badgeWidth = 120;
+        using (Graphics g = CreateGraphics())
+        {
+            SizeF sz = g.MeasureString(hotkey, badge.Font);
+            badgeWidth = Math.Max(70, (int)Math.Ceiling(sz.Width) + 20);
+        }
+        badge.SetBounds(68, 74, badgeWidth, 26);
+        badge.Paint += delegate(object sender, PaintEventArgs pe)
+        {
+            pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using (Pen p = new Pen(Color.FromArgb(209, 213, 219), 1.2f))
+            {
+                pe.Graphics.DrawRectangle(p, 0, 0, badge.Width - 1, badge.Height - 1);
+            }
+        };
+        Controls.Add(badge);
+
+        Label lblTray = new Label();
+        lblTray.Text = en ? "Right-click system tray icon for settings." : "右键系统托盘图标可进行个性化设置。";
+        lblTray.Font = AppContext.GetUiFont(s.Language, 8.5f, FontStyle.Regular);
+        lblTray.ForeColor = AppContext.Win11TextSecondary;
+        lblTray.SetBounds(68, 108, 296, 20);
+        Controls.Add(lblTray);
+
+        int totalBtnWidth = 126 + 12 + 86;
+        int startX = (ClientSize.Width - totalBtnWidth) / 2;
 
         Button btnStart = new Button();
         btnStart.Text = en ? "Start Countdown" : "开始倒计时";
         btnStart.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-        btnStart.SetBounds(95, 148, 140, 36);
+        btnStart.SetBounds(startX, 152, 126, 34);
         AppContext.StylePrimaryButton(btnStart);
         btnStart.Click += delegate { StartRequested = true; Close(); };
         Controls.Add(btnStart);
@@ -769,13 +815,24 @@ internal sealed class WelcomeDialog : Form
         Button btnOk = new Button();
         btnOk.Text = en ? "Got it" : "知道了";
         btnOk.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-        btnOk.SetBounds(245, 148, 85, 36);
+        btnOk.SetBounds(startX + 126 + 12, 152, 86, 34);
         AppContext.StyleSecondaryButton(btnOk);
         btnOk.Click += delegate { Close(); };
         Controls.Add(btnOk);
 
         AcceptButton = btnStart;
         CancelButton = btnOk;
+
+        KeyPreview = true;
+        KeyDown += delegate(object sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Space)
+            {
+                e.Handled = true;
+                StartRequested = true;
+                Close();
+            }
+        };
     }
 }
 
@@ -1593,7 +1650,7 @@ internal sealed class AppContext : ApplicationContext
         catch { return false; }
     }
 
-    private static Icon CreateIcon()
+    internal static Icon CreateIcon()
     {
         try
         {

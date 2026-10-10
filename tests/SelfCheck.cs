@@ -380,13 +380,25 @@ internal static class TestCheck
                 return 18;
             }
             Button startBtn = null;
+            Button okBtn = null;
+            bool hasIcon = false;
+            bool titleCorrect = false;
             foreach (Control c in welcomeDlg.Controls)
             {
-                if (c is Button && (c.Text.Contains("开始") || c.Text.Contains("Start"))) { startBtn = (Button)c; break; }
+                if (c is Button && (c.Text.Contains("开始") || c.Text.Contains("Start"))) startBtn = (Button)c;
+                if (c is Button && (c.Text.Contains("知道了") || c.Text.Contains("Got it"))) okBtn = (Button)c;
+                if (c is PictureBox) hasIcon = true;
+                if (c is Label && (c.Text == "欢迎使用 iClock" || c.Text == "Welcome to iClock")) titleCorrect = true;
             }
-            if (startBtn == null)
+            if (startBtn == null || okBtn == null || !hasIcon || !titleCorrect)
             {
-                Console.WriteLine("FAIL: WelcomeDialog should contain Start Countdown button");
+                Console.WriteLine("FAIL: WelcomeDialog missing required elements (startBtn=" + (startBtn != null) + ", okBtn=" + (okBtn != null) + ", hasIcon=" + hasIcon + ", titleCorrect=" + titleCorrect + ")");
+                return 18;
+            }
+            int btnCenter = (startBtn.Left + okBtn.Right) / 2;
+            if (Math.Abs(btnCenter - welcomeDlg.ClientSize.Width / 2) > 2)
+            {
+                Console.WriteLine("FAIL: WelcomeDialog buttons not centered (btnCenter=" + btnCenter + ", dlgCenter=" + (welcomeDlg.ClientSize.Width / 2) + ")");
                 return 18;
             }
             MethodInfo clickMethod = typeof(Button).GetMethod("OnClick", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -397,7 +409,7 @@ internal static class TestCheck
                 return 18;
             }
             welcomeDlg.Dispose();
-            Console.WriteLine("PASS: WelcomeDialog presents concise ready guidance and handles Start countdown correctly.");
+            Console.WriteLine("PASS: WelcomeDialog presents concise ready guidance, prompt icon, and centered buttons.");
 
             // 12. Verify IsInEphemeralFolder detection and EnsureStartMenuShortcut
             MethodInfo isEphemeralMethod = appType.GetMethod("IsInEphemeralFolder", BindingFlags.NonPublic | BindingFlags.Static);
