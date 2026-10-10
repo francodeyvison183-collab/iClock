@@ -15,7 +15,7 @@ Right-click the iClock tray icon to open the menu. The menu allows you to start/
 - **Duration / 倒计时时长:** 1 to 1,440 minutes. Changing settings while a session is paused keeps the paused session's remaining time; reset to use the newly configured duration.
 - **Text size / 文字大小:** 12 to 120 pixels (default: 20 pixels / 默认 20 像素).
 - **Text color / 文字颜色:** select a color using the system color picker (default: Red `#FF0000` / 默认红色).
-- **Display format / 显示格式:** `HH:MM:SS`, total minutes and seconds (`MM:SS`), or unit labels (`Chinese units`). Unit labels follow the selected UI language.
+- **Display format / 显示格式:** total minutes and seconds (`MM:SS`, default / 默认), hours/minutes/seconds (`HH:MM:SS`), or unit labels (`Chinese units`). Unit labels follow the selected UI language.
 - **End message / 结束提示词:** optional text shown in the top-most prompt when the countdown finishes.
 - **Start/pause hotkey / 快捷键:** click the hotkey field and press a key combination containing Ctrl, Alt, or Shift. Default is `Ctrl + Alt + Space`.
 - **Interface language / 界面语言:** choose **简体中文** or **English**. The selection is saved and restored on the next launch.

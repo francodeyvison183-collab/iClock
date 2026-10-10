@@ -17,12 +17,12 @@ internal sealed class Settings
     public int Minutes = 25;
     public int FontSize = 20;
     public int X = -1;
-    public int Y = 90;
+    public int Y = 60;
     public int HotkeyModifiers = 3;
     public int HotkeyKey = (int)Keys.Space;
     public string Color = "#FF0000";
     public string FontFamily = "Segoe UI";
-    public string Format = "HH:MM:SS";
+    public string Format = "MM:SS";
     public string EndMessage = "倒计时结束";
     public string Language = "zh";
     public bool AutoStart;
@@ -65,7 +65,7 @@ internal sealed class Settings
                 else if (k == "EndNotice" && bool.TryParse(v, out b)) s.EndNotice = b;
                 else if (k == "FirstRun" && bool.TryParse(v, out b)) s.FirstRun = b;
             }
-            if (s.X == 80 && s.Y == 80) { s.X = -1; s.Y = 90; }
+            if ((s.X == 80 && s.Y == 80) || (s.X == -1 && s.Y == 90)) { s.X = -1; s.Y = 60; }
         }
         catch { }
         return s;

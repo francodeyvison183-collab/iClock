@@ -33,7 +33,7 @@ internal static class TestCheck
             endNoticeField.SetValue(settings, false);
             endSoundField.SetValue(settings, false);
 
-            // 0. Verify default settings: FontSize = 20, Color = "#FF0000", X = -1 (center), Y = 90
+            // 0. Verify default settings: FontSize = 20, Color = "#FF0000", X = -1 (center), Y = 60, Format = MM:SS
             Type settingsType = asm.GetType("Settings");
             object defaultSettings = Activator.CreateInstance(settingsType);
             int defSize = (int)settingsType.GetField("FontSize").GetValue(defaultSettings);
@@ -41,20 +41,21 @@ internal static class TestCheck
             string defFont = (string)settingsType.GetField("FontFamily").GetValue(defaultSettings);
             int defX = (int)settingsType.GetField("X").GetValue(defaultSettings);
             int defY = (int)settingsType.GetField("Y").GetValue(defaultSettings);
-            if (defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 90)
+            string defFormat = (string)settingsType.GetField("Format").GetValue(defaultSettings);
+            if (defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 60 || defFormat != "MM:SS")
             {
-                Console.WriteLine("FAIL: Default FontSize (" + defSize + "), Color (" + defColor + "), FontFamily (" + defFont + "), X (" + defX + "), or Y (" + defY + ") incorrect");
+                Console.WriteLine("FAIL: Default FontSize (" + defSize + "), Color (" + defColor + "), FontFamily (" + defFont + "), X (" + defX + "), Y (" + defY + "), or Format (" + defFormat + ") incorrect");
                 return 18;
             }
             Rectangle screen = Screen.PrimaryScreen.Bounds;
             int expectedX = screen.Left + (screen.Width - overlay.Width) / 2;
-            int expectedY = screen.Top + 90;
+            int expectedY = screen.Top + 60;
             if (overlay.Location.Y != expectedY || Math.Abs(overlay.Location.X - expectedX) > 2)
             {
                 Console.WriteLine("FAIL: Overlay default position incorrect: Got (" + overlay.Location.X + ", " + overlay.Location.Y + "), expected (" + expectedX + ", " + expectedY + ")");
                 return 18;
             }
-            Console.WriteLine("PASS: Default settings have FontSize = 20, Color = #FF0000, FontFamily = Segoe UI, overlay horizontally centered and 90px from top.");
+            Console.WriteLine("PASS: Default settings have FontSize = 20, Color = #FF0000, FontFamily = Segoe UI, Format = MM:SS, overlay horizontally centered and 60px from top.");
 
             // 1. Overlay must be hidden before countdown starts
             if (overlay.Visible)

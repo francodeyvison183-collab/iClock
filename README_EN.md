@@ -92,7 +92,7 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 * **Start / Pause**: Press global hotkey `Ctrl + Alt + Space` (configurable in settings).
 * **Adjust Position**: Right-click the system tray icon $\rightarrow$ **Adjust text position** $\rightarrow$ drag the translucent area $\rightarrow$ click **Finish position adjustment**.
-* **Settings**: Right-click tray $\rightarrow$ **Settings…** to configure duration (1~1440 min), font size (default 20), color (default red), format (`HH:MM:SS` / `MM:SS` / Chinese units), end message, and Windows startup.
+* **Settings**: Right-click tray $\rightarrow$ **Settings…** to configure duration (1~1440 min), font size (default 20), color (default red), format (default `MM:SS`, `HH:MM:SS` / Chinese units), end message, and Windows startup.
 * **View History**: Right-click tray $\rightarrow$ **View today's history…** to inspect completed or reset countdown sessions.
 
 ---
