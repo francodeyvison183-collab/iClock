@@ -628,9 +628,6 @@ internal sealed class NoticeDialog : Form
     private Timer timer;
     private DateTime finishTime;
     private Label finishLabel;
-    private int tickCount;
-    private double breathPhase;
-    private float glowIntensity = 0.5f;
 
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
@@ -644,7 +641,6 @@ internal sealed class NoticeDialog : Form
         Font = AppContext.GetUiFont(s.Language, 9.5f);
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
-        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
         Text = "iClock";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
@@ -692,7 +688,7 @@ internal sealed class NoticeDialog : Form
         CancelButton = btn;
 
         timer = new Timer();
-        timer.Interval = 50;
+        timer.Interval = 1000;
         timer.Tick += OnTimerTick;
 
         AppContext.CenterFormOnScreen(this);
@@ -731,40 +727,11 @@ internal sealed class NoticeDialog : Form
 
     private void OnTimerTick(object sender, EventArgs e)
     {
-        breathPhase += 0.12;
-        glowIntensity = (float)(0.20 + 0.80 * (0.5 * (1.0 + Math.Sin(breathPhase))));
-        AppContext.SetWindowBorderColor(Handle, Color.FromArgb(239, 68, 68));
-        Invalidate();
-
-        tickCount++;
-        if (tickCount % 20 == 0)
+        UpdateFinishLabel();
+        ForceTopMost();
+        if (settings.EndSound && player == null)
         {
-            UpdateFinishLabel();
-            ForceTopMost();
-            if (settings.EndSound && player == null)
-            {
-                try { SystemSounds.Exclamation.Play(); } catch { }
-            }
-        }
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        base.OnPaint(e);
-        Graphics g = e.Graphics;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-
-        int r = 239, gr = 68, b = 68; // Coral alert red
-        int maxAlpha = (int)(glowIntensity * 230);
-        int tiers = 4;
-        for (int i = 0; i < tiers; i++)
-        {
-            int alpha = (int)(maxAlpha * Math.Pow(0.48, i));
-            if (alpha <= 0) continue;
-            using (Pen p = new Pen(Color.FromArgb(alpha, r, gr, b), 1f))
-            {
-                g.DrawRectangle(p, i, i, ClientRectangle.Width - 1 - i * 2, ClientRectangle.Height - 1 - i * 2);
-            }
+            try { SystemSounds.Exclamation.Play(); } catch { }
         }
     }
 
@@ -1997,18 +1964,6 @@ internal sealed class AppContext : ApplicationContext
     internal static readonly Color Win11TextSecondary = Color.FromArgb(95, 95, 95);
     internal static readonly Color Win11ShortcutGray = Color.FromArgb(130, 130, 130);
     internal static readonly Color Win11Border = Color.FromArgb(228, 228, 228);
-
-    private const int DWMWA_BORDER_COLOR = 34;
-
-    internal static void SetWindowBorderColor(IntPtr hwnd, Color c)
-    {
-        try
-        {
-            int colorref = ColorTranslator.ToWin32(c);
-            DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref colorref, sizeof(int));
-        }
-        catch { }
-    }
 
     internal static void ApplyModernWindowStyle(Control ctrl)
     {

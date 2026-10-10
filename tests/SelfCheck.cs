@@ -182,14 +182,7 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: NoticeDialog not centered on screen: " + activeNotice.Location + " vs " + expNoticeX + "," + expNoticeY);
                 return 7;
             }
-            FieldInfo glowField = noticeType.GetField("glowIntensity", bf);
-            Timer noticeTimer = (Timer)noticeType.GetField("timer", bf).GetValue(activeNotice);
-            if (glowField == null || noticeTimer == null || noticeTimer.Interval != 50)
-            {
-                Console.WriteLine("FAIL: NoticeDialog missing breathing glow timer or field");
-                return 7;
-            }
-            Console.WriteLine("PASS: NoticeDialog is centered, TopMost, has breathing border, and displays finish time.");
+            Console.WriteLine("PASS: NoticeDialog is centered, TopMost, and displays countdown finish time.");
             activeNotice.Close();
 
             // 6. Restart countdown then Reset -> Overlay becomes hidden
