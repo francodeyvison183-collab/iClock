@@ -1729,6 +1729,7 @@ internal sealed class NoticeDialog : Form
 internal sealed class CliNoticeDialog : Form
 {
     private Settings settings;
+    private Font msgFont;
 
     public CliNoticeDialog(Settings s, string message)
     {
@@ -1748,23 +1749,39 @@ internal sealed class CliNoticeDialog : Form
         try { Icon = AppContext.CreateIcon(); } catch { }
         TopMost = true;
         DoubleBuffered = true;
-        ClientSize = new Size(350, 165);
+        ClientSize = new Size(350, 160);
 
-        Label lblBrand = new Label();
-        lblBrand.Text = "iClock";
-        lblBrand.Font = AppContext.GetUiFont(lang, 11f, FontStyle.Bold);
-        lblBrand.ForeColor = AppContext.Win11Accent;
-        lblBrand.TextAlign = ContentAlignment.MiddleLeft;
-        lblBrand.SetBounds(54, 16, 120, 26);
-        lblBrand.BackColor = Color.Transparent;
-        Controls.Add(lblBrand);
+        // Resolve user configured color
+        Color msgColor;
+        try { msgColor = ColorTranslator.FromHtml(s != null ? s.Color : null); }
+        catch { msgColor = AppContext.Win11TextPrimary; }
+        if (msgColor.IsEmpty) msgColor = AppContext.Win11TextPrimary;
+        if (msgColor.R > 230 && msgColor.G > 230 && msgColor.B > 230) msgColor = AppContext.Win11TextPrimary;
+
+        // Resolve user configured font family and font size
+        string family = (s != null && !string.IsNullOrEmpty(s.FontFamily)) ? s.FontFamily : "Segoe UI";
+        float userSize = (s != null && s.FontSize > 0) ? (float)s.FontSize : 20f;
+        float targetSize = Math.Max(12f, Math.Min(32f, userSize));
+        while (targetSize >= 12f)
+        {
+            try { msgFont = new Font(family, targetSize, FontStyle.Bold, GraphicsUnit.Pixel); }
+            catch { msgFont = new Font("Segoe UI", targetSize, FontStyle.Bold, GraphicsUnit.Pixel); }
+
+            Size measured = TextRenderer.MeasureText(message, msgFont, new Size(318, 0), TextFormatFlags.WordBreak);
+            if (measured.Height <= 72 || targetSize <= 12f)
+            {
+                break;
+            }
+            msgFont.Dispose();
+            targetSize -= 2f;
+        }
 
         Label lblMsg = new Label();
         lblMsg.Text = message;
-        lblMsg.Font = AppContext.GetUiFont(lang, 11f, FontStyle.Regular);
-        lblMsg.ForeColor = AppContext.Win11TextPrimary;
+        lblMsg.Font = msgFont;
+        lblMsg.ForeColor = msgColor;
         lblMsg.TextAlign = ContentAlignment.MiddleCenter;
-        lblMsg.SetBounds(20, 52, 310, 50);
+        lblMsg.SetBounds(16, 18, 318, 78);
         lblMsg.AutoEllipsis = true;
         lblMsg.BackColor = Color.Transparent;
         Controls.Add(lblMsg);
@@ -1772,7 +1789,7 @@ internal sealed class CliNoticeDialog : Form
         Button btnOk = new Button();
         btnOk.Text = en ? "Got it" : "我知道了";
         btnOk.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular);
-        btnOk.SetBounds(120, 114, 110, 34);
+        btnOk.SetBounds(120, 108, 110, 34);
         AppContext.StylePrimaryButton(btnOk);
         btnOk.Click += delegate { Close(); };
         Controls.Add(btnOk);
@@ -1781,13 +1798,16 @@ internal sealed class CliNoticeDialog : Form
         CancelButton = btnOk;
         KeyPreview = true;
 
-        AppContext.CenterFormOnScreen(this);
-    }
+        FormClosed += delegate
+        {
+            if (msgFont != null)
+            {
+                try { msgFont.Dispose(); } catch { }
+                msgFont = null;
+            }
+        };
 
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        base.OnPaint(e);
-        AppContext.DrawLogoVector(e.Graphics, 20, 16, 26);
+        AppContext.CenterFormOnScreen(this);
     }
 
     protected override void OnShown(EventArgs e)

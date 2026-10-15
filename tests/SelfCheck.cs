@@ -1762,13 +1762,28 @@ internal static class TestCheck
                 return 50;
             }
             bool foundMessage = false;
+            bool foundBrand = false;
+            Label msgLbl = null;
             foreach (Control c in cliNotice.Controls)
             {
-                if (c is Label && c.Text == "Build Success") foundMessage = true;
+                if (c is Label && c.Text == "Build Success") { foundMessage = true; msgLbl = (Label)c; }
+                if (c is Label && c.Text == "iClock") foundBrand = true;
             }
             if (!foundMessage)
             {
                 Console.WriteLine("FAIL: CliNoticeDialog did not contain message text 'Build Success'");
+                return 50;
+            }
+            if (foundBrand)
+            {
+                Console.WriteLine("FAIL: CliNoticeDialog should not contain internal 'iClock' brand label");
+                return 50;
+            }
+            string sColor = settings.GetType().GetField("Color").GetValue(settings) as string;
+            Color expectedColor = ColorTranslator.FromHtml(sColor);
+            if (msgLbl.ForeColor.ToArgb() != expectedColor.ToArgb())
+            {
+                Console.WriteLine("FAIL: CliNoticeDialog message ForeColor (" + msgLbl.ForeColor + ") does not match settings.Color (" + expectedColor + ")");
                 return 50;
             }
             cliNotice.Close();
