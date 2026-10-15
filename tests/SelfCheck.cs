@@ -1862,6 +1862,37 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: CLI tray menu item (命令行 (CLI)…, iclock -h) and CliHelpDialog verified.");
 
+            // 34. Verify Telephone Ring Sound synthesis and SettingsDialog soundStyle items
+            MethodInfo playSound = appType.GetMethod("PlaySoundStyle", BindingFlags.NonPublic | BindingFlags.Static);
+            playSound.Invoke(null, new object[] { "Phone" });
+            MethodInfo stopSound = appType.GetMethod("StopSound", BindingFlags.NonPublic | BindingFlags.Static);
+            stopSound.Invoke(null, null);
+
+            FieldInfo phoneWavField = appType.GetField("phoneWavData", BindingFlags.NonPublic | BindingFlags.Static);
+            byte[] generatedPhoneWav = (byte[])phoneWavField.GetValue(null);
+            if (generatedPhoneWav == null || generatedPhoneWav.Length < 1000)
+            {
+                Console.WriteLine("FAIL: Phone WAV synthesis failed or data too small");
+                return 52;
+            }
+
+            Type setDlgType = asm.GetType("SettingsDialog");
+            Form setDlg = (Form)Activator.CreateInstance(setDlgType, new object[] { settings });
+            ComboBox sndStyleCombo = (ComboBox)setDlgType.GetField("soundStyle", bf).GetValue(setDlg);
+            if (sndStyleCombo == null || sndStyleCombo.Items.Count < 3)
+            {
+                Console.WriteLine("FAIL: soundStyle combo not found or incomplete in SettingsDialog");
+                return 52;
+            }
+            string item1 = sndStyleCombo.Items[1].ToString();
+            if (!item1.Contains("电话铃") && !item1.Contains("Telephone Ring"))
+            {
+                Console.WriteLine("FAIL: soundStyle Item[1] should be classic telephone ring, got: " + item1);
+                return 52;
+            }
+            setDlg.Close();
+            Console.WriteLine("PASS: Classic telephone mechanical ring tone synthesis and SettingsDialog integration verified.");
+
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);
             if (sActiveField != null) sActiveField.SetValue(app, false);
             MethodInfo exit = appType.GetMethod("Exit", bf);

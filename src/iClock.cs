@@ -81,7 +81,7 @@ internal sealed class Settings
                 else if (k == "Language" && (v == "zh" || v == "en")) s.Language = v;
                 else if (k == "AutoStart" && bool.TryParse(v, out b)) s.AutoStart = b;
                 else if (k == "EndSound" && bool.TryParse(v, out b)) s.EndSound = b;
-                else if (k == "EndSoundStyle" && (v == "QQ" || v == "Pager" || v == "Alarm" || v == "Chime" || v == "Classic")) s.EndSoundStyle = (v == "Chime") ? "QQ" : ((v == "Classic") ? "Pager" : v);
+                else if (k == "EndSoundStyle" && (v == "QQ" || v == "Phone" || v == "Pager" || v == "Alarm" || v == "Chime" || v == "Classic")) s.EndSoundStyle = (v == "Chime") ? "QQ" : ((v == "Classic" || v == "Pager") ? "Phone" : v);
                 else if (k == "EndNotice" && bool.TryParse(v, out b)) s.EndNotice = b;
                 else if (k == "FirstRun" && bool.TryParse(v, out b)) s.FirstRun = b;
                 else if (k == "NoticeStyle" && (v == "Popup" || v == "Pulse")) s.NoticeStyle = v;
@@ -984,9 +984,9 @@ internal sealed class SettingsDialog : Form
         soundStyle.ItemHeight = 22;
         soundStyle.SetBounds(172, 326, 188, 24);
         soundStyle.Items.AddRange(en
-            ? new object[] { "QQ Message (Classic)", "Pager Beep (Retro)", "Alarm Ring (Strong)" }
-            : new object[] { "QQ 经典提示 (嘀嘀)", "寻呼机提示 (BP机)", "醒目闹铃 (强力)" });
-        soundStyle.SelectedIndex = (Value.EndSoundStyle == "Pager" || Value.EndSoundStyle == "Classic") ? 1 : (Value.EndSoundStyle == "Alarm" ? 2 : 0);
+            ? new object[] { "QQ Message (Classic)", "Telephone Ring (Classic)", "Alarm Ring (Strong)" }
+            : new object[] { "QQ 经典提示 (嘀嘀)", "经典电话铃 (叮铃铃)", "醒目闹铃 (强力)" });
+        soundStyle.SelectedIndex = (Value.EndSoundStyle == "Phone" || Value.EndSoundStyle == "Pager" || Value.EndSoundStyle == "Classic") ? 1 : (Value.EndSoundStyle == "Alarm" ? 2 : 0);
         soundStyle.Enabled = sound.Checked;
         soundStyle.DrawItem += OnDrawComboItem;
         sound.CheckedChanged += delegate { soundStyle.Enabled = sound.Checked; };
@@ -994,7 +994,7 @@ internal sealed class SettingsDialog : Form
         {
             if (sound.Checked)
             {
-                string st = soundStyle.SelectedIndex == 1 ? "Pager" : (soundStyle.SelectedIndex == 2 ? "Alarm" : "QQ");
+                string st = soundStyle.SelectedIndex == 1 ? "Phone" : (soundStyle.SelectedIndex == 2 ? "Alarm" : "QQ");
                 AppContext.PlaySoundStyle(st);
             }
         };
@@ -1341,8 +1341,8 @@ internal sealed class SettingsDialog : Form
         int ssSel = soundStyle.SelectedIndex;
         soundStyle.Items.Clear();
         soundStyle.Items.AddRange(toEnglish
-            ? new object[] { "QQ Message (Classic)", "Pager Beep (Retro)", "Alarm Ring (Strong)" }
-            : new object[] { "QQ 经典提示 (嘀嘀)", "寻呼机提示 (BP机)", "醒目闹铃 (强力)" });
+            ? new object[] { "QQ Message (Classic)", "Telephone Ring (Classic)", "Alarm Ring (Strong)" }
+            : new object[] { "QQ 经典提示 (嘀嘀)", "经典电话铃 (叮铃铃)", "醒目闹铃 (强力)" });
         soundStyle.SelectedIndex = ssSel >= 0 ? ssSel : 0;
 
         int nsSel = noticeStyle.SelectedIndex;
@@ -1387,7 +1387,7 @@ internal sealed class SettingsDialog : Form
         draft.Format = (format != null && format.SelectedIndex == 1) ? "MM:SS" : ((format != null && format.SelectedIndex == 2) ? "Chinese" : "HH:MM:SS");
         draft.Language = (language != null && language.SelectedIndex == 1) ? "en" : "zh";
         draft.EndSound = sound != null ? sound.Checked : Value.EndSound;
-        draft.EndSoundStyle = (soundStyle != null && soundStyle.SelectedIndex == 1) ? "Pager" : ((soundStyle != null && soundStyle.SelectedIndex == 2) ? "Alarm" : "QQ");
+        draft.EndSoundStyle = (soundStyle != null && soundStyle.SelectedIndex == 1) ? "Phone" : ((soundStyle != null && soundStyle.SelectedIndex == 2) ? "Alarm" : "QQ");
         draft.EndNotice = notice != null ? notice.Checked : Value.EndNotice;
         draft.NoticeStyle = (noticeStyle != null && noticeStyle.SelectedIndex == 1) ? "Pulse" : "Popup";
         draft.EndMessage = endMessage != null ? endMessage.Text.Trim() : Value.EndMessage;
@@ -1532,7 +1532,7 @@ internal sealed class SettingsDialog : Form
         Value.Format = format.SelectedIndex == 1 ? "MM:SS" : (format.SelectedIndex == 2 ? "Chinese" : "HH:MM:SS");
         Value.Language = language.SelectedIndex == 1 ? "en" : "zh";
         Value.AutoStart = startup.Checked; Value.EndSound = sound.Checked;
-        Value.EndSoundStyle = soundStyle.SelectedIndex == 1 ? "Pager" : (soundStyle.SelectedIndex == 2 ? "Alarm" : "QQ");
+        Value.EndSoundStyle = soundStyle.SelectedIndex == 1 ? "Phone" : (soundStyle.SelectedIndex == 2 ? "Alarm" : "QQ");
         Value.EndNotice = notice.Checked;
         Value.AgentNotice = agentNotice.Checked;
         Value.NoticeStyle = (noticeStyle.SelectedIndex == 1) ? "Pulse" : "Popup";
@@ -3204,7 +3204,7 @@ internal sealed class AppContext : ApplicationContext
     }
 
     private static byte[] qqWavData;
-    private static byte[] pagerWavData;
+    private static byte[] phoneWavData;
     private static SoundPlayer activeSoundPlayer;
 
     private static byte[] GenerateQQWav()
@@ -3250,44 +3250,44 @@ internal sealed class AppContext : ApplicationContext
         return BuildPcmWav(sampleRate, samples);
     }
 
-    private static byte[] GeneratePagerWav()
+    private static byte[] GeneratePhoneWav()
     {
         int sampleRate = 22050;
         List<short> samples = new List<short>();
-        double freq = 2700.0;
-        for (int cycle = 0; cycle < 5; cycle++)
-        {
-            for (int beep = 0; beep < 3; beep++)
-            {
-                int toneSamples = (int)(sampleRate * 0.070);
-                int ramp = (int)(sampleRate * 0.004);
-                for (int i = 0; i < toneSamples; i++)
-                {
-                    double t = (double)i / sampleRate;
-                    double env = 1.0;
-                    if (i < ramp) env = (double)i / ramp;
-                    else if (i > toneSamples - ramp) env = (double)(toneSamples - i) / ramp;
 
-                    double sine = Math.Sin(2.0 * Math.PI * freq * t);
-                    double sq = (sine >= 0) ? 1.0 : -1.0;
-                    short val = (short)(sq * env * 16000.0);
-                    samples.Add(val);
-                }
-                if (beep < 2)
-                {
-                    int gap = (int)(sampleRate * 0.045);
-                    for (int i = 0; i < gap; i++) samples.Add(0);
-                }
-            }
-            if (cycle < 4)
+        for (int ring = 0; ring < 2; ring++)
+        {
+            int ringSamples = (int)(sampleRate * 0.80);
+            int strikePeriod = (int)(sampleRate * 0.050); // 20Hz -> 50ms (2 alternating strikes)
+            int halfPeriod = strikePeriod / 2;             // 25ms per strike
+
+            for (int i = 0; i < ringSamples; i++)
             {
-                int pause = (int)(sampleRate * 0.400);
-                for (int i = 0; i < pause; i++) samples.Add(0);
+                int strikePhase = i % strikePeriod;
+                bool firstBell = (strikePhase < halfPeriod);
+                int timeSinceStrike = firstBell ? strikePhase : (strikePhase - halfPeriod);
+                double tStrike = (double)timeSinceStrike / sampleRate;
+
+                // Bell frequencies: Gong 1 = 753 Hz, Gong 2 = 840 Hz (classic telephone brass bell)
+                double f = firstBell ? 753.0 : 840.0;
+                double decay = Math.Exp(-timeSinceStrike / (sampleRate * 0.024));
+
+                double s1 = Math.Sin(2.0 * Math.PI * f * tStrike);
+                double s2 = 0.20 * Math.Sin(2.0 * Math.PI * f * 2.76 * tStrike);
+
+                double ringEnv = 1.0;
+                int ramp = (int)(sampleRate * 0.02);
+                if (i < ramp) ringEnv = (double)i / ramp;
+                else if (i > ringSamples - ramp) ringEnv = (double)(ringSamples - i) / ramp;
+
+                double sample = (s1 + s2) * decay * ringEnv * 18000.0;
+                samples.Add((short)Math.Max(-32767, Math.Min(32767, sample)));
             }
-            else
+
+            if (ring == 0)
             {
-                int end = (int)(sampleRate * 0.100);
-                for (int i = 0; i < end; i++) samples.Add(0);
+                int pauseSamples = (int)(sampleRate * 0.35);
+                for (int i = 0; i < pauseSamples; i++) samples.Add(0);
             }
         }
         return BuildPcmWav(sampleRate, samples);
@@ -3361,10 +3361,10 @@ internal sealed class AppContext : ApplicationContext
                     SystemSounds.Exclamation.Play();
                 }
             }
-            else if (style == "Pager" || style == "Classic")
+            else if (style == "Phone" || style == "Pager" || style == "Classic")
             {
-                if (pagerWavData == null) pagerWavData = GeneratePagerWav();
-                MemoryStream ms = new MemoryStream(pagerWavData);
+                if (phoneWavData == null) phoneWavData = GeneratePhoneWav();
+                MemoryStream ms = new MemoryStream(phoneWavData);
                 activeSoundPlayer = new SoundPlayer(ms);
                 activeSoundPlayer.Play();
             }
