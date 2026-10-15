@@ -22,5 +22,4 @@ This directory contains the master multi-resolution icon assets for iClock.
 
 The icon set features:
 - Alpha channel transparency outside the navy squircle (#131C43).
-- Smooth subpixel antialiasing with high contrast on both dark and light Windows taskbars.
-- PNG-compressed layers in `app.ico` compliant with Vista+ Windows Icon specifications.
+- Hybrid `.ico` architecture: 32bpp uncompressed DIB layers for 16px ~ 128px (ensuring 100% GDI+ / `Icon.ToBitmap()` compatibility with zero artifacts) and PNG compression for 256px (Explorer Extra Large icons).

@@ -1696,6 +1696,7 @@ internal sealed class WelcomeDialog : Form
         MinimizeBox = false;
         ShowInTaskbar = true;
         ShowIcon = false;
+        try { Icon = AppContext.CreateIcon(); } catch { }
         ClientSize = new Size(380, 208);
 
         Label lblTitle = new Label();
@@ -1771,25 +1772,32 @@ internal sealed class WelcomeDialog : Form
         lblT2.Font = trayFont;
         lblT2.ForeColor = AppContext.Win11TextSecondary;
 
-        int iconSize = 16, gap = 4;
+        int iconSize = Math.Max(16, SystemInformation.SmallIconSize.Width);
+        int gap = 4;
         int totalTrayW = lblT1.PreferredWidth + gap + iconSize + gap + lblT2.PreferredWidth;
         int trayStartX = (ClientSize.Width - totalTrayW) / 2;
 
-        lblT1.Location = new Point(trayStartX, 2);
+        lblT1.Location = new Point(trayStartX, (trayPanel.Height - lblT1.PreferredHeight) / 2);
         trayPanel.Controls.Add(lblT1);
 
         PictureBox trayIcon = new PictureBox();
-        trayIcon.SetBounds(trayStartX + lblT1.PreferredWidth + gap, 3, iconSize, iconSize);
+        trayIcon.SetBounds(trayStartX + lblT1.PreferredWidth + gap, (trayPanel.Height - iconSize) / 2, iconSize, iconSize);
         trayIcon.SizeMode = PictureBoxSizeMode.Zoom;
         try
         {
             Icon appIcon = AppContext.CreateIcon();
-            if (appIcon != null) trayIcon.Image = appIcon.ToBitmap();
+            if (appIcon != null)
+            {
+                using (Icon targetIco = new Icon(appIcon, iconSize, iconSize))
+                {
+                    trayIcon.Image = targetIco.ToBitmap();
+                }
+            }
         }
         catch { }
         trayPanel.Controls.Add(trayIcon);
 
-        lblT2.Location = new Point(trayStartX + lblT1.PreferredWidth + gap + iconSize + gap, 2);
+        lblT2.Location = new Point(trayStartX + lblT1.PreferredWidth + gap + iconSize + gap, (trayPanel.Height - lblT2.PreferredHeight) / 2);
         trayPanel.Controls.Add(lblT2);
 
         Controls.Add(trayPanel);
@@ -4753,11 +4761,21 @@ internal sealed class AppContext : ApplicationContext
         catch { }
         try
         {
-            string localIco = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "src\\app.ico");
-            if (!File.Exists(localIco)) localIco = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "app.ico");
-            if (File.Exists(localIco))
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string[] candidates = new string[]
             {
-                return new Icon(localIco, targetSize.Width, targetSize.Height);
+                Path.Combine(baseDir, "src\\app.ico"),
+                Path.Combine(baseDir, "app.ico"),
+                Path.Combine(baseDir, "..\\src\\app.ico"),
+                Path.Combine(baseDir, "..\\src\\icons\\app.ico"),
+                Path.Combine(baseDir, "icons\\app.ico")
+            };
+            foreach (string c in candidates)
+            {
+                if (File.Exists(c))
+                {
+                    return new Icon(c, targetSize.Width, targetSize.Height);
+                }
             }
         }
         catch { }
@@ -4768,41 +4786,50 @@ internal sealed class AppContext : ApplicationContext
         }
         catch { }
         int sz = Math.Max(16, targetSize.Width);
-        Bitmap b = new Bitmap(sz, sz);
+        Bitmap b = new Bitmap(sz, sz, PixelFormat.Format32bppArgb);
         using (Graphics g = Graphics.FromImage(b))
-        using (SolidBrush btnBrush = new SolidBrush(Color.FromArgb(28, 114, 190)))
-        using (SolidBrush darkBrush = new SolidBrush(Color.FromArgb(18, 75, 130)))
+        using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(19, 28, 67)))
         using (SolidBrush whiteBrush = new SolidBrush(Color.White))
-        using (Pen handPen = new Pen(Color.FromArgb(230, 45, 45), Math.Max(1.4f, sz * 0.08f)))
+        using (Pen slashPen = new Pen(Color.FromArgb(255, 87, 56), Math.Max(1.8f, sz * 0.16f)))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            float cx = sz / 2.0f;
-            float crownTop = sz <= 16 ? 0.0f : (sz <= 24 ? 0.5f : sz * 0.02f);
-            float barH = sz <= 16 ? 1.0f : (sz <= 24 ? 1.5f : sz * 0.05f);
-            float barW = sz <= 16 ? 5.0f : (float)Math.Round(sz * 0.28f);
-            float stemH = sz <= 16 ? 1.0f : (sz <= 24 ? 1.5f : sz * 0.04f);
-            float stemW = sz <= 16 ? 2.0f : (float)Math.Round(sz * 0.12f);
-            float dialY = crownTop + barH + stemH;
-            float dialDiam = sz - dialY - (sz <= 16 ? 0.0f : 0.5f);
-            float strokeW = sz <= 16 ? 1.8f : sz * 0.11f;
+            g.Clear(Color.Transparent);
 
-            g.FillRectangle(darkBrush, cx - barW / 2.0f, crownTop, barW, barH);
-            g.FillRectangle(btnBrush, cx - stemW / 2.0f, crownTop + barH, stemW, stemH);
+            float radius = Math.Max(2f, sz * 0.22f);
+            using (GraphicsPath path = new GraphicsPath())
+            {
+                float x = 0.5f, y = 0.5f, w = sz - 1f, sqH = sz - 1f;
+                path.AddArc(x, y, radius * 2, radius * 2, 180, 90);
+                path.AddArc(x + w - radius * 2, y, radius * 2, radius * 2, 270, 90);
+                path.AddArc(x + w - radius * 2, y + sqH - radius * 2, radius * 2, radius * 2, 0, 90);
+                path.AddArc(x, y + sqH - radius * 2, radius * 2, radius * 2, 90, 90);
+                path.CloseFigure();
+                g.FillPath(bgBrush, path);
+            }
 
-            float dialX = (sz - dialDiam) / 2.0f;
-            g.FillEllipse(btnBrush, dialX, dialY, dialDiam, dialDiam);
+            float dotR = Math.Max(1.0f, sz * 0.10f);
+            float dotCx = sz * 0.44f;
+            float dotCy = sz * 0.30f;
+            g.FillEllipse(whiteBrush, dotCx - dotR, dotCy - dotR, dotR * 2, dotR * 2);
 
-            float innerDiam = dialDiam - 2.0f * strokeW;
-            g.FillEllipse(whiteBrush, dialX + strokeW, dialY + strokeW, innerDiam, innerDiam);
+            float stemW = Math.Max(1.5f, sz * 0.18f);
+            float stemH = Math.Max(3f, sz * 0.36f);
+            float stemX = dotCx - stemW / 2.0f;
+            float stemY = sz * 0.46f;
+            using (GraphicsPath stemPath = new GraphicsPath())
+            {
+                float r = Math.Max(0.5f, stemW * 0.3f);
+                stemPath.AddArc(stemX, stemY, r * 2, r * 2, 180, 90);
+                stemPath.AddArc(stemX + stemW - r * 2, stemY, r * 2, r * 2, 270, 90);
+                stemPath.AddArc(stemX + stemW - r * 2, stemY + stemH - r * 2, r * 2, r * 2, 0, 90);
+                stemPath.AddArc(stemX, stemY + stemH - r * 2, r * 2, r * 2, 90, 90);
+                stemPath.CloseFigure();
+                g.FillPath(whiteBrush, stemPath);
+            }
 
-            float dialCy = dialY + dialDiam / 2.0f;
-            handPen.StartCap = LineCap.Round;
-            handPen.EndCap = LineCap.Round;
-            float handLen = innerDiam * 0.38f;
-            g.DrawLine(handPen, cx, dialCy, cx + handLen * 0.7071f, dialCy - handLen * 0.7071f);
-
-            float pivotR = Math.Max(1.2f, sz * 0.08f);
-            g.FillEllipse(darkBrush, cx - pivotR, dialCy - pivotR, pivotR * 2.0f, pivotR * 2.0f);
+            slashPen.StartCap = LineCap.Round;
+            slashPen.EndCap = LineCap.Round;
+            g.DrawLine(slashPen, sz * 0.40f, sz * 0.62f, sz * 0.82f, sz * 0.26f);
         }
         IntPtr h = b.GetHicon(); Icon icon = (Icon)Icon.FromHandle(h).Clone(); NativeMethods.DestroyIcon(h); b.Dispose(); return icon;
     }
