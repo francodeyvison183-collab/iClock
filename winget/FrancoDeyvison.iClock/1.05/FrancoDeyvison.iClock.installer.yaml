@@ -8,9 +8,9 @@ Commands:
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.exe
-    InstallerSha256: 48F61D49778084D8B6DFBDF18E7AF337A52C2FE9FE1B2FD2DEEC7F66D01C0F4C
+    InstallerSha256: 285C833E3270A19292EB815161DE97B9A80F1932D025A42A9467F8470580C108
   - Architecture: x86
     InstallerUrl: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.exe
-    InstallerSha256: 48F61D49778084D8B6DFBDF18E7AF337A52C2FE9FE1B2FD2DEEC7F66D01C0F4C
+    InstallerSha256: 285C833E3270A19292EB815161DE97B9A80F1932D025A42A9467F8470580C108
 ManifestType: installer
 ManifestVersion: 1.6.0

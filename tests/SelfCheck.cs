@@ -788,6 +788,26 @@ internal static class TestCheck
                 return 26;
             }
 
+            MethodInfo fmtDurationMins = appType.GetMethod("FormatDurationMinutes", BindingFlags.NonPublic | BindingFlags.Static);
+            if (fmtDurationMins == null)
+            {
+                Console.WriteLine("FAIL: FormatDurationMinutes method missing");
+                return 26;
+            }
+            if ((string)fmtDurationMins.Invoke(null, new object[] { 0L, false }) != "0 分钟" ||
+                (string)fmtDurationMins.Invoke(null, new object[] { 45L, false }) != "< 1 分钟" ||
+                (string)fmtDurationMins.Invoke(null, new object[] { 60L, false }) != "1 分钟" ||
+                (string)fmtDurationMins.Invoke(null, new object[] { 1500L, false }) != "25 分钟" ||
+                (string)fmtDurationMins.Invoke(null, new object[] { 3600L, false }) != "1 小时" ||
+                (string)fmtDurationMins.Invoke(null, new object[] { 5100L, false }) != "1 小时 25 分钟" ||
+                (string)fmtDurationMins.Invoke(null, new object[] { 0L, true }) != "0 min" ||
+                (string)fmtDurationMins.Invoke(null, new object[] { 45L, true }) != "< 1 min" ||
+                (string)fmtDurationMins.Invoke(null, new object[] { 5100L, true }) != "1h 25m")
+            {
+                Console.WriteLine("FAIL: FormatDurationMinutes produced unexpected output");
+                return 26;
+            }
+
             // Test LogSession with 5 columns
             string historyDir = System.IO.Path.GetDirectoryName((string)settingsType.GetProperty("FilePath", BindingFlags.Public | BindingFlags.Static).GetValue(null, null));
             string testHistoryPath = System.IO.Path.Combine(historyDir, "history-" + DateTime.Now.ToString("yyyyMMdd") + ".tsv");

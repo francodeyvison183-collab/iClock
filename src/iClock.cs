@@ -4584,13 +4584,13 @@ internal sealed class AppContext : ApplicationContext
                         activeDays++; totalCycles += tot; totalDone += done; allActualSecs += secs;
                         int r = (int)Math.Round((double)done * 100.0 / tot);
                         string eval = r >= 90 ? (en ? "● Excellent" : "● 卓越") : (r >= 70 ? (en ? "● Good" : "● 良好") : (r >= 50 ? (en ? "● Fair" : "● 及格") : (en ? "● Needs work" : "● 待提升")));
-                        ListViewItem lvi = new ListViewItem(new string[] { dStr, weekday, FormatDuration(secs, en), done + " / " + tot, r + "%", eval });
+                        ListViewItem lvi = new ListViewItem(new string[] { dStr, weekday, FormatDurationMinutes(secs, en), done + " / " + tot, r + "%", eval });
                         lvi.Tag = dStr;
                         list.Items.Add(lvi);
                     }
                     else
                     {
-                        ListViewItem lvi = new ListViewItem(new string[] { dStr, weekday, en ? "0s" : "0 秒", "-", "-", "-" });
+                        ListViewItem lvi = new ListViewItem(new string[] { dStr, weekday, en ? "0 min" : "0 分钟", "-", "-", "-" });
                         lvi.Tag = dStr;
                         lvi.ForeColor = Win11ShortcutGray;
                         list.Items.Add(lvi);
@@ -4613,7 +4613,7 @@ internal sealed class AppContext : ApplicationContext
                     currentSpans = new StatSpan[]
                     {
                         new StatSpan(en ? "📊 " + totalDaysCount + "-day Focus: " : "📊 " + totalDaysCount + " 天累计专注：", f.Font, Win11TextPrimary),
-                        new StatSpan(FormatDuration(allActualSecs, en), boldFont, Win11Accent),
+                        new StatSpan(FormatDurationMinutes(allActualSecs, en), boldFont, Win11Accent),
                         new StatSpan(en ? "   |   Active " : "   ｜   活跃 ", f.Font, Win11TextSecondary),
                         new StatSpan(activeDays + "/" + totalDaysCount + (en ? " days" : " 天"), boldFont, Win11TextPrimary),
                         new StatSpan(en ? "   |   Sessions " : "   ｜   周期 ", f.Font, Win11TextSecondary),
@@ -4791,6 +4791,17 @@ internal sealed class AppContext : ApplicationContext
         if (s == 0 && m == 0) return h + (en ? "h" : " 小时");
         if (s == 0) return en ? h + "h " + m + "m" : h + " 小时 " + m + " 分钟";
         return en ? h + "h " + m + "m " + s + "s" : h + " 小时 " + m + " 分 " + s + " 秒";
+    }
+    internal static string FormatDurationMinutes(long secs, bool en)
+    {
+        if (secs <= 0) return en ? "0 min" : "0 分钟";
+        if (secs < 60) return en ? "< 1 min" : "< 1 分钟";
+        long m = (secs + 30) / 60;
+        if (m < 60) return m + (en ? " min" : " 分钟");
+        long h = m / 60;
+        m = m % 60;
+        if (m == 0) return h + (en ? "h" : " 小时");
+        return en ? h + "h " + m + "m" : h + " 小时 " + m + " 分钟";
     }
     public void HandleHotkey() { Toggle(); }
     internal static string HotkeyText(int mods, int key)

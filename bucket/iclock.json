@@ -4,7 +4,7 @@
   "homepage": "https://francodeyvison183-collab.github.io/iClock/",
   "license": "MIT",
   "url": "https://github.com/francodeyvison183-collab/iClock/releases/download/1.05/iClock-1.05-windows.exe#/iClock.exe",
-  "hash": "48f61d49778084d8b6dfbdf18e7af337a52c2fe9fe1b2fd2deec7f66d01c0f4c",
+  "hash": "285c833e3270a19292eb815161de97b9a80f1932d025a42a9467f8470580c108",
   "bin": "iClock.exe",
   "shortcuts": [
     [

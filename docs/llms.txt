@@ -33,7 +33,7 @@ iClock is an open-source, minimalist Windows desktop floating countdown timer de
 - **Latest Release (v1.05)**:
   - Standalone Executable: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.exe
   - Portable ZIP Archive: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.zip
-  - SHA-256 (EXE): `48f61d49778084d8b6dfbdf18e7af337a52c2fe9fe1b2fd2deec7f66d01c0f4c`
+  - SHA-256 (EXE): `285c833e3270a19292eb815161de97b9a80f1932d025a42a9467f8470580c108`
   - SHA-256 (ZIP): `f08e3e19609e55b5266299b80dd8f7ff20e8b20f0cb0bb45e2e52d5cc1df916b`
 
 ## Core Differentiators
