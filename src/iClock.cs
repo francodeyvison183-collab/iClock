@@ -2170,7 +2170,7 @@ internal sealed class AppContext : ApplicationContext
     private Overlay overlay;
     private NotifyIcon tray;
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuAbout, menuExit, menuUpdate;
-    internal const string CURRENT_VERSION = "1.04";
+    internal const string CURRENT_VERSION = "1.05";
     private string updateUrl;
     private string latestVersion;
     private Timer timer;

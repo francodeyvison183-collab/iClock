@@ -2,6 +2,21 @@
 
 This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY-MM-DD`).
 
+## [1.05] - 2026-10-15
+
+### Added
+
+- **Brand New Application Icon & Multi-Resolution Asset Set**: High-contrast deep navy squircle (`#131C43`) with transparent antialiased rounded corners, crisp white "i", and vibrant coral orange slash (`#FF5738`), calibrated for optimal contrast on both dark and light Windows themes. Preserved complete 9-resolution master assets in `src/icons/` (16×16 to 512×512).
+- **Settings Dialog Live Preview & Test Alert Button**: Font, size, and color adjustments now preview directly on the active desktop overlay in real-time. Added a dedicated "Test Alert" (测试提醒演示) button to both Timer and Agent tabs to instantly audition alarm audio, popup notices, or breathing pulses without waiting for a countdown.
+- **Dynamic Running Agent Priority**: Currently active and working AI agents are dynamically prioritized and sorted to the top of the Agent Collaboration list.
+
+### Changed
+
+- **Extreme Binary Slimming to 202 KB**: Decoupled high-res asset packs from runtime embedding, streamlining the embedded application icon to an uncompressed 24×24 DIB sweet-spot. Dropped executable size from 505 KB to **202 KB** (~206 KB raw bytes) with zero third-party dependencies.
+- **Optical Vertical Centering for Pause Badge**: Calibrated typographic baseline offsets so the pause indicator (`❚❚`) and countdown digits share the exact same optical center line ($0.0\text{px}$ offset) across all font sizes.
+- **GDI+ Icon Rendering Compatibility**: Resolved GDI+ `Icon.ToBitmap()` rainbow noise artifacts in the WelcomeDialog with compliant 32bpp DIB layers and procedural vector fallback.
+- **Performance & Background Resource Optimization**: Dynamic throttling for WinRT Toast listener during idle periods, automatic detachment of system mouse hooks after tray hover inactivity, and proactive working-set compaction (`TrimMemory`) on dialog close.
+
 ## [1.04] - 2026-10-15
 
 ### Added

@@ -1,14 +1,14 @@
 # iClock
 
-> Ultra-lightweight (222 KB), zero-dependency, click-through desktop countdown timer and AI agent task monitor for Windows.
+> Ultra-lightweight (202 KB), zero-dependency, click-through desktop countdown timer and AI agent task monitor for Windows.
 
-iClock is an open-source, minimalist Windows desktop floating countdown timer designed for deep focus and productivity. It compiles to a single 222 KB native portable executable with zero runtime dependencies.
+iClock is an open-source, minimalist Windows desktop floating countdown timer designed for deep focus and productivity. It compiles to a single 202 KB native portable executable with zero runtime dependencies.
 
 ## Key Specifications
 
 - **Application Category**: Desktop Utility, Focus & Pomodoro Countdown Timer, AI Agent Completion Monitor
 - **Architecture**: Pure C# WinForms (.NET Framework 4.x runtime, built into Windows 10/11)
-- **Binary Size**: ~222 KB single file, portable (no installation required)
+- **Binary Size**: ~202 KB single file, portable (no installation required)
 - **Memory Footprint**: < 15 MB static RAM
 - **Operating System Compatibility**: Windows 7 SP1, Windows 8, Windows 10, Windows 11
 - **Display Mode**: Floating desktop text with native click-through (`WS_EX_TRANSPARENT`)
@@ -30,15 +30,15 @@ iClock is an open-source, minimalist Windows desktop floating countdown timer de
   ```
 - **Official Website**: https://francodeyvison183-collab.github.io/iClock/
 - **GitHub Repository**: https://github.com/francodeyvison183-collab/iClock
-- **Latest Release (v1.04)**:
-  - Standalone Executable: https://github.com/francodeyvison183-collab/iClock/releases/download/1.04/iClock-1.04-windows.exe
-  - Portable ZIP Archive: https://github.com/francodeyvison183-collab/iClock/releases/download/1.04/iClock-1.04-windows.zip
-  - SHA-256 (EXE): `0eb6232787f6bcd91504e9a3026a4e9b6b0c2a77f480b77b69729876f708c234`
-  - SHA-256 (ZIP): `be47d5083c7949fcbb56e1ed56021062ba066741df4484bae79bb3c591d7c0cf`
+- **Latest Release (v1.05)**:
+  - Standalone Executable: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.exe
+  - Portable ZIP Archive: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.zip
+  - SHA-256 (EXE): `98b49413678151c96601eead0b92ab7956088251277ba945e6b0203f1e89981e`
+  - SHA-256 (ZIP): `9e912d1696b319e08e18dbfb69f3aa748048dd6c5a271c8fc2abb86a9424a926`
 
 ## Core Differentiators
 
-1. **Native Lightweight vs Electron Bloat**: While typical modern desktop timers consume 150 MB~400 MB of RAM with hundreds of megabytes in download size, iClock requires only ~222 KB on disk and less than 15 MB of RAM.
+1. **Native Lightweight vs Electron Bloat**: While typical modern desktop timers consume 150 MB~400 MB of RAM with hundreds of megabytes in download size, iClock requires only ~202 KB on disk and less than 15 MB of RAM.
 2. **True TopMost & Click-Through**: Remains visible over full-screen IDEs, games, or presentation software without capturing or blocking mouse clicks.
 3. **AI Agent Background Collaboration**: Monitors 20+ domestic and international AI coding agents (Cursor, Antigravity, Claude Code, GitHub Copilot, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, etc.) via a 4-tier perception engine (Toast, Win32 Shell taskbar flash at 0ms, window title state badge, and edge-detected cluster CPU fallback) with instant alert and 1-click window restore.
 4. **Instant Global Hotkey**: Start or pause countdown anywhere without switching active windows.

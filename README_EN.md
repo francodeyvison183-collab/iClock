@@ -6,12 +6,12 @@
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-222%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-202%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>Single 222 KB Binary · RAM &lt; 15 MB · Mouse Click-Through · Global Hotkey · Zero Dependencies · Pure Local Privacy</b>
+  <b>Single 202 KB Binary · RAM &lt; 15 MB · Mouse Click-Through · Global Hotkey · Zero Dependencies · Pure Local Privacy</b>
 </p>
 
 <p align="center">
@@ -49,7 +49,7 @@ Most timer and Pomodoro applications on Windows are bloated **100MB+** Electron 
 
 | Metric | **iClock (This Project)** | Typical Electron Timer | Windows Clock App |
 | :--- | :--- | :--- | :--- |
-| **Package Size** | ⚡ **222 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed |
+| **Package Size** | ⚡ **202 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed |
 | **Memory (RAM)** | ⚡ **~15 MB** (Physical baseline) | 150 MB ~ 300 MB | ~30 MB |
 | **CPU Usage** | ⚡ **0.0%** (Heartbeat aligned) | 0.5% ~ 3.0% (Polling) | 0.0% |
 | **Interaction** | ⚡ **Full click-through, borderless** | Solid window blocking view | Minimized or full window |
@@ -85,7 +85,7 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 ### Option C: Standalone Portable Binary
 
-1. Go to [GitHub Releases](../../releases/latest) and download `iClock-1.04-windows.zip` or `iClock-1.04-windows.exe`.
+1. Go to [GitHub Releases](../../releases/latest) and download `iClock-1.05-windows.zip` or `iClock-1.05-windows.exe`.
 2. Double-click to launch (no installer, no registry residue).
 3. The overlay stays hidden until you start a countdown.
 
@@ -103,7 +103,7 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 * **Q: Does it interfere with mouse clicks when gaming or coding?**  
   **A**: No. iClock leverages the Windows native `WS_EX_TRANSPARENT` style. Floating digits remain on the topmost layer, but all mouse clicks and scrolls pass through to underlying applications without stealing window focus.
-* **Q: Why is the binary only 222 KB?**  
+* **Q: Why is the binary only 202 KB?**  
   **A**: Engineering purity. Built with Windows native C# and GDI+ rendering, avoiding any 100MB+ Electron wrappers. Runtime RAM consumption stays strictly under 15 MB.
 * **Q: Is it safe, clean, and ad-free?**  
   **A**: 100% open-source under the MIT License. Zero ads, zero background services, zero telemetry. Exiting completely releases all resources. See [PRIVACY.md](docs/PRIVACY.md).
@@ -119,7 +119,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> Output binary is generated at `dist/iClock.exe` (222 KB). See [Build Guide](docs/BUILDING.md).
+> Output binary is generated at `dist/iClock.exe` (202 KB). See [Build Guide](docs/BUILDING.md).
 
 ---
 
