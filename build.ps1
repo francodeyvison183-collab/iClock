@@ -17,7 +17,7 @@ $source = Join-Path $projectRoot 'src\iClock.cs'
 $zan = Join-Path $projectRoot 'src\zan.jpg'
 $appIco = Join-Path $projectRoot 'src\app.ico'
 
-$compilerArgs = @('/nologo', '/target:winexe', '/optimize+', "/out:$outputExe", '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll')
+$compilerArgs = @('/nologo', '/target:winexe', '/optimize+', "/out:$outputExe", '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Runtime.WindowsRuntime.dll')
 if (Test-Path -LiteralPath $zan) {
     $compilerArgs += "/resource:$zan,zan.jpg"
 }

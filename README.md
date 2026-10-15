@@ -6,12 +6,12 @@
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-172%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-222%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>单文件 172 KB · 运行内存 &lt; 15 MB · 鼠标点击穿透 · 全局热键 · 零第三方依赖 · 纯本地隐私</b>
+  <b>单文件 222 KB · 运行内存 &lt; 15 MB · 鼠标点击穿透 · 全局热键 · 零第三方依赖 · 纯本地隐私</b>
 </p>
 
 <p align="center">
@@ -35,11 +35,12 @@
 
 **iClock 坚持极致的工程师极简克制哲学**：
 
-* 🪟 **透明置顶 & 鼠标穿透**：倒计时文字自然悬浮于桌面之上，默认处于完全点击穿透状态，鼠标可直接穿透点击下方的 IDE、文档或游戏，完全不抢焦点、不阻挡操作。
-* ⚡ **单文件 172 KB & 0.0% CPU**：不含任何第三方依赖或庞大运行时。经过深度的 GDI 资源预分配与动态心跳对齐优化，运行期间每秒 **0 堆内存分配**，唤醒开销降至极限，笔记本长驻运行零耗电。
-* ⌨️ **全局热键与托盘交互**：默认 `Ctrl + Shift + T` 一键盲开/暂停（若被占自动顺延备选 `Ctrl + Alt + T` 等），并支持鼠标左键单击托盘图标直接启停。
-* 🔔 **结束置顶强提醒**：倒计时结束时文字自动隐去，弹出强置顶提示窗口与循环提示音，必须手动确认才关闭，绝不错过关键节点。
-* 🔒 **纯本地、零网络请求**：设置与历史记录仅保存在本地应用目录，不联网、不收集任何隐私遥测，干净透明。
+* 🪟 **原生 32 位 ARGB 渲染 & 鼠标穿透**：基于 Windows 原生 `UpdateLayeredWindow` 渲染，彻底消除传统色键点阵毛刺，文字边缘细腻平滑（抗锯齿）；自适应边缘微投影保证在浅色文档、深黑终端或游戏画面上清晰锐利；默认完全点击穿透，不抢焦点、不阻挡操作。
+* ⚡ **单文件极简 & 0.0% CPU**：不含任何第三方依赖或庞大运行时。经过深度的资源预分配与动态心跳对齐优化，唤醒开销降至极限，笔记本长驻运行零耗电。
+* ⌨️ **随心微交互 & 托盘滚轮**：在屏幕上**按住 `Alt` + 鼠标左键直接拖拽**瞬时定位（无需繁琐进出托盘菜单）；鼠标悬停托盘图标**滚动滚轮快速微调时长**（`±1m`，按住 `Shift` 为 `±5m`）；默认 `Ctrl + Shift + T` 全局热键盲开/暂停，支持托盘单击启停。
+* 🔔 **阶梯提醒（强置顶 vs 原位呼吸轻提醒）与全屏免打扰**：支持**弹窗强提醒**（全屏置顶弹窗+循环提示音，防错过）与**原位呼吸轻提醒**（桌面悬浮文字原地柔和呼吸微闪烁 5 秒+单次提示音，绝不抢占前台焦点打断心流）；**全屏/游戏场景自动免打扰**：智能检测前台全屏游戏、DirectX/Vulkan 渲染或 PPT 幻灯片放映，自动将强弹窗平滑降级为原位呼吸提醒，彻底告别打游戏被切出桌面或做报告被强弹窗打断的尴尬。
+* 🤖 **AI 智能体后台长任务完成监控**：专为深度使用 AI 编程助手与自主 Agent 的开发者打造。全面覆盖国内外主流智能体（Cursor、Antigravity、Claude Code、GitHub Copilot、Trae、通义灵码、CodeGeeX、文心快码、MiniMax、CodeBuddy、Aider 等 20+ 款）。独创 **Toast 系统通知 $\rightarrow$ Win32 Shell 任务栏闪烁 (0ms) $\rightarrow$ 终端/IDE 标题状态 Badge $\rightarrow$ 高阈值集群算力边沿滤波** 四级梯队感知矩阵，零误报、零延迟，任务结束即时提醒，支持一键点击还原前台窗口！
+* 🔒 **纯本地、便携免安装**：配置文件优先读取程序同目录（便携模式），未找到时保存在 `%APPDATA%\iClock`，不写系统垃圾，不收集任何隐私遥测。
 * 🌍 **中英双语与历史日志**：托盘菜单一键无缝切换语言；自动生成按天归档的专注历史 TSV 文件。
 
 ---
@@ -48,7 +49,7 @@
 
 | 核心维度 | **iClock (本项目)** | 常见 Electron 计时器 | Windows 自带闹钟 |
 | :--- | :--- | :--- | :--- |
-| **安装包体积** | ⚡ **172 KB** (绿色单文件，即下即用) | 120 MB ~ 250 MB | 预装应用 |
+| **安装包体积** | ⚡ **222 KB** (绿色单文件，即下即用) | 120 MB ~ 250 MB | 预装应用 |
 | **常驻内存** | ⚡ **~15 MB** (物理基线) | 150 MB ~ 300 MB | ~30 MB |
 | **CPU 占用** | ⚡ **0.0%** (动态心跳对齐) | 0.5% ~ 3.0% (后台轮询) | 0.0% |
 | **交互阻碍** | ⚡ **完全点击穿透，无边框** | 实体窗口遮挡代码与网页 | 最小化或全屏窗口 |
@@ -84,16 +85,17 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 ### 方式 C：绿色便携单文件运行
 
-1. 前往 [GitHub Releases](../../releases/latest) 下载 `iClock-1.03-windows.zip` 或单文件 `iClock-1.03-windows.exe`。
+1. 前往 [GitHub Releases](../../releases/latest) 下载 `iClock-1.04-windows.zip` 或单文件 `iClock-1.04-windows.exe`。
 2. 双击直接运行（无需安装，不写注册表垃圾）。
 3. 默认情况下，启动后倒计时处于待命状态（屏幕不显示文字）。
 
 ### 常用操作
 
 * **启动 / 暂停**：按下全局快捷键 `Ctrl + Shift + T`（支持备选冲突顺延与自定义），或直接鼠标左键单击托盘图标。
-* **调整文字位置**：右键点击右下角系统托盘小图标 $\rightarrow$ 选择 **“调整文字位置”** $\rightarrow$ 拖拽半透明区域定位 $\rightarrow$ 再次从托盘点击 **“完成位置调整”**。
-* **自定义配置**：右键托盘图标 $\rightarrow$ **“设置”**，可自定义时长（1~1440分钟）、字号（默认20）、颜色（默认红色）、显示格式（默认 `MM:SS`，可选 `HH:MM:SS` / 中文单位）、结束提示词、开机自启等。
-* **查看专注历史**：右键托盘图标 $\rightarrow$ **“查看今日记录”**，按日查看已完成或重置的倒计时历史。
+* **随心移动位置（推荐）**：在屏幕上**按住 `Alt` 键 + 鼠标左键直接拖拽**倒计时文字，拖到任意位置松开即自动保存。亦可通过托盘菜单“调整文字位置”定位。
+* **托盘滚轮微调时长**：鼠标悬停在系统托盘小图标上，直接滚动滚轮快速微调时长（`±1分钟`，按住 `Shift` 为 `±5分钟`）。
+* **自定义配置**：右键托盘图标 $\rightarrow$ **“设置”**，采用现代化胶囊双标签页（⏱ 倒计时 / 🤖 AI 智能体协作），可配置时长、字号、颜色、字体、显示格式、提示声音（柔和清脆 / 经典通知 / 渐进闹铃）、提醒方式、开机自启，以及查看已检测的国内外 AI 智能体（涵盖 Cursor、Antigravity、Claude Code、GitHub Copilot、Trae、通义灵码、CodeGeeX、文心快码、MiniMax、CodeBuddy、WorkBuddy、Gemini 等）并启用后台长任务完成通知。
+* **查看专注历史与统计**：右键托盘图标 $\rightarrow$ **“查看今日记录”**，支持【单日明细】（带历史日期切换器、当日汇总与键盘 `←` / `→` 步进）与【按天汇总】（查看最近 7/14/30 天或全部历史的专注总时长、周期数、完成率及达成评价，支持双击任意日期穿透下钻），选中文本支持 `Ctrl+C` 一键复制。
 
 ---
 
@@ -101,7 +103,7 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 * **Q: 为什么打游戏或写代码时不挡鼠标操作？**  
   **A**: iClock 深度利用了 Windows 底层 `WS_EX_TRANSPARENT` 穿透特性。倒计时文字置顶浮现于所有窗口之上，但所有鼠标点击和滚轮事件都会直接穿透到底层的游戏或编辑器，丝毫不抢占焦点。
-* **Q: 为什么软件体积只有 172 KB？**  
+* **Q: 为什么软件体积只有 222 KB？**  
   **A**: 坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 15 MB 以内。
 * **Q: 软件是否安全、纯净无广告？**  
   **A**: 100% 开源（MIT 协议），零流氓广告，零捆绑插件，零后台常驻进程，退出即彻底释放。详见 [PRIVACY.md](docs/PRIVACY.md)。
@@ -117,7 +119,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> 编译耗时不到 1 秒，产物输出在 `dist/iClock.exe`（单文件约 172 KB）。详见[构建说明](docs/BUILDING.md)。
+> 编译耗时不到 1 秒，产物输出在 `dist/iClock.exe`（单文件约 222 KB）。详见[构建说明](docs/BUILDING.md)。
 
 ---
 

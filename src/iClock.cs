@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Text;
 using System.Drawing.Drawing2D;
@@ -10,6 +11,10 @@ using System.Reflection;
 using System.Windows.Forms;
 using System.Media;
 using System.Net;
+using System.Drawing.Imaging;
+using System.Globalization;
+using System.Collections;
+using System.Threading.Tasks;
 using Microsoft.Win32;
 
 internal sealed class Settings
@@ -27,12 +32,25 @@ internal sealed class Settings
     public string Language = "zh";
     public bool AutoStart;
     public bool EndSound = true;
+    public string EndSoundStyle = "QQ";
     public bool EndNotice = true;
     public bool FirstRun;
+    public string NoticeStyle = "Popup";
+    public bool FullscreenDnd = true;
+    public bool AgentNotice;
 
     public static string FilePath
     {
-        get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "iClock", "settings.ini"); }
+        get
+        {
+            try
+            {
+                string localIni = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "settings.ini");
+                if (File.Exists(localIni)) return localIni;
+            }
+            catch { }
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "iClock", "settings.ini");
+        }
     }
 
     public static Settings Load()
@@ -62,8 +80,12 @@ internal sealed class Settings
                 else if (k == "Language" && (v == "zh" || v == "en")) s.Language = v;
                 else if (k == "AutoStart" && bool.TryParse(v, out b)) s.AutoStart = b;
                 else if (k == "EndSound" && bool.TryParse(v, out b)) s.EndSound = b;
+                else if (k == "EndSoundStyle" && (v == "QQ" || v == "Pager" || v == "Alarm" || v == "Chime" || v == "Classic")) s.EndSoundStyle = (v == "Chime") ? "QQ" : ((v == "Classic") ? "Pager" : v);
                 else if (k == "EndNotice" && bool.TryParse(v, out b)) s.EndNotice = b;
                 else if (k == "FirstRun" && bool.TryParse(v, out b)) s.FirstRun = b;
+                else if (k == "NoticeStyle" && (v == "Popup" || v == "Pulse")) s.NoticeStyle = v;
+                else if (k == "FullscreenDnd" && bool.TryParse(v, out b)) s.FullscreenDnd = b;
+                else if (k == "AgentNotice" && bool.TryParse(v, out b)) s.AgentNotice = b;
             }
             if ((s.X == 80 && s.Y == 80) || (s.X == -1 && s.Y == 90)) { s.X = -1; s.Y = 60; }
         }
@@ -73,14 +95,99 @@ internal sealed class Settings
 
     public void Save()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(FilePath));
-        File.WriteAllLines(FilePath, new string[] {
+        string dir = Path.GetDirectoryName(FilePath);
+        Directory.CreateDirectory(dir);
+        string[] lines = new string[] {
             "Minutes=" + Minutes, "FontSize=" + FontSize, "X=" + X, "Y=" + Y,
             "HotkeyModifiers=" + HotkeyModifiers, "HotkeyKey=" + HotkeyKey,
             "Color=" + Color, "FontFamily=" + FontFamily, "Format=" + Format, "EndMessage=" + EndMessage, "Language=" + Language, "AutoStart=" + AutoStart,
-            "EndSound=" + EndSound, "EndNotice=" + EndNotice, "FirstRun=" + FirstRun
-        });
+            "EndSound=" + EndSound, "EndSoundStyle=" + EndSoundStyle, "EndNotice=" + EndNotice, "FirstRun=" + FirstRun, "NoticeStyle=" + NoticeStyle, "FullscreenDnd=" + FullscreenDnd, "AgentNotice=" + AgentNotice
+        };
+        string tmp = Path.Combine(dir, "settings.ini.tmp");
+        try
+        {
+            File.WriteAllLines(tmp, lines);
+            if (File.Exists(FilePath))
+            {
+                File.Replace(tmp, FilePath, null);
+            }
+            else
+            {
+                File.Move(tmp, FilePath);
+            }
+        }
+        catch
+        {
+            try { File.WriteAllLines(FilePath, lines); } catch { }
+            try { if (File.Exists(tmp)) File.Delete(tmp); } catch { }
+        }
     }
+}
+
+[StructLayout(LayoutKind.Sequential)] internal struct POINT { public int X, Y; public POINT(int x, int y) { X = x; Y = y; } }
+[StructLayout(LayoutKind.Sequential)] internal struct SIZE { public int cx, cy; public SIZE(int cx, int cy) { this.cx = cx; this.cy = cy; } }
+[StructLayout(LayoutKind.Sequential, Pack = 1)] internal struct BLENDFUNCTION { public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat; }
+[StructLayout(LayoutKind.Sequential)] internal struct RECT { public int Left, Top, Right, Bottom; }
+
+internal delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+internal static class NativeMethods
+{
+    [DllImport("user32.dll", ExactSpelling = true, SetLastError = true)]
+    public static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref POINT pptDst, ref SIZE psize, IntPtr hdcSrc, ref POINT pptSrc, uint crKey, [In] ref BLENDFUNCTION pblend, uint dwFlags);
+
+    [DllImport("gdi32.dll", ExactSpelling = true, SetLastError = true)] public static extern IntPtr CreateCompatibleDC(IntPtr hDC);
+    [DllImport("gdi32.dll", ExactSpelling = true, SetLastError = true)] public static extern bool DeleteDC(IntPtr hdc);
+    [DllImport("gdi32.dll", ExactSpelling = true)] public static extern IntPtr SelectObject(IntPtr hDC, IntPtr hObject);
+    [DllImport("gdi32.dll", ExactSpelling = true, SetLastError = true)] public static extern bool DeleteObject(IntPtr hObject);
+    [DllImport("user32.dll")] public static extern short GetAsyncKeyState(int vKey);
+
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern IntPtr GetDesktopWindow();
+    [DllImport("user32.dll")] public static extern IntPtr GetShellWindow();
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, ref RECT lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool UnhookWindowsHookEx(IntPtr hHook);
+    [DllImport("user32.dll")]
+    public static extern IntPtr CallNextHookEx(IntPtr hHook, int nCode, IntPtr wParam, IntPtr lParam);
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
+    public static extern IntPtr GetModuleHandle(string lpModuleName);
+
+    [DllImport("dwmapi.dll")]
+    public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
+
+    [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+    [DllImport("user32.dll")] public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+    [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr hIcon);
+    [DllImport("user32.dll")] public static extern bool RegisterShellHookWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] public static extern bool DeregisterShellHookWindow(IntPtr hWnd);
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern uint RegisterWindowMessage(string lpString);
+
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern bool EnumDesktopWindows(IntPtr hDesktop, EnumWindowsProc lpfn, IntPtr lParam);
+    [DllImport("user32.dll")] public static extern IntPtr OpenInputDesktop(uint dwFlags, bool fInherit, uint dwDesiredAccess);
+    [DllImport("user32.dll")] public static extern bool CloseDesktop(IntPtr hDesktop);
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)] public static extern int GetWindowTextLength(IntPtr hWnd);
 }
 
 internal sealed class Overlay : Form
@@ -89,7 +196,21 @@ internal sealed class Overlay : Form
     private const int WS_EX_LAYERED = 0x80000;
     private const int WS_EX_TOOLWINDOW = 0x80;
     private const int WM_NCHITTEST = 0x84;
+    private const int WM_SETCURSOR = 0x0020;
+    private const int WM_ERASEBKGND = 0x0014;
     private const int HTTRANSPARENT = -1;
+    private const int HTCLIENT = 1;
+    private const int VK_MENU = 0x12;
+    private const int WM_DISPLAYCHANGE = 0x007E;
+
+    private const byte AC_SRC_OVER = 0x00;
+    private const byte AC_SRC_ALPHA = 0x01;
+    private const uint ULW_ALPHA = 0x02;
+
+    private Bitmap renderBitmap;
+    private Graphics renderGraphics;
+    private byte[] premulBuffer;
+
     private Settings settings;
     private string text;
     private bool moving;
@@ -100,6 +221,19 @@ internal sealed class Overlay : Form
     private StringFormat cachedFormat;
     public bool MoveMode { get; private set; }
     public event Action<Point> PositionChanged;
+    public event Action<int> TimeAdjustRequested;
+
+    private double currentOpacity = 1.0;
+    public new double Opacity
+    {
+        get { return currentOpacity; }
+        set { currentOpacity = Math.Max(0.0, Math.Min(1.0, value)); }
+    }
+
+    private Timer pulseTimer;
+    private int pulseStep;
+    private Action pulseDismissAction;
+    public bool IsPulsing { get; private set; }
 
     public Overlay(Settings s)
     {
@@ -108,10 +242,9 @@ internal sealed class Overlay : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         BackColor = Color.Fuchsia;
-        TransparencyKey = Color.Fuchsia;
         TopMost = true;
         DoubleBuffered = true;
-        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true);
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.Opaque, true);
         RebuildGdiResources();
         UpdateLocation();
         UpdateText("25:00");
@@ -131,6 +264,58 @@ internal sealed class Overlay : Form
         {
             Location = new Point(settings.X, settings.Y);
         }
+        EnsureVisible();
+    }
+
+    public void EnsureVisible()
+    {
+        if (settings == null) return;
+        if (settings.X < 0)
+        {
+            Rectangle screen = Screen.PrimaryScreen.Bounds;
+            int y = Math.Max(screen.Top, Math.Min(screen.Bottom - Height, screen.Top + settings.Y));
+            Location = new Point(screen.Left + Math.Max(0, (screen.Width - Width) / 2), y);
+            RenderLayeredWindow();
+            return;
+        }
+
+        Rectangle currentRect = new Rectangle(Location, Size);
+        bool isVisible = false;
+        foreach (Screen s in Screen.AllScreens)
+        {
+            Rectangle inter = Rectangle.Intersect(s.Bounds, currentRect);
+            if (inter.Width >= 32 && inter.Height >= 20)
+            {
+                isVisible = true;
+                break;
+            }
+        }
+
+        if (!isVisible)
+        {
+            Rectangle screen = Screen.PrimaryScreen.Bounds;
+            int safeX = screen.Left + Math.Max(0, (screen.Width - Width) / 2);
+            int safeY = screen.Top + 60;
+            Location = new Point(safeX, safeY);
+            settings.X = safeX;
+            settings.Y = safeY;
+            settings.Save();
+        }
+        else
+        {
+            Screen host = Screen.FromRectangle(currentRect);
+            Rectangle b = host.Bounds;
+            int x = Math.Max(b.Left, Math.Min(b.Right - Width, Location.X));
+            int y = Math.Max(b.Top, Math.Min(b.Bottom - Height, Location.Y));
+            if (x != Location.X || y != Location.Y)
+            {
+                Location = new Point(x, y);
+                settings.X = x;
+                settings.Y = y;
+                settings.Save();
+            }
+        }
+        RenderLayeredWindow();
     }
 
     protected override CreateParams CreateParams
@@ -139,7 +324,6 @@ internal sealed class Overlay : Form
         {
             CreateParams cp = base.CreateParams;
             cp.ExStyle |= WS_EX_LAYERED | WS_EX_TOOLWINDOW;
-            if (!MoveMode) cp.ExStyle |= WS_EX_TRANSPARENT;
             return cp;
         }
     }
@@ -148,8 +332,41 @@ internal sealed class Overlay : Form
 
     protected override void WndProc(ref Message m)
     {
-        if (m.Msg == WM_NCHITTEST && !MoveMode) { m.Result = (IntPtr)HTTRANSPARENT; return; }
+        if (m.Msg == WM_ERASEBKGND) { m.Result = (IntPtr)1; return; }
+        if (m.Msg == WM_DISPLAYCHANGE) { EnsureVisible(); m.Result = IntPtr.Zero; return; }
+        if (m.Msg == WM_NCHITTEST)
+        {
+            if (MoveMode) { m.Result = (IntPtr)HTCLIENT; return; }
+            bool alt = (NativeMethods.GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+            if (alt) { m.Result = (IntPtr)HTCLIENT; return; }
+            m.Result = (IntPtr)HTTRANSPARENT;
+            return;
+        }
+        if (m.Msg == WM_SETCURSOR)
+        {
+            bool alt = (NativeMethods.GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+            if (alt || MoveMode)
+            {
+                Cursor.Current = Cursors.SizeAll;
+                m.Result = (IntPtr)1;
+                return;
+            }
+        }
         base.WndProc(ref m);
+    }
+
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        bool alt = (NativeMethods.GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+        if (alt || MoveMode)
+        {
+            if (TimeAdjustRequested != null)
+            {
+                int step = (e.Delta > 0 ? 1 : -1) * ((ModifierKeys & Keys.Shift) != 0 ? 5 : 1);
+                TimeAdjustRequested(step);
+            }
+        }
     }
 
     public void SetSettings(Settings s)
@@ -157,11 +374,13 @@ internal sealed class Overlay : Form
         settings = s;
         RebuildGdiResources();
         UpdateLocation();
-        Invalidate();
+        RenderLayeredWindow();
     }
 
     private void RebuildGdiResources()
     {
+        if (renderGraphics != null) { renderGraphics.Dispose(); renderGraphics = null; }
+        if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
         if (cachedFont != null) cachedFont.Dispose();
         if (cachedBrush != null) cachedBrush.Dispose();
         if (cachedFormat == null)
@@ -191,7 +410,7 @@ internal sealed class Overlay : Form
     {
         if (text == value) return;
         text = value;
-        Invalidate();
+        RenderLayeredWindow();
     }
 
     public void SetPaused(bool paused)
@@ -200,6 +419,7 @@ internal sealed class Overlay : Form
         {
             Opacity = paused ? 0.50 : 1.0;
         }
+        RenderLayeredWindow();
     }
 
     public void SetMoveMode(bool enabled, bool isRunning = true)
@@ -207,39 +427,182 @@ internal sealed class Overlay : Form
         MoveMode = enabled;
         if (enabled)
         {
-            TransparencyKey = Color.Empty; BackColor = Color.White; Opacity = 0.50; TopMost = true;
+            BackColor = Color.White; Opacity = 0.50; TopMost = true;
         }
         else
         {
-            BackColor = Color.Fuchsia; TransparencyKey = Color.Fuchsia; Opacity = isRunning ? 1.0 : 0.50;
+            BackColor = Color.Fuchsia; Opacity = isRunning ? 1.0 : 0.50;
         }
-        RecreateHandle();
-        Invalidate();
+        RenderLayeredWindow();
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    public void RenderLayeredWindow()
     {
+        if (!IsHandleCreated || IsDisposed || Width <= 0 || Height <= 0) return;
+
+        if (renderBitmap == null || renderBitmap.Width != Width || renderBitmap.Height != Height)
+        {
+            if (renderGraphics != null) { renderGraphics.Dispose(); renderGraphics = null; }
+            if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
+            renderBitmap = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
+            renderGraphics = Graphics.FromImage(renderBitmap);
+            renderGraphics.SmoothingMode = SmoothingMode.AntiAlias;
+            renderGraphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        }
+
+        renderGraphics.Clear(Color.FromArgb(0, 0, 0, 0));
+
         if (MoveMode)
         {
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            using (GraphicsPath path = AppContext.GetRoundedRectPath(new Rectangle(1, 1, Width - 3, Height - 3), 6))
-            using (Pen borderPen = new Pen(AppContext.Win11Accent, 1.5f))
+            using (GraphicsPath path = AppContext.GetRoundedRectPath(new Rectangle(2, 2, Width - 5, Height - 5), 8))
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(190, 255, 255, 255)))
+            using (Pen borderPen = new Pen(AppContext.Win11Accent, 2.0f))
             {
-                e.Graphics.DrawPath(borderPen, path);
+                renderGraphics.FillPath(bgBrush, path);
+                renderGraphics.DrawPath(borderPen, path);
             }
         }
-        if (text != null && cachedFont != null && cachedBrush != null)
+
+        if (!string.IsNullOrEmpty(text) && cachedFont != null && cachedBrush != null)
         {
-            e.Graphics.TextRenderingHint = TextRenderingHint.SingleBitPerPixelGridFit;
-            e.Graphics.DrawString(text, cachedFont, cachedBrush, ClientRectangle, cachedFormat);
+            Rectangle rect = new Rectangle(0, 0, Width, Height);
+            if (!MoveMode)
+            {
+                Color c = cachedBrush.Color;
+                float brightness = c.GetBrightness();
+                int shadowAlpha = 110;
+                Color shadowColor = (brightness < 0.25f)
+                    ? Color.FromArgb(shadowAlpha, 255, 255, 255)
+                    : Color.FromArgb(shadowAlpha, 0, 0, 0);
+                using (SolidBrush shadowBrush = new SolidBrush(shadowColor))
+                {
+                    RectangleF shadowRect = new RectangleF(1.5f, 2.0f, Width, Height);
+                    renderGraphics.DrawString(text, cachedFont, shadowBrush, shadowRect, cachedFormat);
+                }
+            }
+            renderGraphics.DrawString(text, cachedFont, cachedBrush, rect, cachedFormat);
         }
-        base.OnPaint(e);
+
+        BitmapData data = renderBitmap.LockBits(new Rectangle(0, 0, Width, Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+        int byteCount = data.Stride * data.Height;
+        if (premulBuffer == null || premulBuffer.Length < byteCount)
+        {
+            premulBuffer = new byte[byteCount];
+        }
+        Marshal.Copy(data.Scan0, premulBuffer, 0, byteCount);
+        for (int i = 0; i < byteCount; i += 4)
+        {
+            byte a = premulBuffer[i + 3];
+            if (a > 0)
+            {
+                premulBuffer[i] = (byte)(premulBuffer[i] * a / 255);
+                premulBuffer[i + 1] = (byte)(premulBuffer[i + 1] * a / 255);
+                premulBuffer[i + 2] = (byte)(premulBuffer[i + 2] * a / 255);
+            }
+        }
+        Marshal.Copy(premulBuffer, 0, data.Scan0, byteCount);
+        renderBitmap.UnlockBits(data);
+
+        IntPtr screenDc = IntPtr.Zero;
+        IntPtr memDc = NativeMethods.CreateCompatibleDC(screenDc);
+        IntPtr hBitmap = renderBitmap.GetHbitmap(Color.FromArgb(0));
+        IntPtr oldBitmap = NativeMethods.SelectObject(memDc, hBitmap);
+
+        POINT ptDst = new POINT(Left, Top);
+        SIZE size = new SIZE(Width, Height);
+        POINT ptSrc = new POINT(0, 0);
+        byte alpha = (byte)Math.Max(0, Math.Min(255, (int)(Opacity * 255)));
+        BLENDFUNCTION blend = new BLENDFUNCTION { BlendOp = AC_SRC_OVER, BlendFlags = 0, SourceConstantAlpha = alpha, AlphaFormat = AC_SRC_ALPHA };
+
+        NativeMethods.UpdateLayeredWindow(Handle, screenDc, ref ptDst, ref size, memDc, ref ptSrc, 0, ref blend, ULW_ALPHA);
+
+        NativeMethods.SelectObject(memDc, oldBitmap);
+        NativeMethods.DeleteObject(hBitmap);
+        NativeMethods.DeleteDC(memDc);
     }
+
+    public void StartBreathingPulse(Action onDismiss)
+    {
+        StopBreathingPulse();
+        IsPulsing = true;
+        pulseDismissAction = onDismiss;
+        pulseStep = 0;
+        text = (settings != null && settings.Format == "Chinese")
+            ? (settings.Language == "en" ? "00h 00m 00s" : "00时00分00秒")
+            : (settings != null && settings.Format == "HH:MM:SS" ? "00:00:00" : "00:00");
+        Show();
+        BringToFront();
+        if (pulseTimer == null)
+        {
+            pulseTimer = new Timer();
+            pulseTimer.Interval = 75;
+            pulseTimer.Tick += OnPulseTick;
+        }
+        pulseTimer.Start();
+        RenderLayeredWindow();
+    }
+
+    public void StopBreathingPulse()
+    {
+        if (!IsPulsing) return;
+        IsPulsing = false;
+        if (pulseTimer != null) pulseTimer.Stop();
+        Opacity = 1.0;
+        Action act = pulseDismissAction;
+        pulseDismissAction = null;
+        if (act != null) act();
+        RenderLayeredWindow();
+    }
+
+    private void OnPulseTick(object sender, EventArgs e)
+    {
+        if (!IsPulsing) return;
+        pulseStep++;
+        if (pulseStep > 80)
+        {
+            StopBreathingPulse();
+            return;
+        }
+        double cycle = (pulseStep % 20) / 20.0 * 2.0 * Math.PI;
+        double wave = (Math.Sin(cycle) + 1.0) / 2.0;
+        Opacity = 0.35 + 0.65 * wave;
+        RenderLayeredWindow();
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        RenderLayeredWindow();
+    }
+
+    protected override void OnLocationChanged(EventArgs e)
+    {
+        base.OnLocationChanged(e);
+        RenderLayeredWindow();
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        RenderLayeredWindow();
+    }
+
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+        if (Visible) EnsureVisible();
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs e) { }
+    protected override void OnPaint(PaintEventArgs e) { }
 
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
+            if (renderGraphics != null) { renderGraphics.Dispose(); renderGraphics = null; }
+            if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
+            if (pulseTimer != null) { pulseTimer.Stop(); pulseTimer.Dispose(); pulseTimer = null; }
             if (cachedFont != null) { cachedFont.Dispose(); cachedFont = null; }
             if (cachedBrush != null) { cachedBrush.Dispose(); cachedBrush = null; }
             if (cachedFormat != null) { cachedFormat.Dispose(); cachedFormat = null; }
@@ -249,17 +612,24 @@ internal sealed class Overlay : Form
 
     private void OnMouseDown(object sender, MouseEventArgs e)
     {
-        if (!MoveMode || e.Button != MouseButtons.Left) return;
+        if (e.Button != MouseButtons.Left) return;
+        if (IsPulsing) { StopBreathingPulse(); return; }
+        bool alt = (NativeMethods.GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+        if (!MoveMode && !alt) return;
         moving = true; dragStart = Cursor.Position; formStart = Location;
     }
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
-        if (moving) Location = new Point(formStart.X + Cursor.Position.X - dragStart.X, formStart.Y + Cursor.Position.Y - dragStart.Y);
+        if (moving)
+        {
+            Location = new Point(formStart.X + Cursor.Position.X - dragStart.X, formStart.Y + Cursor.Position.Y - dragStart.Y);
+        }
     }
     private void OnMouseUp(object sender, MouseEventArgs e)
     {
         if (!moving) return;
         moving = false;
+        EnsureVisible();
         if (PositionChanged != null) PositionChanged(Location);
     }
 }
@@ -272,7 +642,8 @@ internal sealed class SettingsDialog : Form
     private string selectedColor;
     private TextBox endMessage;
     private ComboBox format, language, fontCombo;
-    private CheckBox startup, sound, notice;
+    private CheckBox startup, sound, notice, agentNotice;
+    private ComboBox soundStyle, noticeStyle;
     private TextBox hotkeyBox;
     private int hotkeyModifiers, hotkeyKey, candidateMods, candidateKey;
     private bool hotkeyActive;
@@ -281,17 +652,18 @@ internal sealed class SettingsDialog : Form
     public Settings Value { get; private set; }
     private static readonly string[] fontFamilies = { "Segoe UI", "Consolas", "Arial", "Impact", "Microsoft YaHei" };
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RECT { public int Left, Top, Right, Bottom; }
+    private int activeTab = 0;
+    private Button btnTabTimer, btnTabAgent;
+    private Label lblAgentDesc;
+    private Label lblDetectedHeader;
+    private Button btnRefreshAgents;
+    private Panel panelAgentBox, panelAgentCards;
+    private Label lblAgentTip;
+
     private const int EM_SETMARGINS = 0x00D3;
     private const int EM_SETRECTNP = 0x00B4;
     private const int EC_LEFTMARGIN = 0x0001;
     private const int EC_RIGHTMARGIN = 0x0002;
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
-    [DllImport("user32.dll")]
-    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, ref RECT lParam);
 
     private static void UpdateInputPadding(Control ctrl)
     {
@@ -301,11 +673,11 @@ internal sealed class SettingsDialog : Form
             TextBox tb = (TextBox)ctrl;
             if (tb.IsHandleCreated)
             {
-                SendMessage(tb.Handle, EM_SETMARGINS, (IntPtr)(EC_LEFTMARGIN | EC_RIGHTMARGIN), (IntPtr)(4 | (4 << 16)));
+                NativeMethods.SendMessage(tb.Handle, EM_SETMARGINS, (IntPtr)(EC_LEFTMARGIN | EC_RIGHTMARGIN), (IntPtr)(4 | (4 << 16)));
                 if (tb.Multiline)
                 {
                     RECT r = new RECT { Left = 4, Top = 4, Right = Math.Max(0, tb.ClientSize.Width - 4), Bottom = Math.Max(0, tb.ClientSize.Height - 4) };
-                    SendMessage(tb.Handle, EM_SETRECTNP, IntPtr.Zero, ref r);
+                    NativeMethods.SendMessage(tb.Handle, EM_SETRECTNP, IntPtr.Zero, ref r);
                 }
             }
         }
@@ -351,19 +723,53 @@ internal sealed class SettingsDialog : Form
         Value.HotkeyModifiers = s.HotkeyModifiers; Value.HotkeyKey = s.HotkeyKey;
         Value.Color = s.Color; Value.FontFamily = s.FontFamily; Value.Format = s.Format; Value.EndMessage = s.EndMessage;
         Value.Language = s.Language;
-        Value.AutoStart = s.AutoStart; Value.EndSound = s.EndSound; Value.EndNotice = s.EndNotice;
+        Value.AutoStart = s.AutoStart; Value.EndSound = s.EndSound; Value.EndSoundStyle = s.EndSoundStyle; Value.EndNotice = s.EndNotice;
+        Value.NoticeStyle = s.NoticeStyle; Value.FullscreenDnd = s.FullscreenDnd; Value.AgentNotice = s.AgentNotice;
         bool en = Value.Language == "en";
         Font = AppContext.GetUiFont(Value.Language, 9.5f);
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
         Text = en ? "iClock Settings" : "iClock 设置"; FormBorderStyle = FormBorderStyle.FixedDialog; StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 440);
-        lblMinutes = AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 18, 20); minutes = AddNumber(Value.Minutes, 1, 1440, 172, 16);
-        lblSize = AddLabel(en ? "Text size" : "文字大小", 18, 56); size = AddNumber(Value.FontSize, 12, 120, 172, 52);
-        lblFont = AddLabel(en ? "Font style" : "字体样式", 18, 92);
+        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 484);
+
+        btnTabTimer = new Button();
+        btnTabTimer.Text = en ? "Timer" : "倒计时";
+        btnTabTimer.SetBounds(18, 10, 169, 30);
+        btnTabTimer.FlatStyle = FlatStyle.Flat;
+        btnTabTimer.FlatAppearance.BorderSize = 0;
+        btnTabTimer.Cursor = Cursors.Hand;
+        btnTabTimer.Click += delegate { SetActiveTab(0); };
+        btnTabTimer.MouseEnter += delegate { if (activeTab != 0) btnTabTimer.BackColor = Color.FromArgb(224, 228, 235); };
+        btnTabTimer.MouseLeave += delegate { if (activeTab != 0) btnTabTimer.BackColor = Color.FromArgb(235, 238, 242); };
+        Controls.Add(btnTabTimer);
+
+        btnTabAgent = new Button();
+        btnTabAgent.Text = en ? "AI Agents" : "AI 智能体协作";
+        btnTabAgent.SetBounds(193, 10, 169, 30);
+        btnTabAgent.FlatStyle = FlatStyle.Flat;
+        btnTabAgent.FlatAppearance.BorderSize = 0;
+        btnTabAgent.Cursor = Cursors.Hand;
+        btnTabAgent.Click += delegate { SetActiveTab(1); };
+        btnTabAgent.MouseEnter += delegate { if (activeTab != 1) btnTabAgent.BackColor = Color.FromArgb(224, 228, 235); };
+        btnTabAgent.MouseLeave += delegate { if (activeTab != 1) btnTabAgent.BackColor = Color.FromArgb(235, 238, 242); };
+        Controls.Add(btnTabAgent);
+
+        KeyPreview = true;
+        KeyDown += delegate(object sender, KeyEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.Tab)
+            {
+                SetActiveTab(activeTab == 0 ? 1 : 0);
+                e.SuppressKeyPress = true;
+            }
+        };
+
+        lblMinutes = AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 18, 52); minutes = AddNumber(Value.Minutes, 1, 1440, 172, 48);
+        lblSize = AddLabel(en ? "Text size" : "文字大小", 18, 86); size = AddNumber(Value.FontSize, 12, 120, 172, 82);
+        lblFont = AddLabel(en ? "Font style" : "字体样式", 18, 120);
         fontCombo = new ComboBox(); fontCombo.DropDownStyle = ComboBoxStyle.DropDownList;
         fontCombo.DrawMode = DrawMode.OwnerDrawFixed; fontCombo.ItemHeight = 22;
-        fontCombo.SetBounds(172, 88, 188, 24);
+        fontCombo.SetBounds(172, 116, 188, 24);
         fontCombo.Items.AddRange(en
             ? new object[] { "Segoe UI (Default)", "Consolas (Monospace)", "Arial", "Impact", "Microsoft YaHei" }
             : new object[] { "Segoe UI (默认)", "Consolas (极客等宽)", "Arial", "Impact (醒目粗黑)", "微软雅黑" });
@@ -373,35 +779,43 @@ internal sealed class SettingsDialog : Form
             (Value.FontFamily == "Microsoft YaHei" ? 4 : 0)));
         fontCombo.DrawItem += OnDrawFontItem;
         Controls.Add(fontCombo);
-        lblColor = AddLabel(en ? "Text color" : "文字颜色", 18, 128); selectedColor = Value.Color;
-        colorButton = new Button(); colorButton.Text = en ? "Choose…" : "点击选取…"; colorButton.SetBounds(172, 124, 128, 26);
+        lblColor = AddLabel(en ? "Text color" : "文字颜色", 18, 154); selectedColor = Value.Color;
+        colorButton = new Button(); colorButton.Text = en ? "Choose…" : "点击选取…"; colorButton.SetBounds(172, 150, 128, 26);
         AppContext.StyleSecondaryButton(colorButton);
         colorButton.Click += ChooseColor; Controls.Add(colorButton);
-        colorPreview = new Panel(); colorPreview.SetBounds(308, 126, 52, 22); colorPreview.BorderStyle = BorderStyle.FixedSingle; UpdateColorPreview(); Controls.Add(colorPreview);
-        lblFormat = AddLabel(en ? "Display format" : "显示格式", 18, 164);
+        colorPreview = new Panel(); colorPreview.SetBounds(308, 152, 52, 22); colorPreview.BorderStyle = BorderStyle.None;
+        colorPreview.Paint += delegate(object sender, PaintEventArgs pe)
+        {
+            using (Pen p = new Pen(AppContext.Win11Border, 1f))
+            {
+                pe.Graphics.DrawRectangle(p, 0, 0, colorPreview.Width - 1, colorPreview.Height - 1);
+            }
+        };
+        UpdateColorPreview(); Controls.Add(colorPreview);
+        lblFormat = AddLabel(en ? "Display format" : "显示格式", 18, 188);
         format = new ComboBox();
         format.DropDownStyle = ComboBoxStyle.DropDownList;
         format.DrawMode = DrawMode.OwnerDrawFixed;
         format.ItemHeight = 22;
-        format.SetBounds(172, 160, 188, 24);
+        format.SetBounds(172, 184, 188, 24);
         format.Items.AddRange(en ? new object[] { "HH:MM:SS", "MM:SS", "H:M:S units (00h 25m 00s)" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位 (00时25分00秒)" });
         format.SelectedIndex = Value.Format == "MM:SS" ? 1 : (Value.Format == "Chinese" ? 2 : 0);
         format.DrawItem += OnDrawComboItem;
         Controls.Add(format);
         hotkeyModifiers = Value.HotkeyModifiers; hotkeyKey = Value.HotkeyKey;
         candidateMods = hotkeyModifiers; candidateKey = hotkeyKey;
-        lblEndMsg = AddLabel(en ? "End message" : "结束时弹出消息", 18, 200);
+        lblEndMsg = AddLabel(en ? "End message" : "结束时弹出消息", 18, 222);
         endMessage = new TextBox();
-        endMessage.SetBounds(172, 196, 188, 36);
+        endMessage.SetBounds(172, 218, 188, 36);
         endMessage.Multiline = true;
         endMessage.MaxLength = 200;
         endMessage.Text = Value.EndMessage;
         ApplyInputPadding(endMessage);
         Controls.Add(endMessage);
-        lblHotkey = AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 18, 244);
+        lblHotkey = AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 18, 266);
         hotkeyBox = new TextBox();
         hotkeyBox.ReadOnly = true;
-        hotkeyBox.SetBounds(172, 240, 188, 24);
+        hotkeyBox.SetBounds(172, 262, 188, 24);
         if (!hotkeyActive)
         {
             hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey) + (en ? " (Occupied)" : " (已被占用)");
@@ -419,33 +833,307 @@ internal sealed class SettingsDialog : Form
         hotkeyBox.KeyDown += CaptureHotkey;
         ApplyInputPadding(hotkeyBox);
         Controls.Add(hotkeyBox);
-        lblLanguage = AddLabel(en ? "Interface language" : "界面语言", 18, 280);
+        lblLanguage = AddLabel(en ? "Interface language" : "界面语言", 18, 300);
         language = new ComboBox();
         language.DropDownStyle = ComboBoxStyle.DropDownList;
         language.DrawMode = DrawMode.OwnerDrawFixed;
         language.ItemHeight = 22;
-        language.SetBounds(172, 276, 188, 24);
+        language.SetBounds(172, 296, 188, 24);
         language.Items.AddRange(new object[] { "简体中文", "English" });
         language.SelectedIndex = Value.Language == "en" ? 1 : 0;
         language.SelectedIndexChanged += OnLanguageChanged;
         language.DrawItem += OnDrawComboItem;
         Controls.Add(language);
-        startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 18, 310);
-        sound = AddCheck(en ? "Play sound at end" : "结束时声音提醒", Value.EndSound, 18, 336);
-        notice = AddCheck(en ? "Show notification at end" : "结束时系统通知", Value.EndNotice, 18, 362);
+        sound = AddCheck(en ? "Play sound at end" : "结束时声音提醒", Value.EndSound, 18, 328);
+        sound.SetBounds(18, 328, 150, 24);
 
-        Label footerLine = new Label(); footerLine.BackColor = AppContext.Win11Border; footerLine.BorderStyle = BorderStyle.None; footerLine.SetBounds(18, 388, 344, 1); Controls.Add(footerLine);
-        saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存"; saveBtn.SetBounds(196, 398, 76, 28);
+        soundStyle = new ComboBox();
+        soundStyle.DropDownStyle = ComboBoxStyle.DropDownList;
+        soundStyle.DrawMode = DrawMode.OwnerDrawFixed;
+        soundStyle.ItemHeight = 22;
+        soundStyle.SetBounds(172, 326, 188, 24);
+        soundStyle.Items.AddRange(en
+            ? new object[] { "QQ Message (Classic)", "Pager Beep (Retro)", "Alarm Ring (Strong)" }
+            : new object[] { "QQ 经典提示 (嘀嘀)", "寻呼机提示 (BP机)", "醒目闹铃 (强力)" });
+        soundStyle.SelectedIndex = (Value.EndSoundStyle == "Pager" || Value.EndSoundStyle == "Classic") ? 1 : (Value.EndSoundStyle == "Alarm" ? 2 : 0);
+        soundStyle.Enabled = sound.Checked;
+        soundStyle.DrawItem += OnDrawComboItem;
+        sound.CheckedChanged += delegate { soundStyle.Enabled = sound.Checked; };
+        soundStyle.SelectionChangeCommitted += delegate
+        {
+            if (sound.Checked)
+            {
+                string st = soundStyle.SelectedIndex == 1 ? "Pager" : (soundStyle.SelectedIndex == 2 ? "Alarm" : "QQ");
+                AppContext.PlaySoundStyle(st);
+            }
+        };
+        Controls.Add(soundStyle);
+
+        notice = AddCheck(en ? "End notification" : "结束时系统通知", Value.EndNotice, 18, 356);
+        notice.SetBounds(18, 356, 150, 24);
+
+        noticeStyle = new ComboBox();
+        noticeStyle.DropDownStyle = ComboBoxStyle.DropDownList;
+        noticeStyle.DrawMode = DrawMode.OwnerDrawFixed;
+        noticeStyle.ItemHeight = 22;
+        noticeStyle.SetBounds(172, 354, 188, 24);
+        noticeStyle.Items.AddRange(en
+            ? new object[] { "Popup (Auto DND Fullscreen)", "In-Place Pulse" }
+            : new object[] { "弹窗强提醒 (全屏免打扰)", "原位呼吸轻提醒" });
+        noticeStyle.SelectedIndex = Value.NoticeStyle == "Pulse" ? 1 : 0;
+        noticeStyle.Enabled = notice.Checked;
+        noticeStyle.DrawItem += OnDrawComboItem;
+        notice.CheckedChanged += delegate { noticeStyle.Enabled = notice.Checked; };
+        Controls.Add(noticeStyle);
+
+        startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 18, 388);
+
+        agentNotice = AddCheck(en ? "Enable AI agent task completion alert" : "启用智能体后台任务完成提醒", Value.AgentNotice, 18, 52);
+        agentNotice.CheckedChanged += delegate { RefreshAgentCards(); };
+
+        lblAgentDesc = new Label();
+        lblAgentDesc.Text = en
+            ? "Alerts when background or minimized AI agents finish long tasks; click to switch back."
+            : "智能体在后台或最小化完成代码、构建等耗时任务时，\n自动弹出浮窗提醒，点击可直接切回对应工作窗口。";
+        lblAgentDesc.ForeColor = AppContext.Win11TextSecondary;
+        lblAgentDesc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
+        lblAgentDesc.SetBounds(18, 80, 344, 38);
+        Controls.Add(lblAgentDesc);
+
+        lblDetectedHeader = new Label();
+        lblDetectedHeader.Font = new Font(Font.FontFamily, 9.5f, FontStyle.Bold);
+        lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
+        lblDetectedHeader.TextAlign = ContentAlignment.MiddleLeft;
+        lblDetectedHeader.SetBounds(18, 124, 260, 26);
+        Controls.Add(lblDetectedHeader);
+
+        btnRefreshAgents = new Button();
+        btnRefreshAgents.Text = en ? "Re-scan" : "重新检测";
+        btnRefreshAgents.SetBounds(282, 124, 80, 26);
+        AppContext.StyleSecondaryButton(btnRefreshAgents);
+        btnRefreshAgents.Click += delegate { RefreshAgentCards(); };
+        Controls.Add(btnRefreshAgents);
+
+        panelAgentBox = new Panel();
+        panelAgentBox.SetBounds(18, 154, 344, 218);
+        panelAgentBox.BackColor = Color.FromArgb(246, 248, 250);
+        panelAgentBox.Paint += delegate(object sender, PaintEventArgs pe)
+        {
+            using (Pen p = new Pen(AppContext.Win11Border, 1f))
+            {
+                pe.Graphics.DrawRectangle(p, 0, 0, panelAgentBox.Width - 1, panelAgentBox.Height - 1);
+            }
+        };
+        Controls.Add(panelAgentBox);
+
+        panelAgentCards = new Panel();
+        panelAgentCards.SetBounds(1, 1, 342, 216);
+        panelAgentCards.AutoScroll = true;
+        panelAgentCards.BackColor = Color.FromArgb(246, 248, 250);
+        panelAgentCards.BorderStyle = BorderStyle.None;
+        panelAgentBox.Controls.Add(panelAgentCards);
+
+        lblAgentTip = new Label();
+        lblAgentTip.Text = en
+            ? "Tip: Click 'View' on the alert popup to restore and focus the window."
+            : "提示：提醒浮窗弹出后，点击「查看」可还原并置顶对应窗口。";
+        lblAgentTip.ForeColor = AppContext.Win11TextSecondary;
+        lblAgentTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
+        lblAgentTip.SetBounds(18, 384, 344, 36);
+        Controls.Add(lblAgentTip);
+
+        Label footerLine = new Label(); footerLine.BackColor = AppContext.Win11Border; footerLine.BorderStyle = BorderStyle.None; footerLine.SetBounds(18, 432, 344, 1); Controls.Add(footerLine);
+        saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存"; saveBtn.SetBounds(196, 442, 76, 28);
         AppContext.StylePrimaryButton(saveBtn);
         if (!hotkeyActive || (Value.HotkeyKey == (int)Keys.Space && (Value.HotkeyModifiers & 3) != 0)) saveBtn.Enabled = false;
         saveBtn.Click += SaveClick; Controls.Add(saveBtn);
-        cancelBtn = new Button(); cancelBtn.Text = en ? "Cancel" : "取消"; cancelBtn.SetBounds(284, 398, 76, 28);
+        cancelBtn = new Button(); cancelBtn.Text = en ? "Cancel" : "取消"; cancelBtn.SetBounds(284, 442, 76, 28);
         AppContext.StyleSecondaryButton(cancelBtn);
         cancelBtn.DialogResult = DialogResult.Cancel;
         cancelBtn.Click += delegate { DialogResult = DialogResult.Cancel; Close(); };
         Controls.Add(cancelBtn);
         AcceptButton = saveBtn; CancelButton = cancelBtn;
+
         AppContext.CenterFormOnScreen(this);
+        SetActiveTab(0);
+    }
+
+    private void SetActiveTab(int tabIndex)
+    {
+        activeTab = tabIndex;
+        bool isTimer = (tabIndex == 0);
+
+        lblMinutes.Visible = isTimer;
+        minutes.Visible = isTimer;
+        lblSize.Visible = isTimer;
+        size.Visible = isTimer;
+        lblFont.Visible = isTimer;
+        fontCombo.Visible = isTimer;
+        lblColor.Visible = isTimer;
+        colorButton.Visible = isTimer;
+        colorPreview.Visible = isTimer;
+        lblFormat.Visible = isTimer;
+        format.Visible = isTimer;
+        lblEndMsg.Visible = isTimer;
+        endMessage.Visible = isTimer;
+        lblHotkey.Visible = isTimer;
+        hotkeyBox.Visible = isTimer;
+        lblLanguage.Visible = isTimer;
+        language.Visible = isTimer;
+        sound.Visible = isTimer;
+        soundStyle.Visible = isTimer;
+        notice.Visible = isTimer;
+        noticeStyle.Visible = isTimer;
+        startup.Visible = isTimer;
+
+        agentNotice.Visible = !isTimer;
+        lblAgentDesc.Visible = !isTimer;
+        lblDetectedHeader.Visible = !isTimer;
+        btnRefreshAgents.Visible = !isTimer;
+        panelAgentBox.Visible = !isTimer;
+        panelAgentCards.Visible = !isTimer;
+        lblAgentTip.Visible = !isTimer;
+
+        UpdateTabButtons();
+        if (!isTimer)
+        {
+            RefreshAgentCards();
+        }
+    }
+
+    private void UpdateTabButtons()
+    {
+        bool isTimer = (activeTab == 0);
+        btnTabTimer.BackColor = isTimer ? AppContext.Win11Accent : Color.FromArgb(235, 238, 242);
+        btnTabTimer.ForeColor = isTimer ? Color.White : AppContext.Win11TextPrimary;
+        btnTabTimer.Font = new Font(Font.FontFamily, 9.5f, FontStyle.Bold);
+
+        btnTabAgent.BackColor = isTimer ? Color.FromArgb(235, 238, 242) : AppContext.Win11Accent;
+        btnTabAgent.ForeColor = isTimer ? AppContext.Win11TextPrimary : Color.White;
+        btnTabAgent.Font = new Font(Font.FontFamily, 9.5f, FontStyle.Bold);
+    }
+
+    private void RefreshAgentCards()
+    {
+        if (panelAgentCards == null) return;
+        panelAgentCards.SuspendLayout();
+        while (panelAgentCards.Controls.Count > 0)
+        {
+            Control c = panelAgentCards.Controls[0];
+            panelAgentCards.Controls.RemoveAt(0);
+            c.Dispose();
+        }
+
+        bool en = language.SelectedIndex == 1;
+        bool alertEnabled = agentNotice.Checked;
+        List<string> agents = AppContext.DetectAgents();
+        agents.Sort();
+        HashSet<string> running = AppContext.GetRunningAgents();
+
+        if (alertEnabled)
+        {
+            lblDetectedHeader.Text = en
+                ? string.Format("Detected Agents ({0})", agents.Count)
+                : string.Format("已检测到的智能体 ({0} 款)", agents.Count);
+            lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
+        }
+        else
+        {
+            lblDetectedHeader.Text = en
+                ? string.Format("Detected Agents ({0}) · Off", agents.Count)
+                : string.Format("已检测到的智能体 ({0} 款 · 未启用)", agents.Count);
+            lblDetectedHeader.ForeColor = AppContext.Win11TextSecondary;
+        }
+
+        if (agents.Count == 0)
+        {
+            Label empty = new Label();
+            empty.Text = en
+                ? "No supported AI agents detected.\n(Supports Antigravity, Cursor, Windsurf, Trae, Claude, Copilot, Tongyi Lingma, Comate, CodeGeeX, MiniMax, Kimi, etc.)"
+                : "未检测到支持的智能体。\n（支持 Antigravity、Cursor、Windsurf、Trae、Claude、Copilot、通义灵码、文心快码、CodeGeeX、MiniMax、Kimi 等）";
+            empty.ForeColor = AppContext.Win11TextSecondary;
+            empty.Font = AppContext.GetUiFont(en ? "en" : "zh", 9.0f);
+            empty.TextAlign = ContentAlignment.MiddleCenter;
+            empty.Dock = DockStyle.Fill;
+            panelAgentCards.Controls.Add(empty);
+        }
+        else
+        {
+            int cardY = 4;
+            int cardPad = 8;
+            bool needVScroll = (agents.Count * 36 + 8) > panelAgentCards.Height;
+            int vScrollReserve = needVScroll ? (SystemInformation.VerticalScrollBarWidth + 4) : 0;
+            int cardW = panelAgentCards.Width - (cardPad * 2) - vScrollReserve;
+            for (int i = 0; i < agents.Count; i++)
+            {
+                string name = agents[i];
+                bool isRunning = running.Contains(name);
+                Panel card = CreateAgentCard(name, isRunning, alertEnabled, cardW, en);
+                card.Location = new Point(cardPad, cardY);
+                panelAgentCards.Controls.Add(card);
+                cardY += card.Height + 4;
+            }
+        }
+        panelAgentCards.ResumeLayout(true);
+    }
+
+    private Panel CreateAgentCard(string name, bool isRunning, bool alertEnabled, int width, bool en)
+    {
+        Panel card = new Panel();
+        card.Size = new Size(width, 32);
+        card.BackColor = Color.White;
+        card.Paint += delegate(object sender, PaintEventArgs pe)
+        {
+            using (Pen p = new Pen(AppContext.Win11Border, 1f))
+            {
+                pe.Graphics.DrawRectangle(p, 0, 0, card.Width - 1, card.Height - 1);
+            }
+        };
+
+        Label lblDot = new Label();
+        lblDot.Text = "●";
+        lblDot.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
+        lblDot.ForeColor = !alertEnabled
+            ? Color.FromArgb(180, 180, 180)
+            : (isRunning ? Color.FromArgb(16, 124, 65) : Color.FromArgb(140, 145, 155));
+        lblDot.Location = new Point(8, 7);
+        lblDot.Size = new Size(16, 18);
+        card.Controls.Add(lblDot);
+
+        Label lblName = new Label();
+        lblName.Text = name;
+        lblName.Font = new Font(Font.FontFamily, 9.5f, FontStyle.Bold);
+        lblName.ForeColor = alertEnabled ? AppContext.Win11TextPrimary : Color.FromArgb(130, 130, 130);
+        lblName.Location = new Point(26, 6);
+        lblName.AutoSize = true;
+        card.Controls.Add(lblName);
+
+        Label lblBadge = new Label();
+        if (!alertEnabled)
+        {
+            lblBadge.Text = isRunning ? (en ? "Running" : "运行中") : (en ? "Ready" : "已就绪");
+            lblBadge.ForeColor = Color.FromArgb(140, 140, 140);
+            lblBadge.BackColor = Color.FromArgb(242, 242, 242);
+        }
+        else if (isRunning)
+        {
+            lblBadge.Text = en ? "Running" : "运行中";
+            lblBadge.ForeColor = Color.FromArgb(27, 94, 32);
+            lblBadge.BackColor = Color.FromArgb(232, 245, 233);
+        }
+        else
+        {
+            lblBadge.Text = en ? "Ready" : "已就绪";
+            lblBadge.ForeColor = Color.FromArgb(90, 90, 90);
+            lblBadge.BackColor = Color.FromArgb(243, 244, 246);
+        }
+        lblBadge.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
+        lblBadge.TextAlign = ContentAlignment.MiddleCenter;
+        lblBadge.Size = new Size(en ? 66 : 56, 20);
+        lblBadge.Location = new Point(card.Width - lblBadge.Width - 8, 6);
+        card.Controls.Add(lblBadge);
+
+        return card;
     }
 
     private void OnLanguageChanged(object sender, EventArgs e)
@@ -455,6 +1143,9 @@ internal sealed class SettingsDialog : Form
         Text = toEnglish ? "iClock Settings" : "iClock 设置";
         if (toEnglish && endMessage.Text == "倒计时结束") endMessage.Text = "Countdown finished";
         else if (!toEnglish && endMessage.Text == "Countdown finished") endMessage.Text = "倒计时结束";
+
+        btnTabTimer.Text = toEnglish ? "Timer" : "倒计时";
+        btnTabAgent.Text = toEnglish ? "AI Agents" : "AI 智能体协作";
 
         lblMinutes.Text = toEnglish ? "Duration (minutes)" : "倒计时（分钟）";
         lblSize.Text = toEnglish ? "Text size" : "文字大小";
@@ -467,9 +1158,22 @@ internal sealed class SettingsDialog : Form
         lblLanguage.Text = toEnglish ? "Interface language" : "界面语言";
         startup.Text = toEnglish ? "Start with Windows" : "开机自启动";
         sound.Text = toEnglish ? "Play sound at end" : "结束时声音提醒";
-        notice.Text = toEnglish ? "Show notification at end" : "结束时系统通知";
+        notice.Text = toEnglish ? "End notification" : "结束时系统通知";
+
+        agentNotice.Text = toEnglish ? "Enable AI agent task completion alert" : "启用智能体后台任务完成提醒";
+        lblAgentDesc.Text = toEnglish
+            ? "Alerts when background or minimized AI agents finish long tasks; click to switch back."
+            : "智能体在后台或最小化完成代码、构建等耗时任务时，\n自动弹出浮窗提醒，点击可直接切回对应工作窗口。";
+        btnRefreshAgents.Text = toEnglish ? "Re-scan" : "重新检测";
+        lblAgentTip.Text = toEnglish
+            ? "Tip: Click 'View' on the alert popup to restore and focus the window."
+            : "提示：提醒浮窗弹出后，点击「查看」可还原并置顶对应窗口。";
+
         saveBtn.Text = toEnglish ? "Save" : "保存";
         cancelBtn.Text = toEnglish ? "Cancel" : "取消";
+
+        UpdateTabButtons();
+        RefreshAgentCards();
 
         int sel = format.SelectedIndex;
         format.Items.Clear();
@@ -483,6 +1187,19 @@ internal sealed class SettingsDialog : Form
             ? new object[] { "Segoe UI (Default)", "Consolas (Monospace)", "Arial", "Impact", "Microsoft YaHei" }
             : new object[] { "Segoe UI (默认)", "Consolas (极客等宽)", "Arial", "Impact (醒目粗黑)", "微软雅黑" });
         fontCombo.SelectedIndex = fontSel >= 0 ? fontSel : 0;
+        int ssSel = soundStyle.SelectedIndex;
+        soundStyle.Items.Clear();
+        soundStyle.Items.AddRange(toEnglish
+            ? new object[] { "QQ Message (Classic)", "Pager Beep (Retro)", "Alarm Ring (Strong)" }
+            : new object[] { "QQ 经典提示 (嘀嘀)", "寻呼机提示 (BP机)", "醒目闹铃 (强力)" });
+        soundStyle.SelectedIndex = ssSel >= 0 ? ssSel : 0;
+
+        int nsSel = noticeStyle.SelectedIndex;
+        noticeStyle.Items.Clear();
+        noticeStyle.Items.AddRange(toEnglish
+            ? new object[] { "Popup (Auto DND Fullscreen)", "In-Place Pulse" }
+            : new object[] { "弹窗强提醒 (全屏免打扰)", "原位呼吸轻提醒" });
+        noticeStyle.SelectedIndex = nsSel >= 0 ? nsSel : 0;
         if (saveBtn.Enabled)
         {
             hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey);
@@ -614,7 +1331,11 @@ internal sealed class SettingsDialog : Form
         Value.EndMessage = endMessage.Text.Trim();
         Value.Format = format.SelectedIndex == 1 ? "MM:SS" : (format.SelectedIndex == 2 ? "Chinese" : "HH:MM:SS");
         Value.Language = language.SelectedIndex == 1 ? "en" : "zh";
-        Value.AutoStart = startup.Checked; Value.EndSound = sound.Checked; Value.EndNotice = notice.Checked;
+        Value.AutoStart = startup.Checked; Value.EndSound = sound.Checked;
+        Value.EndSoundStyle = soundStyle.SelectedIndex == 1 ? "Pager" : (soundStyle.SelectedIndex == 2 ? "Alarm" : "QQ");
+        Value.EndNotice = notice.Checked;
+        Value.AgentNotice = agentNotice.Checked;
+        Value.NoticeStyle = (noticeStyle.SelectedIndex == 1) ? "Pulse" : "Popup";
         DialogResult = DialogResult.OK; Close();
     }
 }
@@ -629,19 +1350,25 @@ internal sealed class NoticeDialog : Form
     private DateTime finishTime;
     private Label finishLabel;
 
-    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
-    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-    [DllImport("user32.dll")] private static extern bool BringWindowToTop(IntPtr hWnd);
+    private IntPtr targetHwnd;
 
-    public NoticeDialog(Settings s, DateTime finishedAt)
+    public NoticeDialog(Settings s, DateTime finishedAt) : this(s, finishedAt, null, IntPtr.Zero, null) { }
+
+    public NoticeDialog(Settings s, DateTime finishedAt, string agentName, IntPtr targetWindow) : this(s, finishedAt, agentName, targetWindow, null, null) { }
+
+    public NoticeDialog(Settings s, DateTime finishedAt, string agentName, IntPtr targetWindow, Action onStartRest) : this(s, finishedAt, agentName, targetWindow, onStartRest, null) { }
+
+    public NoticeDialog(Settings s, DateTime finishedAt, string agentName, IntPtr targetWindow, Action onStartRest, string detailMessage)
     {
         settings = s;
         finishTime = finishedAt;
+        targetHwnd = targetWindow;
+        bool isAgent = !string.IsNullOrEmpty(agentName);
         bool en = s.Language == "en";
         Font = AppContext.GetUiFont(s.Language, 9.5f);
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
-        Text = "iClock";
+        Text = isAgent ? (en ? agentName + " Ready" : agentName + " 已就绪") : "iClock";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
@@ -650,7 +1377,9 @@ internal sealed class NoticeDialog : Form
         TopMost = true;
         ClientSize = new Size(350, 215);
 
-        string titleText = String.IsNullOrEmpty(s.EndMessage) ? (en ? "Countdown Finished" : "倒计时结束") : s.EndMessage;
+        string titleText = isAgent
+            ? (en ? agentName + " Task Completed" : agentName + " 任务已完成")
+            : (String.IsNullOrEmpty(s.EndMessage) ? (en ? "Countdown Finished" : "倒计时结束") : s.EndMessage);
         Label titleLabel = new Label();
         titleLabel.Text = titleText;
         titleLabel.Font = AppContext.GetUiFont(s.Language, 13f, FontStyle.Bold);
@@ -659,11 +1388,21 @@ internal sealed class NoticeDialog : Form
         titleLabel.SetBounds(20, 18, 310, 28);
         Controls.Add(titleLabel);
 
-        string timeText = s.Format == "MM:SS" ? "00:00" :
-            (s.Format == "Chinese" ? (en ? "00h 00m 00s" : "00时00分00秒") : "00:00:00");
+        string timeText;
+        if (isAgent)
+        {
+            timeText = !string.IsNullOrEmpty(detailMessage) ? detailMessage : (en ? "Ready for review" : "可返回查看结果");
+        }
+        else
+        {
+            timeText = s.Format == "MM:SS" ? "00:00" :
+                (s.Format == "Chinese" ? (en ? "00h 00m 00s" : "00时00分00秒") : "00:00:00");
+        }
         Label timeLabel = new Label();
         timeLabel.Text = timeText;
-        timeLabel.Font = AppContext.GetUiFont(s.Language, 22f, FontStyle.Bold);
+        timeLabel.Font = isAgent
+            ? (!string.IsNullOrEmpty(detailMessage) ? AppContext.GetUiFont(s.Language, 11f, FontStyle.Bold) : AppContext.GetUiFont(s.Language, 16f, FontStyle.Bold))
+            : AppContext.GetUiFont(s.Language, 22f, FontStyle.Bold);
         timeLabel.ForeColor = AppContext.Win11Accent;
         timeLabel.TextAlign = ContentAlignment.MiddleCenter;
         timeLabel.SetBounds(20, 52, 310, 42);
@@ -677,15 +1416,55 @@ internal sealed class NoticeDialog : Form
         Controls.Add(finishLabel);
         UpdateFinishLabel();
 
-        Button btn = new Button();
-        btn.Text = en ? "OK" : "确定";
-        btn.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-        btn.SetBounds(120, 150, 110, 36);
-        AppContext.StylePrimaryButton(btn);
-        btn.Click += delegate { Close(); };
-        Controls.Add(btn);
-        AcceptButton = btn;
-        CancelButton = btn;
+        if (onStartRest != null)
+        {
+            Button btnRest = new Button();
+            btnRest.Text = en ? "Rest (5 min)" : "休息 5 分钟";
+            btnRest.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
+            btnRest.SetBounds(35, 150, 130, 36);
+            AppContext.StylePrimaryButton(btnRest);
+            btnRest.Click += delegate
+            {
+                Close();
+                onStartRest();
+            };
+            Controls.Add(btnRest);
+
+            Button btn = new Button();
+            btn.Text = en ? "OK" : "确定";
+            btn.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
+            btn.SetBounds(185, 150, 130, 36);
+            AppContext.StyleSecondaryButton(btn);
+            btn.Click += delegate { Close(); };
+            Controls.Add(btn);
+
+            AcceptButton = btnRest;
+            CancelButton = btn;
+        }
+        else
+        {
+            Button btn = new Button();
+            btn.Text = isAgent ? (en ? "View" : "查看") : (en ? "OK" : "确定");
+            btn.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
+            btn.SetBounds(120, 150, 110, 36);
+            AppContext.StylePrimaryButton(btn);
+            btn.Click += delegate
+            {
+                if (targetHwnd != IntPtr.Zero)
+                {
+                    try
+                    {
+                        NativeMethods.ShowWindow(targetHwnd, 9);
+                        NativeMethods.SetForegroundWindow(targetHwnd);
+                    }
+                    catch { }
+                }
+                Close();
+            };
+            Controls.Add(btn);
+            AcceptButton = btn;
+            CancelButton = btn;
+        }
 
         timer = new Timer();
         timer.Interval = 1000;
@@ -699,7 +1478,8 @@ internal sealed class NoticeDialog : Form
         bool en = settings.Language == "en";
         int secs = (int)Math.Max(0, (DateTime.Now - finishTime).TotalSeconds);
         string elapsed = (secs / 60).ToString("00") + ":" + (secs % 60).ToString("00");
-        finishLabel.Text = (en ? "Finished at: " : "结束时间: ") + finishTime.ToString("HH:mm:ss") + (secs > 0 ? " (+" + elapsed + ")" : "");
+        string prefix = (targetHwnd != IntPtr.Zero) ? (en ? "Completed at: " : "完成时间: ") : (en ? "Finished at: " : "结束时间: ");
+        finishLabel.Text = prefix + finishTime.ToString("HH:mm:ss") + (secs > 0 ? " (+" + elapsed + ")" : "");
     }
 
     protected override void OnShown(EventArgs e)
@@ -718,9 +1498,9 @@ internal sealed class NoticeDialog : Form
             TopMost = true;
             BringToFront();
             Activate();
-            SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_FLAGS);
-            SetForegroundWindow(Handle);
-            BringWindowToTop(Handle);
+            NativeMethods.SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_FLAGS);
+            NativeMethods.SetForegroundWindow(Handle);
+            NativeMethods.BringWindowToTop(Handle);
         }
         catch { }
     }
@@ -729,33 +1509,19 @@ internal sealed class NoticeDialog : Form
     {
         UpdateFinishLabel();
         ForceTopMost();
-        if (settings.EndSound && player == null)
-        {
-            try { SystemSounds.Exclamation.Play(); } catch { }
-        }
     }
 
     private void StartAlarm()
     {
         if (!settings.EndSound) return;
-        try
-        {
-            string wav = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Media", "Alarm01.wav");
-            if (File.Exists(wav))
-            {
-                player = new SoundPlayer(wav);
-                player.PlayLooping();
-                return;
-            }
-        }
-        catch { }
-        try { SystemSounds.Exclamation.Play(); } catch { }
+        AppContext.PlaySoundStyle(settings.EndSoundStyle);
     }
 
     private void StopAlarm()
     {
         try
         {
+            AppContext.StopSound();
             if (player != null) { player.Stop(); player.Dispose(); player = null; }
             if (timer != null) { timer.Stop(); timer.Dispose(); timer = null; }
         }
@@ -1218,6 +1984,17 @@ internal sealed class ModernMenuColorTable : ProfessionalColorTable
     public override Color MenuItemBorder { get { return Color.Transparent; } }
 }
 
+internal enum ClockState
+{
+    Idle,
+    Running,
+    Paused,
+    RestRunning,
+    RestPaused,
+    Alarming,
+    MoveMode
+}
+
 internal sealed class AppContext : ApplicationContext
 {
     private const int HOTKEY_ID = 0x4A10;
@@ -1227,7 +2004,7 @@ internal sealed class AppContext : ApplicationContext
     private Overlay overlay;
     private NotifyIcon tray;
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuAbout, menuExit, menuUpdate;
-    internal const string CURRENT_VERSION = "1.03";
+    internal const string CURRENT_VERSION = "1.04";
     private string updateUrl;
     private string latestVersion;
     private Timer timer;
@@ -1237,22 +2014,110 @@ internal sealed class AppContext : ApplicationContext
     private int sessionMinutes;
     private bool sessionActive;
     private bool running;
+    private ClockState state = ClockState.Idle;
+    internal ClockState State { get { return state; } }
+    private ClockState preMoveState = ClockState.Idle;
+
+    private void SetState(ClockState newState)
+    {
+        state = newState;
+        running = (state == ClockState.Running || state == ClockState.RestRunning);
+        sessionActive = (state != ClockState.Idle && state != ClockState.MoveMode);
+    }
     private bool hotkeyRegistered;
     private int activeHotkeyModifiers, activeHotkeyKey;
     private NoticeDialog activeNotice;
     private Form activeDialog;
     private long lastSeconds = -1;
     private MessageWindow messageWindow;
+    internal uint shellHookMsg;
+    private const int HSHELL_FLASH = 0x8006;
     private string exePath = Application.ExecutablePath;
     private Icon appIcon;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSLLHOOKSTRUCT
+    {
+        public Point pt;
+        public uint mouseData;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    private const int WH_MOUSE_LL = 14;
+    private const int WM_MOUSEWHEEL = 0x020A;
+    private LowLevelMouseProc mouseHookProc;
+    private IntPtr mouseHookHandle = IntPtr.Zero;
+    private static int lastTrayMouseMove;
+    private EventHandler displaySettingsHandler;
+    private SessionSwitchEventHandler sessionSwitchHandler;
+    private bool pausedByLock;
+
+    private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0 && wParam == (IntPtr)WM_MOUSEWHEEL)
+        {
+            int now = Environment.TickCount;
+            if (Math.Abs(now - lastTrayMouseMove) < 1200)
+            {
+                MSLLHOOKSTRUCT hs = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+                short wheelDelta = (short)((hs.mouseData >> 16) & 0xFFFF);
+                if (wheelDelta != 0)
+                {
+                    int step = (wheelDelta > 0 ? 1 : -1) * ((Control.ModifierKeys & Keys.Shift) != 0 ? 5 : 1);
+                    AdjustMinutes(step);
+                    return (IntPtr)1;
+                }
+            }
+        }
+        return NativeMethods.CallNextHookEx(mouseHookHandle, nCode, wParam, lParam);
+    }
+
+    internal void AdjustMinutes(int delta)
+    {
+        if (delta == 0) return;
+        if (!running)
+        {
+            int newMin = Math.Max(1, Math.Min(1440, settings.Minutes + delta));
+            if (newMin == settings.Minutes) return;
+            settings.Minutes = newMin;
+            settings.Save();
+            remaining = TimeSpan.FromMinutes(settings.Minutes);
+            ResetDisplay();
+            bool en = settings.Language == "en";
+            string tip = en ? "Duration: " + settings.Minutes + " min" : "倒计时时长：" + settings.Minutes + " 分钟";
+            try { if (tip.Length < 64) tray.Text = tip; } catch { }
+        }
+        else
+        {
+            deadlineTimestamp += (long)(delta * 60L * Stopwatch.Frequency);
+            remaining = ReadRemaining();
+            lastSeconds = -1;
+            if (remaining <= TimeSpan.Zero)
+            {
+                Tick(null, EventArgs.Empty);
+            }
+            else
+            {
+                Tick(null, EventArgs.Empty);
+            }
+        }
+    }
 
     public AppContext()
     {
         settings = Settings.Load();
         appIcon = CreateIcon();
         overlay = new Overlay(settings); overlay.PositionChanged += delegate(Point p) { settings.X = p.X; settings.Y = p.Y; settings.Save(); };
+        overlay.TimeAdjustRequested += delegate(int delta) { AdjustMinutes(delta); };
         IntPtr forceOverlayHandle = overlay.Handle;
         messageWindow = new MessageWindow(this);
+        shellHookMsg = NativeMethods.RegisterWindowMessage("SHELLHOOK");
+        if (shellHookMsg != 0)
+        {
+            try { NativeMethods.RegisterShellHookWindow(messageWindow.Handle); } catch { }
+        }
         activeHotkeyModifiers = settings.HotkeyModifiers; activeHotkeyKey = settings.HotkeyKey;
         int originalMods = settings.HotkeyModifiers, originalKey = settings.HotkeyKey;
         bool fallbackUsed = false;
@@ -1290,6 +2155,9 @@ internal sealed class AppContext : ApplicationContext
             settings.Save();
         }
         tray = new NotifyIcon(); tray.Icon = appIcon; tray.Text = "iClock"; tray.Visible = true; tray.ContextMenuStrip = MakeMenu();
+        tray.MouseMove += delegate { lastTrayMouseMove = Environment.TickCount; };
+        mouseHookProc = MouseHookCallback;
+        try { mouseHookHandle = NativeMethods.SetWindowsHookEx(WH_MOUSE_LL, mouseHookProc, NativeMethods.GetModuleHandle(null), 0); } catch { }
         tray.BalloonTipClicked += delegate { if (!string.IsNullOrEmpty(updateUrl)) { try { Process.Start(updateUrl); } catch { } } };
         tray.MouseClick += delegate(object sender, MouseEventArgs e) { if (e.Button == MouseButtons.Left) { Toggle(); } };
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
@@ -1297,6 +2165,34 @@ internal sealed class AppContext : ApplicationContext
         EnsureStartMenuShortcut(false);
         ResetDisplay();
         TrackAndCheckUpdates();
+        displaySettingsHandler = delegate
+        {
+            if (overlay == null || overlay.IsDisposed) return;
+            if (overlay.InvokeRequired) overlay.BeginInvoke(new Action(delegate { overlay.EnsureVisible(); }));
+            else overlay.EnsureVisible();
+        };
+        SystemEvents.DisplaySettingsChanged += displaySettingsHandler;
+        sessionSwitchHandler = delegate(object ss, SessionSwitchEventArgs se)
+        {
+            if (se.Reason == SessionSwitchReason.SessionLock)
+            {
+                if (running)
+                {
+                    if (overlay.InvokeRequired) overlay.BeginInvoke(new Action(delegate { Pause(); }));
+                    else Pause();
+                    pausedByLock = true;
+                }
+            }
+            else if (se.Reason == SessionSwitchReason.SessionUnlock)
+            {
+                if (pausedByLock && sessionActive && !running)
+                {
+                    pausedByLock = false;
+                    // Don't auto-resume — just leave paused so user sees remaining time and clicks to continue
+                }
+            }
+        };
+        SystemEvents.SessionSwitch += sessionSwitchHandler;
         if (fallbackUsed && !settings.FirstRun)
         {
             bool en = settings.Language == "en";
@@ -1321,6 +2217,7 @@ internal sealed class AppContext : ApplicationContext
                 }
             }));
         }
+        UpdateAgentMonitoring();
         if (settings.FirstRun)
         {
             overlay.BeginInvoke(new Action(delegate { ShowWelcome(fallbackUsed); }));
@@ -1385,12 +2282,15 @@ internal sealed class AppContext : ApplicationContext
 
     private void Reset()
     {
+        if (overlay.IsPulsing) overlay.StopBreathingPulse();
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
         if (running) remaining = ReadRemaining();
-        running = false;
         timer.Stop();
-        if (sessionActive) LogSession("Reset");
-        sessionActive = false;
+        if (sessionActive)
+        {
+            LogSession((state == ClockState.RestRunning || state == ClockState.RestPaused) ? "RestReset" : "Reset");
+        }
+        SetState(ClockState.Idle);
         ResetDisplay();
         overlay.SetPaused(false);
         overlay.Hide();
@@ -1412,7 +2312,17 @@ internal sealed class AppContext : ApplicationContext
         bool en = settings.Language == "en";
         if (menuStart == null) return;
 
-        if (running)
+        if (state == ClockState.RestRunning)
+        {
+            menuStart.Text = en ? "Pause break" : "暂停休息";
+            menuStart.ForeColor = Color.FromArgb(202, 80, 16);
+        }
+        else if (state == ClockState.RestPaused)
+        {
+            menuStart.Text = en ? "Resume break" : "继续休息";
+            menuStart.ForeColor = Color.FromArgb(16, 124, 65);
+        }
+        else if (running)
         {
             menuStart.Text = en ? "Pause countdown" : "暂停倒计时";
             menuStart.ForeColor = Color.FromArgb(202, 80, 16);
@@ -1431,53 +2341,117 @@ internal sealed class AppContext : ApplicationContext
         menuStart.ShortcutKeyDisplayString = hotkeyRegistered
             ? HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey)
             : (en ? "(Disabled)" : "(未生效)");
-        menuReset.Text = en ? "Reset countdown" : "重置倒计时";
+        menuReset.Text = (state == ClockState.RestRunning || state == ClockState.RestPaused) ? (en ? "Reset break" : "重置休息") : (en ? "Reset countdown" : "重置倒计时");
         menuReset.Enabled = running || sessionActive;
         menuMove.Text = overlay.MoveMode ? (en ? "✓ Finish position adjustment" : "✓ 完成位置调整") : (en ? "Adjust text position" : "调整文字位置");
+        menuMove.ShortcutKeyDisplayString = overlay.MoveMode ? "" : (en ? "Alt + Drag" : "Alt + 拖拽");
         menuHistory.Text = en ? "View today's history" : "查看今日记录";
         menuSettings.Text = en ? "Settings…" : "设置…";
         menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
         menuExit.Text = en ? "Exit" : "退出";
         if (menuUpdate != null) menuUpdate.Text = en ? "⭐ Update available (" + latestVersion + ")…" : "⭐ 发现新版本 (" + latestVersion + ")…";
-        tray.Text = hotkeyRegistered ? "iClock" : (en ? "iClock (Hotkey conflict)" : "iClock (快捷键未生效)");
+        string actionTip = running ? (en ? "Click to pause" : "单击暂停")
+            : (sessionActive ? (en ? "Click to resume" : "单击继续") : (en ? "Click to start" : "单击开始"));
+        tray.Text = hotkeyRegistered
+            ? (en ? "iClock (" + actionTip + ")" : "iClock（" + actionTip + "）")
+            : (en ? "iClock (" + actionTip + " · Hotkey conflict)" : "iClock（" + actionTip + " · 快捷键未生效）");
+    }
+
+    internal void Pause()
+    {
+        if (!running) return;
+        remaining = ReadRemaining();
+        timer.Stop();
+        lastSeconds = -1;
+        if (state == ClockState.RestRunning)
+            SetState(ClockState.RestPaused);
+        else
+            SetState(ClockState.Paused);
+        overlay.SetPaused(true);
+        Display(remaining);
+        UpdateMenuText();
+    }
+
+    internal void StartWork()
+    {
+        pausedByLock = false;
+        if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
+        if (remaining <= TimeSpan.Zero) remaining = TimeSpan.FromMinutes(settings.Minutes);
+        if (!sessionActive) { sessionStart = DateTime.Now; sessionMinutes = settings.Minutes; }
+        deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency);
+        SetState(ClockState.Running);
+        lastSeconds = -1;
+        timer.Interval = 100;
+        timer.Start();
+        overlay.SetPaused(false);
+        overlay.Show();
+        Tick(null, EventArgs.Empty);
+        UpdateMenuText();
+    }
+
+    internal void StartRest(int minutes = 5)
+    {
+        if (overlay.IsPulsing) overlay.StopBreathingPulse();
+        if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
+        remaining = TimeSpan.FromMinutes(minutes);
+        sessionStart = DateTime.Now;
+        sessionMinutes = minutes;
+        deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency);
+        SetState(ClockState.RestRunning);
+        lastSeconds = -1;
+        timer.Interval = 100;
+        timer.Start();
+        overlay.SetPaused(false);
+        overlay.Show();
+        Tick(null, EventArgs.Empty);
+        UpdateMenuText();
+    }
+
+    internal void Resume()
+    {
+        if (running) return;
+        pausedByLock = false;
+        deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency);
+        if (state == ClockState.RestPaused)
+            SetState(ClockState.RestRunning);
+        else
+            SetState(ClockState.Running);
+        lastSeconds = -1;
+        timer.Interval = 100;
+        timer.Start();
+        overlay.SetPaused(false);
+        overlay.Show();
+        Tick(null, EventArgs.Empty);
+        UpdateMenuText();
     }
 
     private void Toggle()
     {
-        if (running) { remaining = ReadRemaining(); running = false; timer.Stop(); lastSeconds = -1; overlay.SetPaused(true); Display(remaining); }
-        else {
-            if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
-            if (remaining <= TimeSpan.Zero) remaining = TimeSpan.FromMinutes(settings.Minutes);
-            if (!sessionActive) { sessionStart = DateTime.Now; sessionMinutes = settings.Minutes; sessionActive = true; }
-            deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency);
-            running = true;
-            lastSeconds = -1;
-            timer.Interval = 100;
-            timer.Start();
-            overlay.SetPaused(false);
-            overlay.Show();
-            Tick(null, EventArgs.Empty);
-        }
-        UpdateMenuText();
+        if (overlay.IsPulsing) { overlay.StopBreathingPulse(); SetState(ClockState.Idle); return; }
+        if (running) { Pause(); return; }
+        if (sessionActive) { Resume(); return; }
+        StartWork();
     }
+
     private TimeSpan ReadRemaining()
     {
         long ticks = deadlineTimestamp - Stopwatch.GetTimestamp();
         return ticks <= 0 ? TimeSpan.Zero : TimeSpan.FromSeconds((double)ticks / Stopwatch.Frequency);
     }
+
     private void Tick(object sender, EventArgs e)
     {
         if (!running) return;
         long ticksLeft = deadlineTimestamp - Stopwatch.GetTimestamp();
         if (ticksLeft <= 0) {
             remaining = TimeSpan.Zero;
-            running = false;
             timer.Stop();
             overlay.SetPaused(false);
             overlay.Hide();
-            if (sessionActive) LogSession("Completed");
-            sessionActive = false;
-            Finish();
+            bool wasRest = (state == ClockState.RestRunning);
+            if (sessionActive) LogSession(wasRest ? "RestCompleted" : "Completed");
+            SetState(ClockState.Alarming);
+            if (wasRest) FinishRest(); else Finish();
             return;
         }
         double secLeft = (double)ticksLeft / Stopwatch.Frequency;
@@ -1493,51 +2467,108 @@ internal sealed class AppContext : ApplicationContext
         int nextMs = (int)(frac * 1000) + 15;
         timer.Interval = Math.Max(80, Math.Min(400, nextMs));
     }
+
     private void FormatAndDisplay(long total)
     {
         long h = total / 3600, m = (total / 60) % 60, s = total % 60;
-        string value = settings.Format == "MM:SS" ? (total / 60).ToString("00") + ":" + s.ToString("00") :
-            settings.Format == "Chinese" ? (settings.Language == "en" ? h.ToString("00") + "h " + m.ToString("00") + "m " + s.ToString("00") + "s" : h.ToString("00") + "时" + m.ToString("00") + "分" + s.ToString("00") + "秒") : h.ToString("00") + ":" + m.ToString("00") + ":" + s.ToString("00");
+        string value;
+        if (state == ClockState.RestRunning || state == ClockState.RestPaused)
+        {
+            string prefix = settings.Language == "en" ? "Rest " : "休息 ";
+            value = prefix + (total / 60).ToString("00") + ":" + s.ToString("00");
+        }
+        else
+        {
+            value = settings.Format == "MM:SS" ? (total / 60).ToString("00") + ":" + s.ToString("00") :
+                settings.Format == "Chinese" ? (settings.Language == "en" ? h.ToString("00") + "h " + m.ToString("00") + "m " + s.ToString("00") + "s" : h.ToString("00") + "时" + m.ToString("00") + "分" + s.ToString("00") + "秒") : h.ToString("00") + ":" + m.ToString("00") + ":" + s.ToString("00");
+        }
         overlay.UpdateText(value);
     }
+
     private void Display(TimeSpan t)
     {
         long total = Math.Max(0, (long)Math.Ceiling(t.TotalSeconds));
         lastSeconds = total;
         FormatAndDisplay(total);
     }
+
     private void ResetDisplay() { remaining = TimeSpan.FromMinutes(settings.Minutes); lastSeconds = -1; Display(remaining); }
+
     private void Finish()
     {
+        FinishCore(false);
+    }
+
+    private void FinishRest()
+    {
+        FinishCore(true);
+    }
+
+    private void FinishCore(bool wasRest)
+    {
         overlay.SetPaused(false);
-        overlay.Hide();
         UpdateMenuText();
         if (settings.EndNotice)
         {
+            if (settings.NoticeStyle == "Pulse" || (settings.FullscreenDnd && IsForegroundFullScreen()))
+            {
+                if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
+                if (settings.EndSound)
+                {
+                    PlaySoundStyle(settings.EndSoundStyle);
+                }
+                overlay.StartBreathingPulse(delegate
+                {
+                    ResetDisplay();
+                    overlay.Hide();
+                    SetState(ClockState.Idle);
+                });
+                return;
+            }
+            overlay.Hide();
             if (activeNotice != null && !activeNotice.IsDisposed)
             {
                 activeNotice.ForceTopMost();
                 return;
             }
-            activeNotice = new NoticeDialog(settings, DateTime.Now);
-            activeNotice.FormClosed += delegate { activeNotice = null; };
+            Action onRest = wasRest ? null : new Action(delegate { StartRest(5); });
+            activeNotice = new NoticeDialog(settings, DateTime.Now, wasRest ? (settings.Language == "en" ? "Break" : "休息") : null, IntPtr.Zero, onRest);
+            activeNotice.FormClosed += delegate { activeNotice = null; if (state == ClockState.Alarming) SetState(ClockState.Idle); };
             activeNotice.Show();
         }
-        else if (settings.EndSound)
+        else
         {
-            System.Media.SystemSounds.Exclamation.Play();
+            overlay.Hide();
+            if (settings.EndSound)
+            {
+                PlaySoundStyle(settings.EndSoundStyle);
+            }
+            SetState(ClockState.Idle);
         }
     }
+
     private void ToggleMove()
     {
-        bool enabled = !overlay.MoveMode; overlay.SetMoveMode(enabled, running);
-        if (enabled) { if (!sessionActive) ResetDisplay(); overlay.Show(); }
-        else { if (!sessionActive) overlay.Hide(); }
+        bool enabled = !overlay.MoveMode;
+        overlay.SetMoveMode(enabled, running);
+        if (enabled)
+        {
+            preMoveState = state;
+            SetState(ClockState.MoveMode);
+            if (preMoveState == ClockState.Idle) ResetDisplay();
+            overlay.Show();
+        }
+        else
+        {
+            SetState(preMoveState);
+            if (state == ClockState.Idle) overlay.Hide();
+        }
         bool en = settings.Language == "en";
         tray.ShowBalloonTip(2000, "iClock", enabled ? (en ? "Drag the translucent area to move the text. Use the tray menu to finish." : "拖动半透明区域调整文字位置，再次从托盘菜单退出调整模式。") : (en ? "Text position saved." : "文字位置已保存。"), ToolTipIcon.Info);
         UpdateMenuText();
     }
-    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+    private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+    private const uint SWP_FLAGS = 0x0043;
 
     private static void ActivateWindow(Form f)
     {
@@ -1545,7 +2576,1015 @@ internal sealed class AppContext : ApplicationContext
         if (f.WindowState == FormWindowState.Minimized) f.WindowState = FormWindowState.Normal;
         f.BringToFront();
         f.Activate();
-        try { SetForegroundWindow(f.Handle); } catch { }
+        try
+        {
+            if (f.TopMost) NativeMethods.SetWindowPos(f.Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_FLAGS);
+            NativeMethods.SetForegroundWindow(f.Handle);
+            NativeMethods.BringWindowToTop(f.Handle);
+        }
+        catch { }
+    }
+
+    internal static bool IsForegroundFullScreen()
+    {
+        try
+        {
+            IntPtr fg = NativeMethods.GetForegroundWindow();
+            if (fg == IntPtr.Zero) return false;
+            if (fg == NativeMethods.GetDesktopWindow() || fg == NativeMethods.GetShellWindow()) return false;
+
+            StringBuilder sb = new StringBuilder(256);
+            if (NativeMethods.GetClassName(fg, sb, sb.Capacity) > 0)
+            {
+                string cls = sb.ToString();
+                if (cls == "Progman" || cls == "WorkerW" || cls == "Shell_TrayWnd") return false;
+            }
+
+            RECT r;
+            if (!NativeMethods.GetWindowRect(fg, out r)) return false;
+
+            Screen scr = Screen.FromHandle(fg);
+            if (scr == null) return false;
+
+            return r.Left <= scr.Bounds.Left &&
+                   r.Top <= scr.Bounds.Top &&
+                   r.Right >= scr.Bounds.Right &&
+                   r.Bottom >= scr.Bounds.Bottom;
+        }
+        catch { return false; }
+    }
+
+    private static byte[] qqWavData;
+    private static byte[] pagerWavData;
+    private static SoundPlayer activeSoundPlayer;
+
+    private static byte[] GenerateQQWav()
+    {
+        int sampleRate = 22050;
+        List<short> samples = new List<short>();
+        double freq = 2150.0;
+        for (int burst = 0; burst < 5; burst++)
+        {
+            for (int beep = 0; beep < 4; beep++)
+            {
+                int toneSamples = (int)(sampleRate * 0.042);
+                int ramp = (int)(sampleRate * 0.005);
+                for (int i = 0; i < toneSamples; i++)
+                {
+                    double t = (double)i / sampleRate;
+                    double env = 1.0;
+                    if (i < ramp) env = (double)i / ramp;
+                    else if (i > toneSamples - ramp) env = (double)(toneSamples - i) / ramp;
+
+                    double sine = Math.Sin(2.0 * Math.PI * freq * t);
+                    double sq = (sine >= 0) ? 1.0 : -1.0;
+                    short val = (short)((sq * 0.65 + sine * 0.35) * env * 18000.0);
+                    samples.Add(val);
+                }
+                if (beep < 3)
+                {
+                    int gap = (int)(sampleRate * 0.042);
+                    for (int i = 0; i < gap; i++) samples.Add(0);
+                }
+            }
+            if (burst < 4)
+            {
+                int pause = (int)(sampleRate * 0.420);
+                for (int i = 0; i < pause; i++) samples.Add(0);
+            }
+            else
+            {
+                int end = (int)(sampleRate * 0.100);
+                for (int i = 0; i < end; i++) samples.Add(0);
+            }
+        }
+        return BuildPcmWav(sampleRate, samples);
+    }
+
+    private static byte[] GeneratePagerWav()
+    {
+        int sampleRate = 22050;
+        List<short> samples = new List<short>();
+        double freq = 2700.0;
+        for (int cycle = 0; cycle < 5; cycle++)
+        {
+            for (int beep = 0; beep < 3; beep++)
+            {
+                int toneSamples = (int)(sampleRate * 0.070);
+                int ramp = (int)(sampleRate * 0.004);
+                for (int i = 0; i < toneSamples; i++)
+                {
+                    double t = (double)i / sampleRate;
+                    double env = 1.0;
+                    if (i < ramp) env = (double)i / ramp;
+                    else if (i > toneSamples - ramp) env = (double)(toneSamples - i) / ramp;
+
+                    double sine = Math.Sin(2.0 * Math.PI * freq * t);
+                    double sq = (sine >= 0) ? 1.0 : -1.0;
+                    short val = (short)(sq * env * 16000.0);
+                    samples.Add(val);
+                }
+                if (beep < 2)
+                {
+                    int gap = (int)(sampleRate * 0.045);
+                    for (int i = 0; i < gap; i++) samples.Add(0);
+                }
+            }
+            if (cycle < 4)
+            {
+                int pause = (int)(sampleRate * 0.400);
+                for (int i = 0; i < pause; i++) samples.Add(0);
+            }
+            else
+            {
+                int end = (int)(sampleRate * 0.100);
+                for (int i = 0; i < end; i++) samples.Add(0);
+            }
+        }
+        return BuildPcmWav(sampleRate, samples);
+    }
+
+    private static byte[] BuildPcmWav(int sampleRate, List<short> samples)
+    {
+        using (MemoryStream ms = new MemoryStream())
+        using (BinaryWriter bw = new BinaryWriter(ms))
+        {
+            int numSamples = samples.Count;
+            int dataLen = numSamples * 2;
+            int chunkSize = 36 + dataLen;
+            int byteRate = sampleRate * 2;
+
+            bw.Write(System.Text.Encoding.ASCII.GetBytes("RIFF"));
+            bw.Write(chunkSize);
+            bw.Write(System.Text.Encoding.ASCII.GetBytes("WAVE"));
+
+            bw.Write(System.Text.Encoding.ASCII.GetBytes("fmt "));
+            bw.Write(16);
+            bw.Write((short)1); // PCM
+            bw.Write((short)1); // Mono
+            bw.Write(sampleRate);
+            bw.Write(byteRate);
+            bw.Write((short)2); // BlockAlign
+            bw.Write((short)16); // BitsPerSample
+
+            bw.Write(System.Text.Encoding.ASCII.GetBytes("data"));
+            bw.Write(dataLen);
+            for (int i = 0; i < numSamples; i++)
+            {
+                bw.Write(samples[i]);
+            }
+            bw.Flush();
+            return ms.ToArray();
+        }
+    }
+
+    internal static void StopSound()
+    {
+        try
+        {
+            if (activeSoundPlayer != null)
+            {
+                activeSoundPlayer.Stop();
+                activeSoundPlayer.Dispose();
+                activeSoundPlayer = null;
+            }
+        }
+        catch { }
+    }
+
+    internal static void PlaySoundStyle(string style)
+    {
+        try
+        {
+            StopSound();
+
+            if (style == "Alarm")
+            {
+                string winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+                string p = Path.Combine(winDir, "Media\\Alarm01.wav");
+                if (File.Exists(p))
+                {
+                    activeSoundPlayer = new SoundPlayer(p);
+                    activeSoundPlayer.Play();
+                }
+                else
+                {
+                    SystemSounds.Exclamation.Play();
+                }
+            }
+            else if (style == "Pager" || style == "Classic")
+            {
+                if (pagerWavData == null) pagerWavData = GeneratePagerWav();
+                MemoryStream ms = new MemoryStream(pagerWavData);
+                activeSoundPlayer = new SoundPlayer(ms);
+                activeSoundPlayer.Play();
+            }
+            else // "QQ" or "Chime"
+            {
+                if (qqWavData == null) qqWavData = GenerateQQWav();
+                MemoryStream ms = new MemoryStream(qqWavData);
+                activeSoundPlayer = new SoundPlayer(ms);
+                activeSoundPlayer.Play();
+            }
+        }
+        catch { }
+    }
+
+    internal static string MatchAgent(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return null;
+        string lower = text.ToLowerInvariant();
+        if (lower.Contains("antigravity")) return "Antigravity";
+        if (lower.Contains("cursor")) return "Cursor";
+        if (lower.Contains("windsurf") || lower.Contains("codeium")) return "Windsurf";
+        if (lower.Contains("trae")) return "Trae";
+        if (lower.Contains("marscode")) return "MarsCode";
+        if (lower.Contains("lingma") || lower.Contains("tongyi")) return "通义灵码 (Lingma)";
+        if (lower.Contains("codegeex") || lower.Contains("zcode")) return "CodeGeeX";
+        if (lower.Contains("comate")) return "文心快码 (Comate)";
+        if (lower.Contains("minimax")) return "MiniMax Code";
+        if (lower.Contains("codebuddy") || lower.Contains("tencentcloud") || lower.Contains("tce-code")) return "CodeBuddy";
+        if (lower.Contains("fitten")) return "Fitten Code";
+        if (lower.Contains("codearts")) return "CodeArts Snap";
+        if (lower.Contains("raccoon")) return "代码小浣熊";
+        if (lower.Contains("copilot")) return "GitHub Copilot";
+        if (lower.Contains("claude")) return "Claude Code";
+        if (lower.Contains("gemini")) return "Gemini";
+        if (lower.Contains("codex")) return "Codex";
+        if (lower.Contains("kimi")) return "Kimi Code";
+        if (lower.Contains("opencode")) return "OpenCode";
+        if (lower.Contains("workbuddy") || lower.Contains("work_buddy") || lower.Contains("work-buddy")) return "WorkBuddy";
+        if (lower.Contains("sheetagent")) return "SheetAgent";
+        if (lower.Contains("aider")) return "Aider";
+        if (lower.Contains("cline")) return "Cline";
+        if (lower.Contains("roo-code") || lower.Contains("roocode") || lower.Contains("roo-cline")) return "Roo Code";
+        if (lower.Contains("continue") || lower.Contains("continuedev")) return "Continue";
+        if (lower.Contains("tabnine")) return "Tabnine";
+        if (lower.Contains("cody") || lower.Contains("sourcegraph")) return "Cody";
+        if (lower.Contains("amazonq") || lower.Contains("codewhisperer")) return "Amazon Q";
+        if (lower.Contains("supermaven")) return "Supermaven";
+        if (lower.Contains("devin") || lower.Contains("opendevin") || lower.Contains("all-hands")) return "Devin";
+        if (lower.Contains("grokbot") || lower.Contains("grok")) return "Grok";
+        if (lower == "pi" || lower.StartsWith("pi ") || lower.StartsWith("pi-") || lower.StartsWith("pi.")) return "Pi";
+        return null;
+    }
+
+    internal static HashSet<string> GetRunningAgents()
+    {
+        HashSet<string> running = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (Process p in Process.GetProcesses())
+            {
+                using (p)
+                {
+                    string name = MatchAgent(p.ProcessName);
+                    if (name != null) running.Add(name);
+                }
+            }
+        }
+        catch { }
+        return running;
+    }
+
+    internal static List<string> DetectAgents()
+    {
+        List<string> result = new List<string>();
+        HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (Process p in Process.GetProcesses())
+            {
+                using (p)
+                {
+                    string name = MatchAgent(p.ProcessName);
+                    if (name != null && !seen.Contains(name))
+                    {
+                        seen.Add(name);
+                        result.Add(name);
+                    }
+                }
+            }
+        }
+        catch { }
+
+        List<string> dirsToCheck = new List<string>();
+        try
+        {
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            dirsToCheck.Add(Path.Combine(local, "Programs"));
+            dirsToCheck.Add(Path.Combine(local, "Microsoft", "WindowsApps"));
+            dirsToCheck.Add(Path.Combine(local, "OpenAI"));
+            dirsToCheck.Add(Path.Combine(local, "Programs", "@opencode-aidesktop"));
+
+            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            if (!string.IsNullOrEmpty(appData))
+            {
+                dirsToCheck.Add(appData);
+                dirsToCheck.Add(Path.Combine(appData, "Programs"));
+            }
+
+            string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            if (!string.IsNullOrEmpty(pf)) dirsToCheck.Add(pf);
+
+            string pfx86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            if (!string.IsNullOrEmpty(pfx86) && pfx86 != pf) dirsToCheck.Add(pfx86);
+
+            string pd = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+            if (!string.IsNullOrEmpty(pd)) dirsToCheck.Add(pd);
+
+            string prog = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+            if (!string.IsNullOrEmpty(prog)) dirsToCheck.Add(prog);
+
+            string cprog = Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms);
+            if (!string.IsNullOrEmpty(cprog)) dirsToCheck.Add(cprog);
+
+            string userProf = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrEmpty(userProf))
+            {
+                dirsToCheck.Add(userProf);
+                dirsToCheck.Add(Path.Combine(userProf, ".vscode", "extensions"));
+                dirsToCheck.Add(Path.Combine(userProf, ".cursor", "extensions"));
+                dirsToCheck.Add(Path.Combine(userProf, ".windsurf", "extensions"));
+                dirsToCheck.Add(Path.Combine(userProf, ".trae", "extensions"));
+                dirsToCheck.Add(Path.Combine(userProf, ".antigravity", "extensions"));
+            }
+        }
+        catch { }
+
+        foreach (string baseDir in dirsToCheck)
+        {
+            try
+            {
+                if (!Directory.Exists(baseDir)) continue;
+                foreach (string entry in Directory.GetFileSystemEntries(baseDir))
+                {
+                    string fname = Path.GetFileName(entry);
+                    string name = MatchAgent(fname);
+                    if (name != null && !seen.Contains(name))
+                    {
+                        seen.Add(name);
+                        result.Add(name);
+                    }
+                }
+            }
+            catch { }
+        }
+
+        return result;
+    }
+
+    internal static class ToastAgentMonitor
+    {
+        private static object listener;
+        private static MethodInfo getNotifsMethod;
+        private static MethodInfo asTaskMethod;
+        private static Type genericArg;
+        private static object toastKind;
+        private static uint lastSeenId = 0;
+        private static bool initialized = false;
+        private static bool initAttempted = false;
+
+        internal static uint LastSeenId { get { return lastSeenId; } set { lastSeenId = value; } }
+
+        public static bool IsAvailable
+        {
+            get
+            {
+                if (!initAttempted) Init();
+                return initialized;
+            }
+        }
+
+        public static bool Init()
+        {
+            initAttempted = true;
+            try
+            {
+                Type listenerType = Type.GetType("Windows.UI.Notifications.Management.UserNotificationListener, Windows, ContentType=WindowsRuntime");
+                if (listenerType == null) return false;
+
+                object current = listenerType.GetProperty("Current", BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
+                MethodInfo getStatus = listenerType.GetMethod("GetAccessStatus");
+                object status = getStatus.Invoke(current, null);
+                if (status == null || status.ToString() != "Allowed") return false;
+
+                Type kindType = Type.GetType("Windows.UI.Notifications.NotificationKinds, Windows, ContentType=WindowsRuntime");
+                toastKind = Enum.Parse(kindType, "Toast");
+
+                getNotifsMethod = listenerType.GetMethod("GetNotificationsAsync", new Type[] { kindType });
+                genericArg = getNotifsMethod.ReturnType.GetGenericArguments()[0];
+
+                Type extType = typeof(System.WindowsRuntimeSystemExtensions);
+                foreach (MethodInfo m in extType.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                {
+                    if (m.Name == "AsTask" && m.IsGenericMethod && m.GetParameters().Length == 1)
+                    {
+                        asTaskMethod = m;
+                        break;
+                    }
+                }
+                if (asTaskMethod == null) return false;
+
+                listener = current;
+                initialized = true;
+
+                uint maxId = 0;
+                IEnumerable initialList = FetchToastNotifications();
+                if (initialList != null)
+                {
+                    foreach (object item in initialList)
+                    {
+                        uint id = (uint)item.GetType().GetProperty("Id").GetValue(item, null);
+                        if (id > maxId) maxId = id;
+                    }
+                }
+                lastSeenId = maxId;
+                return true;
+            }
+            catch
+            {
+                initialized = false;
+                return false;
+            }
+        }
+
+        public static IEnumerable FetchToastNotifications()
+        {
+            if (!initialized || listener == null || getNotifsMethod == null || asTaskMethod == null) return null;
+            try
+            {
+                object asyncOp = getNotifsMethod.Invoke(listener, new object[] { toastKind });
+                Task task = (Task)asTaskMethod.MakeGenericMethod(genericArg).Invoke(null, new object[] { asyncOp });
+                if (task.Wait(1000))
+                {
+                    return (IEnumerable)task.GetType().GetProperty("Result").GetValue(task, null);
+                }
+                return null;
+            }
+            catch { return null; }
+        }
+
+        public static void CheckNewAgentNotifications(Action<string, string> onAgentNotice)
+        {
+            if (!IsAvailable || onAgentNotice == null) return;
+            IEnumerable list = FetchToastNotifications();
+            if (list == null) return;
+
+            uint newMaxId = lastSeenId;
+            foreach (object item in list)
+            {
+                try
+                {
+                    Type itemType = item.GetType();
+                    uint id = (uint)itemType.GetProperty("Id").GetValue(item, null);
+                    if (id <= lastSeenId) continue;
+                    if (id > newMaxId) newMaxId = id;
+
+                    object appInfo = itemType.GetProperty("AppInfo").GetValue(item, null);
+                    if (appInfo == null) continue;
+                    object displayInfo = appInfo.GetType().GetProperty("DisplayInfo").GetValue(appInfo, null);
+                    if (displayInfo == null) continue;
+                    string appName = (string)displayInfo.GetType().GetProperty("DisplayName").GetValue(displayInfo, null);
+
+                    string agentName = MatchAgent(appName);
+                    if (agentName != null)
+                    {
+                        string text = "";
+                        try
+                        {
+                            object notifObj = itemType.GetProperty("Notification").GetValue(item, null);
+                            if (notifObj != null)
+                            {
+                                object visual = notifObj.GetType().GetProperty("Visual").GetValue(notifObj, null);
+                                if (visual != null)
+                                {
+                                    MethodInfo getBinding = visual.GetType().GetMethod("GetBinding");
+                                    object binding = getBinding.Invoke(visual, new object[] { "ToastGeneric" });
+                                    if (binding != null)
+                                    {
+                                        MethodInfo getText = binding.GetType().GetMethod("GetTextElements");
+                                        IEnumerable texts = (IEnumerable)getText.Invoke(binding, null);
+                                        if (texts != null)
+                                        {
+                                            foreach (object t in texts)
+                                            {
+                                                string s = (string)t.GetType().GetProperty("Text").GetValue(t, null);
+                                                if (!string.IsNullOrEmpty(s))
+                                                {
+                                                    text += (text.Length > 0 ? " • " : "") + s;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+
+                        onAgentNotice(agentName, text);
+                    }
+                }
+                catch { }
+            }
+            lastSeenId = newMaxId;
+        }
+    }
+
+    internal const int AgentCpuBusyMinTicks = 5;       // 算力需持续活跃 >= 5 秒才认定进入后台任务（大幅提高启动门槛）
+    internal const int AgentCpuIdleMinTicks = 6;       // 算力需持续平稳 >= 6 秒才触发完成提醒（大幅提高触发门槛，防工具调用间隙误报）
+    internal const double AgentCpuSecsMin = 0.40;      // 集群单秒实际消耗 CPU 核心时间 >= 0.40 秒（原 0.15s）
+    internal const double AgentCpuUsageMin = 0.08;     // 系统总算力占用比 >= 8%（原 3%）
+    internal const int AgentNoticeCooldownSecs = 30;   // 提醒冷却周期 >= 30 秒（原 15s）
+
+    internal class AgentTrack
+    {
+        public string DisplayName;
+        public HashSet<int> Pids = new HashSet<int>();
+        public IntPtr MainWindow;
+        public TimeSpan LastCpu;
+        public DateTime LastSample;
+        public int BusyTicks;
+        public int IdleTicks;
+        public bool WasBusy;
+        public DateTime LastNoticeTime;
+        public string LastTitle;
+        public bool TitleWasBusy;
+    }
+
+    internal static string GetAgentWindowTitle(IntPtr hWnd)
+    {
+        if (hWnd == IntPtr.Zero || !NativeMethods.IsWindow(hWnd)) return string.Empty;
+        try
+        {
+            int len = NativeMethods.GetWindowTextLength(hWnd);
+            if (len <= 0) return string.Empty;
+            StringBuilder sb = new StringBuilder(len + 1);
+            NativeMethods.GetWindowText(hWnd, sb, sb.Capacity);
+            return sb.ToString();
+        }
+        catch { return string.Empty; }
+    }
+
+    internal static bool IsBusyAgentTitle(string title)
+    {
+        if (string.IsNullOrEmpty(title)) return false;
+        string lower = title.ToLowerInvariant();
+        return lower.Contains("[running]") || lower.Contains("(running)") ||
+               lower.Contains("●") || lower.Contains("thinking...") ||
+               lower.Contains("generating...") || lower.Contains("[busy]") ||
+               lower.Contains("(busy)") || lower.Contains("[building]") ||
+               lower.Contains("(building)");
+    }
+
+    internal static IntPtr FindAgentMainWindow(HashSet<int> pids)
+    {
+        if (pids == null || pids.Count == 0) return IntPtr.Zero;
+        IntPtr best = IntPtr.Zero;
+        int maxArea = 0;
+        IntPtr desk = IntPtr.Zero;
+        try
+        {
+            desk = NativeMethods.OpenInputDesktop(0, false, 0x0100 | 0x0001);
+            NativeMethods.EnumWindowsProc proc = delegate(IntPtr hWnd, IntPtr lParam)
+            {
+                if (!NativeMethods.IsWindowVisible(hWnd)) return true;
+                uint pid;
+                NativeMethods.GetWindowThreadProcessId(hWnd, out pid);
+                if (pids.Contains((int)pid))
+                {
+                    if (NativeMethods.GetWindowTextLength(hWnd) > 0)
+                    {
+                        RECT r;
+                        if (NativeMethods.GetWindowRect(hWnd, out r))
+                        {
+                            int area = (r.Right - r.Left) * (r.Bottom - r.Top);
+                            if (area > maxArea)
+                            {
+                                maxArea = area;
+                                best = hWnd;
+                            }
+                        }
+                    }
+                }
+                return true;
+            };
+
+            if (desk != IntPtr.Zero)
+            {
+                NativeMethods.EnumDesktopWindows(desk, proc, IntPtr.Zero);
+            }
+            if (best == IntPtr.Zero)
+            {
+                NativeMethods.EnumWindows(proc, IntPtr.Zero);
+            }
+        }
+        catch { }
+        finally
+        {
+            if (desk != IntPtr.Zero)
+            {
+                try { NativeMethods.CloseDesktop(desk); } catch { }
+            }
+        }
+        return best;
+    }
+
+    private Timer agentTimer;
+    internal Dictionary<string, AgentTrack> trackedAgents = new Dictionary<string, AgentTrack>(StringComparer.OrdinalIgnoreCase);
+    private int agentScanCooldown;
+
+    private void UpdateAgentMonitoring()
+    {
+        if (settings.AgentNotice)
+        {
+            if (agentTimer == null)
+            {
+                agentTimer = new Timer();
+                agentTimer.Interval = 1000;
+                agentTimer.Tick += AgentTimerTick;
+            }
+            agentTimer.Start();
+        }
+        else
+        {
+            if (agentTimer != null) agentTimer.Stop();
+            trackedAgents.Clear();
+        }
+    }
+
+    private void AgentTimerTick(object sender, EventArgs e)
+    {
+        if (!settings.AgentNotice) return;
+        IntPtr fg = NativeMethods.GetForegroundWindow();
+        uint fgPid = 0;
+        if (fg != IntPtr.Zero) NativeMethods.GetWindowThreadProcessId(fg, out fgPid);
+        ProcessAgentTick(DateTime.Now, fg, fgPid);
+    }
+
+    internal void ProcessAgentTick(DateTime now, IntPtr fg, uint fgPid)
+    {
+        if (ToastAgentMonitor.IsAvailable)
+        {
+            ToastAgentMonitor.CheckNewAgentNotifications(delegate(string agentName, string detailText)
+            {
+                AgentTrack t = null;
+                IntPtr targetHwnd = IntPtr.Zero;
+                if (trackedAgents.TryGetValue(agentName, out t))
+                {
+                    if (t.MainWindow == IntPtr.Zero || !NativeMethods.IsWindow(t.MainWindow))
+                    {
+                        t.MainWindow = FindAgentMainWindow(t.Pids);
+                    }
+                    targetHwnd = t.MainWindow;
+                    t.LastNoticeTime = now;
+                    t.WasBusy = false;
+                    t.TitleWasBusy = false;
+                    t.BusyTicks = 0;
+                    t.IdleTicks = 0;
+                }
+                else
+                {
+                    try
+                    {
+                        foreach (Process p in Process.GetProcesses())
+                        {
+                            using (p)
+                            {
+                                if (string.Equals(MatchAgent(p.ProcessName), agentName, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    HashSet<int> pids = new HashSet<int>();
+                                    pids.Add(p.Id);
+                                    targetHwnd = FindAgentMainWindow(pids);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                bool isForeground = false;
+                if (t != null)
+                {
+                    bool isMinimized = t.MainWindow != IntPtr.Zero && NativeMethods.IsIconic(t.MainWindow);
+                    isForeground = !isMinimized && ((t.MainWindow != IntPtr.Zero && t.MainWindow == fg) || (t.Pids != null && t.Pids.Contains((int)fgPid)));
+                }
+                else if (targetHwnd != IntPtr.Zero && fg != IntPtr.Zero)
+                {
+                    isForeground = (targetHwnd == fg);
+                }
+
+                if (!isForeground)
+                {
+                    TriggerAgentNotice(agentName, targetHwnd, detailText);
+                }
+            });
+        }
+
+        agentScanCooldown--;
+        if (agentScanCooldown <= 0 || trackedAgents.Count == 0)
+        {
+            agentScanCooldown = 5;
+            try
+            {
+                Dictionary<string, HashSet<int>> currentAgentPids = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
+                foreach (Process p in Process.GetProcesses())
+                {
+                    using (p)
+                    {
+                        string displayName = MatchAgent(p.ProcessName);
+                        if (displayName != null)
+                        {
+                            HashSet<int> pids;
+                            if (!currentAgentPids.TryGetValue(displayName, out pids))
+                            {
+                                pids = new HashSet<int>();
+                                currentAgentPids[displayName] = pids;
+                            }
+                            pids.Add(p.Id);
+                        }
+                    }
+                }
+
+                foreach (KeyValuePair<string, HashSet<int>> kvp in currentAgentPids)
+                {
+                    string name = kvp.Key;
+                    HashSet<int> pids = kvp.Value;
+                    AgentTrack track;
+                    if (!trackedAgents.TryGetValue(name, out track))
+                    {
+                        TimeSpan totalCpu = TimeSpan.Zero;
+                        foreach (int pid in pids)
+                        {
+                            try
+                            {
+                                using (Process p = Process.GetProcessById(pid))
+                                {
+                                    if (!p.HasExited) totalCpu += p.TotalProcessorTime;
+                                }
+                            }
+                            catch { }
+                        }
+
+                        track = new AgentTrack
+                        {
+                            DisplayName = name,
+                            Pids = pids,
+                            MainWindow = FindAgentMainWindow(pids),
+                            LastCpu = totalCpu,
+                            LastSample = now,
+                            LastNoticeTime = DateTime.MinValue
+                        };
+                        trackedAgents[name] = track;
+                    }
+                    else
+                    {
+                        track.Pids = pids;
+                        if (track.MainWindow == IntPtr.Zero || !NativeMethods.IsWindow(track.MainWindow))
+                        {
+                            track.MainWindow = FindAgentMainWindow(pids);
+                        }
+                    }
+                }
+
+                List<string> toRemove = new List<string>();
+                foreach (string name in trackedAgents.Keys)
+                {
+                    if (!currentAgentPids.ContainsKey(name)) toRemove.Add(name);
+                }
+                foreach (string name in toRemove) trackedAgents.Remove(name);
+            }
+            catch { }
+        }
+
+        foreach (AgentTrack track in new List<AgentTrack>(trackedAgents.Values))
+        {
+            try
+            {
+                if (track.Pids == null || track.Pids.Count == 0)
+                {
+                    trackedAgents.Remove(track.DisplayName);
+                    continue;
+                }
+
+                if (track.MainWindow == IntPtr.Zero || !NativeMethods.IsWindow(track.MainWindow))
+                {
+                    track.MainWindow = FindAgentMainWindow(track.Pids);
+                }
+
+                bool isMinimized = track.MainWindow != IntPtr.Zero && NativeMethods.IsIconic(track.MainWindow);
+                bool isForeground = !isMinimized && ((track.MainWindow != IntPtr.Zero && track.MainWindow == fg) || track.Pids.Contains((int)fgPid));
+
+                string curTitle = GetAgentWindowTitle(track.MainWindow);
+                bool isTitleBusy = IsBusyAgentTitle(curTitle);
+                bool titleJustFinished = track.TitleWasBusy && !isTitleBusy;
+
+                TimeSpan curCpu = TimeSpan.Zero;
+                List<int> deadPids = null;
+                foreach (int pid in track.Pids)
+                {
+                    try
+                    {
+                        using (Process p = Process.GetProcessById(pid))
+                        {
+                            if (!p.HasExited) curCpu += p.TotalProcessorTime;
+                            else { if (deadPids == null) deadPids = new List<int>(); deadPids.Add(pid); }
+                        }
+                    }
+                    catch { if (deadPids == null) deadPids = new List<int>(); deadPids.Add(pid); }
+                }
+                if (deadPids != null)
+                {
+                    foreach (int d in deadPids) track.Pids.Remove(d);
+                }
+
+                if (isForeground)
+                {
+                    track.WasBusy = false;
+                    track.TitleWasBusy = false;
+                    track.BusyTicks = 0;
+                    track.IdleTicks = 0;
+                    track.LastCpu = curCpu;
+                    track.LastSample = now;
+                    track.LastTitle = curTitle;
+                    continue;
+                }
+
+                double elapsed = (now - track.LastSample).TotalSeconds;
+                if (elapsed <= 0.2) continue;
+
+                double cpuSecs = (curCpu - track.LastCpu).TotalSeconds;
+                track.LastCpu = curCpu;
+                track.LastSample = now;
+                track.LastTitle = curTitle;
+                if (cpuSecs < 0) cpuSecs = 0;
+
+                double usage = cpuSecs / (elapsed * Environment.ProcessorCount);
+                bool isCpuBusy = (usage >= AgentCpuUsageMin || cpuSecs >= AgentCpuSecsMin);
+
+                bool isToastAgent = ToastAgentMonitor.IsAvailable && (
+                    string.Equals(track.DisplayName, "Antigravity", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(track.DisplayName, "Cursor", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(track.DisplayName, "Windsurf", StringComparison.OrdinalIgnoreCase)
+                );
+
+                if (isTitleBusy)
+                {
+                    track.TitleWasBusy = true;
+                    track.WasBusy = true;
+                    track.BusyTicks++;
+                    track.IdleTicks = 0;
+                }
+                else if (titleJustFinished)
+                {
+                    track.TitleWasBusy = false;
+                    track.WasBusy = false;
+                    track.BusyTicks = 0;
+                    track.IdleTicks = 0;
+                    if ((now - track.LastNoticeTime).TotalSeconds >= AgentNoticeCooldownSecs)
+                    {
+                        track.LastNoticeTime = now;
+                        TriggerAgentNotice(track.DisplayName, track.MainWindow);
+                    }
+                }
+                else if (!isToastAgent && isCpuBusy)
+                {
+                    track.BusyTicks++;
+                    track.IdleTicks = 0;
+                    if (track.BusyTicks >= AgentCpuBusyMinTicks) track.WasBusy = true;
+                }
+                else if (!isToastAgent && track.WasBusy)
+                {
+                    track.IdleTicks++;
+                    if (track.IdleTicks >= AgentCpuIdleMinTicks)
+                    {
+                        track.WasBusy = false;
+                        track.TitleWasBusy = false;
+                        track.BusyTicks = 0;
+                        track.IdleTicks = 0;
+                        if ((now - track.LastNoticeTime).TotalSeconds >= AgentNoticeCooldownSecs)
+                        {
+                            track.LastNoticeTime = now;
+                            if (track.MainWindow == IntPtr.Zero || !NativeMethods.IsWindow(track.MainWindow))
+                            {
+                                track.MainWindow = FindAgentMainWindow(track.Pids);
+                            }
+                            TriggerAgentNotice(track.DisplayName, track.MainWindow);
+                        }
+                    }
+                }
+                else
+                {
+                    track.BusyTicks = 0;
+                }
+            }
+            catch { }
+        }
+    }
+
+    private void TriggerAgentNotice(string agentName, IntPtr targetHwnd, string detailText = null)
+    {
+        if (settings.NoticeStyle == "Pulse" || (settings.FullscreenDnd && IsForegroundFullScreen()))
+        {
+            overlay.StartBreathingPulse(delegate
+            {
+                ResetDisplay();
+                overlay.Hide();
+            });
+            if (settings.EndSound)
+            {
+                PlaySoundStyle(settings.EndSoundStyle);
+            }
+        }
+        else
+        {
+            if (activeNotice != null && !activeNotice.IsDisposed)
+            {
+                activeNotice.Close();
+                activeNotice = null;
+            }
+            activeNotice = new NoticeDialog(settings, DateTime.Now, agentName, targetHwnd, null, detailText);
+            activeNotice.FormClosed += delegate { activeNotice = null; };
+            activeNotice.Show();
+        }
+    }
+
+    internal void HandleShellHook(int code, IntPtr targetHwnd)
+    {
+        if (targetHwnd == IntPtr.Zero || !settings.AgentNotice) return;
+        if (code != HSHELL_FLASH) return;
+
+        try
+        {
+            IntPtr fg = NativeMethods.GetForegroundWindow();
+            if (fg != IntPtr.Zero && fg == targetHwnd) return;
+
+            uint pid = 0;
+            NativeMethods.GetWindowThreadProcessId(targetHwnd, out pid);
+
+            string agentName = null;
+            foreach (KeyValuePair<string, AgentTrack> kvp in trackedAgents)
+            {
+                if (kvp.Value.MainWindow == targetHwnd || (pid != 0 && kvp.Value.Pids.Contains((int)pid)))
+                {
+                    agentName = kvp.Key;
+                    break;
+                }
+            }
+
+            if (agentName == null && pid != 0)
+            {
+                try
+                {
+                    using (Process p = Process.GetProcessById((int)pid))
+                    {
+                        agentName = MatchAgent(p.ProcessName);
+                    }
+                }
+                catch { }
+            }
+
+            if (agentName == null)
+            {
+                string title = GetAgentWindowTitle(targetHwnd);
+                agentName = MatchAgent(title);
+            }
+
+            if (agentName != null)
+            {
+                DateTime now = DateTime.Now;
+                AgentTrack track;
+                if (trackedAgents.TryGetValue(agentName, out track))
+                {
+                    if ((now - track.LastNoticeTime).TotalSeconds < AgentNoticeCooldownSecs) return;
+                    track.LastNoticeTime = now;
+                    track.WasBusy = false;
+                    track.TitleWasBusy = false;
+                    track.BusyTicks = 0;
+                    track.IdleTicks = 0;
+                    if (track.MainWindow == IntPtr.Zero || !NativeMethods.IsWindow(track.MainWindow))
+                    {
+                        track.MainWindow = targetHwnd;
+                    }
+                }
+                else
+                {
+                    track = new AgentTrack
+                    {
+                        DisplayName = agentName,
+                        MainWindow = targetHwnd,
+                        LastNoticeTime = now,
+                        LastSample = now
+                    };
+                    if (pid != 0) track.Pids.Add((int)pid);
+                    trackedAgents[agentName] = track;
+                }
+
+                TriggerAgentNotice(agentName, targetHwnd, null);
+            }
+        }
+        catch { }
     }
 
     private void ShowSettings()
@@ -1566,6 +3605,7 @@ internal sealed class AppContext : ApplicationContext
             if (activeDialog == d) activeDialog = null;
         };
         d.Show();
+        ActivateWindow(d);
     }
 
     private void ApplySavedSettings(Settings newSettings)
@@ -1583,6 +3623,7 @@ internal sealed class AppContext : ApplicationContext
             if (menuStart != null) menuStart.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
         }
         UpdateMenuText();
+        UpdateAgentMonitoring();
         lastSeconds = -1;
         if (!running && !sessionActive) { ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); }
         else if (running) { Tick(null, EventArgs.Empty); }
@@ -1612,6 +3653,72 @@ internal sealed class AppContext : ApplicationContext
         public Color Color;
         public StatSpan(string text, Font font, Color color) { Text = text; Font = font; Color = color; }
     }
+    private static bool ParseSessionRow(string row, out string start, out string end, out string dur, out long s, out string res, out bool isDone)
+    {
+        start = ""; end = ""; dur = ""; s = 0; res = ""; isDone = false;
+        if (string.IsNullOrEmpty(row)) return false;
+        string[] cols = row.Split('\t'); if (cols.Length < 4) return false;
+        start = cols[0]; end = cols[1]; dur = cols[2];
+        if (cols.Length >= 5) { long.TryParse(cols[3], out s); res = cols[4]; }
+        else
+        {
+            res = cols[3]; int m; int.TryParse(dur, out m);
+            if (res == "Completed" || res == "已完成") s = m * 60L;
+            else
+            {
+                DateTime t1, t2;
+                if (DateTime.TryParse(start, out t1) && DateTime.TryParse(end, out t2))
+                    s = Math.Max(0L, Math.Min(m * 60L, (long)(t2 - t1).TotalSeconds));
+            }
+        }
+        isDone = res == "Completed" || res == "已完成";
+        return true;
+    }
+
+    private static void GetDayStats(string dir, string dateKey, out int total, out int completed, out long actualSecs)
+    {
+        total = 0; completed = 0; actualSecs = 0;
+        string path = Path.Combine(dir, "history-" + dateKey + ".tsv");
+        if (!File.Exists(path)) return;
+        try
+        {
+            foreach (string row in File.ReadAllLines(path, Encoding.UTF8))
+            {
+                string start, end, dur, res; long s; bool isDone;
+                if (ParseSessionRow(row, out start, out end, out dur, out s, out res, out isDone))
+                {
+                    total++; if (isDone) completed++; actualSecs += s;
+                }
+            }
+        }
+        catch { }
+    }
+
+    private static List<string> GetAvailableHistoryDates(string dir)
+    {
+        List<string> dates = new List<string>();
+        for (int i = 0; i < 7; i++) dates.Add(DateTime.Today.AddDays(-i).ToString("yyyyMMdd"));
+        try
+        {
+            if (Directory.Exists(dir))
+            {
+                foreach (string file in Directory.GetFiles(dir, "history-*.tsv"))
+                {
+                    string name = Path.GetFileNameWithoutExtension(file);
+                    if (name.StartsWith("history-") && name.Length == 16)
+                    {
+                        string k = name.Substring(8);
+                        if (!dates.Contains(k)) dates.Add(k);
+                    }
+                }
+            }
+        }
+        catch { }
+        dates.Sort();
+        dates.Reverse();
+        return dates;
+    }
+
     private void ShowHistory()
     {
         if (activeDialog != null && !activeDialog.IsDisposed)
@@ -1620,230 +3727,469 @@ internal sealed class AppContext : ApplicationContext
             activeDialog.Close();
         }
         bool en = settings.Language == "en";
-        string path = Path.Combine(Path.GetDirectoryName(Settings.FilePath), "history-" + DateTime.Now.ToString("yyyyMMdd") + ".tsv");
+        string historyDir = Path.GetDirectoryName(Settings.FilePath);
         Form f = new Form();
         f.Tag = "history";
         activeDialog = f;
         f.Font = GetUiFont(settings.Language, 9.5f);
         f.BackColor = Win11Bg;
-        ApplyModernWindowStyle(f);
-        f.Text = en ? "iClock - Today's countdown history" : "iClock - 今日倒计时记录";
+        f.Text = en ? "iClock - Countdown History & Statistics" : "iClock - 专注历史记录与统计";
         f.StartPosition = FormStartPosition.CenterScreen;
-        f.ClientSize = new Size(640, 380);
+        f.ClientSize = new Size(680, 440);
+        f.MinimumSize = new Size(620, 380);
         f.MinimizeBox = false; f.MaximizeBox = false;
         f.ShowInTaskbar = false;
-        ListView list = new ListView();
-        list.Font = GetUiFont(settings.Language, 9.5f);
-        list.BackColor = Color.White;
-        list.ForeColor = Win11TextPrimary;
-        list.BorderStyle = BorderStyle.FixedSingle;
-        list.View = View.Details; list.FullRowSelect = true; list.GridLines = true;
-        list.SetBounds(12, 12, 616, 312);
-        list.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-        list.OwnerDraw = true;
+        f.TopMost = true;
+        ApplyModernWindowStyle(f);
+        f.Shown += delegate { ActivateWindow(f); };
 
-        Font headerFont = new Font(list.Font, FontStyle.Bold);
-        Font boldFont = new Font(list.Font, FontStyle.Bold);
+        Font headerFont = new Font(f.Font, FontStyle.Bold);
+        Font boldFont = new Font(f.Font, FontStyle.Bold);
+        ToolTip tip = new ToolTip();
         f.FormClosed += delegate
         {
             headerFont.Dispose();
             boldFont.Dispose();
+            tip.Dispose();
             if (activeDialog == f) activeDialog = null;
         };
         f.KeyPreview = true;
-        f.KeyDown += delegate(object s, KeyEventArgs e) { if (e.KeyCode == Keys.Escape) f.Close(); };
+
+        int currentViewMode = 0; // 0: Day View, 1: Overview View
+        StatSpan[] currentSpans = new StatSpan[0];
+
+        Button btnTabDay = new Button();
+        btnTabDay.Text = en ? "Daily Details" : "单日明细";
+        btnTabDay.SetBounds(12, 10, en ? 100 : 84, 28);
+        btnTabDay.FlatStyle = FlatStyle.Flat;
+        btnTabDay.FlatAppearance.BorderSize = 0;
+        btnTabDay.Font = boldFont;
+        btnTabDay.Cursor = Cursors.Hand;
+        btnTabDay.MouseEnter += delegate { if (currentViewMode != 0) btnTabDay.BackColor = Color.FromArgb(228, 232, 238); };
+        btnTabDay.MouseLeave += delegate { if (currentViewMode != 0) btnTabDay.BackColor = Color.FromArgb(240, 242, 245); };
+
+        Button btnTabOverview = new Button();
+        btnTabOverview.Text = en ? "Days Summary" : "按天汇总";
+        btnTabOverview.SetBounds(btnTabDay.Right + 6, 10, en ? 105 : 84, 28);
+        btnTabOverview.FlatStyle = FlatStyle.Flat;
+        btnTabOverview.FlatAppearance.BorderSize = 0;
+        btnTabOverview.Font = boldFont;
+        btnTabOverview.Cursor = Cursors.Hand;
+        btnTabOverview.MouseEnter += delegate { if (currentViewMode != 1) btnTabOverview.BackColor = Color.FromArgb(228, 232, 238); };
+        btnTabOverview.MouseLeave += delegate { if (currentViewMode != 1) btnTabOverview.BackColor = Color.FromArgb(240, 242, 245); };
+
+        Button btnNext = new Button();
+        btnNext.Text = "▶";
+        btnNext.Size = new Size(28, 28);
+        btnNext.Location = new Point(f.ClientSize.Width - 12 - btnNext.Width, 10);
+        btnNext.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        btnNext.FlatStyle = FlatStyle.Flat;
+        btnNext.BackColor = Color.FromArgb(240, 242, 245);
+        btnNext.ForeColor = Win11TextPrimary;
+        btnNext.FlatAppearance.BorderColor = Color.FromArgb(215, 220, 228);
+        btnNext.Cursor = Cursors.Hand;
+        tip.SetToolTip(btnNext, en ? "Next Day (Right Arrow)" : "后一天（支持 → 快捷键）");
+        btnNext.MouseEnter += delegate { if (btnNext.Enabled) btnNext.BackColor = Color.FromArgb(228, 232, 238); };
+        btnNext.MouseLeave += delegate { if (btnNext.Enabled) btnNext.BackColor = Color.FromArgb(240, 242, 245); };
+
+        ComboBox cboDate = new ComboBox();
+        cboDate.DropDownStyle = ComboBoxStyle.DropDownList;
+        cboDate.Width = en ? 180 : 165;
+        cboDate.Font = f.Font;
+        cboDate.Location = new Point(btnNext.Left - cboDate.Width - 4, 10);
+        cboDate.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        tip.SetToolTip(cboDate, en ? "Select history date" : "选择查看历史日期");
+
+        Button btnPrev = new Button();
+        btnPrev.Text = "◀";
+        btnPrev.Size = new Size(28, 28);
+        btnPrev.Location = new Point(cboDate.Left - 32, 10);
+        btnPrev.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        btnPrev.FlatStyle = FlatStyle.Flat;
+        btnPrev.BackColor = Color.FromArgb(240, 242, 245);
+        btnPrev.ForeColor = Win11TextPrimary;
+        btnPrev.FlatAppearance.BorderColor = Color.FromArgb(215, 220, 228);
+        btnPrev.Cursor = Cursors.Hand;
+        tip.SetToolTip(btnPrev, en ? "Previous Day (Left Arrow)" : "前一天（支持 ← 快捷键）");
+        btnPrev.MouseEnter += delegate { if (btnPrev.Enabled) btnPrev.BackColor = Color.FromArgb(228, 232, 238); };
+        btnPrev.MouseLeave += delegate { if (btnPrev.Enabled) btnPrev.BackColor = Color.FromArgb(240, 242, 245); };
+
+        List<string> availDates = GetAvailableHistoryDates(historyDir);
+        string todayStr = DateTime.Today.ToString("yyyyMMdd");
+        string yesterdayStr = DateTime.Today.AddDays(-1).ToString("yyyyMMdd");
+        foreach (string dStr in availDates)
+        {
+            DateTime dt;
+            DateTime.TryParseExact(dStr, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out dt);
+            string dFmt = dt.ToString("yyyy-MM-dd");
+            string label = (dStr == todayStr) ? dFmt + (en ? " (Today)" : " (今天)") :
+                           (dStr == yesterdayStr) ? dFmt + (en ? " (Yesterday)" : " (昨天)") :
+                           dFmt + " (" + dt.ToString("ddd", en ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo("zh-CN")) + ")";
+            cboDate.Items.Add(label);
+        }
+        if (cboDate.Items.Count > 0) cboDate.SelectedIndex = 0;
+
+        ComboBox cboRange = new ComboBox();
+        cboRange.DropDownStyle = ComboBoxStyle.DropDownList;
+        cboRange.Width = en ? 140 : 120;
+        cboRange.Font = f.Font;
+        cboRange.Location = new Point(f.ClientSize.Width - 12 - cboRange.Width, 10);
+        cboRange.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        cboRange.Items.AddRange(en ? new object[] { "Last 7 Days", "Last 14 Days", "Last 30 Days", "All History" }
+                                   : new object[] { "最近 7 天", "最近 14 天", "最近 30 天", "全部历史" });
+        cboRange.SelectedIndex = 0;
+        tip.SetToolTip(cboRange, en ? "Select statistics time range" : "选择统计时间范围");
+
+        ListView list = new ListView();
+        list.Font = f.Font;
+        list.BackColor = Color.White;
+        list.ForeColor = Win11TextPrimary;
+        list.BorderStyle = BorderStyle.FixedSingle;
+        list.View = View.Details; list.FullRowSelect = true; list.GridLines = true;
+        list.SetBounds(12, 48, 656, 334);
+        list.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+        list.OwnerDraw = true;
+
+        list.Columns.Add("", 50);
+        list.Columns.Add("", 115);
+        list.Columns.Add("", 115);
+        list.Columns.Add("", 85);
+        list.Columns.Add("", 95);
+        list.Columns.Add("", 120);
 
         MethodInvoker updateColumnWidths = delegate
         {
-            if (list.Columns.Count < 6) return;
-            int clientW = list.ClientSize.Width;
-            if (clientW <= 0) return;
-            int c0 = 50, c1 = 115, c2 = 115, c3 = 85, c4 = 95;
-            list.Columns[0].Width = c0;
-            list.Columns[1].Width = c1;
-            list.Columns[2].Width = c2;
-            list.Columns[3].Width = c3;
-            list.Columns[4].Width = c4;
-            list.Columns[5].Width = Math.Max(100, clientW - c0 - c1 - c2 - c3 - c4);
+            int w = list.ClientSize.Width;
+            if (w <= 0 || list.Columns.Count < 6) return;
+            list.Columns[5].Width = 10;
+            if (currentViewMode == 0)
+            {
+                int c0 = 45, c1 = 110, c2 = 110, c3 = 85, c4 = 95;
+                list.Columns[0].Width = c0; list.Columns[1].Width = c1; list.Columns[2].Width = c2;
+                list.Columns[3].Width = c3; list.Columns[4].Width = c4;
+                list.Columns[5].Width = Math.Max(90, w - c0 - c1 - c2 - c3 - c4);
+            }
+            else
+            {
+                int c0 = 105, c1 = 60, c2 = 140, c3 = 90, c4 = 70;
+                list.Columns[0].Width = c0; list.Columns[1].Width = c1; list.Columns[2].Width = c2;
+                list.Columns[3].Width = c3; list.Columns[4].Width = c4;
+                list.Columns[5].Width = Math.Max(90, w - c0 - c1 - c2 - c3 - c4);
+            }
         };
         list.Resize += delegate { updateColumnWidths(); };
-        f.Shown += delegate { updateColumnWidths(); };
 
         list.DrawColumnHeader += delegate(object s, DrawListViewColumnHeaderEventArgs e)
         {
-            using (SolidBrush b = new SolidBrush(Color.FromArgb(243, 244, 246)))
-            {
-                e.Graphics.FillRectangle(b, e.Bounds);
-            }
+            using (SolidBrush b = new SolidBrush(Color.FromArgb(243, 244, 246))) e.Graphics.FillRectangle(b, e.Bounds);
             using (Pen p = new Pen(Color.FromArgb(226, 230, 236)))
             {
                 e.Graphics.DrawLine(p, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
                 e.Graphics.DrawLine(p, e.Bounds.Right - 1, e.Bounds.Top + 3, e.Bounds.Right - 1, e.Bounds.Bottom - 4);
             }
-            TextFormatFlags flags = (e.ColumnIndex == 0)
+            bool centerCol0 = (currentViewMode == 0 && e.ColumnIndex == 0);
+            TextFormatFlags flags = centerCol0
                 ? (TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine)
                 : (TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.WordEllipsis);
-            Rectangle textRect = (e.ColumnIndex == 0)
-                ? e.Bounds
-                : new Rectangle(e.Bounds.X + 8, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 16), e.Bounds.Height);
-            Color headerColor = (e.ColumnIndex == 0) ? Win11ShortcutGray : Color.FromArgb(60, 60, 60);
-            TextRenderer.DrawText(e.Graphics, e.Header.Text, headerFont, textRect, headerColor, flags);
+            Rectangle textRect = centerCol0 ? e.Bounds : new Rectangle(e.Bounds.X + 8, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 16), e.Bounds.Height);
+            TextRenderer.DrawText(e.Graphics, e.Header.Text, headerFont, textRect, centerCol0 ? Win11ShortcutGray : Color.FromArgb(60, 60, 60), flags);
         };
         list.DrawItem += delegate(object s, DrawListViewItemEventArgs e) { };
         list.DrawSubItem += delegate(object s, DrawListViewSubItemEventArgs e)
         {
-            if (e.ColumnIndex == 0)
+            bool isSel = (e.ItemState & ListViewItemStates.Selected) != 0;
+            if (currentViewMode == 0 && e.ColumnIndex == 0)
             {
                 e.DrawBackground();
-                Color fg = ((e.ItemState & ListViewItemStates.Selected) != 0) ? SystemColors.HighlightText : Win11ShortcutGray;
+                Color fg = isSel ? SystemColors.HighlightText : Win11ShortcutGray;
                 TextRenderer.DrawText(e.Graphics, e.SubItem.Text, e.Item.Font, e.Bounds, fg, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
             }
-            else
+            else if (!isSel && e.ColumnIndex == 5)
             {
-                e.DrawDefault = true;
+                e.DrawBackground();
+                string txt = e.SubItem.Text;
+                Color fg = Win11TextPrimary;
+                if (txt.Contains("卓越") || txt.Contains("Excellent") || txt == "已完成" || txt == "Completed")
+                    fg = Color.FromArgb(16, 124, 65);
+                else if (txt.Contains("良好") || txt.Contains("Good"))
+                    fg = Win11Accent;
+                else if (txt.Contains("及格") || txt.Contains("Fair") || txt == "已中断" || txt == "Interrupted")
+                    fg = Color.FromArgb(202, 80, 16);
+                else if (txt.Contains("待提升") || txt.Contains("Needs work") || txt == "已重置" || txt == "Reset" || txt == "-")
+                    fg = Win11ShortcutGray;
+                Rectangle r = new Rectangle(e.Bounds.X + 8, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 16), e.Bounds.Height);
+                TextRenderer.DrawText(e.Graphics, txt, e.Item.Font, r, fg, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
             }
+            else e.DrawDefault = true;
         };
 
-        list.Columns.Add("#", 50, HorizontalAlignment.Center);
-        list.Columns.Add(en ? "Start time" : "开始时间", 115);
-        list.Columns.Add(en ? "End time" : "结束时间", 115);
-        list.Columns.Add(en ? "Duration" : "设定时长", 85);
-        list.Columns.Add(en ? "Actual duration" : "实际时长", 95);
-        list.Columns.Add(en ? "Result" : "结果", 150);
-
-        int totalSessions = 0, completedSessions = 0;
-        long totalActualSecs = 0;
-
-        try
-        {
-            if (File.Exists(path)) foreach (string row in File.ReadAllLines(path, Encoding.UTF8))
-            {
-                string[] cols = row.Split('\t'); if (cols.Length < 5) continue;
-                long actualSecs = 0;
-                long.TryParse(cols[3], out actualSecs);
-                string result = cols[4];
-                bool isCompleted = result == "Completed" || result == "已完成";
-                if (en) result = isCompleted ? "Completed" : (result == "Reset" || result == "已重置" ? "Reset" : (result == "Interrupted" || result == "已中断" ? "Interrupted" : result));
-                else result = isCompleted ? "已完成" : (result == "Reset" ? "已重置" : (result == "Interrupted" ? "已中断" : result));
-
-                totalSessions++;
-                if (isCompleted) completedSessions++;
-                totalActualSecs += actualSecs;
-
-                ListViewItem item = new ListViewItem(totalSessions.ToString());
-                item.SubItems.Add(cols[0]);
-                item.SubItems.Add(cols[1]);
-                item.SubItems.Add(cols[2] + (en ? " min" : " 分钟"));
-                item.SubItems.Add(FormatDuration(actualSecs, en));
-                item.SubItems.Add(result);
-                list.Items.Add(item);
-            }
-        }
-        catch { }
-        if (list.Items.Count == 0)
-        {
-            ListViewItem emptyItem = new ListViewItem("-");
-            emptyItem.SubItems.Add(en ? "No records today" : "今天还没有倒计时记录");
-            list.Items.Add(emptyItem);
-        }
-
         Panel summaryPanel = new Panel();
-        summaryPanel.SetBounds(12, 332, 616, 36);
+        summaryPanel.SetBounds(12, 390, 656, 36);
         summaryPanel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         summaryPanel.BackColor = Color.FromArgb(243, 244, 246);
-
-        StatSpan[] spans;
-        if (totalSessions == 0)
-        {
-            if (en)
-            {
-                spans = new StatSpan[]
-                {
-                    new StatSpan("📊 Today's Summary: ", list.Font, Win11TextPrimary),
-                    new StatSpan("No countdowns   |   Actual time ", list.Font, Win11TextSecondary),
-                    new StatSpan("0s", boldFont, Win11ShortcutGray),
-                    new StatSpan("   |   Completion rate ", list.Font, Win11TextSecondary),
-                    new StatSpan("0%", boldFont, Win11ShortcutGray)
-                };
-            }
-            else
-            {
-                spans = new StatSpan[]
-                {
-                    new StatSpan("📊 今日统计：", list.Font, Win11TextPrimary),
-                    new StatSpan("暂无倒计时   ｜   实际计时 ", list.Font, Win11TextSecondary),
-                    new StatSpan("0 秒", boldFont, Win11ShortcutGray),
-                    new StatSpan("   ｜   完成率 ", list.Font, Win11TextSecondary),
-                    new StatSpan("0%", boldFont, Win11ShortcutGray)
-                };
-            }
-        }
-        else
-        {
-            int rate = (int)Math.Round((double)completedSessions * 100.0 / totalSessions);
-            string focusText = FormatDuration(totalActualSecs, en);
-            Color rateColor = (rate >= 80) ? Color.FromArgb(16, 124, 65) : Win11Accent;
-            if (en)
-            {
-                spans = new StatSpan[]
-                {
-                    new StatSpan("📊 Today's Summary: ", list.Font, Win11TextPrimary),
-                    new StatSpan(totalSessions.ToString(), boldFont, Win11Accent),
-                    new StatSpan(totalSessions == 1 ? " countdown   |   Actual time " : " countdowns   |   Actual time ", list.Font, Win11TextSecondary),
-                    new StatSpan(focusText, boldFont, Win11Accent),
-                    new StatSpan("   |   Completion rate ", list.Font, Win11TextSecondary),
-                    new StatSpan(rate + "%", boldFont, rateColor)
-                };
-            }
-            else
-            {
-                spans = new StatSpan[]
-                {
-                    new StatSpan("📊 今日统计：", list.Font, Win11TextPrimary),
-                    new StatSpan("累计 ", list.Font, Win11TextSecondary),
-                    new StatSpan(totalSessions.ToString(), boldFont, Win11Accent),
-                    new StatSpan(" 次倒计时   ｜   实际计时 ", list.Font, Win11TextSecondary),
-                    new StatSpan(focusText, boldFont, Win11Accent),
-                    new StatSpan("   ｜   完成率 ", list.Font, Win11TextSecondary),
-                    new StatSpan(rate + "%", boldFont, rateColor)
-                };
-            }
-        }
-
         summaryPanel.Paint += delegate(object s, PaintEventArgs e)
         {
-            using (SolidBrush bg = new SolidBrush(Color.FromArgb(243, 244, 246)))
-            {
-                e.Graphics.FillRectangle(bg, summaryPanel.ClientRectangle);
-            }
-            using (Pen p = new Pen(Color.FromArgb(226, 230, 236), 1f))
-            {
-                e.Graphics.DrawRectangle(p, 0, 0, summaryPanel.Width - 1, summaryPanel.Height - 1);
-            }
+            using (SolidBrush bg = new SolidBrush(Color.FromArgb(243, 244, 246))) e.Graphics.FillRectangle(bg, summaryPanel.ClientRectangle);
+            using (Pen p = new Pen(Color.FromArgb(226, 230, 236), 1f)) e.Graphics.DrawRectangle(p, 0, 0, summaryPanel.Width - 1, summaryPanel.Height - 1);
+            if (currentSpans == null || currentSpans.Length == 0) return;
             TextFormatFlags flags = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
             int totalW = 0;
-            int[] widths = new int[spans.Length];
-            for (int i = 0; i < spans.Length; i++)
+            int[] widths = new int[currentSpans.Length];
+            for (int i = 0; i < currentSpans.Length; i++)
             {
-                Size sz = TextRenderer.MeasureText(e.Graphics, spans[i].Text, spans[i].Font, Size.Empty, flags);
-                widths[i] = sz.Width;
-                totalW += sz.Width;
+                Size sz = TextRenderer.MeasureText(e.Graphics, currentSpans[i].Text, currentSpans[i].Font, Size.Empty, flags);
+                widths[i] = sz.Width; totalW += sz.Width;
             }
             int curX = Math.Max(8, (summaryPanel.Width - totalW) / 2);
-            int y = (summaryPanel.Height - list.Font.Height) / 2;
-            for (int i = 0; i < spans.Length; i++)
+            int y = (summaryPanel.Height - f.Font.Height) / 2;
+            for (int i = 0; i < currentSpans.Length; i++)
             {
-                TextRenderer.DrawText(e.Graphics, spans[i].Text, spans[i].Font, new Point(curX, y), spans[i].Color, flags);
+                TextRenderer.DrawText(e.Graphics, currentSpans[i].Text, currentSpans[i].Font, new Point(curX, y), currentSpans[i].Color, flags);
                 curX += widths[i];
             }
         };
         summaryPanel.Resize += delegate { summaryPanel.Invalidate(); };
 
+        MethodInvoker refreshData = delegate
+        {
+            list.BeginUpdate();
+            list.Items.Clear();
+
+            if (currentViewMode == 0)
+            {
+                list.Columns[0].TextAlign = HorizontalAlignment.Center;
+                list.Columns[0].Text = "#";
+                list.Columns[1].Text = en ? "Start time" : "开始时间";
+                list.Columns[2].Text = en ? "End time" : "结束时间";
+                list.Columns[3].Text = en ? "Duration" : "设定时长";
+                list.Columns[4].Text = en ? "Actual duration" : "实际时长";
+                list.Columns[5].Text = en ? "Result" : "结果";
+
+                string selText = cboDate.SelectedItem != null ? cboDate.SelectedItem.ToString() : "";
+                string selKey = selText.Length >= 10 ? selText.Substring(0, 10).Replace("-", "") : todayStr;
+                string selDisplay = selText.Length >= 10 ? selText.Substring(0, 10) : DateTime.Today.ToString("yyyy-MM-dd");
+
+                btnPrev.Enabled = (cboDate.SelectedIndex < cboDate.Items.Count - 1);
+                btnNext.Enabled = (cboDate.SelectedIndex > 0);
+                btnPrev.ForeColor = btnPrev.Enabled ? Win11TextPrimary : Win11ShortcutGray;
+                btnNext.ForeColor = btnNext.Enabled ? Win11TextPrimary : Win11ShortcutGray;
+
+                string path = Path.Combine(historyDir, "history-" + selKey + ".tsv");
+                int totalSessions = 0, completedSessions = 0;
+                long totalActualSecs = 0;
+
+                if (File.Exists(path))
+                {
+                    try
+                    {
+                        foreach (string row in File.ReadAllLines(path, Encoding.UTF8))
+                        {
+                            string start, end, dur, res; long s; bool isDone;
+                            if (ParseSessionRow(row, out start, out end, out dur, out s, out res, out isDone))
+                            {
+                                totalSessions++; if (isDone) completedSessions++; totalActualSecs += s;
+                                res = en ? (isDone ? "Completed" : (res == "Reset" || res == "已重置" ? "Reset" : (res == "Interrupted" || res == "已中断" ? "Interrupted" : res)))
+                                         : (isDone ? "已完成" : (res == "Reset" ? "已重置" : (res == "Interrupted" ? "已中断" : res)));
+                                list.Items.Add(new ListViewItem(new string[] { totalSessions.ToString(), start, end, dur + (en ? " min" : " 分钟"), FormatDuration(s, en), res }));
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                if (totalSessions == 0)
+                {
+                    list.Items.Add(new ListViewItem(new string[] { "-", en ? "No countdown records for this day" : "该日期暂无倒计时记录", "", "", "", "" }));
+                    currentSpans = new StatSpan[]
+                    {
+                        new StatSpan(en ? "⏱️ " + selDisplay + " Focus Summary: " : "⏱️ " + selDisplay + " 累计专注汇总：", f.Font, Win11TextPrimary),
+                        new StatSpan(en ? "0s" : "0 秒", boldFont, Win11ShortcutGray),
+                        new StatSpan(en ? " (No records)" : "（暂无倒计时记录）", f.Font, Win11TextSecondary)
+                    };
+                }
+                else
+                {
+                    int rate = (int)Math.Round((double)completedSessions * 100.0 / totalSessions);
+                    Color rateColor = (rate >= 80) ? Color.FromArgb(16, 124, 65) : Win11Accent;
+                    currentSpans = new StatSpan[]
+                    {
+                        new StatSpan(en ? "⏱️ " + selDisplay + " Focus: " : "⏱️ " + selDisplay + " 累计专注：", f.Font, Win11TextPrimary),
+                        new StatSpan(FormatDuration(totalActualSecs, en), boldFont, Win11Accent),
+                        new StatSpan(en ? "   |   Completed " : "   ｜   完成 ", f.Font, Win11TextSecondary),
+                        new StatSpan(completedSessions + "/" + totalSessions + (en ? " sessions" : " 个周期"), boldFont, Win11TextPrimary),
+                        new StatSpan(en ? "   |   Rate " : "   ｜   完成率 ", f.Font, Win11TextSecondary),
+                        new StatSpan(rate + "%", boldFont, rateColor)
+                    };
+                }
+            }
+            else
+            {
+                list.Columns[0].TextAlign = HorizontalAlignment.Left;
+                list.Columns[0].Text = en ? "Date" : "日期";
+                list.Columns[1].Text = en ? "Day" : "星期";
+                list.Columns[2].Text = en ? "Total focus" : "专注总时长";
+                list.Columns[3].Text = en ? "Completed" : "完成/总数";
+                list.Columns[4].Text = en ? "Rate" : "完成率";
+                list.Columns[5].Text = en ? "Evaluation" : "达成评价";
+
+                int rangeDays = cboRange.SelectedIndex == 0 ? 7 : (cboRange.SelectedIndex == 1 ? 14 : (cboRange.SelectedIndex == 2 ? 30 : 0));
+                List<string> dateKeys = new List<string>();
+                if (rangeDays > 0)
+                {
+                    for (int i = 0; i < rangeDays; i++) dateKeys.Add(DateTime.Today.AddDays(-i).ToString("yyyyMMdd"));
+                }
+                else dateKeys = GetAvailableHistoryDates(historyDir);
+
+                int activeDays = 0, totalCycles = 0, totalDone = 0;
+                long allActualSecs = 0;
+
+                foreach (string dk in dateKeys)
+                {
+                    DateTime dt;
+                    DateTime.TryParseExact(dk, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out dt);
+                    int tot, done; long secs;
+                    GetDayStats(historyDir, dk, out tot, out done, out secs);
+                    string dStr = dt.ToString("yyyy-MM-dd");
+                    string weekday = dt.ToString("ddd", en ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo("zh-CN"));
+
+                    if (tot > 0)
+                    {
+                        activeDays++; totalCycles += tot; totalDone += done; allActualSecs += secs;
+                        int r = (int)Math.Round((double)done * 100.0 / tot);
+                        string eval = r >= 90 ? (en ? "● Excellent" : "● 卓越") : (r >= 70 ? (en ? "● Good" : "● 良好") : (r >= 50 ? (en ? "● Fair" : "● 及格") : (en ? "● Needs work" : "● 待提升")));
+                        ListViewItem lvi = new ListViewItem(new string[] { dStr, weekday, FormatDuration(secs, en), done + " / " + tot, r + "%", eval });
+                        lvi.Tag = dStr;
+                        list.Items.Add(lvi);
+                    }
+                    else
+                    {
+                        ListViewItem lvi = new ListViewItem(new string[] { dStr, weekday, en ? "0s" : "0 秒", "-", "-", "-" });
+                        lvi.Tag = dStr;
+                        lvi.ForeColor = Win11ShortcutGray;
+                        list.Items.Add(lvi);
+                    }
+                }
+
+                int overallRate = totalCycles == 0 ? 0 : (int)Math.Round((double)totalDone * 100.0 / totalCycles);
+                Color rateColor = (overallRate >= 80) ? Color.FromArgb(16, 124, 65) : Win11Accent;
+                int totalDaysCount = dateKeys.Count;
+
+                if (totalCycles == 0)
+                {
+                    currentSpans = new StatSpan[]
+                    {
+                        new StatSpan(en ? "📊 Summary (" + totalDaysCount + " days): No countdown sessions" : "📊 统计周期：" + totalDaysCount + " 天 ｜ 暂无专注记录 ｜ 💡 双击行查看明细", f.Font, Win11TextSecondary)
+                    };
+                }
+                else
+                {
+                    currentSpans = new StatSpan[]
+                    {
+                        new StatSpan(en ? "📊 " + totalDaysCount + "-day Focus: " : "📊 " + totalDaysCount + " 天累计专注：", f.Font, Win11TextPrimary),
+                        new StatSpan(FormatDuration(allActualSecs, en), boldFont, Win11Accent),
+                        new StatSpan(en ? "   |   Active " : "   ｜   活跃 ", f.Font, Win11TextSecondary),
+                        new StatSpan(activeDays + "/" + totalDaysCount + (en ? " days" : " 天"), boldFont, Win11TextPrimary),
+                        new StatSpan(en ? "   |   Sessions " : "   ｜   周期 ", f.Font, Win11TextSecondary),
+                        new StatSpan(totalDone + "/" + totalCycles + " (" + overallRate + "%)", boldFont, rateColor),
+                        new StatSpan(en ? "   |   💡 Double-click row for details" : "   ｜   💡 双击行查看明细", f.Font, Win11ShortcutGray)
+                    };
+                }
+            }
+
+            list.EndUpdate();
+            updateColumnWidths();
+            summaryPanel.Invalidate();
+        };
+
+        Action<int> switchView = delegate(int mode)
+        {
+            currentViewMode = mode;
+            bool isDay = currentViewMode == 0;
+            btnTabDay.BackColor = isDay ? Win11Accent : Color.FromArgb(235, 238, 242);
+            btnTabDay.ForeColor = isDay ? Color.White : Win11TextPrimary;
+            btnTabOverview.BackColor = isDay ? Color.FromArgb(235, 238, 242) : Win11Accent;
+            btnTabOverview.ForeColor = isDay ? Win11TextPrimary : Color.White;
+
+            btnPrev.Visible = isDay;
+            cboDate.Visible = isDay;
+            btnNext.Visible = isDay;
+            cboRange.Visible = !isDay;
+
+            refreshData();
+        };
+
+        btnTabDay.Click += delegate { switchView(0); };
+        btnTabOverview.Click += delegate { switchView(1); };
+
+        cboDate.SelectedIndexChanged += delegate { if (currentViewMode == 0) refreshData(); };
+        btnPrev.Click += delegate { if (cboDate.SelectedIndex < cboDate.Items.Count - 1) cboDate.SelectedIndex++; };
+        btnNext.Click += delegate { if (cboDate.SelectedIndex > 0) cboDate.SelectedIndex--; };
+        cboRange.SelectedIndexChanged += delegate { if (currentViewMode == 1) refreshData(); };
+
+        list.DoubleClick += delegate
+        {
+            if (currentViewMode == 1 && list.SelectedItems.Count > 0)
+            {
+                string targetDate = list.SelectedItems[0].Tag as string;
+                if (!string.IsNullOrEmpty(targetDate))
+                {
+                    for (int i = 0; i < cboDate.Items.Count; i++)
+                    {
+                        if (cboDate.Items[i].ToString().StartsWith(targetDate))
+                        {
+                            cboDate.SelectedIndex = i;
+                            break;
+                        }
+                    }
+                    switchView(0);
+                }
+            }
+        };
+
+        f.Controls.Add(btnTabDay);
+        f.Controls.Add(btnTabOverview);
+        f.Controls.Add(btnPrev);
+        f.Controls.Add(cboDate);
+        f.Controls.Add(btnNext);
+        f.Controls.Add(cboRange);
         f.Controls.Add(list);
         f.Controls.Add(summaryPanel);
-        updateColumnWidths();
+        f.KeyDown += delegate(object s, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Escape) f.Close();
+            else if (e.KeyCode == Keys.Left && currentViewMode == 0)
+            {
+                if (cboDate.SelectedIndex < cboDate.Items.Count - 1) cboDate.SelectedIndex++;
+            }
+            else if (e.KeyCode == Keys.Right && currentViewMode == 0)
+            {
+                if (cboDate.SelectedIndex > 0) cboDate.SelectedIndex--;
+            }
+            else if (e.Control && e.KeyCode == Keys.Tab)
+            {
+                switchView(currentViewMode == 0 ? 1 : 0);
+            }
+            else if (e.Control && e.KeyCode == Keys.C && list.SelectedItems.Count > 0)
+            {
+                try
+                {
+                    StringBuilder sb = new StringBuilder();
+                    foreach (ListViewItem lvi in list.SelectedItems)
+                    {
+                        List<string> parts = new List<string>();
+                        foreach (ListViewItem.ListViewSubItem sub in lvi.SubItems) parts.Add(sub.Text);
+                        sb.AppendLine(string.Join("\t", parts.ToArray()));
+                    }
+                    Clipboard.SetText(sb.ToString());
+                }
+                catch { }
+            }
+        };
+
+        switchView(0);
         CenterFormOnScreen(f);
         f.Show();
+        ActivateWindow(f);
     }
     private void ShowAbout()
     {
@@ -1859,6 +4205,7 @@ internal sealed class AppContext : ApplicationContext
             if (activeDialog == d) activeDialog = null;
         };
         d.Show();
+        ActivateWindow(d);
     }
     private void LogSession(string result)
     {
@@ -1893,6 +4240,11 @@ internal sealed class AppContext : ApplicationContext
         if (running) remaining = ReadRemaining();
         if (sessionActive) { LogSession("Interrupted"); sessionActive = false; }
         timer.Stop(); tray.Visible = false; if (hotkeyRegistered) UnregisterHotKey(messageWindow.Handle, HOTKEY_ID);
+        if (mouseHookHandle != IntPtr.Zero) { try { NativeMethods.UnhookWindowsHookEx(mouseHookHandle); } catch { } mouseHookHandle = IntPtr.Zero; }
+        if (displaySettingsHandler != null) { try { SystemEvents.DisplaySettingsChanged -= displaySettingsHandler; } catch { } displaySettingsHandler = null; }
+        if (sessionSwitchHandler != null) { try { SystemEvents.SessionSwitch -= sessionSwitchHandler; } catch { } sessionSwitchHandler = null; }
+        if (agentTimer != null) { try { agentTimer.Stop(); agentTimer.Dispose(); } catch { } agentTimer = null; }
+        if (shellHookMsg != 0 && messageWindow != null && messageWindow.Handle != IntPtr.Zero) { try { NativeMethods.DeregisterShellHookWindow(messageWindow.Handle); } catch { } }
         overlay.Close(); overlay.Dispose(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); timer.Dispose(); ExitThread();
     }
     internal static string FormatDuration(long secs, bool en)
@@ -1953,8 +4305,6 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
     private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     private const int DWMWCP_ROUND = 2;
 
@@ -1971,7 +4321,7 @@ internal sealed class AppContext : ApplicationContext
         try
         {
             int preference = DWMWCP_ROUND;
-            DwmSetWindowAttribute(ctrl.Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
+            NativeMethods.DwmSetWindowAttribute(ctrl.Handle, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
         }
         catch { }
     }
@@ -2160,7 +4510,7 @@ internal sealed class AppContext : ApplicationContext
             float pivotR = Math.Max(1.2f, sz * 0.08f);
             g.FillEllipse(darkBrush, cx - pivotR, dialCy - pivotR, pivotR * 2.0f, pivotR * 2.0f);
         }
-        IntPtr h = b.GetHicon(); Icon icon = (Icon)Icon.FromHandle(h).Clone(); DestroyIcon(h); b.Dispose(); return icon;
+        IntPtr h = b.GetHicon(); Icon icon = (Icon)Icon.FromHandle(h).Clone(); NativeMethods.DestroyIcon(h); b.Dispose(); return icon;
     }
 
     private static bool launchReported;
@@ -2309,13 +4659,21 @@ internal sealed class AppContext : ApplicationContext
     {
         private AppContext owner;
         public MessageWindow(AppContext a) { owner = a; CreateHandle(new CreateParams()); }
-        protected override void WndProc(ref Message m) { if (m.Msg == WM_HOTKEY) owner.HandleHotkey(); base.WndProc(ref m); }
+        protected override void WndProc(ref Message m)
+        {
+            if (m.Msg == WM_HOTKEY) owner.HandleHotkey();
+            else if (owner.shellHookMsg != 0 && (uint)m.Msg == owner.shellHookMsg)
+            {
+                owner.HandleShellHook(m.WParam.ToInt32(), m.LParam);
+            }
+            base.WndProc(ref m);
+        }
     }
 
     [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
     [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
-    [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr hIcon);
 }
+
 
 internal static class Program
 {

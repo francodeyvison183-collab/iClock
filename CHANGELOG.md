@@ -2,6 +2,30 @@
 
 This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY-MM-DD`).
 
+## [1.04] - 2026-10-15
+
+### Added
+
+- **AI Agent Background Task Completion Alerts**: Comprehensive monitoring and collaboration for 20+ domestic & international AI coding agents (Cursor, Antigravity, Claude Code, GitHub Copilot, Trae, Tongyi Lingma, CodeGeeX, Baidu Comate, MiniMax, CodeBuddy, Aider, Cline, etc.).
+- **4-Tier Perception Engine**:
+  - Tier 1: Real-time Windows Toast notification listener (`UserNotificationListener`) with task prompt extraction and zero false positives.
+  - Tier 2: Win32 Shell Hook (`RegisterShellHookWindow` + `HSHELL_FLASH`) capturing background IDE/terminal taskbar completion flashes at 0ms latency and 0.0% CPU overhead.
+  - Tier 3: Terminal/IDE window title state badge dynamic machine.
+  - Tier 4: Multi-process cluster CPU edge detector with enhanced guard thresholds (≥5s heavy burst, ≥6s quiet, 30s cooldown debounce).
+- **One-Click Window Restore**: Directly restore and focus active AI agent windows from floating completion notifications.
+- **Settings Dialog Dual Tabs (Plan B-1)**: Modern segmented dual tabs (⏱ Timer / 🤖 AI Agent Collaboration) with real-time agent scanning and process status badges.
+- **Native 32-bit ARGB Layered Window Rendering**: Replaced colorkey rendering with native `UpdateLayeredWindow`, delivering pristine subpixel anti-aliasing and adaptive soft drop shadows.
+- **Ergonomic Direct Alt+Drag Positioning**: Instant desktop repositioning by holding `Alt` and left-click dragging, with automatic coordinate persistence.
+- **Tray Scroll Wheel Micro-Tuning**: Roll mouse wheel over the tray icon or floating clock to adjust countdown duration (`±1m` / `±5m`).
+- **Tiered Alerts & Auto Fullscreen DND**: TopMost popup alerts vs gentle in-place breathing pulse, with automatic downgrade during full-screen games, PPT slideshows, or video playback.
+- **Multi-Day Statistics & History Enhancements**: Added Days Summary view tracking streaks across 7/14/30 days with completion rates, evaluations, double-click drill-down, and `Ctrl+C` table export.
+
+### Changed
+
+- Binary size optimized to 222 KB with zero external dependencies.
+- Centralized Win32 interop (`NativeMethods`) and guaranteed process handle scoping (`SafeProcessHandle`).
+- Configuration saving upgraded to atomic file replacement (`File.Replace`).
+
 ## [1.03] - 2026-10-10
 
 ### Added

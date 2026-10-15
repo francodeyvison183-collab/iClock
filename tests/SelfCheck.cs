@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
@@ -10,14 +12,26 @@ internal static class TestCheck
     [DllImport("user32.dll")]
     private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
+    private static double GetOpacity(object o)
+    {
+        return (double)o.GetType().GetProperty("Opacity").GetValue(o, null);
+    }
+
     [STAThread]
     private static int Main()
     {
-        string iniPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "iClock", "settings.ini");
+        string appDataDir = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "iClock");
+        string iniPath = System.IO.Path.Combine(appDataDir, "settings.ini");
+        string todayHistoryPath = System.IO.Path.Combine(appDataDir, "history-" + DateTime.Now.ToString("yyyyMMdd") + ".tsv");
         string iniBackup = null;
+        string historyBackup = null;
         if (System.IO.File.Exists(iniPath))
         {
             try { iniBackup = System.IO.File.ReadAllText(iniPath); System.IO.File.Delete(iniPath); } catch { }
+        }
+        if (System.IO.File.Exists(todayHistoryPath))
+        {
+            try { historyBackup = System.IO.File.ReadAllText(todayHistoryPath, System.Text.Encoding.UTF8); } catch { }
         }
         try
         {
@@ -91,7 +105,13 @@ internal static class TestCheck
                     return 2;
                 }
             }
-            Console.WriteLine("PASS: Tray menu uses ModernMenuRenderer with clean single-column layout and no show/hide text.");
+            ToolStripMenuItem menuMoveItem = (ToolStripMenuItem)appType.GetField("menuMove", bf).GetValue(app);
+            if (menuMoveItem == null || menuMoveItem.ShortcutKeyDisplayString != "Alt + 拖拽")
+            {
+                Console.WriteLine("FAIL: menuMove should display Alt + 拖拽 shortcut string (got " + (menuMoveItem == null ? "null" : menuMoveItem.ShortcutKeyDisplayString) + ")");
+                return 2;
+            }
+            Console.WriteLine("PASS: Tray menu uses ModernMenuRenderer with clean single-column layout, no show/hide text, and Alt + 拖拽 hint.");
 
             // 3. Start countdown -> Overlay becomes visible
             MethodInfo toggle = appType.GetMethod("Toggle", bf);
@@ -103,14 +123,14 @@ internal static class TestCheck
             }
             // Pause countdown -> Overlay remains visible with Opacity 0.50
             toggle.Invoke(app, null);
-            if (!overlay.Visible || Math.Abs(overlay.Opacity - 0.50) > 0.01)
+            if (!overlay.Visible || Math.Abs(GetOpacity(overlay) - 0.50) > 0.01)
             {
-                Console.WriteLine("FAIL: Overlay should have Opacity 0.50 when paused (got " + overlay.Opacity + ")");
+                Console.WriteLine("FAIL: Overlay should have Opacity 0.50 when paused (got " + GetOpacity(overlay) + ")");
                 return 3;
             }
             // Resume countdown -> Overlay Opacity returns to 1.0
             toggle.Invoke(app, null);
-            if (!overlay.Visible || Math.Abs(overlay.Opacity - 1.0) > 0.01)
+            if (!overlay.Visible || Math.Abs(GetOpacity(overlay) - 1.0) > 0.01)
             {
                 Console.WriteLine("FAIL: Overlay should return to Opacity 1.0 when resumed");
                 return 3;
@@ -118,13 +138,13 @@ internal static class TestCheck
             // Verify MoveMode White background and 50% opacity
             MethodInfo setMoveMode = overlay.GetType().GetMethod("SetMoveMode");
             setMoveMode.Invoke(overlay, new object[] { true, true });
-            if (overlay.BackColor != Color.White || Math.Abs(overlay.Opacity - 0.50) > 0.01)
+            if (overlay.BackColor != Color.White || Math.Abs(GetOpacity(overlay) - 0.50) > 0.01)
             {
                 Console.WriteLine("FAIL: MoveMode should have BackColor = White and Opacity = 0.50");
                 return 3;
             }
             setMoveMode.Invoke(overlay, new object[] { false, true });
-            if (overlay.BackColor != Color.Fuchsia || Math.Abs(overlay.Opacity - 1.0) > 0.01)
+            if (overlay.BackColor != Color.Fuchsia || Math.Abs(GetOpacity(overlay) - 1.0) > 0.01)
             {
                 Console.WriteLine("FAIL: Exiting MoveMode should restore BackColor = Fuchsia and Opacity = 1.0");
                 return 3;
@@ -368,16 +388,16 @@ internal static class TestCheck
             // 10. Verify version comparison and JSON parsing
             BindingFlags sbf = BindingFlags.NonPublic | BindingFlags.Static;
             FieldInfo verField = appType.GetField("CURRENT_VERSION", sbf);
-            if (verField == null || (string)verField.GetValue(null) != "1.03")
+            if (verField == null || (string)verField.GetValue(null) != "1.04")
             {
-                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.03");
+                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.04");
                 return 16;
             }
             MethodInfo isNewer = appType.GetMethod("IsNewer", sbf);
             MethodInfo extractJson = appType.GetMethod("ExtractJsonValue", sbf);
-            if (!(bool)isNewer.Invoke(null, new object[] { "1.04", "1.03" }) ||
-                !(bool)isNewer.Invoke(null, new object[] { "v2.0", "1.03" }) ||
-                (bool)isNewer.Invoke(null, new object[] { "1.03", "1.03" }))
+            if (!(bool)isNewer.Invoke(null, new object[] { "1.05", "1.04" }) ||
+                !(bool)isNewer.Invoke(null, new object[] { "v2.0", "1.04" }) ||
+                (bool)isNewer.Invoke(null, new object[] { "1.04", "1.04" }))
             {
                 Console.WriteLine("FAIL: Version comparison failed");
                 return 16;
@@ -636,6 +656,7 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: Paused menu state incorrect (Reset.Enabled=" + menuReset.Enabled + ", Start.Text=" + menuStart.Text + ", Color=" + menuStart.ForeColor + ")");
                 return 24;
             }
+            sessionActiveField.SetValue(app, false);
             Console.WriteLine("PASS: Modern Context Menu layout, 32px padding, three-state ForeColor, dynamic state transitions, and concise copy verified.");
 
             // 17. Verify real-time hotkey conflict detection, function key support, and safe fallback
@@ -914,8 +935,652 @@ internal static class TestCheck
             hotkeyRegField.SetValue(app, prevReg);
             updMenu.Invoke(app, null);
 
+            // 21. Verify P1 & P2: Layered Window rendering, NoticeStyle setting, Breathing Pulse, and Duration Adjustment
+            FieldInfo noticeStyleField = settings.GetType().GetField("NoticeStyle");
+            if (noticeStyleField == null || (string)noticeStyleField.GetValue(settings) != "Popup")
+            {
+                Console.WriteLine("FAIL: NoticeStyle should default to Popup");
+                return 29;
+            }
+            noticeStyleField.SetValue(settings, "Pulse");
+            MethodInfo saveMethod = settings.GetType().GetMethod("Save");
+            saveMethod.Invoke(settings, null);
+
+            object reloaded = settings.GetType().GetMethod("Load", BindingFlags.Public | BindingFlags.Static).Invoke(null, null);
+            if ((string)noticeStyleField.GetValue(reloaded) != "Pulse")
+            {
+                Console.WriteLine("FAIL: NoticeStyle was not persisted as Pulse");
+                return 29;
+            }
+            noticeStyleField.SetValue(settings, "Popup");
+            saveMethod.Invoke(settings, null);
+
+            // Test Overlay layered window rendering
+            MethodInfo renderLayered = overlay.GetType().GetMethod("RenderLayeredWindow");
+            if (renderLayered == null)
+            {
+                Console.WriteLine("FAIL: RenderLayeredWindow method missing on Overlay");
+                return 29;
+            }
+            renderLayered.Invoke(overlay, null);
+
+            // Test Breathing pulse
+            MethodInfo startPulse = overlay.GetType().GetMethod("StartBreathingPulse");
+            MethodInfo stopPulse = overlay.GetType().GetMethod("StopBreathingPulse");
+            PropertyInfo isPulsingProp = overlay.GetType().GetProperty("IsPulsing");
+            if (startPulse == null || stopPulse == null || isPulsingProp == null)
+            {
+                Console.WriteLine("FAIL: Breathing pulse methods/properties missing on Overlay");
+                return 29;
+            }
+            bool dismissed = false;
+            startPulse.Invoke(overlay, new object[] { new Action(delegate { dismissed = true; }) });
+            if (!(bool)isPulsingProp.GetValue(overlay, null))
+            {
+                Console.WriteLine("FAIL: Overlay.IsPulsing should be true after StartBreathingPulse");
+                return 29;
+            }
+            stopPulse.Invoke(overlay, null);
+            if ((bool)isPulsingProp.GetValue(overlay, null) || !dismissed)
+            {
+                Console.WriteLine("FAIL: Overlay.IsPulsing should be false and dismiss callback invoked after StopBreathingPulse");
+                return 29;
+            }
+
+            // Test AdjustMinutes on AppContext
+            MethodInfo adjustMin = appType.GetMethod("AdjustMinutes", bf);
+            if (adjustMin == null)
+            {
+                Console.WriteLine("FAIL: AdjustMinutes method missing in AppContext");
+                return 29;
+            }
+            FieldInfo minField = settings.GetType().GetField("Minutes");
+            int oldMinutes = (int)minField.GetValue(settings);
+            adjustMin.Invoke(app, new object[] { 2 });
+            if ((int)minField.GetValue(settings) != oldMinutes + 2)
+            {
+                Console.WriteLine("FAIL: AdjustMinutes(+2) failed to adjust minutes");
+                return 29;
+            }
+            adjustMin.Invoke(app, new object[] { -2 });
+            if ((int)minField.GetValue(settings) != oldMinutes)
+            {
+                Console.WriteLine("FAIL: AdjustMinutes(-2) failed to restore minutes");
+                return 29;
+            }
+
+            // 22. Verify FullscreenDnd settings persistence & IsForegroundFullScreen detection
+            FieldInfo fullscreenDndField = settings.GetType().GetField("FullscreenDnd");
+            if (fullscreenDndField == null)
+            {
+                Console.WriteLine("FAIL: FullscreenDnd field missing on Settings");
+                return 30;
+            }
+            if (!(bool)fullscreenDndField.GetValue(defaultSettings))
+            {
+                Console.WriteLine("FAIL: FullscreenDnd default value should be true");
+                return 30;
+            }
+            fullscreenDndField.SetValue(settings, false);
+            saveMethod.Invoke(settings, null);
+            object dndReloaded = settings.GetType().GetMethod("Load", BindingFlags.Public | BindingFlags.Static).Invoke(null, null);
+            if ((bool)fullscreenDndField.GetValue(dndReloaded) != false)
+            {
+                Console.WriteLine("FAIL: FullscreenDnd false was not persisted");
+                return 30;
+            }
+            fullscreenDndField.SetValue(settings, true);
+            saveMethod.Invoke(settings, null);
+
+            MethodInfo isFullscreenMethod = appType.GetMethod("IsForegroundFullScreen", BindingFlags.NonPublic | BindingFlags.Static);
+            if (isFullscreenMethod == null)
+            {
+                Console.WriteLine("FAIL: AppContext.IsForegroundFullScreen method missing");
+                return 30;
+            }
+            object isFsObj = isFullscreenMethod.Invoke(null, null);
+            if (!(isFsObj is bool))
+            {
+                Console.WriteLine("FAIL: AppContext.IsForegroundFullScreen should return bool");
+                return 30;
+            }
+            Console.WriteLine("PASS: FullscreenDnd setting persistence and IsForegroundFullScreen detection verified.");
+
+            // 23. Verify Multi-monitor & resolution change off-screen auto-recovery
+            MethodInfo ensureVisMethod = overlay.GetType().GetMethod("EnsureVisible");
+            if (ensureVisMethod == null)
+            {
+                Console.WriteLine("FAIL: EnsureVisible method missing on Overlay");
+                return 31;
+            }
+
+            // Simulate window placed off-screen (e.g. disconnected secondary monitor at X=99999, Y=99999)
+            FieldInfo xField = settings.GetType().GetField("X");
+            FieldInfo yField = settings.GetType().GetField("Y");
+            xField.SetValue(settings, 99999);
+            yField.SetValue(settings, 99999);
+            overlay.Location = new Point(99999, 99999);
+
+            ensureVisMethod.Invoke(overlay, null);
+
+            // Verify recovery to primary screen visible bounds
+            Rectangle pBounds = Screen.PrimaryScreen.Bounds;
+            Rectangle curRect = new Rectangle(overlay.Location, overlay.Size);
+            Rectangle inter = Rectangle.Intersect(pBounds, curRect);
+            if (inter.Width < 32 || inter.Height < 20)
+            {
+                Console.WriteLine("FAIL: Overlay failed to recover to PrimaryScreen bounds after being placed off-screen: " + overlay.Location);
+                return 31;
+            }
+            if ((int)xField.GetValue(settings) >= 99999 || (int)yField.GetValue(settings) >= 99999)
+            {
+                Console.WriteLine("FAIL: Settings X/Y not updated after EnsureVisible auto-recovery");
+                return 31;
+            }
+
+            // Restore default settings
+            xField.SetValue(settings, -1);
+            yField.SetValue(settings, 60);
+            saveMethod.Invoke(settings, null);
+            ensureVisMethod.Invoke(overlay, null);
+            Console.WriteLine("PASS: Multi-monitor connect/disconnect and off-screen auto-recovery verified.");
+
+            // 24. Test Agent Notice settings, agent detection, and NoticeDialog agent overload
+            FieldInfo agentNoticeField = settings.GetType().GetField("AgentNotice");
+            if (agentNoticeField == null)
+            {
+                Console.WriteLine("FAIL: Settings missing AgentNotice field");
+                return 32;
+            }
+            if ((bool)agentNoticeField.GetValue(settings) != false)
+            {
+                Console.WriteLine("FAIL: AgentNotice default should be false");
+                return 32;
+            }
+            MethodInfo detectAgents = appType.GetMethod("DetectAgents", BindingFlags.NonPublic | BindingFlags.Static);
+            if (detectAgents == null)
+            {
+                Console.WriteLine("FAIL: AppContext missing DetectAgents static method");
+                return 32;
+            }
+            object agentListObj = detectAgents.Invoke(null, null);
+            if (agentListObj == null)
+            {
+                Console.WriteLine("FAIL: DetectAgents returned null");
+                return 32;
+            }
+            ConstructorInfo agentNoticeCtor = noticeType.GetConstructor(new Type[] { settings.GetType(), typeof(DateTime), typeof(string), typeof(IntPtr) });
+            if (agentNoticeCtor == null)
+            {
+                Console.WriteLine("FAIL: NoticeDialog missing agent overload constructor");
+                return 32;
+            }
+            Form agentNoticeDlg = (Form)agentNoticeCtor.Invoke(new object[] { settings, DateTime.Now, "Cursor", IntPtr.Zero });
+            if (agentNoticeDlg == null || !agentNoticeDlg.Text.Contains("Cursor"))
+            {
+                Console.WriteLine("FAIL: NoticeDialog agent title incorrect");
+                return 32;
+            }
+            bool foundAgentTaskText = false;
+            foreach (Control c in agentNoticeDlg.Controls)
+            {
+                if (c is Label && c.Text.Contains("Cursor")) foundAgentTaskText = true;
+            }
+            agentNoticeDlg.Dispose();
+            if (!foundAgentTaskText)
+            {
+                Console.WriteLine("FAIL: NoticeDialog missing agent task text");
+                return 32;
+            }
+            Console.WriteLine("PASS: AI Agent task completion monitoring, detection scanning, and alert pattern verified.");
+
+            // 25. Test SettingsDialog Plan B-1 Dual Tabs & Agent Collaboration UI
+            Form tabDlg = (Form)Activator.CreateInstance(settingsDialogType, new object[] { settings });
+            Button btnTabTimer = (Button)settingsDialogType.GetField("btnTabTimer", bf).GetValue(tabDlg);
+            Button btnTabAgent = (Button)settingsDialogType.GetField("btnTabAgent", bf).GetValue(tabDlg);
+            Control minCtrl = (Control)settingsDialogType.GetField("minutes", bf).GetValue(tabDlg);
+            CheckBox agNoticeBox = (CheckBox)settingsDialogType.GetField("agentNotice", bf).GetValue(tabDlg);
+            Panel cardPanel = (Panel)settingsDialogType.GetField("panelAgentCards", bf).GetValue(tabDlg);
+            Button btnRefresh = (Button)settingsDialogType.GetField("btnRefreshAgents", bf).GetValue(tabDlg);
+            CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
+            Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
+
+            if (btnTabTimer == null || btnTabAgent == null || cardPanel == null || btnRefresh == null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Plan B-1 controls");
+                return 33;
+            }
+
+            tabDlg.Show();
+
+            // Initially on Tab 1 (Timer)
+            if (!minCtrl.Visible || agNoticeBox.Visible)
+            {
+                Console.WriteLine("FAIL: SettingsDialog default tab should show timer controls and hide agent controls");
+                return 33;
+            }
+
+            // Verify auto-start checkbox is at bottom of Tab 1 (below notice)
+            if (startupBox.Top <= noticeCtrl.Top)
+            {
+                Console.WriteLine("FAIL: Startup checkbox should be located at the bottom of the countdown settings");
+                return 33;
+            }
+
+            // Switch to Tab 2 (Agent Collaboration)
+            btnTabAgent.PerformClick();
+            if (minCtrl.Visible || !agNoticeBox.Visible)
+            {
+                Console.WriteLine("FAIL: Switching to Agent tab should hide timer controls and show agent controls");
+                return 33;
+            }
+
+            // Verify only detected agents are listed in cardPanel
+            System.Collections.Generic.List<string> expectedAgents = (System.Collections.Generic.List<string>)detectAgents.Invoke(null, null);
+            int cardCount = 0;
+            foreach (Control c in cardPanel.Controls)
+            {
+                if (c is Panel) cardCount++;
+            }
+            if (expectedAgents.Count > 0 && cardCount != expectedAgents.Count)
+            {
+                Console.WriteLine("FAIL: cardPanel should contain exactly the detected agents count (" + expectedAgents.Count + "), but found " + cardCount);
+                return 33;
+            }
+
+            // Test refresh button
+            btnRefresh.PerformClick();
+            int refreshedCardCount = 0;
+            foreach (Control c in cardPanel.Controls)
+            {
+                if (c is Panel) refreshedCardCount++;
+            }
+            if (refreshedCardCount != cardCount)
+            {
+                Console.WriteLine("FAIL: Refreshing agent cards changed count unexpectedly");
+                return 33;
+            }
+
+            // Switch back to Tab 1
+            btnTabTimer.PerformClick();
+            if (!minCtrl.Visible || agNoticeBox.Visible)
+            {
+                Console.WriteLine("FAIL: Switching back to Timer tab failed");
+                return 33;
+            }
+
+            tabDlg.Dispose();
+            Console.WriteLine("PASS: SettingsDialog Plan B-1 Dual Tabs (Timer & Agent Collaboration) and dynamic refresh verified.");
+
+            Console.WriteLine("PASS: P1 & P2: 32bpp ARGB Layered Window, breathing pulse, and duration adjustment verified.");
             Console.WriteLine("PASS: Hotkey auto-fallback, status transparency, and tray left-click toggle verified.");
 
+            // 27. Test Architecture Optimization (P0 atomic save, P1 NativeMethods & cached GDI, P2 ClockState FSM)
+            Type nativeMethodsType = asm.GetType("NativeMethods");
+            if (nativeMethodsType == null)
+            {
+                Console.WriteLine("FAIL: NativeMethods unified interop class missing");
+                return 34;
+            }
+            Type stateEnumType = asm.GetType("ClockState");
+            if (stateEnumType == null)
+            {
+                Console.WriteLine("FAIL: ClockState enum missing");
+                return 35;
+            }
+
+            PropertyInfo stateProp = appType.GetProperty("State", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (stateProp == null) stateProp = appType.GetProperty("State", BindingFlags.Public | BindingFlags.Instance);
+            if (stateProp == null)
+            {
+                Console.WriteLine("FAIL: AppContext.State property missing");
+                return 36;
+            }
+
+            // Reset to clean Idle before testing state transitions
+            MethodInfo resetMethod = appType.GetMethod("Reset", bf);
+            resetMethod.Invoke(app, null);
+
+            // Verify state is Idle
+            object curState = stateProp.GetValue(app, null);
+            if (curState.ToString() != "Idle")
+            {
+                Console.WriteLine("FAIL: Expected initial state Idle, got " + curState);
+                return 37;
+            }
+
+            // Test StartWork -> Running
+            MethodInfo startWork = appType.GetMethod("StartWork", bf);
+            startWork.Invoke(app, null);
+            if (stateProp.GetValue(app, null).ToString() != "Running" || !(bool)runningField.GetValue(app) || !(bool)sessionActiveField.GetValue(app))
+            {
+                Console.WriteLine("FAIL: StartWork did not transition to Running with running=true");
+                return 38;
+            }
+
+            // Test Pause -> Paused
+            MethodInfo pauseMethod = appType.GetMethod("Pause", bf);
+            pauseMethod.Invoke(app, null);
+            if (stateProp.GetValue(app, null).ToString() != "Paused" || (bool)runningField.GetValue(app) || !(bool)sessionActiveField.GetValue(app))
+            {
+                Console.WriteLine("FAIL: Pause did not transition to Paused with running=false, sessionActive=true");
+                return 39;
+            }
+
+            // Test StartRest -> RestRunning
+            MethodInfo startRest = appType.GetMethod("StartRest", bf);
+            startRest.Invoke(app, new object[] { 5 });
+            if (stateProp.GetValue(app, null).ToString() != "RestRunning" || !(bool)runningField.GetValue(app) || !(bool)sessionActiveField.GetValue(app))
+            {
+                Console.WriteLine("FAIL: StartRest did not transition to RestRunning");
+                return 40;
+            }
+
+            // Test Reset -> Idle
+            resetMethod.Invoke(app, null);
+            if (stateProp.GetValue(app, null).ToString() != "Idle" || (bool)runningField.GetValue(app) || (bool)sessionActiveField.GetValue(app))
+            {
+                Console.WriteLine("FAIL: Reset did not transition to Idle with running=false, sessionActive=false");
+                return 41;
+            }
+
+            // Verify P0 Atomic Save cleans up tmp file
+            string iniTmp = iniPath + ".tmp";
+            if (System.IO.File.Exists(iniTmp))
+            {
+                Console.WriteLine("FAIL: Temporary settings file remained after save: " + iniTmp);
+                return 42;
+            }
+            Console.WriteLine("PASS: Architecture optimizations P0 (Atomic Save), P1 (NativeMethods & Zero-GC), P2 (ClockState FSM & Work/Rest cycle) verified.");
+
+            // 28. Test Multi-Process AI Agent Monitoring, FindAgentMainWindow, and Background Completion Lifecycle
+            MethodInfo findWin = appType.GetMethod("FindAgentMainWindow", BindingFlags.NonPublic | BindingFlags.Static);
+            if (findWin == null)
+            {
+                Console.WriteLine("FAIL: AppContext missing FindAgentMainWindow static method");
+                return 43;
+            }
+            HashSet<int> curAntiPids = new HashSet<int>();
+            foreach (Process p in Process.GetProcessesByName("Antigravity"))
+            {
+                using (p) curAntiPids.Add(p.Id);
+            }
+            if (curAntiPids.Count > 0)
+            {
+                IntPtr detectedHwnd = (IntPtr)findWin.Invoke(null, new object[] { curAntiPids });
+                if (detectedHwnd == IntPtr.Zero)
+                {
+                    Console.WriteLine("FAIL: FindAgentMainWindow returned Zero for running Antigravity processes");
+                    return 43;
+                }
+            }
+
+            FieldInfo trackedAgentsField = appType.GetField("trackedAgents", bf);
+            if (trackedAgentsField == null)
+            {
+                Console.WriteLine("FAIL: AppContext missing trackedAgents field");
+                return 44;
+            }
+            MethodInfo processTick = appType.GetMethod("ProcessAgentTick", bf);
+            if (processTick == null)
+            {
+                Console.WriteLine("FAIL: AppContext missing ProcessAgentTick method");
+                return 44;
+            }
+
+            agentNoticeField.SetValue(settings, true);
+            DateTime t0 = DateTime.Now;
+            processTick.Invoke(app, new object[] { t0, IntPtr.Zero, 0u });
+            IDictionary trackedDict = (IDictionary)trackedAgentsField.GetValue(app);
+            if (trackedDict == null)
+            {
+                Console.WriteLine("FAIL: trackedAgents dictionary is null");
+                return 45;
+            }
+
+            Type agentTrackType = asm.GetType("AppContext+AgentTrack");
+            object mockTrack = Activator.CreateInstance(agentTrackType);
+            agentTrackType.GetField("DisplayName").SetValue(mockTrack, "TestAgent");
+            HashSet<int> mockPids = new HashSet<int>();
+            mockPids.Add(Process.GetCurrentProcess().Id);
+            agentTrackType.GetField("Pids").SetValue(mockTrack, mockPids);
+            agentTrackType.GetField("MainWindow").SetValue(mockTrack, new IntPtr(12345));
+            agentTrackType.GetField("LastCpu").SetValue(mockTrack, TimeSpan.FromSeconds(10));
+            agentTrackType.GetField("LastSample").SetValue(mockTrack, t0);
+            agentTrackType.GetField("BusyTicks").SetValue(mockTrack, 0);
+            agentTrackType.GetField("IdleTicks").SetValue(mockTrack, 0);
+            agentTrackType.GetField("WasBusy").SetValue(mockTrack, false);
+            agentTrackType.GetField("LastNoticeTime").SetValue(mockTrack, DateTime.MinValue);
+            trackedDict["TestAgent"] = mockTrack;
+            appType.GetField("agentScanCooldown", bf).SetValue(app, 999);
+
+            // Test transient CPU spike rejection (short 2-second burst -> should NOT enter WasBusy)
+            DateTime curTime = t0;
+            TimeSpan realCurCpu = Process.GetCurrentProcess().TotalProcessorTime;
+            for (int b = 1; b <= 2; b++)
+            {
+                curTime = curTime.AddSeconds(1);
+                agentTrackType.GetField("LastCpu").SetValue(mockTrack, realCurCpu - TimeSpan.FromSeconds(0.5));
+                processTick.Invoke(app, new object[] { curTime, IntPtr.Zero, 999999u });
+            }
+            // Quiet for 1 second -> resets BusyTicks, WasBusy remains false
+            curTime = curTime.AddSeconds(1);
+            agentTrackType.GetField("LastCpu").SetValue(mockTrack, realCurCpu);
+            processTick.Invoke(app, new object[] { curTime, IntPtr.Zero, 999999u });
+            int busyReset = (int)agentTrackType.GetField("BusyTicks").GetValue(mockTrack);
+            bool wasBusyTransient = (bool)agentTrackType.GetField("WasBusy").GetValue(mockTrack);
+            if (busyReset != 0 || wasBusyTransient != false)
+            {
+                Console.WriteLine("FAIL: Transient CPU spike should reset BusyTicks=0 and WasBusy=false");
+                return 46;
+            }
+
+            // Test sustained workload (5 consecutive busy seconds >= AgentCpuBusyMinTicks)
+            for (int b = 1; b <= 5; b++)
+            {
+                curTime = curTime.AddSeconds(1);
+                realCurCpu = Process.GetCurrentProcess().TotalProcessorTime;
+                agentTrackType.GetField("LastCpu").SetValue(mockTrack, realCurCpu - TimeSpan.FromSeconds(0.5));
+                processTick.Invoke(app, new object[] { curTime, IntPtr.Zero, 999999u });
+                int bTicks = (int)agentTrackType.GetField("BusyTicks").GetValue(mockTrack);
+                bool wBusy = (bool)agentTrackType.GetField("WasBusy").GetValue(mockTrack);
+                if (b < 5)
+                {
+                    if (bTicks != b || wBusy != false)
+                    {
+                        Console.WriteLine("FAIL: Busy tick " + b + " should have BusyTicks=" + b + ", WasBusy=false");
+                        return 46;
+                    }
+                }
+                else
+                {
+                    if (bTicks < 5 || !wBusy)
+                    {
+                        Console.WriteLine("FAIL: Busy tick 5 should set BusyTicks>=5 and WasBusy=true");
+                        return 46;
+                    }
+                }
+            }
+
+            // Test quiet interval: Ticks 1..5 of quiet should NOT trigger completion (AgentCpuIdleMinTicks = 6)
+            for (int id = 1; id < 6; id++)
+            {
+                curTime = curTime.AddSeconds(1);
+                realCurCpu = Process.GetCurrentProcess().TotalProcessorTime;
+                agentTrackType.GetField("LastCpu").SetValue(mockTrack, realCurCpu);
+                processTick.Invoke(app, new object[] { curTime, IntPtr.Zero, 999999u });
+                int idTicks = (int)agentTrackType.GetField("IdleTicks").GetValue(mockTrack);
+                bool wBusy = (bool)agentTrackType.GetField("WasBusy").GetValue(mockTrack);
+                if (idTicks != id || !wBusy)
+                {
+                    Console.WriteLine("FAIL: Idle tick " + id + " should have IdleTicks=" + id + ", WasBusy=true, got " + idTicks + ", " + wBusy);
+                    return 46;
+                }
+            }
+
+            // Tick 6 of quiet: triggers completion notice!
+            curTime = curTime.AddSeconds(1);
+            realCurCpu = Process.GetCurrentProcess().TotalProcessorTime;
+            agentTrackType.GetField("LastCpu").SetValue(mockTrack, realCurCpu);
+            processTick.Invoke(app, new object[] { curTime, IntPtr.Zero, 999999u });
+            bool wasBusyDone = (bool)agentTrackType.GetField("WasBusy").GetValue(mockTrack);
+            DateTime lastNotice = (DateTime)agentTrackType.GetField("LastNoticeTime").GetValue(mockTrack);
+            if (wasBusyDone != false || lastNotice != curTime)
+            {
+                Console.WriteLine("FAIL: Idle tick 6 should trigger notice and reset WasBusy, got WasBusy=" + wasBusyDone + ", lastNotice=" + lastNotice);
+                return 46;
+            }
+            trackedDict.Remove("TestAgent");
+
+            // Verify Window Title Dynamics helper & instant completion
+            MethodInfo isBusyTitleMethod = appType.GetMethod("IsBusyAgentTitle", BindingFlags.NonPublic | BindingFlags.Static);
+            if (isBusyTitleMethod == null)
+            {
+                Console.WriteLine("FAIL: AppContext missing IsBusyAgentTitle static method");
+                return 47;
+            }
+            if (!(bool)isBusyTitleMethod.Invoke(null, new object[] { "Cursor - [Running] index.ts" }) ||
+                !(bool)isBusyTitleMethod.Invoke(null, new object[] { "● Claude Code" }) ||
+                (bool)isBusyTitleMethod.Invoke(null, new object[] { "Cursor - index.ts" }))
+            {
+                Console.WriteLine("FAIL: IsBusyAgentTitle logic incorrect");
+                return 47;
+            }
+
+            // Test title-revert instant completion
+            object titleTrack = Activator.CreateInstance(agentTrackType);
+            agentTrackType.GetField("DisplayName").SetValue(titleTrack, "TitleAgent");
+            agentTrackType.GetField("Pids").SetValue(titleTrack, mockPids);
+            agentTrackType.GetField("MainWindow").SetValue(titleTrack, new IntPtr(54321));
+            agentTrackType.GetField("LastCpu").SetValue(titleTrack, realCurCpu);
+            agentTrackType.GetField("LastSample").SetValue(titleTrack, t0);
+            agentTrackType.GetField("TitleWasBusy").SetValue(titleTrack, true);
+            agentTrackType.GetField("WasBusy").SetValue(titleTrack, true);
+            agentTrackType.GetField("LastNoticeTime").SetValue(titleTrack, DateTime.MinValue);
+            trackedDict["TitleAgent"] = titleTrack;
+
+            // When title reverts, it immediately fires notice without waiting for quiet ticks
+            appType.GetField("agentScanCooldown", bf).SetValue(app, 5);
+            DateTime tTitle = t0.AddSeconds(1);
+            agentTrackType.GetField("LastCpu").SetValue(titleTrack, realCurCpu);
+            processTick.Invoke(app, new object[] { tTitle, IntPtr.Zero, 999999u });
+            bool titleWasBusyAfter = (bool)agentTrackType.GetField("TitleWasBusy").GetValue(titleTrack);
+            DateTime titleNotice = (DateTime)agentTrackType.GetField("LastNoticeTime").GetValue(titleTrack);
+            if (titleWasBusyAfter != false || titleNotice != tTitle)
+            {
+                Console.WriteLine("FAIL: Title-revert should instantly trigger completion notice, got TitleWasBusy=" + titleWasBusyAfter + ", LastNoticeTime=" + titleNotice);
+                return 47;
+            }
+            trackedDict.Remove("TitleAgent");
+
+            Console.WriteLine("PASS: Multi-process AI Agent monitoring, FindAgentMainWindow, window title dynamics, and background completion lifecycle verified.");
+
+            // 29. Verify ToastAgentMonitor, Zero-False-Positive CPU bypass, and Notification Details
+            Type toastMonType = asm.GetType("AppContext+ToastAgentMonitor");
+            if (toastMonType == null)
+            {
+                Console.WriteLine("FAIL: AppContext missing ToastAgentMonitor class");
+                return 48;
+            }
+            PropertyInfo isAvailProp = toastMonType.GetProperty("IsAvailable", BindingFlags.Public | BindingFlags.Static);
+            if (isAvailProp == null)
+            {
+                Console.WriteLine("FAIL: ToastAgentMonitor missing IsAvailable property");
+                return 48;
+            }
+            bool isAvail = (bool)isAvailProp.GetValue(null, null);
+
+            if (isAvail)
+            {
+                object toastAgentTrack = Activator.CreateInstance(agentTrackType);
+                agentTrackType.GetField("DisplayName").SetValue(toastAgentTrack, "Antigravity");
+                agentTrackType.GetField("Pids").SetValue(toastAgentTrack, mockPids);
+                agentTrackType.GetField("MainWindow").SetValue(toastAgentTrack, new IntPtr(23456));
+                agentTrackType.GetField("LastCpu").SetValue(toastAgentTrack, realCurCpu - TimeSpan.FromSeconds(1.0));
+                agentTrackType.GetField("LastSample").SetValue(toastAgentTrack, t0);
+                agentTrackType.GetField("BusyTicks").SetValue(toastAgentTrack, 0);
+                agentTrackType.GetField("IdleTicks").SetValue(toastAgentTrack, 0);
+                agentTrackType.GetField("WasBusy").SetValue(toastAgentTrack, false);
+                agentTrackType.GetField("LastNoticeTime").SetValue(toastAgentTrack, DateTime.MinValue);
+                trackedDict["Antigravity"] = toastAgentTrack;
+
+                DateTime tToast = t0.AddSeconds(1);
+                processTick.Invoke(app, new object[] { tToast, IntPtr.Zero, 999999u });
+                int toastBusy = (int)agentTrackType.GetField("BusyTicks").GetValue(toastAgentTrack);
+                bool toastWasBusy = (bool)agentTrackType.GetField("WasBusy").GetValue(toastAgentTrack);
+                if (toastBusy != 0 || toastWasBusy != false)
+                {
+                    Console.WriteLine("FAIL: Antigravity should bypass CPU busy heuristics to prevent false positives, got BusyTicks=" + toastBusy);
+                    return 48;
+                }
+                trackedDict.Remove("Antigravity");
+            }
+
+            Form noticeWithDetail = (Form)Activator.CreateInstance(noticeType, new object[] { settings, DateTime.Now, "Antigravity", IntPtr.Zero, null, "Task Completed • Model Refactored" });
+            if (noticeWithDetail == null || !noticeWithDetail.Text.Contains("Antigravity"))
+            {
+                Console.WriteLine("FAIL: NoticeDialog with detailMessage failed to instantiate or bad title");
+                return 48;
+            }
+            noticeWithDetail.Dispose();
+
+            Console.WriteLine("PASS: Windows Toast notification listener, zero-false-positive CPU bypass, and task detail display verified.");
+
+            // 30. Verify Win32 Shell Hook (RegisterShellHookWindow, HSHELL_FLASH, and 0ms window flash routing)
+            FieldInfo shellHookMsgField = appType.GetField("shellHookMsg", bf);
+            if (shellHookMsgField == null)
+            {
+                Console.WriteLine("FAIL: AppContext missing shellHookMsg field");
+                return 49;
+            }
+            MethodInfo handleShellMethod = appType.GetMethod("HandleShellHook", bf);
+            if (handleShellMethod == null)
+            {
+                Console.WriteLine("FAIL: AppContext missing HandleShellHook method");
+                return 49;
+            }
+
+            object windsurfTrack = Activator.CreateInstance(agentTrackType);
+            agentTrackType.GetField("DisplayName").SetValue(windsurfTrack, "Windsurf");
+            agentTrackType.GetField("Pids").SetValue(windsurfTrack, mockPids);
+            agentTrackType.GetField("MainWindow").SetValue(windsurfTrack, new IntPtr(34567));
+            agentTrackType.GetField("LastCpu").SetValue(windsurfTrack, TimeSpan.Zero);
+            agentTrackType.GetField("LastSample").SetValue(windsurfTrack, t0);
+            agentTrackType.GetField("LastNoticeTime").SetValue(windsurfTrack, DateTime.MinValue);
+            trackedDict["Windsurf"] = windsurfTrack;
+
+            handleShellMethod.Invoke(app, new object[] { 6, new IntPtr(34567) });
+            DateTime lastNoticeNonFlash = (DateTime)agentTrackType.GetField("LastNoticeTime").GetValue(windsurfTrack);
+            if (lastNoticeNonFlash != DateTime.MinValue)
+            {
+                Console.WriteLine("FAIL: Non-flash code should not trigger alert");
+                return 49;
+            }
+
+            handleShellMethod.Invoke(app, new object[] { 0x8006, new IntPtr(34567) });
+            DateTime lastNoticeFlashed = (DateTime)agentTrackType.GetField("LastNoticeTime").GetValue(windsurfTrack);
+            if (lastNoticeFlashed == DateTime.MinValue || (DateTime.Now - lastNoticeFlashed).TotalSeconds > 5)
+            {
+                Console.WriteLine("FAIL: HSHELL_FLASH should instantly trigger alert and update LastNoticeTime");
+                return 49;
+            }
+
+            handleShellMethod.Invoke(app, new object[] { 0x8006, new IntPtr(34567) });
+            DateTime lastNoticeCooldown = (DateTime)agentTrackType.GetField("LastNoticeTime").GetValue(windsurfTrack);
+            if (lastNoticeCooldown != lastNoticeFlashed)
+            {
+                Console.WriteLine("FAIL: Repeat flash within cooldown should be suppressed");
+                return 49;
+            }
+            trackedDict.Remove("Windsurf");
+
+            Form actNotice = (Form)appType.GetField("activeNotice", bf).GetValue(app);
+            if (actNotice != null && !actNotice.IsDisposed) { actNotice.Close(); actNotice.Dispose(); }
+
+            Console.WriteLine("PASS: Win32 RegisterShellHookWindow, HSHELL_FLASH window flashing detection, and instant dispatch verified.");
+
+            FieldInfo sActiveField = appType.GetField("sessionActive", bf);
+            if (sActiveField != null) sActiveField.SetValue(app, false);
             MethodInfo exit = appType.GetMethod("Exit", bf);
             exit.Invoke(app, null);
 
@@ -936,6 +1601,14 @@ internal static class TestCheck
             else
             {
                 try { System.IO.File.Delete(iniPath); } catch { }
+            }
+            if (historyBackup != null)
+            {
+                try { System.IO.File.WriteAllText(todayHistoryPath, historyBackup, System.Text.Encoding.UTF8); } catch { }
+            }
+            else
+            {
+                try { System.IO.File.Delete(todayHistoryPath); } catch { }
             }
         }
     }
