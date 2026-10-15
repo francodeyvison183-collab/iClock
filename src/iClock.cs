@@ -177,6 +177,31 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true)] public static extern bool FreeConsole();
     [DllImport("kernel32.dll", SetLastError = true)] public static extern IntPtr GetStdHandle(int nStdHandle);
 
+    [StructLayout(LayoutKind.Explicit)]
+    public struct INPUT_RECORD
+    {
+        [FieldOffset(0)] public ushort EventType;
+        [FieldOffset(4)] public KEY_EVENT_RECORD KeyEvent;
+    }
+
+    [StructLayout(LayoutKind.Explicit, CharSet = CharSet.Unicode)]
+    public struct KEY_EVENT_RECORD
+    {
+        [FieldOffset(0)] public bool bKeyDown;
+        [FieldOffset(4)] public ushort wRepeatCount;
+        [FieldOffset(6)] public ushort wVirtualKeyCode;
+        [FieldOffset(8)] public ushort wVirtualScanCode;
+        [FieldOffset(10)] public char UnicodeChar;
+        [FieldOffset(12)] public uint dwControlKeyState;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool WriteConsoleInput(IntPtr hConsoleInput, INPUT_RECORD[] lpBuffer, uint nLength, out uint lpNumberOfEventsWritten);
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern IntPtr CreateFile(string lpFileName, uint dwDesiredAccess, uint dwShareMode, IntPtr lpSecurityAttributes, uint dwCreationDisposition, uint dwFlagsAndAttributes, IntPtr hTemplateFile);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CloseHandle(IntPtr hObject);
+
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
     [DllImport("user32.dll", SetLastError = true)]
@@ -5135,6 +5160,43 @@ internal sealed class AppContext : ApplicationContext
 
 internal static class Program
 {
+    private static void RestoreConsolePrompt()
+    {
+        try
+        {
+            bool needClose = false;
+            IntPtr hIn = NativeMethods.GetStdHandle(-10); // STD_INPUT_HANDLE = -10
+            if (hIn == IntPtr.Zero || hIn == (IntPtr)(-1))
+            {
+                hIn = NativeMethods.CreateFile("CONIN$", 0xC0000000, 3, IntPtr.Zero, 3, 0, IntPtr.Zero);
+                needClose = (hIn != IntPtr.Zero && hIn != (IntPtr)(-1));
+            }
+            if (hIn != IntPtr.Zero && hIn != (IntPtr)(-1))
+            {
+                NativeMethods.INPUT_RECORD[] records = new NativeMethods.INPUT_RECORD[2];
+
+                records[0].EventType = 1; // KEY_EVENT
+                records[0].KeyEvent.bKeyDown = true;
+                records[0].KeyEvent.wRepeatCount = 1;
+                records[0].KeyEvent.wVirtualKeyCode = 0x0D; // VK_RETURN
+                records[0].KeyEvent.wVirtualScanCode = 0x1C;
+                records[0].KeyEvent.UnicodeChar = '\r';
+
+                records[1].EventType = 1;
+                records[1].KeyEvent.bKeyDown = false;
+                records[1].KeyEvent.wRepeatCount = 1;
+                records[1].KeyEvent.wVirtualKeyCode = 0x0D;
+                records[1].KeyEvent.wVirtualScanCode = 0x1C;
+                records[1].KeyEvent.UnicodeChar = '\r';
+
+                uint written;
+                NativeMethods.WriteConsoleInput(hIn, records, 2, out written);
+                if (needClose) NativeMethods.CloseHandle(hIn);
+            }
+        }
+        catch { }
+    }
+
     private static void WriteToConsole(string text)
     {
         bool attached = false;
@@ -5165,7 +5227,11 @@ internal static class Program
             }
             catch { }
         }
-        if (attached) NativeMethods.FreeConsole();
+        if (attached)
+        {
+            RestoreConsolePrompt();
+            NativeMethods.FreeConsole();
+        }
     }
 
     private static void InstallCli()
@@ -5286,6 +5352,11 @@ Examples:
                     WriteToConsole("[iClock] Already running in background tray.");
                 }
                 return;
+            }
+
+            if (args != null && args.Length > 0)
+            {
+                WriteToConsole("[iClock] Started in background with: " + string.Join(" ", args));
             }
 
             Application.EnableVisualStyles();
