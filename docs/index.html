@@ -6,7 +6,11 @@
   <title data-i18n="page_title">iClock - 桌面极简悬浮倒计时工具 | 仅 202 KB 原生单文件</title>
   <meta name="description" data-i18n-meta="description" content="iClock 是一款 Windows 平台上的极简桌面悬浮倒计时工具。单文件仅 202 KB，零依赖、支持置顶悬浮穿透、全局快捷键、自选色彩与格式，专为高效专注打造。">
   <meta name="keywords" content="iClock, 倒计时, 桌面倒计时, 悬浮倒计时, 番茄钟, Windows 效率工具, 极简倒计时, countdown timer, desktop timer">
-  <link rel="icon" type="image/png" href="icon-256.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="icon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="icon-256.png">
+  <link rel="shortcut icon" href="favicon.ico">
+  <link rel="apple-touch-icon" href="icon-256.png">
   <link rel="help" href="llms.txt" type="text/markdown" title="LLM context and documentation">
 
   <!-- Schema.org 结构化数据 (GEO & SEO 语义增强) -->
@@ -170,9 +174,13 @@
     }
 
     .brand-icon {
-      font-size: 24px;
+      width: 28px;
+      height: 28px;
       display: inline-block;
-      line-height: 1;
+      vertical-align: middle;
+      border-radius: 6px;
+      object-fit: contain;
+      box-shadow: 0 2px 6px rgba(19, 28, 67, 0.2);
     }
 
     .version-tag {
@@ -1134,7 +1142,7 @@
   <header class="navbar">
     <div class="container nav-inner">
       <a href="#" class="brand">
-        <span class="brand-icon">⏱️</span>
+        <img src="icon-64.png" alt="iClock" class="brand-icon" width="28" height="28">
         <span>iClock</span>
         <span class="version-tag">v1.05</span>
       </a>

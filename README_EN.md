@@ -1,6 +1,6 @@
 <div align="center">
 
-# ⏱️ iClock
+# <img src="docs/icon-64.png" width="36" height="36" style="vertical-align: -6px;" alt="iClock Logo" /> iClock
 
 ### Ultra-lightweight, Transparent Desktop Countdown for Windows
 
