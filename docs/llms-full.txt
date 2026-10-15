@@ -43,11 +43,11 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 ### Option C: Standalone Portable Download
 No installer or admin permissions required:
 - Binary: `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.exe`
-- SHA-256 Checksum: `da5ec237c4cd53a9a6b6fbce76e0cbadab0b6832fc9de2a8d47e16f71b6b99c2`
+- SHA-256 Checksum: `911d9018cb0ba38cc62005f747162ff205125894c2a14aa388cea19ca958ead4`
 
 ### Option D: Portable ZIP
 - Archive: `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.zip`
-- SHA-256 Checksum: `821e03c200bcd00f717d6d7c2298099437105aa39d09a65bf7c213d0b9866c82`
+- SHA-256 Checksum: `b30582184a2bf4374a3387f763fb41dd59f5ac393b648b6ddd3e45637fc985d9`
 
 ## 4. Frequent User Questions & Direct Answers (Q&A)
 
