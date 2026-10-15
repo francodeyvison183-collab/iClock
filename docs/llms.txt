@@ -1,4 +1,4 @@
-﻿# iClock
+# iClock
 
 > Ultra-lightweight (154 KB), zero-dependency, click-through desktop countdown timer and AI agent task monitor for Windows.
 
@@ -33,8 +33,8 @@ iClock is an open-source, minimalist Windows desktop floating countdown timer de
 - **Latest Release (v1.05)**:
   - Standalone Executable: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.exe
   - Portable ZIP Archive: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.zip
-  - SHA-256 (EXE): `285c833e3270a19292eb815161de97b9a80f1932d025a42a9467f8470580c108`
-  - SHA-256 (ZIP): `f08e3e19609e55b5266299b80dd8f7ff20e8b20f0cb0bb45e2e52d5cc1df916b`
+  - SHA-256 (EXE): `da5ec237c4cd53a9a6b6fbce76e0cbadab0b6832fc9de2a8d47e16f71b6b99c2`
+  - SHA-256 (ZIP): `821e03c200bcd00f717d6d7c2298099437105aa39d09a65bf7c213d0b9866c82`
 
 ## Core Differentiators
 

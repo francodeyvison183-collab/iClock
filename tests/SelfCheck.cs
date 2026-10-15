@@ -1810,6 +1810,58 @@ internal static class TestCheck
 
             Console.WriteLine("PASS: CLI IPC commands (--start, -p, -r, --reset, -n) successfully verified.");
 
+            // 33. Verify CLI tray menu item and CliHelpDialog
+            ToolStripMenuItem menuCli = (ToolStripMenuItem)appType.GetField("menuCli", bf).GetValue(app);
+            if (menuCli == null)
+            {
+                Console.WriteLine("FAIL: menuCli is null");
+                return 51;
+            }
+            if (menuCli.Text != "命令行 (CLI)…" && menuCli.Text != "Command Line (CLI)…")
+            {
+                Console.WriteLine("FAIL: menuCli text should be '命令行 (CLI)…' or 'Command Line (CLI)…', got: " + menuCli.Text);
+                return 51;
+            }
+            if (menuCli.ShortcutKeyDisplayString != "iclock -h")
+            {
+                Console.WriteLine("FAIL: menuCli shortcut hint should be 'iclock -h', got: " + menuCli.ShortcutKeyDisplayString);
+                return 51;
+            }
+            MethodInfo showCliHelp = appType.GetMethod("ShowCliHelp", bf);
+            showCliHelp.Invoke(app, null);
+            Form cliHelpDlg = (Form)activeDlgField.GetValue(app);
+            if (cliHelpDlg == null || cliHelpDlg.IsDisposed || cliHelpDlg.GetType().Name != "CliHelpDialog")
+            {
+                Console.WriteLine("FAIL: ShowCliHelp did not create CliHelpDialog");
+                return 51;
+            }
+            if (!cliHelpDlg.Text.Contains("命令行 (CLI)") && !cliHelpDlg.Text.Contains("Command Line (CLI)"))
+            {
+                Console.WriteLine("FAIL: CliHelpDialog title incorrect: " + cliHelpDlg.Text);
+                return 51;
+            }
+            bool foundIntro = false;
+            foreach (Control c in cliHelpDlg.Controls)
+            {
+                if (c is Label && (c.Text.Contains("支持在终端") || c.Text.Contains("Control iClock timers")))
+                {
+                    foundIntro = true;
+                    break;
+                }
+            }
+            if (!foundIntro)
+            {
+                Console.WriteLine("FAIL: CliHelpDialog missing intro guidance label");
+                return 51;
+            }
+            cliHelpDlg.Close();
+            if (activeDlgField.GetValue(app) != null)
+            {
+                Console.WriteLine("FAIL: Closing CliHelpDialog did not clear activeDialog");
+                return 51;
+            }
+            Console.WriteLine("PASS: CLI tray menu item (命令行 (CLI)…, iclock -h) and CliHelpDialog verified.");
+
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);
             if (sActiveField != null) sActiveField.SetValue(app, false);
             MethodInfo exit = appType.GetMethod("Exit", bf);

@@ -1823,6 +1823,177 @@ internal sealed class CliNoticeDialog : Form
     }
 }
 
+internal sealed class CliHelpDialog : Form
+{
+    private Settings settings;
+
+    public CliHelpDialog(Settings s)
+    {
+        settings = s;
+        bool en = s != null && s.Language == "en";
+        string lang = s != null ? s.Language : "zh";
+        Font = AppContext.GetUiFont(lang, 9.5f);
+        BackColor = AppContext.Win11Bg;
+        AppContext.ApplyModernWindowStyle(this);
+        Text = en ? "iClock - Command Line (CLI)" : "iClock - 命令行 (CLI)";
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        ShowInTaskbar = false;
+        ShowIcon = false;
+        try { Icon = AppContext.CreateIcon(); } catch { }
+        ClientSize = new Size(420, 364);
+
+        // 1. Brief Intro Header
+        Label lblIntro = new Label();
+        lblIntro.Text = en
+            ? "Control iClock timers and notices directly from any terminal or automation script."
+            : "支持在终端、构建流水线或自动化脚本中无缝控制 iClock 倒计时与任务完成提醒。";
+        lblIntro.ForeColor = Color.FromArgb(107, 114, 128);
+        lblIntro.Font = AppContext.GetUiFont(lang, 9f, FontStyle.Regular);
+        lblIntro.TextAlign = ContentAlignment.MiddleLeft;
+        lblIntro.SetBounds(18, 12, 384, 20);
+        Controls.Add(lblIntro);
+
+        // 2. PATH Status & Button
+        bool inPath = Program.IsCliConfiguredInPath();
+        Label lblStatus = new Label();
+        lblStatus.Text = inPath
+            ? (en ? "● Status: Configured in User PATH" : "● 终端环境：已配置到 PATH 环境变量")
+            : (en ? "● Status: Not yet added to User PATH" : "● 终端环境：尚未配置到 PATH 环境变量");
+        lblStatus.ForeColor = inPath ? Color.FromArgb(16, 124, 65) : Color.FromArgb(202, 80, 16);
+        lblStatus.Font = AppContext.GetUiFont(lang, 9f, FontStyle.Regular);
+        lblStatus.TextAlign = ContentAlignment.MiddleLeft;
+        lblStatus.SetBounds(18, 38, 255, 26);
+        Controls.Add(lblStatus);
+
+        Button btnPath = new Button();
+        btnPath.Text = inPath ? (en ? "Re-add PATH" : "重新写入 PATH") : (en ? "Add to PATH" : "写入 PATH 环境变量");
+        btnPath.Font = AppContext.GetUiFont(lang, 9f, FontStyle.Regular);
+        btnPath.SetBounds(276, 37, 126, 28);
+        AppContext.StyleSecondaryButton(btnPath);
+        btnPath.Click += delegate
+        {
+            string msg;
+            if (Program.ConfigureCliPath(out msg))
+            {
+                lblStatus.Text = en ? "✓ Successfully added to User PATH" : "✓ 已成功添加至系统 PATH 环境变量";
+                lblStatus.ForeColor = Color.FromArgb(16, 124, 65);
+                btnPath.Text = en ? "Configured" : "已配置";
+                btnPath.Enabled = false;
+            }
+            else
+            {
+                MessageBox.Show(this, (en ? "Failed to configure PATH: " : "配置环境变量失败：") + msg, "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        };
+        Controls.Add(btnPath);
+
+        // 3. Command Quick Reference Title
+        Label lblSec1 = new Label();
+        lblSec1.Text = en ? "Command Quick Reference" : "常用命令速查";
+        lblSec1.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Bold);
+        lblSec1.ForeColor = AppContext.Win11TextPrimary;
+        lblSec1.SetBounds(18, 72, 384, 20);
+        Controls.Add(lblSec1);
+
+        string[,] cmds = en ? new string[,]
+        {
+            { "iclock -s [mins]", "Start countdown timer" },
+            { "iclock -p / -r",   "Pause or resume countdown" },
+            { "iclock -t",        "Toggle pause / resume" },
+            { "iclock --reset",   "Reset timer and hide overlay" },
+            { "iclock -n <msg>",  "Popup custom notification & chime" }
+        } : new string[,]
+        {
+            { "iclock -s [mins]", "开启指定时长倒计时（默认配置分钟）" },
+            { "iclock -p / -r",   "暂停或继续当前倒计时" },
+            { "iclock -t",        "一键切换 暂停 / 继续" },
+            { "iclock --reset",   "重置倒计时并隐藏桌面悬浮窗" },
+            { "iclock -n <内容>", "弹出专属提醒卡片并播放提示音" }
+        };
+
+        int curY = 96;
+        Font codeFont = new Font("Consolas", 9f, FontStyle.Bold);
+        for (int i = 0; i < 5; i++)
+        {
+            Label lblCmd = new Label();
+            lblCmd.Text = cmds[i, 0];
+            lblCmd.Font = codeFont;
+            lblCmd.ForeColor = AppContext.Win11Accent;
+            lblCmd.TextAlign = ContentAlignment.MiddleLeft;
+            lblCmd.SetBounds(22, curY, 136, 20);
+            Controls.Add(lblCmd);
+
+            Label lblDesc = new Label();
+            lblDesc.Text = cmds[i, 1];
+            lblDesc.Font = AppContext.GetUiFont(lang, 9f, FontStyle.Regular);
+            lblDesc.ForeColor = AppContext.Win11TextPrimary;
+            lblDesc.TextAlign = ContentAlignment.MiddleLeft;
+            lblDesc.SetBounds(160, curY, 242, 20);
+            Controls.Add(lblDesc);
+
+            curY += 22;
+        }
+
+        // 4. Workflow Examples Title
+        Label lblSec2 = new Label();
+        lblSec2.Text = en ? "Typical Workflow Examples" : "典型脚本联动示例";
+        lblSec2.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Bold);
+        lblSec2.ForeColor = AppContext.Win11TextPrimary;
+        lblSec2.SetBounds(18, 214, 384, 20);
+        Controls.Add(lblSec2);
+
+        // Code Example Box
+        Panel pnlBox = new Panel();
+        pnlBox.SetBounds(18, 238, 384, 60);
+        pnlBox.BackColor = Color.FromArgb(243, 244, 246);
+        pnlBox.Paint += delegate(object sender, PaintEventArgs e)
+        {
+            using (Pen borderPen = new Pen(Color.FromArgb(229, 231, 235)))
+            {
+                e.Graphics.DrawRectangle(borderPen, 0, 0, pnlBox.Width - 1, pnlBox.Height - 1);
+            }
+        };
+        Controls.Add(pnlBox);
+
+        Label lblEx1 = new Label();
+        lblEx1.Text = en ? "npm run build && iclock -n \"Build finished!\"" : "npm run build && iclock -n \"前端构建完成！\"";
+        lblEx1.Font = codeFont;
+        lblEx1.ForeColor = Color.FromArgb(31, 41, 55);
+        lblEx1.SetBounds(10, 8, 364, 20);
+        pnlBox.Controls.Add(lblEx1);
+
+        Label lblEx2 = new Label();
+        lblEx2.Text = en ? "pytest && iclock -n \"All tests passed\"" : "pytest && iclock -n \"单元测试全部通过\"";
+        lblEx2.Font = codeFont;
+        lblEx2.ForeColor = Color.FromArgb(31, 41, 55);
+        lblEx2.SetBounds(10, 32, 364, 20);
+        pnlBox.Controls.Add(lblEx2);
+
+        // 5. Footer Button
+        Button btnOk = new Button();
+        btnOk.Text = en ? "Got it" : "我知道了";
+        btnOk.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular);
+        btnOk.SetBounds(292, 314, 110, 34);
+        AppContext.StylePrimaryButton(btnOk);
+        btnOk.Click += delegate { Close(); };
+        Controls.Add(btnOk);
+
+        AcceptButton = btnOk;
+        CancelButton = btnOk;
+        KeyPreview = true;
+
+        FormClosed += delegate
+        {
+            codeFont.Dispose();
+        };
+
+        AppContext.CenterFormOnScreen(this);
+    }
+}
+
 internal sealed class WelcomeDialog : Form
 {
     public bool StartRequested { get; private set; }
@@ -2299,7 +2470,7 @@ internal sealed class AppContext : ApplicationContext
     private Settings settings;
     private Overlay overlay;
     private NotifyIcon tray;
-    private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuAbout, menuExit, menuUpdate;
+    private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuCli, menuAbout, menuExit, menuUpdate;
     internal const string CURRENT_VERSION = "1.05";
     private string updateUrl;
     private string latestVersion;
@@ -2607,6 +2778,7 @@ internal sealed class AppContext : ApplicationContext
         m.Items.Add(new ToolStripSeparator());
         menuHistory = AddMenuItem(m, delegate { ShowHistory(); });
         menuSettings = AddMenuItem(m, delegate { ShowSettings(); });
+        menuCli = AddMenuItem(m, delegate { ShowCliHelp(); });
         menuAbout = AddMenuItem(m, delegate { ShowAbout(); });
         m.Items.Add(new ToolStripSeparator());
         menuExit = AddMenuItem(m, delegate { Exit(); });
@@ -2682,6 +2854,8 @@ internal sealed class AppContext : ApplicationContext
         menuMove.ShortcutKeyDisplayString = overlay.MoveMode ? "" : (en ? "Alt + Drag" : "Alt + 拖拽");
         menuHistory.Text = en ? "View today's history" : "查看今日记录";
         menuSettings.Text = en ? "Settings…" : "设置…";
+        menuCli.Text = en ? "Command Line (CLI)…" : "命令行 (CLI)…";
+        menuCli.ShortcutKeyDisplayString = "iclock -h";
         menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
         menuExit.Text = en ? "Exit" : "退出";
         if (menuUpdate != null) menuUpdate.Text = en ? "⭐ Update available (" + latestVersion + ")…" : "⭐ 发现新版本 (" + latestVersion + ")…";
@@ -4719,6 +4893,24 @@ internal sealed class AppContext : ApplicationContext
         f.Show();
         ActivateWindow(f);
     }
+
+    internal void ShowCliHelp()
+    {
+        if (activeDialog != null && !activeDialog.IsDisposed)
+        {
+            if (activeDialog is CliHelpDialog) { ActivateWindow(activeDialog); return; }
+            activeDialog.Close();
+        }
+        CliHelpDialog d = new CliHelpDialog(settings);
+        activeDialog = d;
+        d.FormClosed += delegate
+        {
+            if (activeDialog == d) activeDialog = null;
+            TrimMemory();
+        };
+        d.Show();
+        ActivateWindow(d);
+    }
     private void ShowAbout()
     {
         if (activeDialog != null && !activeDialog.IsDisposed)
@@ -5356,7 +5548,24 @@ internal static class Program
         }
     }
 
-    private static void InstallCli()
+    internal static bool IsCliConfiguredInPath()
+    {
+        try
+        {
+            string dir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
+            string userPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User) ?? "";
+            string[] paths = userPath.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (string p in paths)
+            {
+                if (string.Equals(p.Trim().TrimEnd('\\', '/'), dir, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    internal static bool ConfigureCliPath(out string message)
     {
         try
         {
@@ -5376,16 +5585,33 @@ internal static class Program
             {
                 string newPath = string.IsNullOrEmpty(userPath) ? dir : (userPath.TrimEnd(';') + ";" + dir);
                 Environment.SetEnvironmentVariable("PATH", newPath, EnvironmentVariableTarget.User);
-                WriteToConsole("[iClock] CLI environment configured successfully!\r\n[iClock] You can now type 'iclock' directly in any terminal.");
+                message = "CLI environment configured successfully.";
+                return true;
             }
-            else
-            {
-                WriteToConsole("[iClock] CLI path is already configured in User PATH:\r\n  " + dir);
-            }
+            message = "CLI path is already configured in User PATH.";
+            return true;
         }
         catch (Exception ex)
         {
-            WriteToConsole("[iClock] Failed to configure PATH: " + ex.Message);
+            message = ex.Message;
+            return false;
+        }
+    }
+
+    private static void InstallCli()
+    {
+        string dir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
+        string msg;
+        if (ConfigureCliPath(out msg))
+        {
+            if (msg.StartsWith("CLI path is already", StringComparison.OrdinalIgnoreCase))
+                WriteToConsole("[iClock] CLI path is already configured in User PATH:\r\n  " + dir);
+            else
+                WriteToConsole("[iClock] CLI environment configured successfully!\r\n[iClock] You can now type 'iclock' directly in any terminal.");
+        }
+        else
+        {
+            WriteToConsole("[iClock] Failed to configure PATH: " + msg);
         }
     }
 
