@@ -1843,7 +1843,7 @@ internal static class TestCheck
             bool foundIntro = false;
             foreach (Control c in cliHelpDlg.Controls)
             {
-                if (c is Label && (c.Text.Contains("支持在终端") || c.Text.Contains("Control iClock timers")))
+                if (c is Label && (c.Text.Contains("在终端或脚本中") || c.Text.Contains("Control countdowns")))
                 {
                     foundIntro = true;
                     break;

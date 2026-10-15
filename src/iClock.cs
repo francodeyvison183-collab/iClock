@@ -1843,59 +1843,62 @@ internal sealed class CliHelpDialog : Form
         ShowInTaskbar = false;
         ShowIcon = false;
         try { Icon = AppContext.CreateIcon(); } catch { }
-        ClientSize = new Size(420, 372);
+        ClientSize = new Size(420, 364);
 
         // 1. Brief Intro Header
         Label lblIntro = new Label();
         lblIntro.Text = en
-            ? "Control iClock timers and notices directly\r\nfrom any terminal or automation script."
-            : "支持在终端、构建流水线或自动化脚本中，\r\n无缝控制 iClock 倒计时与任务完成提醒。";
+            ? "Control countdowns and notices directly from terminal or scripts."
+            : "在终端或脚本中直接控制倒计时与任务提醒。";
         lblIntro.ForeColor = Color.FromArgb(107, 114, 128);
         lblIntro.Font = AppContext.GetUiFont(lang, 9f, FontStyle.Regular);
-        lblIntro.TextAlign = ContentAlignment.TopLeft;
-        lblIntro.SetBounds(18, 12, 384, 34);
+        lblIntro.TextAlign = ContentAlignment.MiddleLeft;
+        lblIntro.SetBounds(18, 12, 384, 20);
         Controls.Add(lblIntro);
 
         // 2. PATH Status & Button
         bool inPath = Program.IsCliConfiguredInPath();
         Label lblStatus = new Label();
         lblStatus.Text = inPath
-            ? (en ? "● Status: Configured in User PATH" : "● 终端环境：已配置到 PATH 环境变量")
+            ? (en ? "✓ Terminal environment ready (type 'iclock' anywhere)" : "✓ 终端环境已就绪（可在任意终端直接输入 iclock 运行）")
             : (en ? "● Status: Not yet added to User PATH" : "● 终端环境：尚未配置到 PATH 环境变量");
         lblStatus.ForeColor = inPath ? Color.FromArgb(16, 124, 65) : Color.FromArgb(202, 80, 16);
         lblStatus.Font = AppContext.GetUiFont(lang, 9f, FontStyle.Regular);
         lblStatus.TextAlign = ContentAlignment.MiddleLeft;
-        lblStatus.SetBounds(18, 52, 255, 26);
+        lblStatus.SetBounds(18, 38, inPath ? 384 : 255, 26);
         Controls.Add(lblStatus);
 
-        Button btnPath = new Button();
-        btnPath.Text = inPath ? (en ? "Re-add PATH" : "重新写入 PATH") : (en ? "Add to PATH" : "写入 PATH 环境变量");
-        btnPath.Font = AppContext.GetUiFont(lang, 9f, FontStyle.Regular);
-        btnPath.SetBounds(276, 51, 126, 28);
-        AppContext.StyleSecondaryButton(btnPath);
-        btnPath.Click += delegate
+        if (!inPath)
         {
-            string msg;
-            if (Program.ConfigureCliPath(out msg))
+            Button btnPath = new Button();
+            btnPath.Text = en ? "Add to PATH" : "写入 PATH 环境变量";
+            btnPath.Font = AppContext.GetUiFont(lang, 9f, FontStyle.Regular);
+            btnPath.SetBounds(276, 37, 126, 28);
+            AppContext.StyleSecondaryButton(btnPath);
+            btnPath.Click += delegate
             {
-                lblStatus.Text = en ? "✓ Successfully added to User PATH" : "✓ 已成功添加至系统 PATH 环境变量";
-                lblStatus.ForeColor = Color.FromArgb(16, 124, 65);
-                btnPath.Text = en ? "Configured" : "已配置";
-                btnPath.Enabled = false;
-            }
-            else
-            {
-                MessageBox.Show(this, (en ? "Failed to configure PATH: " : "配置环境变量失败：") + msg, "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        };
-        Controls.Add(btnPath);
+                string msg;
+                if (Program.ConfigureCliPath(out msg))
+                {
+                    lblStatus.Text = en ? "✓ Terminal environment ready (type 'iclock' anywhere)" : "✓ 终端环境已就绪（可在任意终端直接输入 iclock 运行）";
+                    lblStatus.ForeColor = Color.FromArgb(16, 124, 65);
+                    lblStatus.SetBounds(18, 38, 384, 26);
+                    btnPath.Visible = false;
+                }
+                else
+                {
+                    MessageBox.Show(this, (en ? "Failed to configure PATH: " : "配置环境变量失败：") + msg, "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            };
+            Controls.Add(btnPath);
+        }
 
         // 3. Command Quick Reference Title
         Label lblSec1 = new Label();
         lblSec1.Text = en ? "Command Quick Reference" : "常用命令速查";
         lblSec1.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Bold);
         lblSec1.ForeColor = AppContext.Win11TextPrimary;
-        lblSec1.SetBounds(18, 88, 384, 20);
+        lblSec1.SetBounds(18, 72, 384, 20);
         Controls.Add(lblSec1);
 
         string[,] cmds = en ? new string[,]
@@ -1914,7 +1917,7 @@ internal sealed class CliHelpDialog : Form
             { "iclock -n <内容>", "弹出专属提醒卡片并播放提示音" }
         };
 
-        int curY = 112;
+        int curY = 96;
         Font codeFont = new Font("Consolas", 9f, FontStyle.Bold);
         for (int i = 0; i < 5; i++)
         {
@@ -1942,12 +1945,12 @@ internal sealed class CliHelpDialog : Form
         lblSec2.Text = en ? "Typical Workflow Examples" : "典型脚本联动示例";
         lblSec2.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Bold);
         lblSec2.ForeColor = AppContext.Win11TextPrimary;
-        lblSec2.SetBounds(18, 228, 384, 20);
+        lblSec2.SetBounds(18, 214, 384, 20);
         Controls.Add(lblSec2);
 
         // Code Example Box
         Panel pnlBox = new Panel();
-        pnlBox.SetBounds(18, 252, 384, 60);
+        pnlBox.SetBounds(18, 238, 384, 60);
         pnlBox.BackColor = Color.FromArgb(243, 244, 246);
         pnlBox.Paint += delegate(object sender, PaintEventArgs e)
         {
@@ -1976,7 +1979,7 @@ internal sealed class CliHelpDialog : Form
         Button btnOk = new Button();
         btnOk.Text = en ? "Got it" : "我知道了";
         btnOk.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular);
-        btnOk.SetBounds(292, 324, 110, 34);
+        btnOk.SetBounds(292, 314, 110, 34);
         AppContext.StylePrimaryButton(btnOk);
         btnOk.Click += delegate { Close(); };
         Controls.Add(btnOk);
