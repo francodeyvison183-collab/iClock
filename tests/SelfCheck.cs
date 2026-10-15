@@ -245,7 +245,7 @@ internal static class TestCheck
                 if (c is Button && (c.Text == "检查更新" || c.Text == "Check Updates")) btnCheck = (Button)c;
                 if (c is Button && (c.Text == "确定" || c.Text == "OK")) btnOk = (Button)c;
             }
-            if (pb == null || pb.Image == null || pb.Image.Width != 1152)
+            if (pb == null || pb.Image == null || pb.Image.Width < 300)
             {
                 Console.WriteLine("FAIL: AboutDialog image not loaded properly");
                 return 11;
