@@ -222,6 +222,8 @@ internal sealed class Overlay : Form
     private SolidBrush cachedBrush;
     private SolidBrush cachedShadowBrush;
     private StringFormat cachedFormat;
+    private float cachedDigitCenterY;
+    private float cachedDigitHeight;
     public bool MoveMode { get; private set; }
     public event Action<Point> PositionChanged;
     public event Action<int> TimeAdjustRequested;
@@ -424,6 +426,18 @@ internal sealed class Overlay : Form
             float extraPauseWidth = (float)Math.Ceiling(cachedFont.Size * 0.75f);
             Size = new Size(Math.Max(100, (int)Math.Ceiling(size.Width + extraPauseWidth) + 16), Math.Max(50, (int)Math.Ceiling(size.Height) + 10));
         }
+
+        using (GraphicsPath path = new GraphicsPath())
+        using (StringFormat sf = new StringFormat(StringFormat.GenericTypographic))
+        {
+            sf.Alignment = StringAlignment.Center;
+            sf.LineAlignment = StringAlignment.Center;
+            RectangleF fullRect = new RectangleF(0, 0, Width, Height);
+            path.AddString(template, cachedFont.FontFamily, (int)cachedFont.Style, cachedFont.Size, fullRect, sf);
+            RectangleF b = path.GetBounds();
+            cachedDigitCenterY = (b.Top + b.Bottom) / 2.0f;
+            cachedDigitHeight = Math.Max(10f, b.Height);
+        }
     }
 
     private static void FillRoundedBar(Graphics g, Brush brush, float x, float y, float w, float h)
@@ -512,7 +526,8 @@ internal sealed class Overlay : Form
                 if (IsPaused)
                 {
                     float fontSize = cachedFont.Size;
-                    float barHeight = Math.Max(8f, (float)Math.Round(fontSize * 0.58f));
+                    float baseDigitH = cachedDigitHeight > 0 ? cachedDigitHeight : (fontSize * 0.70f);
+                    float barHeight = Math.Max(8f, (float)Math.Round(baseDigitH * 0.72f));
                     float barWidth = Math.Max(2.5f, (float)Math.Round(fontSize * 0.11f));
                     float barGap = Math.Max(2f, (float)Math.Round(fontSize * 0.08f));
                     float iconWidth = barWidth * 2f + barGap;
@@ -521,7 +536,8 @@ internal sealed class Overlay : Form
                     SizeF textSize = renderGraphics.MeasureString(text, cachedFont, PointF.Empty, StringFormat.GenericTypographic);
                     float totalWidth = iconWidth + spacing + textSize.Width;
                     float startX = (Width - totalWidth) / 2f;
-                    float iconY = (Height - barHeight) / 2f;
+                    float centerY = cachedDigitCenterY > 0 ? cachedDigitCenterY : (Height / 2f);
+                    float iconY = centerY - barHeight / 2f;
                     float textX = startX + iconWidth + spacing;
                     RectangleF textRect = new RectangleF(textX, 0, textSize.Width, Height);
 
