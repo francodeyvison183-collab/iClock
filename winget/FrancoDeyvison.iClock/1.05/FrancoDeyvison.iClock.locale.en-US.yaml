@@ -11,11 +11,11 @@ PackageUrl: https://francodeyvison183-collab.github.io/iClock/
 License: MIT
 LicenseUrl: https://github.com/francodeyvison183-collab/iClock/blob/main/LICENSE
 Copyright: Copyright (c) 2026 iClock Project
-ShortDescription: Ultra-lightweight (154 KB), zero-dependency, click-through desktop countdown timer and AI agent monitor for Windows.
+ShortDescription: Ultra-lightweight (169 KB), zero-dependency, click-through desktop countdown timer and AI agent monitor for Windows.
 Description: |
   iClock is a pure, minimalist desktop floating countdown tool and AI agent completion monitor for Windows.
   Features:
-  - 154 KB single portable binary with zero external dependencies
+  - 169 KB single portable binary with zero external dependencies
   - Topmost and mouse click-through support
   - Global hotkey toggle (Ctrl+Shift+T by default)
   - Memory footprint under 15 MB

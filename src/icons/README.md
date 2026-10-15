@@ -23,4 +23,4 @@ This directory contains the master multi-resolution icon assets for iClock.
 The icon set features:
 - Alpha channel transparency outside the navy squircle (#131C43).
 - Hybrid `.ico` architecture in `src/icons/app.ico`: 32bpp uncompressed DIB layers for 16px ~ 128px (ensuring 100% GDI+ / `Icon.ToBitmap()` compatibility with zero artifacts) and PNG compression for 256px.
-- Runtime binary optimization in `src/app.ico`: Streamlined to 24×24 native DIB (2.4 KB) for the 150% DPI high-frequency sweet spot, keeping the compiled executable under ~201 KB.
+- Runtime binary optimization in `src/app.ico`: Streamlined to 24×24 native DIB (2.4 KB) for the 150% DPI high-frequency sweet spot, keeping the compiled executable under ~169 KB.

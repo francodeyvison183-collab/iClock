@@ -14,7 +14,7 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 ### Changed
 
-- **Extreme Binary Slimming to 154 KB**: Decoupled high-res design asset packs from runtime embedding, streamlined the application icon to an uncompressed 24×24 DIB sweet-spot, and downsampled the sponsor QR code to 450×450 high-fidelity bicubic JPEG. Dropped standalone executable size from 505 KB to an ultra-compact **154 KB** (157,184 raw bytes) and compressed ZIP to **77 KB**, saving ~70% total size with zero third-party dependencies.
+- **Extreme Binary Slimming to 169 KB**: Decoupled high-res design asset packs from runtime embedding, streamlined the application icon to an uncompressed 24×24 DIB sweet-spot, and downsampled the sponsor QR code to 450×450 high-fidelity bicubic JPEG. Dropped standalone executable size from 505 KB to an ultra-compact **169 KB** (172,544 raw bytes) and compressed ZIP to **80 KB**, saving ~66% total size with zero third-party dependencies.
 - **Optical Vertical Centering for Pause Badge**: Calibrated typographic baseline offsets so the pause indicator (`❚❚`) and countdown digits share the exact same optical center line ($0.0\text{px}$ offset) across all font sizes.
 - **GDI+ Icon Rendering Compatibility**: Resolved GDI+ `Icon.ToBitmap()` rainbow noise artifacts in the WelcomeDialog with compliant 32bpp DIB layers and procedural vector fallback.
 - **Performance & Background Resource Optimization**: Dynamic throttling for WinRT Toast listener during idle periods, automatic detachment of system mouse hooks after tray hover inactivity, and proactive working-set compaction (`TrimMemory`) on dialog close.

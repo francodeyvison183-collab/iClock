@@ -6,12 +6,12 @@
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-160%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-169%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>单文件 160 KB · 运行内存 &lt; 15 MB · 鼠标点击穿透 · 全局热键 · 零第三方依赖 · 纯本地隐私</b>
+  <b>单文件 169 KB · 运行内存 &lt; 15 MB · 鼠标点击穿透 · 全局热键 · 零第三方依赖 · 纯本地隐私</b>
 </p>
 
 <p align="center">
@@ -50,7 +50,7 @@
 
 | 核心维度 | **iClock (本项目)** | 常见 Electron 计时器 | Windows 自带闹钟 |
 | :--- | :--- | :--- | :--- |
-| **安装包体积** | ⚡ **154 KB** (绿色单文件，即下即用) | 120 MB ~ 250 MB | 预装应用 |
+| **安装包体积** | ⚡ **169 KB** (绿色单文件，即下即用) | 120 MB ~ 250 MB | 预装应用 |
 | **常驻内存** | ⚡ **~15 MB** (物理基线) | 150 MB ~ 300 MB | ~30 MB |
 | **CPU 占用** | ⚡ **0.0%** (动态心跳对齐) | 0.5% ~ 3.0% (后台轮询) | 0.0% |
 | **交互阻碍** | ⚡ **完全点击穿透，无边框** | 实体窗口遮挡代码与网页 | 最小化或全屏窗口 |
@@ -155,7 +155,7 @@ iclock --help
 
 * **Q: 为什么打游戏或写代码时不挡鼠标操作？**  
   **A**: iClock 深度利用了 Windows 底层 `WS_EX_TRANSPARENT` 穿透特性。倒计时文字置顶浮现于所有窗口之上，但所有鼠标点击和滚轮事件都会直接穿透到底层的游戏或编辑器，丝毫不抢占焦点。
-* **Q: 为什么软件体积只有 154 KB？**  
+* **Q: 为什么软件体积只有 169 KB？**  
   **A**: 坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 15 MB 以内。
 * **Q: 软件是否安全、纯净无广告？**  
   **A**: 100% 开源（MIT 协议），零流氓广告，零捆绑插件，零后台常驻进程，退出即彻底释放。详见 [PRIVACY.md](docs/PRIVACY.md)。
@@ -171,7 +171,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> 编译耗时不到 1 秒，产物输出在 `dist/iClock.exe`（单文件约 154 KB）。详见[构建说明](docs/BUILDING.md)。
+> 编译耗时不到 1 秒，产物输出在 `dist/iClock.exe`（单文件约 169 KB）。详见[构建说明](docs/BUILDING.md)。
 
 ---
 

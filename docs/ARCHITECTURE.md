@@ -1,6 +1,6 @@
 # Architecture
 
-iClock is an ultra-lightweight Windows desktop utility compiled directly via `csc.exe` against the .NET Framework (4.6+ / 4.8). It has zero external package dependencies, produces a single compact binary (~154 KB, < 160 KB), and runs with minimal resource usage (< 15 MB RAM, ~0.0% idle CPU).
+iClock is an ultra-lightweight Windows desktop utility compiled directly via `csc.exe` against the .NET Framework (4.6+ / 4.8). It has zero external package dependencies, produces a single compact binary (~169 KB), and runs with minimal resource usage (< 15 MB RAM, ~0.0% idle CPU).
 
 ## Architectural Foundations
 
