@@ -1693,16 +1693,7 @@ internal sealed class NoticeDialog : Form
 
     public void ForceTopMost()
     {
-        try
-        {
-            TopMost = true;
-            BringToFront();
-            Activate();
-            NativeMethods.SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_FLAGS);
-            NativeMethods.SetForegroundWindow(Handle);
-            NativeMethods.BringWindowToTop(Handle);
-        }
-        catch { }
+        AppContext.ForceTopMost(this);
     }
 
     private void OnTimerTick(object sender, EventArgs e)
@@ -1732,6 +1723,83 @@ internal sealed class NoticeDialog : Form
     {
         base.OnFormClosed(e);
         StopAlarm();
+    }
+}
+
+internal sealed class CliNoticeDialog : Form
+{
+    private Settings settings;
+
+    public CliNoticeDialog(Settings s, string message)
+    {
+        settings = s;
+        bool en = s != null && s.Language == "en";
+        string lang = s != null ? s.Language : "zh";
+        Font = AppContext.GetUiFont(lang, 9.5f);
+        BackColor = AppContext.Win11Bg;
+        AppContext.ApplyModernWindowStyle(this);
+        Text = en ? "iClock Notice" : "iClock 终端提醒";
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        StartPosition = FormStartPosition.CenterScreen;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        ShowInTaskbar = true;
+        ShowIcon = false;
+        try { Icon = AppContext.CreateIcon(); } catch { }
+        TopMost = true;
+        DoubleBuffered = true;
+        ClientSize = new Size(350, 165);
+
+        Label lblBrand = new Label();
+        lblBrand.Text = "iClock";
+        lblBrand.Font = AppContext.GetUiFont(lang, 11f, FontStyle.Bold);
+        lblBrand.ForeColor = AppContext.Win11Accent;
+        lblBrand.TextAlign = ContentAlignment.MiddleLeft;
+        lblBrand.SetBounds(54, 16, 120, 26);
+        lblBrand.BackColor = Color.Transparent;
+        Controls.Add(lblBrand);
+
+        Label lblMsg = new Label();
+        lblMsg.Text = message;
+        lblMsg.Font = AppContext.GetUiFont(lang, 11f, FontStyle.Regular);
+        lblMsg.ForeColor = AppContext.Win11TextPrimary;
+        lblMsg.TextAlign = ContentAlignment.MiddleCenter;
+        lblMsg.SetBounds(20, 52, 310, 50);
+        lblMsg.AutoEllipsis = true;
+        lblMsg.BackColor = Color.Transparent;
+        Controls.Add(lblMsg);
+
+        Button btnOk = new Button();
+        btnOk.Text = en ? "Got it" : "我知道了";
+        btnOk.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular);
+        btnOk.SetBounds(120, 114, 110, 34);
+        AppContext.StylePrimaryButton(btnOk);
+        btnOk.Click += delegate { Close(); };
+        Controls.Add(btnOk);
+
+        AcceptButton = btnOk;
+        CancelButton = btnOk;
+        KeyPreview = true;
+
+        AppContext.CenterFormOnScreen(this);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        AppContext.DrawLogoVector(e.Graphics, 20, 16, 26);
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        AppContext.CenterFormOnScreen(this);
+        ForceTopMost();
+    }
+
+    public void ForceTopMost()
+    {
+        AppContext.ForceTopMost(this);
     }
 }
 
@@ -2234,7 +2302,7 @@ internal sealed class AppContext : ApplicationContext
     }
     private bool hotkeyRegistered;
     private int activeHotkeyModifiers, activeHotkeyKey;
-    private NoticeDialog activeNotice;
+    private Form activeNotice;
     private Form activeDialog;
     private long lastSeconds = -1;
     private MessageWindow messageWindow;
@@ -2748,10 +2816,11 @@ internal sealed class AppContext : ApplicationContext
         if (string.IsNullOrEmpty(message)) message = settings.Language == "en" ? "Task completed!" : "任务已完成！";
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
         if (settings.EndSound) PlaySoundStyle(settings.EndSoundStyle);
-        activeNotice = new NoticeDialog(settings, DateTime.Now, "CLI", IntPtr.Zero, null, message);
-        activeNotice.FormClosed += delegate { activeNotice = null; };
-        activeNotice.Show();
-        activeNotice.ForceTopMost();
+        CliNoticeDialog dlg = new CliNoticeDialog(settings, message);
+        activeNotice = dlg;
+        dlg.FormClosed += delegate { if (activeNotice == dlg) activeNotice = null; };
+        dlg.Show();
+        ForceTopMost(dlg);
     }
 
     private TimeSpan ReadRemaining()
@@ -2851,7 +2920,7 @@ internal sealed class AppContext : ApplicationContext
             overlay.Hide();
             if (activeNotice != null && !activeNotice.IsDisposed)
             {
-                activeNotice.ForceTopMost();
+                ForceTopMost(activeNotice);
                 return;
             }
             Action onRest = wasRest ? null : new Action(delegate { StartRest(5); });
@@ -4800,6 +4869,67 @@ internal sealed class AppContext : ApplicationContext
         btn.Cursor = Cursors.Hand;
     }
 
+    internal static void ForceTopMost(Form f)
+    {
+        if (f == null || f.IsDisposed) return;
+        try
+        {
+            f.TopMost = true;
+            f.BringToFront();
+            f.Activate();
+            NativeMethods.SetWindowPos(f.Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0043);
+            NativeMethods.SetForegroundWindow(f.Handle);
+            NativeMethods.BringWindowToTop(f.Handle);
+        }
+        catch { }
+    }
+
+    internal static void DrawLogoVector(Graphics g, float x, float y, float sz)
+    {
+        using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(19, 28, 67)))
+        using (SolidBrush whiteBrush = new SolidBrush(Color.White))
+        using (Pen slashPen = new Pen(Color.FromArgb(255, 87, 56), Math.Max(1.8f, sz * 0.16f)))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            float radius = Math.Max(2f, sz * 0.22f);
+            using (GraphicsPath path = new GraphicsPath())
+            {
+                float bx = x + 0.5f, by = y + 0.5f, w = sz - 1f, sqH = sz - 1f;
+                path.AddArc(bx, by, radius * 2, radius * 2, 180, 90);
+                path.AddArc(bx + w - radius * 2, by, radius * 2, radius * 2, 270, 90);
+                path.AddArc(bx + w - radius * 2, by + sqH - radius * 2, radius * 2, radius * 2, 0, 90);
+                path.AddArc(bx, by + sqH - radius * 2, radius * 2, radius * 2, 90, 90);
+                path.CloseFigure();
+                g.FillPath(bgBrush, path);
+            }
+
+            float dotR = Math.Max(1.0f, sz * 0.10f);
+            float dotCx = x + sz * 0.44f;
+            float dotCy = y + sz * 0.30f;
+            g.FillEllipse(whiteBrush, dotCx - dotR, dotCy - dotR, dotR * 2, dotR * 2);
+
+            float stemW = Math.Max(1.5f, sz * 0.18f);
+            float stemH = Math.Max(3f, sz * 0.36f);
+            float stemX = dotCx - stemW / 2.0f;
+            float stemY = y + sz * 0.46f;
+            using (GraphicsPath stemPath = new GraphicsPath())
+            {
+                float r = Math.Max(0.5f, stemW * 0.3f);
+                stemPath.AddArc(stemX, stemY, r * 2, r * 2, 180, 90);
+                stemPath.AddArc(stemX + stemW - r * 2, stemY, r * 2, r * 2, 270, 90);
+                stemPath.AddArc(stemX + stemW - r * 2, stemY + stemH - r * 2, r * 2, r * 2, 0, 90);
+                stemPath.AddArc(stemX, stemY + stemH - r * 2, r * 2, r * 2, 90, 90);
+                stemPath.CloseFigure();
+                g.FillPath(whiteBrush, stemPath);
+            }
+
+            slashPen.StartCap = LineCap.Round;
+            slashPen.EndCap = LineCap.Round;
+            g.DrawLine(slashPen, x + sz * 0.40f, y + sz * 0.62f, x + sz * 0.82f, y + sz * 0.26f);
+        }
+    }
+
     internal static GraphicsPath GetRoundedRectPath(Rectangle rect, int radius)
     {
         GraphicsPath path = new GraphicsPath();
@@ -4926,48 +5056,9 @@ internal sealed class AppContext : ApplicationContext
         int sz = Math.Max(16, targetSize.Width);
         Bitmap b = new Bitmap(sz, sz, PixelFormat.Format32bppArgb);
         using (Graphics g = Graphics.FromImage(b))
-        using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(19, 28, 67)))
-        using (SolidBrush whiteBrush = new SolidBrush(Color.White))
-        using (Pen slashPen = new Pen(Color.FromArgb(255, 87, 56), Math.Max(1.8f, sz * 0.16f)))
         {
-            g.SmoothingMode = SmoothingMode.AntiAlias;
             g.Clear(Color.Transparent);
-
-            float radius = Math.Max(2f, sz * 0.22f);
-            using (GraphicsPath path = new GraphicsPath())
-            {
-                float x = 0.5f, y = 0.5f, w = sz - 1f, sqH = sz - 1f;
-                path.AddArc(x, y, radius * 2, radius * 2, 180, 90);
-                path.AddArc(x + w - radius * 2, y, radius * 2, radius * 2, 270, 90);
-                path.AddArc(x + w - radius * 2, y + sqH - radius * 2, radius * 2, radius * 2, 0, 90);
-                path.AddArc(x, y + sqH - radius * 2, radius * 2, radius * 2, 90, 90);
-                path.CloseFigure();
-                g.FillPath(bgBrush, path);
-            }
-
-            float dotR = Math.Max(1.0f, sz * 0.10f);
-            float dotCx = sz * 0.44f;
-            float dotCy = sz * 0.30f;
-            g.FillEllipse(whiteBrush, dotCx - dotR, dotCy - dotR, dotR * 2, dotR * 2);
-
-            float stemW = Math.Max(1.5f, sz * 0.18f);
-            float stemH = Math.Max(3f, sz * 0.36f);
-            float stemX = dotCx - stemW / 2.0f;
-            float stemY = sz * 0.46f;
-            using (GraphicsPath stemPath = new GraphicsPath())
-            {
-                float r = Math.Max(0.5f, stemW * 0.3f);
-                stemPath.AddArc(stemX, stemY, r * 2, r * 2, 180, 90);
-                stemPath.AddArc(stemX + stemW - r * 2, stemY, r * 2, r * 2, 270, 90);
-                stemPath.AddArc(stemX + stemW - r * 2, stemY + stemH - r * 2, r * 2, r * 2, 0, 90);
-                stemPath.AddArc(stemX, stemY + stemH - r * 2, r * 2, r * 2, 90, 90);
-                stemPath.CloseFigure();
-                g.FillPath(whiteBrush, stemPath);
-            }
-
-            slashPen.StartCap = LineCap.Round;
-            slashPen.EndCap = LineCap.Round;
-            g.DrawLine(slashPen, sz * 0.40f, sz * 0.62f, sz * 0.82f, sz * 0.26f);
+            DrawLogoVector(g, 0, 0, sz);
         }
         IntPtr h = b.GetHicon(); Icon icon = (Icon)Icon.FromHandle(h).Clone(); NativeMethods.DestroyIcon(h); b.Dispose(); return icon;
     }

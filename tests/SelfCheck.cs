@@ -1756,6 +1756,21 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: HandleIpcCommand('-n') did not create activeNotice");
                 return 50;
             }
+            if (cliNotice.GetType().Name != "CliNoticeDialog")
+            {
+                Console.WriteLine("FAIL: -n did not instantiate specialized CliNoticeDialog, got " + cliNotice.GetType().Name);
+                return 50;
+            }
+            bool foundMessage = false;
+            foreach (Control c in cliNotice.Controls)
+            {
+                if (c is Label && c.Text == "Build Success") foundMessage = true;
+            }
+            if (!foundMessage)
+            {
+                Console.WriteLine("FAIL: CliNoticeDialog did not contain message text 'Build Success'");
+                return 50;
+            }
             cliNotice.Close();
 
             Console.WriteLine("PASS: CLI IPC commands (--start, -p, -r, --reset, -n) successfully verified.");
