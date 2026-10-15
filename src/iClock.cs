@@ -168,6 +168,8 @@ internal static class NativeMethods
     public static extern IntPtr CallNextHookEx(IntPtr hHook, int nCode, IntPtr wParam, IntPtr lParam);
     [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
     public static extern IntPtr GetModuleHandle(string lpModuleName);
+    [DllImport("psapi.dll")]
+    public static extern int EmptyWorkingSet(IntPtr hProcess);
 
     [DllImport("dwmapi.dll")]
     public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
@@ -218,6 +220,7 @@ internal sealed class Overlay : Form
     private Point formStart;
     private Font cachedFont;
     private SolidBrush cachedBrush;
+    private SolidBrush cachedShadowBrush;
     private StringFormat cachedFormat;
     public bool MoveMode { get; private set; }
     public event Action<Point> PositionChanged;
@@ -377,12 +380,22 @@ internal sealed class Overlay : Form
         RenderLayeredWindow();
     }
 
+    public void SetVisualPreview(Settings s, string previewText)
+    {
+        settings = s;
+        if (previewText != null) text = previewText;
+        RebuildGdiResources();
+        UpdateLocation();
+        RenderLayeredWindow();
+    }
+
     private void RebuildGdiResources()
     {
         if (renderGraphics != null) { renderGraphics.Dispose(); renderGraphics = null; }
         if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
         if (cachedFont != null) cachedFont.Dispose();
         if (cachedBrush != null) cachedBrush.Dispose();
+        if (cachedShadowBrush != null) { cachedShadowBrush.Dispose(); cachedShadowBrush = null; }
         if (cachedFormat == null)
         {
             cachedFormat = new StringFormat();
@@ -396,13 +409,32 @@ internal sealed class Overlay : Form
         try { cachedFont = new Font(family, settings.FontSize, FontStyle.Bold, GraphicsUnit.Pixel); }
         catch { cachedFont = new Font("Segoe UI", settings.FontSize, FontStyle.Bold, GraphicsUnit.Pixel); }
         cachedBrush = new SolidBrush(c);
+        float brightness = c.GetBrightness();
+        int shadowAlpha = 110;
+        Color shadowColor = (brightness < 0.25f)
+            ? Color.FromArgb(shadowAlpha, 255, 255, 255)
+            : Color.FromArgb(shadowAlpha, 0, 0, 0);
+        cachedShadowBrush = new SolidBrush(shadowColor);
 
         string template = settings.Format == "Chinese" ? (settings.Language == "en" ? "00h 00m 00s" : "00时00分00秒") : (settings.Format == "MM:SS" ? "00:00" : "00:00:00");
         using (Bitmap bmp = new Bitmap(1, 1))
         using (Graphics g = Graphics.FromImage(bmp))
         {
             SizeF size = g.MeasureString(template, cachedFont);
-            Size = new Size(Math.Max(100, (int)Math.Ceiling(size.Width) + 16), Math.Max(50, (int)Math.Ceiling(size.Height) + 10));
+            float extraPauseWidth = (float)Math.Ceiling(cachedFont.Size * 0.75f);
+            Size = new Size(Math.Max(100, (int)Math.Ceiling(size.Width + extraPauseWidth) + 16), Math.Max(50, (int)Math.Ceiling(size.Height) + 10));
+        }
+    }
+
+    private static void FillRoundedBar(Graphics g, Brush brush, float x, float y, float w, float h)
+    {
+        if (h <= w) { g.FillEllipse(brush, x, y, w, h); return; }
+        using (GraphicsPath path = new GraphicsPath())
+        {
+            path.AddArc(x, y, w, w, 180, 180);
+            path.AddArc(x, y + h - w, w, w, 0, 180);
+            path.CloseFigure();
+            g.FillPath(brush, path);
         }
     }
 
@@ -413,8 +445,11 @@ internal sealed class Overlay : Form
         RenderLayeredWindow();
     }
 
+    public bool IsPaused { get; private set; }
+
     public void SetPaused(bool paused)
     {
+        IsPaused = paused;
         if (!MoveMode)
         {
             Opacity = paused ? 0.50 : 1.0;
@@ -466,21 +501,52 @@ internal sealed class Overlay : Form
         if (!string.IsNullOrEmpty(text) && cachedFont != null && cachedBrush != null)
         {
             Rectangle rect = new Rectangle(0, 0, Width, Height);
-            if (!MoveMode)
+            if (MoveMode)
             {
-                Color c = cachedBrush.Color;
-                float brightness = c.GetBrightness();
-                int shadowAlpha = 110;
-                Color shadowColor = (brightness < 0.25f)
-                    ? Color.FromArgb(shadowAlpha, 255, 255, 255)
-                    : Color.FromArgb(shadowAlpha, 0, 0, 0);
-                using (SolidBrush shadowBrush = new SolidBrush(shadowColor))
+                renderGraphics.DrawString(text, cachedFont, cachedBrush, rect, cachedFormat);
+            }
+            else
+            {
+                SolidBrush shadowBrush = cachedShadowBrush ?? cachedBrush;
+
+                if (IsPaused)
+                {
+                    float fontSize = cachedFont.Size;
+                    float barHeight = Math.Max(8f, (float)Math.Round(fontSize * 0.58f));
+                    float barWidth = Math.Max(2.5f, (float)Math.Round(fontSize * 0.11f));
+                    float barGap = Math.Max(2f, (float)Math.Round(fontSize * 0.08f));
+                    float iconWidth = barWidth * 2f + barGap;
+                    float spacing = Math.Max(4f, (float)Math.Round(fontSize * 0.25f));
+
+                    SizeF textSize = renderGraphics.MeasureString(text, cachedFont, PointF.Empty, StringFormat.GenericTypographic);
+                    float totalWidth = iconWidth + spacing + textSize.Width;
+                    float startX = (Width - totalWidth) / 2f;
+                    float iconY = (Height - barHeight) / 2f;
+                    float textX = startX + iconWidth + spacing;
+                    RectangleF textRect = new RectangleF(textX, 0, textSize.Width, Height);
+
+                    using (StringFormat sf = new StringFormat(StringFormat.GenericTypographic))
+                    {
+                        sf.Alignment = StringAlignment.Center;
+                        sf.LineAlignment = StringAlignment.Center;
+
+                        FillRoundedBar(renderGraphics, shadowBrush, startX + 1.5f, iconY + 2.0f, barWidth, barHeight);
+                        FillRoundedBar(renderGraphics, shadowBrush, startX + barWidth + barGap + 1.5f, iconY + 2.0f, barWidth, barHeight);
+                        RectangleF shadowTextRect = new RectangleF(textX + 1.5f, 2.0f, textSize.Width, Height);
+                        renderGraphics.DrawString(text, cachedFont, shadowBrush, shadowTextRect, sf);
+
+                        FillRoundedBar(renderGraphics, cachedBrush, startX, iconY, barWidth, barHeight);
+                        FillRoundedBar(renderGraphics, cachedBrush, startX + barWidth + barGap, iconY, barWidth, barHeight);
+                        renderGraphics.DrawString(text, cachedFont, cachedBrush, textRect, sf);
+                    }
+                }
+                else
                 {
                     RectangleF shadowRect = new RectangleF(1.5f, 2.0f, Width, Height);
                     renderGraphics.DrawString(text, cachedFont, shadowBrush, shadowRect, cachedFormat);
+                    renderGraphics.DrawString(text, cachedFont, cachedBrush, rect, cachedFormat);
                 }
             }
-            renderGraphics.DrawString(text, cachedFont, cachedBrush, rect, cachedFormat);
         }
 
         BitmapData data = renderBitmap.LockBits(new Rectangle(0, 0, Width, Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
@@ -605,6 +671,7 @@ internal sealed class Overlay : Form
             if (pulseTimer != null) { pulseTimer.Stop(); pulseTimer.Dispose(); pulseTimer = null; }
             if (cachedFont != null) { cachedFont.Dispose(); cachedFont = null; }
             if (cachedBrush != null) { cachedBrush.Dispose(); cachedBrush = null; }
+            if (cachedShadowBrush != null) { cachedShadowBrush.Dispose(); cachedShadowBrush = null; }
             if (cachedFormat != null) { cachedFormat.Dispose(); cachedFormat = null; }
         }
         base.Dispose(disposing);
@@ -648,8 +715,10 @@ internal sealed class SettingsDialog : Form
     private int hotkeyModifiers, hotkeyKey, candidateMods, candidateKey;
     private bool hotkeyActive;
     private Label lblMinutes, lblSize, lblFont, lblColor, lblFormat, lblEndMsg, lblHotkey, lblLanguage;
-    private Button saveBtn, cancelBtn;
+    private Button saveBtn, cancelBtn, btnTestAlert;
     public Settings Value { get; private set; }
+    public event Action<Settings> PreviewRequested;
+    public event Action<Settings, bool> TestAlertRequested;
     private static readonly string[] fontFamilies = { "Segoe UI", "Consolas", "Arial", "Impact", "Microsoft YaHei" };
 
     private int activeTab = 0;
@@ -765,7 +834,9 @@ internal sealed class SettingsDialog : Form
         };
 
         lblMinutes = AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 18, 52); minutes = AddNumber(Value.Minutes, 1, 1440, 172, 48);
+        minutes.ValueChanged += delegate { TriggerPreview(); };
         lblSize = AddLabel(en ? "Text size" : "文字大小", 18, 86); size = AddNumber(Value.FontSize, 12, 120, 172, 82);
+        size.ValueChanged += delegate { TriggerPreview(); };
         lblFont = AddLabel(en ? "Font style" : "字体样式", 18, 120);
         fontCombo = new ComboBox(); fontCombo.DropDownStyle = ComboBoxStyle.DropDownList;
         fontCombo.DrawMode = DrawMode.OwnerDrawFixed; fontCombo.ItemHeight = 22;
@@ -778,6 +849,7 @@ internal sealed class SettingsDialog : Form
             (Value.FontFamily == "Impact" ? 3 :
             (Value.FontFamily == "Microsoft YaHei" ? 4 : 0)));
         fontCombo.DrawItem += OnDrawFontItem;
+        fontCombo.SelectedIndexChanged += delegate { TriggerPreview(); };
         Controls.Add(fontCombo);
         lblColor = AddLabel(en ? "Text color" : "文字颜色", 18, 154); selectedColor = Value.Color;
         colorButton = new Button(); colorButton.Text = en ? "Choose…" : "点击选取…"; colorButton.SetBounds(172, 150, 128, 26);
@@ -801,6 +873,7 @@ internal sealed class SettingsDialog : Form
         format.Items.AddRange(en ? new object[] { "HH:MM:SS", "MM:SS", "H:M:S units (00h 25m 00s)" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位 (00时25分00秒)" });
         format.SelectedIndex = Value.Format == "MM:SS" ? 1 : (Value.Format == "Chinese" ? 2 : 0);
         format.DrawItem += OnDrawComboItem;
+        format.SelectedIndexChanged += delegate { TriggerPreview(); };
         Controls.Add(format);
         hotkeyModifiers = Value.HotkeyModifiers; hotkeyKey = Value.HotkeyKey;
         candidateMods = hotkeyModifiers; candidateKey = hotkeyKey;
@@ -943,6 +1016,19 @@ internal sealed class SettingsDialog : Form
         Controls.Add(lblAgentTip);
 
         Label footerLine = new Label(); footerLine.BackColor = AppContext.Win11Border; footerLine.BorderStyle = BorderStyle.None; footerLine.SetBounds(18, 432, 344, 1); Controls.Add(footerLine);
+        btnTestAlert = new Button();
+        btnTestAlert.Text = en ? "Test Alert" : "测试提醒";
+        btnTestAlert.SetBounds(18, 442, en ? 92 : 88, 28);
+        AppContext.StyleSecondaryButton(btnTestAlert);
+        btnTestAlert.Click += delegate
+        {
+            if (TestAlertRequested != null)
+            {
+                Settings draft = GetCurrentDraftSettings();
+                TestAlertRequested(draft, activeTab == 1);
+            }
+        };
+        Controls.Add(btnTestAlert);
         saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存"; saveBtn.SetBounds(196, 442, 76, 28);
         AppContext.StylePrimaryButton(saveBtn);
         if (!hotkeyActive || (Value.HotkeyKey == (int)Keys.Space && (Value.HotkeyModifiers & 3) != 0)) saveBtn.Enabled = false;
@@ -995,6 +1081,7 @@ internal sealed class SettingsDialog : Form
         lblAgentTip.Visible = !isTimer;
 
         UpdateTabButtons();
+        UpdateTestAlertButtonText();
         if (!isTimer)
         {
             RefreshAgentCards();
@@ -1027,8 +1114,14 @@ internal sealed class SettingsDialog : Form
         bool en = language.SelectedIndex == 1;
         bool alertEnabled = agentNotice.Checked;
         List<string> agents = AppContext.DetectAgents();
-        agents.Sort();
         HashSet<string> running = AppContext.GetRunningAgents();
+        agents.Sort((a, b) =>
+        {
+            bool aRun = running.Contains(a);
+            bool bRun = running.Contains(b);
+            if (aRun != bRun) return aRun ? -1 : 1;
+            return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
+        });
 
         if (alertEnabled)
         {
@@ -1220,6 +1313,55 @@ internal sealed class SettingsDialog : Form
         UpdateInputPadding(size);
         UpdateInputPadding(endMessage);
         UpdateInputPadding(hotkeyBox);
+        UpdateTestAlertButtonText();
+        TriggerPreview();
+    }
+
+    public Settings GetCurrentDraftSettings()
+    {
+        Settings draft = new Settings();
+        draft.Minutes = minutes != null ? (int)minutes.Value : Value.Minutes;
+        draft.FontSize = size != null ? (int)size.Value : Value.FontSize;
+        draft.Color = !string.IsNullOrEmpty(selectedColor) ? selectedColor : Value.Color;
+        draft.FontFamily = (fontCombo != null && fontCombo.SelectedIndex >= 0 && fontCombo.SelectedIndex < fontFamilies.Length)
+            ? fontFamilies[fontCombo.SelectedIndex]
+            : (Value.FontFamily ?? "Segoe UI");
+        draft.Format = (format != null && format.SelectedIndex == 1) ? "MM:SS" : ((format != null && format.SelectedIndex == 2) ? "Chinese" : "HH:MM:SS");
+        draft.Language = (language != null && language.SelectedIndex == 1) ? "en" : "zh";
+        draft.EndSound = sound != null ? sound.Checked : Value.EndSound;
+        draft.EndSoundStyle = (soundStyle != null && soundStyle.SelectedIndex == 1) ? "Pager" : ((soundStyle != null && soundStyle.SelectedIndex == 2) ? "Alarm" : "QQ");
+        draft.EndNotice = notice != null ? notice.Checked : Value.EndNotice;
+        draft.NoticeStyle = (noticeStyle != null && noticeStyle.SelectedIndex == 1) ? "Pulse" : "Popup";
+        draft.EndMessage = endMessage != null ? endMessage.Text.Trim() : Value.EndMessage;
+        draft.FullscreenDnd = Value.FullscreenDnd;
+        draft.AgentNotice = agentNotice != null ? agentNotice.Checked : Value.AgentNotice;
+        draft.X = Value.X;
+        draft.Y = Value.Y;
+        return draft;
+    }
+
+    private void UpdateTestAlertButtonText()
+    {
+        if (btnTestAlert == null) return;
+        bool en = (language != null && language.SelectedIndex == 1);
+        if (activeTab == 1)
+        {
+            btnTestAlert.Text = en ? "Test Agent" : "测试智能体";
+            btnTestAlert.Width = en ? 96 : 94;
+        }
+        else
+        {
+            btnTestAlert.Text = en ? "Test Alert" : "测试提醒";
+            btnTestAlert.Width = en ? 92 : 88;
+        }
+    }
+
+    private void TriggerPreview()
+    {
+        if (PreviewRequested != null && minutes != null && size != null && fontCombo != null && format != null && language != null)
+        {
+            PreviewRequested(GetCurrentDraftSettings());
+        }
     }
 
     private Label AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.ForeColor = AppContext.Win11TextPrimary; l.SetBounds(x, y, 148, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); return l; }
@@ -1231,7 +1373,7 @@ internal sealed class SettingsDialog : Form
         using (ColorDialog d = new ColorDialog())
         {
             d.Color = initial; d.AllowFullOpen = true; d.FullOpen = true; d.AnyColor = true;
-            if (d.ShowDialog(this) == DialogResult.OK) { selectedColor = ColorTranslator.ToHtml(d.Color); UpdateColorPreview(); }
+            if (d.ShowDialog(this) == DialogResult.OK) { selectedColor = ColorTranslator.ToHtml(d.Color); UpdateColorPreview(); TriggerPreview(); }
         }
     }
     private void UpdateColorPreview()
@@ -2054,21 +2196,52 @@ internal sealed class AppContext : ApplicationContext
     private SessionSwitchEventHandler sessionSwitchHandler;
     private bool pausedByLock;
 
+    private void EnsureMouseHook()
+    {
+        if (mouseHookHandle == IntPtr.Zero)
+        {
+            if (mouseHookProc == null) mouseHookProc = MouseHookCallback;
+            try { mouseHookHandle = NativeMethods.SetWindowsHookEx(WH_MOUSE_LL, mouseHookProc, NativeMethods.GetModuleHandle(null), 0); } catch { }
+        }
+    }
+
+    private void UnhookMouse()
+    {
+        if (mouseHookHandle != IntPtr.Zero)
+        {
+            try { NativeMethods.UnhookWindowsHookEx(mouseHookHandle); } catch { }
+            mouseHookHandle = IntPtr.Zero;
+        }
+    }
+
+    internal static void TrimMemory()
+    {
+        try
+        {
+            GC.Collect(1, GCCollectionMode.Optimized);
+            NativeMethods.EmptyWorkingSet(Process.GetCurrentProcess().Handle);
+        }
+        catch { }
+    }
+
     private IntPtr MouseHookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
+        int now = Environment.TickCount;
+        if (Math.Abs(now - lastTrayMouseMove) > 2000)
+        {
+            UnhookMouse();
+            return NativeMethods.CallNextHookEx(IntPtr.Zero, nCode, wParam, lParam);
+        }
         if (nCode >= 0 && wParam == (IntPtr)WM_MOUSEWHEEL)
         {
-            int now = Environment.TickCount;
-            if (Math.Abs(now - lastTrayMouseMove) < 1200)
+            MSLLHOOKSTRUCT hs = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
+            short wheelDelta = (short)((hs.mouseData >> 16) & 0xFFFF);
+            if (wheelDelta != 0)
             {
-                MSLLHOOKSTRUCT hs = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
-                short wheelDelta = (short)((hs.mouseData >> 16) & 0xFFFF);
-                if (wheelDelta != 0)
-                {
-                    int step = (wheelDelta > 0 ? 1 : -1) * ((Control.ModifierKeys & Keys.Shift) != 0 ? 5 : 1);
-                    AdjustMinutes(step);
-                    return (IntPtr)1;
-                }
+                lastTrayMouseMove = now;
+                int step = (wheelDelta > 0 ? 1 : -1) * ((Control.ModifierKeys & Keys.Shift) != 0 ? 5 : 1);
+                AdjustMinutes(step);
+                return (IntPtr)1;
             }
         }
         return NativeMethods.CallNextHookEx(mouseHookHandle, nCode, wParam, lParam);
@@ -2155,12 +2328,13 @@ internal sealed class AppContext : ApplicationContext
             settings.Save();
         }
         tray = new NotifyIcon(); tray.Icon = appIcon; tray.Text = "iClock"; tray.Visible = true; tray.ContextMenuStrip = MakeMenu();
-        tray.MouseMove += delegate { lastTrayMouseMove = Environment.TickCount; };
-        mouseHookProc = MouseHookCallback;
-        try { mouseHookHandle = NativeMethods.SetWindowsHookEx(WH_MOUSE_LL, mouseHookProc, NativeMethods.GetModuleHandle(null), 0); } catch { }
+        tray.MouseMove += delegate { lastTrayMouseMove = Environment.TickCount; EnsureMouseHook(); };
         tray.BalloonTipClicked += delegate { if (!string.IsNullOrEmpty(updateUrl)) { try { Process.Start(updateUrl); } catch { } } };
         tray.MouseClick += delegate(object sender, MouseEventArgs e) { if (e.Button == MouseButtons.Left) { Toggle(); } };
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
+        Timer startupTrim = new Timer(); startupTrim.Interval = 3500;
+        startupTrim.Tick += delegate { startupTrim.Stop(); startupTrim.Dispose(); TrimMemory(); };
+        startupTrim.Start();
         ApplyStartup();
         EnsureStartMenuShortcut(false);
         ResetDisplay();
@@ -2295,6 +2469,7 @@ internal sealed class AppContext : ApplicationContext
         overlay.SetPaused(false);
         overlay.Hide();
         UpdateMenuText();
+        TrimMemory();
     }
 
     private ToolStripMenuItem AddMenuItem(ContextMenuStrip m, EventHandler onClick)
@@ -2465,23 +2640,25 @@ internal sealed class AppContext : ApplicationContext
         double frac = secLeft - Math.Floor(secLeft);
         if (frac <= 0.001) frac = 1.0;
         int nextMs = (int)(frac * 1000) + 15;
-        timer.Interval = Math.Max(80, Math.Min(400, nextMs));
+        timer.Interval = Math.Max(80, Math.Min(1000, nextMs));
+    }
+
+    private string GetFormattedTime(Settings s, long total)
+    {
+        long h = total / 3600, m = (total / 60) % 60, sSec = total % 60;
+        if (state == ClockState.RestRunning || state == ClockState.RestPaused)
+        {
+            string prefix = s.Language == "en" ? "Rest " : "休息 ";
+            return prefix + (total / 60).ToString("00") + ":" + sSec.ToString("00");
+        }
+        return s.Format == "MM:SS" ? (total / 60).ToString("00") + ":" + sSec.ToString("00") :
+            s.Format == "Chinese" ? (s.Language == "en" ? h.ToString("00") + "h " + m.ToString("00") + "m " + sSec.ToString("00") + "s" : h.ToString("00") + "时" + m.ToString("00") + "分" + sSec.ToString("00") + "秒") : h.ToString("00") + ":" + m.ToString("00") + ":" + sSec.ToString("00");
     }
 
     private void FormatAndDisplay(long total)
     {
-        long h = total / 3600, m = (total / 60) % 60, s = total % 60;
-        string value;
-        if (state == ClockState.RestRunning || state == ClockState.RestPaused)
-        {
-            string prefix = settings.Language == "en" ? "Rest " : "休息 ";
-            value = prefix + (total / 60).ToString("00") + ":" + s.ToString("00");
-        }
-        else
-        {
-            value = settings.Format == "MM:SS" ? (total / 60).ToString("00") + ":" + s.ToString("00") :
-                settings.Format == "Chinese" ? (settings.Language == "en" ? h.ToString("00") + "h " + m.ToString("00") + "m " + s.ToString("00") + "s" : h.ToString("00") + "时" + m.ToString("00") + "分" + s.ToString("00") + "秒") : h.ToString("00") + ":" + m.ToString("00") + ":" + s.ToString("00");
-        }
+        Settings current = previewSettings ?? settings;
+        string value = GetFormattedTime(current, total);
         overlay.UpdateText(value);
     }
 
@@ -2939,6 +3116,7 @@ internal sealed class AppContext : ApplicationContext
         private static object listener;
         private static MethodInfo getNotifsMethod;
         private static MethodInfo asTaskMethod;
+        private static MethodInfo cachedGenericAsTask;
         private static Type genericArg;
         private static object toastKind;
         private static uint lastSeenId = 0;
@@ -2986,6 +3164,8 @@ internal sealed class AppContext : ApplicationContext
                 }
                 if (asTaskMethod == null) return false;
 
+                try { cachedGenericAsTask = asTaskMethod.MakeGenericMethod(genericArg); } catch { }
+
                 listener = current;
                 initialized = true;
 
@@ -3015,7 +3195,8 @@ internal sealed class AppContext : ApplicationContext
             try
             {
                 object asyncOp = getNotifsMethod.Invoke(listener, new object[] { toastKind });
-                Task task = (Task)asTaskMethod.MakeGenericMethod(genericArg).Invoke(null, new object[] { asyncOp });
+                MethodInfo m = cachedGenericAsTask ?? asTaskMethod.MakeGenericMethod(genericArg);
+                Task task = (Task)m.Invoke(null, new object[] { asyncOp });
                 if (task.Wait(1000))
                 {
                     return (IEnumerable)task.GetType().GetProperty("Result").GetValue(task, null);
@@ -3193,6 +3374,7 @@ internal sealed class AppContext : ApplicationContext
     private Timer agentTimer;
     internal Dictionary<string, AgentTrack> trackedAgents = new Dictionary<string, AgentTrack>(StringComparer.OrdinalIgnoreCase);
     private int agentScanCooldown;
+    private int toastScanCooldown;
 
     private void UpdateAgentMonitoring()
     {
@@ -3216,6 +3398,10 @@ internal sealed class AppContext : ApplicationContext
     private void AgentTimerTick(object sender, EventArgs e)
     {
         if (!settings.AgentNotice) return;
+        if (mouseHookHandle != IntPtr.Zero && Math.Abs(Environment.TickCount - lastTrayMouseMove) > 2500)
+        {
+            UnhookMouse();
+        }
         IntPtr fg = NativeMethods.GetForegroundWindow();
         uint fgPid = 0;
         if (fg != IntPtr.Zero) NativeMethods.GetWindowThreadProcessId(fg, out fgPid);
@@ -3226,8 +3412,12 @@ internal sealed class AppContext : ApplicationContext
     {
         if (ToastAgentMonitor.IsAvailable)
         {
-            ToastAgentMonitor.CheckNewAgentNotifications(delegate(string agentName, string detailText)
+            toastScanCooldown--;
+            if (toastScanCooldown <= 0)
             {
+                toastScanCooldown = (trackedAgents.Count > 0) ? 3 : 10;
+                ToastAgentMonitor.CheckNewAgentNotifications(delegate(string agentName, string detailText)
+                {
                 AgentTrack t = null;
                 IntPtr targetHwnd = IntPtr.Zero;
                 if (trackedAgents.TryGetValue(agentName, out t))
@@ -3280,12 +3470,13 @@ internal sealed class AppContext : ApplicationContext
                     TriggerAgentNotice(agentName, targetHwnd, detailText);
                 }
             });
+            }
         }
 
         agentScanCooldown--;
         if (agentScanCooldown <= 0 || trackedAgents.Count == 0)
         {
-            agentScanCooldown = 5;
+            agentScanCooldown = (trackedAgents.Count > 0) ? 15 : 6;
             try
             {
                 Dictionary<string, HashSet<int>> currentAgentPids = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
@@ -3438,6 +3629,7 @@ internal sealed class AppContext : ApplicationContext
                 }
                 else if (titleJustFinished)
                 {
+                    toastScanCooldown = 0;
                     track.TitleWasBusy = false;
                     track.WasBusy = false;
                     track.BusyTicks = 0;
@@ -3587,6 +3779,77 @@ internal sealed class AppContext : ApplicationContext
         catch { }
     }
 
+    private Settings previewSettings;
+
+    private void SetPreviewSettings(Settings preview)
+    {
+        previewSettings = preview;
+        if (preview != null)
+        {
+            long total = running
+                ? (lastSeconds >= 0 ? lastSeconds : (long)Math.Ceiling(remaining.TotalSeconds))
+                : (sessionActive ? (long)Math.Ceiling(remaining.TotalSeconds) : (preview.Minutes * 60));
+            string value = GetFormattedTime(preview, total);
+            overlay.SetVisualPreview(preview, value);
+        }
+        else
+        {
+            long total = (running || sessionActive)
+                ? (lastSeconds >= 0 ? lastSeconds : (long)Math.Ceiling(remaining.TotalSeconds))
+                : (settings.Minutes * 60);
+            string value = GetFormattedTime(settings, total);
+            overlay.SetVisualPreview(settings, value);
+        }
+    }
+
+    private void ExecuteTestAlert(Settings draft, bool isAgentTab)
+    {
+        if (isAgentTab)
+        {
+            if (draft.NoticeStyle == "Pulse")
+            {
+                if (draft.EndSound) PlaySoundStyle(draft.EndSoundStyle);
+                overlay.StartBreathingPulse(null);
+            }
+            else
+            {
+                string demoAgent = "Cursor";
+                List<string> agents = DetectAgents();
+                if (agents != null && agents.Count > 0) demoAgent = agents[0];
+                string demoDetail = draft.Language == "en"
+                    ? "Demo: Task finished in 45s (3 files changed)"
+                    : "演示：耗时 45 秒完成长任务（修改 3 个文件）";
+                if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
+                activeNotice = new NoticeDialog(draft, DateTime.Now, demoAgent, activeDialog != null ? activeDialog.Handle : IntPtr.Zero, null, demoDetail);
+                activeNotice.Show();
+            }
+        }
+        else
+        {
+            if (!draft.EndSound && !draft.EndNotice)
+            {
+                bool en = draft.Language == "en";
+                MessageBox.Show(activeDialog,
+                    en ? "Please check 'Play sound at end' or 'End notification' first to test."
+                       : "请先勾选「结束时声音提醒」或「结束时系统通知」以测试效果。",
+                    "iClock", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (draft.NoticeStyle == "Pulse" || !draft.EndNotice)
+            {
+                if (draft.EndSound) PlaySoundStyle(draft.EndSoundStyle);
+                if (draft.EndNotice) overlay.StartBreathingPulse(null);
+            }
+            else
+            {
+                if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
+                activeNotice = new NoticeDialog(draft, DateTime.Now, null, IntPtr.Zero, delegate { StartRest(5); });
+                activeNotice.Show();
+            }
+        }
+    }
+
     private void ShowSettings()
     {
         if (activeDialog != null && !activeDialog.IsDisposed)
@@ -3594,15 +3857,44 @@ internal sealed class AppContext : ApplicationContext
             if (activeDialog is SettingsDialog) { ActivateWindow(activeDialog); return; }
             activeDialog.Close();
         }
+
+        bool wasOverlayVisible = overlay.Visible;
+        if (!wasOverlayVisible)
+        {
+            overlay.Show();
+        }
+
         SettingsDialog d = new SettingsDialog(settings, hotkeyRegistered);
         activeDialog = d;
+
+        SetPreviewSettings(d.GetCurrentDraftSettings());
+
+        d.PreviewRequested += delegate(Settings preview)
+        {
+            SetPreviewSettings(preview);
+        };
+
+        d.TestAlertRequested += delegate(Settings draft, bool isAgentTab)
+        {
+            ExecuteTestAlert(draft, isAgentTab);
+        };
+
         d.FormClosed += delegate
         {
+            SetPreviewSettings(null);
             if (d.DialogResult == DialogResult.OK)
             {
                 ApplySavedSettings(d.Value);
             }
+            else
+            {
+                if (!wasOverlayVisible)
+                {
+                    overlay.Hide();
+                }
+            }
             if (activeDialog == d) activeDialog = null;
+            TrimMemory();
         };
         d.Show();
         ActivateWindow(d);
@@ -4188,6 +4480,7 @@ internal sealed class AppContext : ApplicationContext
 
         switchView(0);
         CenterFormOnScreen(f);
+        f.FormClosed += delegate { TrimMemory(); };
         f.Show();
         ActivateWindow(f);
     }
@@ -4203,6 +4496,7 @@ internal sealed class AppContext : ApplicationContext
         d.FormClosed += delegate
         {
             if (activeDialog == d) activeDialog = null;
+            TrimMemory();
         };
         d.Show();
         ActivateWindow(d);

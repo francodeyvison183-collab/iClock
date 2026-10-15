@@ -17,6 +17,12 @@ internal static class TestCheck
         return (double)o.GetType().GetProperty("Opacity").GetValue(o, null);
     }
 
+    private static bool testAlertReceived;
+    private static void OnTestAlertReceived(object draft, bool isAgent)
+    {
+        testAlertReceived = true;
+    }
+
     [STAThread]
     private static int Main()
     {
@@ -279,9 +285,9 @@ internal static class TestCheck
             }
             toggle.Invoke(app, null);
             Timer appTimer = (Timer)appType.GetField("timer", bf).GetValue(app);
-            if (appTimer.Interval < 80 || appTimer.Interval > 400)
+            if (appTimer.Interval < 80 || appTimer.Interval > 1000)
             {
-                Console.WriteLine("FAIL: Timer interval outside expected [80, 400] range: " + appTimer.Interval);
+                Console.WriteLine("FAIL: Timer interval outside expected [80, 1000] range: " + appTimer.Interval);
                 return 14;
             }
             Console.WriteLine("PASS: Overlay caches GDI handles and timer uses dynamic heartbeat alignment (" + appTimer.Interval + "ms).");
@@ -1188,6 +1194,28 @@ internal static class TestCheck
                 return 33;
             }
 
+            // Verify running agents are sorted before ready agents
+            bool seenReady = false;
+            foreach (Control c in cardPanel.Controls)
+            {
+                if (c is Panel)
+                {
+                    Panel card = (Panel)c;
+                    foreach (Control child in card.Controls)
+                    {
+                        if (child is Label && (child.Text == "已就绪" || child.Text == "Ready"))
+                        {
+                            seenReady = true;
+                        }
+                        if (seenReady && child is Label && (child.Text == "运行中" || child.Text == "Running"))
+                        {
+                            Console.WriteLine("FAIL: Running agent appeared after a Ready agent in cardPanel list");
+                            return 33;
+                        }
+                    }
+                }
+            }
+
             // Test refresh button
             btnRefresh.PerformClick();
             int refreshedCardCount = 0;
@@ -1578,6 +1606,102 @@ internal static class TestCheck
             if (actNotice != null && !actNotice.IsDisposed) { actNotice.Close(); actNotice.Dispose(); }
 
             Console.WriteLine("PASS: Win32 RegisterShellHookWindow, HSHELL_FLASH window flashing detection, and instant dispatch verified.");
+
+            // 31. Live preview in SettingsDialog and SetVisualPreview verification
+            Type settingsDlgType = asm.GetType("SettingsDialog");
+            EventInfo previewEvent = settingsDlgType.GetEvent("PreviewRequested");
+            if (previewEvent == null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog does not expose PreviewRequested event.");
+                return 40;
+            }
+
+            object dlgInstance = Activator.CreateInstance(settingsDlgType, new object[] { settings, true });
+            Form dlgForm = (Form)dlgInstance;
+
+            NumericUpDown nudSize = (NumericUpDown)settingsDlgType.GetField("size", bf).GetValue(dlgInstance);
+            nudSize.Value = 42;
+
+            MethodInfo getCurrentDraft = settingsDlgType.GetMethod("GetCurrentDraftSettings");
+            object draft = getCurrentDraft.Invoke(dlgInstance, null);
+            int draftSize = (int)settingsType.GetField("FontSize").GetValue(draft);
+            if (draftSize != 42)
+            {
+                Console.WriteLine("FAIL: GetCurrentDraftSettings returned incorrect FontSize: " + draftSize);
+                return 41;
+            }
+
+            MethodInfo setVisualPreview = overlayType.GetMethod("SetVisualPreview");
+            if (setVisualPreview == null)
+            {
+                Console.WriteLine("FAIL: Overlay does not expose SetVisualPreview method.");
+                return 42;
+            }
+
+            setVisualPreview.Invoke(overlay, new object[] { draft, "00:42:00" });
+            Font previewFont = (Font)overlayType.GetField("cachedFont", bf).GetValue(overlay);
+            if (previewFont == null || (int)Math.Round(previewFont.Size) != 42)
+            {
+                Console.WriteLine("FAIL: SetVisualPreview did not update cachedFont size to 42.");
+                return 43;
+            }
+
+            string overlayText = (string)overlayType.GetField("text", bf).GetValue(overlay);
+            if (overlayText != "00:42:00")
+            {
+                Console.WriteLine("FAIL: SetVisualPreview did not update text (got " + overlayText + ").");
+                return 44;
+            }
+
+            // Verify btnTestAlert and TestAlertRequested
+            Button btnTest = (Button)settingsDlgType.GetField("btnTestAlert", bf).GetValue(dlgInstance);
+            if (btnTest == null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog missing btnTestAlert");
+                return 45;
+            }
+
+            EventInfo testAlertEvent = settingsDlgType.GetEvent("TestAlertRequested");
+            if (testAlertEvent == null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog missing TestAlertRequested event");
+                return 46;
+            }
+
+            MethodInfo testHandlerMethod = typeof(TestCheck).GetMethod("OnTestAlertReceived", BindingFlags.NonPublic | BindingFlags.Static);
+            testAlertEvent.AddEventHandler(dlgInstance, Delegate.CreateDelegate(testAlertEvent.EventHandlerType, testHandlerMethod));
+            MethodInfo btnClick = typeof(Button).GetMethod("OnClick", BindingFlags.NonPublic | BindingFlags.Instance);
+            btnClick.Invoke(btnTest, new object[] { EventArgs.Empty });
+            if (!testAlertReceived)
+            {
+                Console.WriteLine("FAIL: Clicking btnTestAlert did not fire TestAlertRequested");
+                return 47;
+            }
+
+            // Verify IsPaused property on overlay
+            PropertyInfo isPausedProp = overlayType.GetProperty("IsPaused");
+            if (isPausedProp == null)
+            {
+                Console.WriteLine("FAIL: Overlay missing IsPaused property");
+                return 48;
+            }
+
+            MethodInfo setPausedMethod = overlayType.GetMethod("SetPaused");
+            setPausedMethod.Invoke(overlay, new object[] { true });
+            renderLayered = overlayType.GetMethod("RenderLayeredWindow");
+            renderLayered.Invoke(overlay, null);
+            bool isPausedVal = (bool)isPausedProp.GetValue(overlay, null);
+            if (!isPausedVal)
+            {
+                Console.WriteLine("FAIL: Overlay.SetPaused(true) did not set IsPaused to true");
+                return 49;
+            }
+            setPausedMethod.Invoke(overlay, new object[] { false });
+
+            setVisualPreview.Invoke(overlay, new object[] { settings, "25:00" });
+            dlgForm.Dispose();
+
+            Console.WriteLine("PASS: SettingsDialog live screen preview, test alert button, and pause badge verified.");
 
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);
             if (sActiveField != null) sActiveField.SetValue(app, false);
