@@ -6,12 +6,12 @@
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-154%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-160%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>Single 154 KB Binary · RAM &lt; 15 MB · Mouse Click-Through · Global Hotkey · Zero Dependencies · Pure Local Privacy</b>
+  <b>Single 160 KB Binary · RAM &lt; 15 MB · Mouse Click-Through · Global Hotkey · Zero Dependencies · Pure Local Privacy</b>
 </p>
 
 <p align="center">
@@ -38,6 +38,7 @@ Most timer and Pomodoro applications on Windows are bloated **100MB+** Electron 
 * 🪟 **Native 32-bit ARGB Rendering & Click-Through**: Powered by Windows native `UpdateLayeredWindow`, delivering pristine subpixel anti-aliasing without jagged monochrome edges; adaptive soft drop shadows ensure crystal-clear visibility on light, dark, or noisy backgrounds; default 100% click-through never steals focus.
 * ⚡ **Ultra-Lightweight & 0.0% CPU**: Zero third-party dependencies or runtimes. Dynamic heartbeat alignment and memory caching keep awakenings minimal and battery drain at zero.
 * ⌨️ **Ergonomic Direct Drag & Tray Scroll**: Reposition instantly by **holding `Alt` + left-click dragging** anywhere on the desktop (no tedious tray menu toggling); hover over the tray icon and **scroll your mouse wheel to adjust duration** (`±1m`, or `±5m` with `Shift`); default `Ctrl + Shift + T` global hotkey.
+* 💻 **Command Line & Script Automation (IPC Pipeline)**: Built for terminal power users and automated workflows. Features native Win32 `WM_COPYDATA` inter-process communication with 0ms latency and zero background overhead. Send commands directly from PowerShell, CMD, or Bash (`iclock -s 25`, `iclock -p`, `iclock -r`, `iclock --reset`); run `iclock --install-cli` once to add iClock to User PATH and invoke globally without `.exe` (just like `claude` or `pi`); integrate with build scripts (`npm run build && iclock -n "Build Complete"`) for instant completion alerts!
 * 🔔 **Tiered Alerts & Fullscreen/Game Do-Not-Disturb**: Choose between a **TopMost Popup Dialog** (with looping chime for critical deadlines) or an **In-Place Breathing Pulse** (desktop digits gently breathe for 5 seconds with a soft chime without stealing window focus). Built-in **Auto Fullscreen DND** automatically downgrades popups to subtle breathing pulses whenever full-screen DirectX/Vulkan games, PPT slideshows, or video playback are detected in the foreground.
 * 🤖 **AI Agent Background Task Completion Alerts**: Designed for developers utilizing AI coding assistants. Automatically monitors 20+ domestic & international agents (Cursor, Antigravity, Claude Code, GitHub Copilot, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, Aider, etc.) via a 4-tier perception matrix (Toast notification listener, Win32 Shell taskbar flash `HSHELL_FLASH` at 0ms, window title state badge, and edge-detected cluster CPU fallback). Instant zero-delay notification upon task completion with 1-click window restore!
 * 🔒 **100% Local & Portable**: Config automatically prioritizes the executable folder (portable mode) or `%APPDATA%\iClock`, leaving no registry junk or network telemetry.
@@ -96,6 +97,57 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 * **Tray Wheel Duration Tuning**: Hover over the system tray icon and roll your mouse wheel to quickly adjust duration (`±1 min`, or `±5 min` with `Shift`).
 * **Settings**: Right-click tray $\rightarrow$ **Settings…** features modern segmented dual tabs (⏱ Timer / 🤖 AI Agents) to configure duration, font, color, format, alert sound (Gentle Chime / Classic Notice / Alarm Ring), alert style, auto-start, and detected domestic/international AI agents (Cursor, Antigravity, Claude Code, GitHub Copilot, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, WorkBuddy, Gemini, etc.) background task completion alerts.
 * **View History & Daily Statistics**: Right-click tray $\rightarrow$ **View today's history…** to inspect granular sessions with date steppers, or switch to **Days Summary** to track focus streaks across the last 7/14/30 days with completion rates, evaluations, double-click drill-down, and `Ctrl+C` table export.
+
+---
+
+## 💻 Command Line & Script Pipeline (CLI & IPC)
+
+iClock features a built-in **native Win32 IPC messaging pipeline (`WM_COPYDATA`)**. Invoking CLI commands never launches redundant background instances; it communicates directly with the active running iClock process in 0ms.
+
+### 1. Global Terminal Invocations without `.exe` (Like `claude` or `pi`)
+
+Windows natively supports extensionless execution through `%PATHEXT%`. Run the built-in `--install-cli` command once from any terminal:
+
+```powershell
+.\dist\iClock --install-cli
+```
+
+iClock automatically registers its directory into your **User PATH** environment variable. You can then invoke `iclock` from any folder in PowerShell, Command Prompt, Git Bash, or Windows Terminal:
+
+```bash
+iclock --help
+```
+
+### 2. Command Reference
+
+| Command | Shorthand | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `iclock` | - | Launch GUI (or retain background if active) | `iclock` |
+| `iclock --start [mins]` | `iclock -s [m]` | Start work countdown with custom minutes | `iclock -s 25` or `iclock -s 45` |
+| `iclock --pause` | `iclock -p` | Pause running countdown | `iclock -p` |
+| `iclock --resume` | `iclock -r` | Resume paused countdown | `iclock -r` |
+| `iclock --toggle` | `iclock -t` | Toggle between Pause and Resume | `iclock -t` |
+| `iclock --reset` | - | Reset timer to idle and hide overlay | `iclock --reset` |
+| `iclock --rest [mins]` | - | Start rest break timer (default: 5 mins) | `iclock --rest 10` |
+| `iclock -n <message>` | `iclock --notice` | Show TopMost prompt and chime (for scripts) | `iclock -n "All Tests Passed!"` |
+| `iclock --install-cli` | - | Add directory to User PATH environment variable | `iclock --install-cli` |
+| `iclock --help` | `iclock -h` | Print console usage and options | `iclock -h` |
+
+### 3. Script & Automation Examples
+
+* **Build pipeline completion notifications**:
+  ```bash
+  npm run build && iclock -n "Production Build Succeeded!"
+  ```
+* **Test suite alerts**:
+  ```bash
+  pytest && iclock -n "All test suites passed!"
+  ```
+* **Deep focus countdown from terminal**:
+  ```bash
+  # Start a 50-minute deep work block
+  iclock -s 50
+  ```
 
 ---
 

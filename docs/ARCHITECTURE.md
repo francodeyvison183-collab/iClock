@@ -40,3 +40,12 @@ Modern AI coding assistants (e.g., Antigravity, Cursor, Windsurf, Trae) employ m
 
 ### 7. Pure In-Memory Audio Synthesis
 Custom PCM audio synthesis generates classic retro sounds (QQ message 4-beep sequence, Pager 3-beep call) dynamically in memory with envelope smoothing, eliminating external sound asset files while ensuring consistent $\ge 3\text{s}$ alert durations.
+
+### 8. Native IPC Message Pipeline & CLI Integration (`WM_COPYDATA`)
+To enable terminal scripting and automation without external daemon services or sockets, iClock implements a zero-overhead Win32 inter-process messaging pipeline:
+- **Single-Instance Mutex**: At startup, `Program.Main` acquires `System.Threading.Mutex("iClock.SingleInstance")`. If a primary instance already exists, the secondary invocation acts as a transient CLI client.
+- **Message-Only Dispatch Window**: The running GUI instance maintains a lightweight message window (`MessageWindow`) with title `"iClock.IpcWindow"`.
+- **Zero-Allocation Data Transfer**: Secondary CLI processes marshal arguments via Win32 `WM_COPYDATA` (`0x004A`) with `NativeMethods.COPYDATASTRUCT`. The message is delivered synchronously into the primary instance's message queue on the main UI thread with 0ms dispatch latency.
+- **Console Attachment for GUI Binaries**: As a `/target:winexe` application, standard output is not attached to a console by default. `Program.WriteToConsole` probes `GetStdHandle(STD_OUTPUT_HANDLE)` and calls `AttachConsole(-1)` dynamically. This guarantees that CLI feedback, help text (`-h`), and pipe redirections (`|`, `>`) print correctly in interactive PowerShell, CMD, or headless automation runners without flashing unwanted console windows during standard GUI launches.
+- **Idempotent User PATH Registration**: `iclock --install-cli` queries and updates `Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User)` natively, providing global terminal invocation without `.exe` (via Windows `%PATHEXT%`).
+

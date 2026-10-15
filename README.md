@@ -6,12 +6,12 @@
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-154%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-160%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>单文件 154 KB · 运行内存 &lt; 15 MB · 鼠标点击穿透 · 全局热键 · 零第三方依赖 · 纯本地隐私</b>
+  <b>单文件 160 KB · 运行内存 &lt; 15 MB · 鼠标点击穿透 · 全局热键 · 零第三方依赖 · 纯本地隐私</b>
 </p>
 
 <p align="center">
@@ -38,6 +38,7 @@
 * 🪟 **原生 32 位 ARGB 渲染 & 鼠标穿透**：基于 Windows 原生 `UpdateLayeredWindow` 渲染，彻底消除传统色键点阵毛刺，文字边缘细腻平滑（抗锯齿）；自适应边缘微投影保证在浅色文档、深黑终端或游戏画面上清晰锐利；默认完全点击穿透，不抢焦点、不阻挡操作。
 * ⚡ **单文件极简 & 0.0% CPU**：不含任何第三方依赖或庞大运行时。经过深度的资源预分配与动态心跳对齐优化，唤醒开销降至极限，笔记本长驻运行零耗电。
 * ⌨️ **随心微交互 & 托盘滚轮**：在屏幕上**按住 `Alt` + 鼠标左键直接拖拽**瞬时定位（无需繁琐进出托盘菜单）；鼠标悬停托盘图标**滚动滚轮快速微调时长**（`±1m`，按住 `Shift` 为 `±5m`）；默认 `Ctrl + Shift + T` 全局热键盲开/暂停，支持托盘单击启停。
+* 💻 **命令行与自动化脚本联动 (IPC 管道)**：专为终端极客与自动化工作流打造。原生支持 Windows `WM_COPYDATA` 超轻量进程间管道，0ms 即时响应、零内存常驻开销。在 PowerShell、CMD、Git Bash 中直接输入 `iclock -s 25`、`iclock -p`、`iclock -r`、`iclock --reset`；内置 `iclock --install-cli` 指令一键写入用户 PATH，无需输入 `.exe` 即可全局调用（像 `claude` / `pi` 一样方便）；支持任意脚本在构建/测试完成后调用 `iclock -n "构建完成"` 触发即时置顶弹窗与提示音！
 * 🔔 **阶梯提醒（强置顶 vs 原位呼吸轻提醒）与全屏免打扰**：支持**弹窗强提醒**（全屏置顶弹窗+循环提示音，防错过）与**原位呼吸轻提醒**（桌面悬浮文字原地柔和呼吸微闪烁 5 秒+单次提示音，绝不抢占前台焦点打断心流）；**全屏/游戏场景自动免打扰**：智能检测前台全屏游戏、DirectX/Vulkan 渲染或 PPT 幻灯片放映，自动将强弹窗平滑降级为原位呼吸提醒，彻底告别打游戏被切出桌面或做报告被强弹窗打断的尴尬。
 * 🤖 **AI 智能体后台长任务完成监控**：专为深度使用 AI 编程助手与自主 Agent 的开发者打造。全面覆盖国内外主流智能体（Cursor、Antigravity、Claude Code、GitHub Copilot、Trae、通义灵码、CodeGeeX、文心快码、MiniMax、CodeBuddy、Aider 等 20+ 款）。独创 **Toast 系统通知 $\rightarrow$ Win32 Shell 任务栏闪烁 (0ms) $\rightarrow$ 终端/IDE 标题状态 Badge $\rightarrow$ 高阈值集群算力边沿滤波** 四级梯队感知矩阵，零误报、零延迟，任务结束即时提醒，支持一键点击还原前台窗口！
 * 🔒 **纯本地、便携免安装**：配置文件优先读取程序同目录（便携模式），未找到时保存在 `%APPDATA%\iClock`，不写系统垃圾，不收集任何隐私遥测。
@@ -96,6 +97,57 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 * **托盘滚轮微调时长**：鼠标悬停在系统托盘小图标上，直接滚动滚轮快速微调时长（`±1分钟`，按住 `Shift` 为 `±5分钟`）。
 * **自定义配置**：右键托盘图标 $\rightarrow$ **“设置”**，采用现代化胶囊双标签页（⏱ 倒计时 / 🤖 AI 智能体协作），可配置时长、字号、颜色、字体、显示格式、提示声音（柔和清脆 / 经典通知 / 渐进闹铃）、提醒方式、开机自启，以及查看已检测的国内外 AI 智能体（涵盖 Cursor、Antigravity、Claude Code、GitHub Copilot、Trae、通义灵码、CodeGeeX、文心快码、MiniMax、CodeBuddy、WorkBuddy、Gemini 等）并启用后台长任务完成通知。
 * **查看专注历史与统计**：右键托盘图标 $\rightarrow$ **“查看今日记录”**，支持【单日明细】（带历史日期切换器、当日汇总与键盘 `←` / `→` 步进）与【按天汇总】（查看最近 7/14/30 天或全部历史的专注总时长、周期数、完成率及达成评价，支持双击任意日期穿透下钻），选中文本支持 `Ctrl+C` 一键复制。
+
+---
+
+## 💻 命令行与脚本联动 (CLI & IPC Pipeline)
+
+iClock 内置原生 **Win32 IPC 消息管道 (`WM_COPYDATA`)**。二次运行命令行不会启动重复进程，而是秒级穿透控制正在后台常驻的 iClock。
+
+### 1. 一键全局免 `.exe` 终端调用（像 claude / pi 一样）
+
+Windows 借助 `%PATHEXT%` 原生支持无需输入 `.exe` 后缀。首次使用时，只需在终端运行一次内置的 `--install-cli` 指令：
+
+```powershell
+.\dist\iClock --install-cli
+```
+
+程序会自动将当前目录写入用户的 **User PATH** 环境变量。之后在任何目录、任何终端（PowerShell / CMD / Git Bash / Windows Terminal），均可直接输入 `iclock` 全局调用：
+
+```bash
+iclock --help
+```
+
+### 2. 常用命令行参数速查
+
+| 命令 | 简写 | 功能说明 | 典型示例 |
+| :--- | :--- | :--- | :--- |
+| `iclock` | - | 启动 iClock（若已在后台常驻则保持） | `iclock` |
+| `iclock --start [分钟]` | `iclock -s [m]` | 启动自定义分钟的工作倒计时 | `iclock -s 25` 或 `iclock -s 45` |
+| `iclock --pause` | `iclock -p` | 暂停当前倒计时 | `iclock -p` |
+| `iclock --resume` | `iclock -r` | 恢复已暂停的倒计时 | `iclock -r` |
+| `iclock --toggle` | `iclock -t` | 切换 暂停 / 继续 | `iclock -t` |
+| `iclock --reset` | - | 重置倒计时为待命状态并隐藏文字 | `iclock --reset` |
+| `iclock --rest [分钟]` | - | 开启休息倒计时（默认 5 分钟） | `iclock --rest 10` |
+| `iclock -n <消息>` | `iclock --notice` | 触发置顶通知弹窗与提示音（供脚本联动） | `iclock -n "自动化测试已通过！"` |
+| `iclock --install-cli` | - | 自动将当前目录加入用户 PATH 环境变量 | `iclock --install-cli` |
+| `iclock --help` | `iclock -h` | 在终端控制台打印帮助手册 | `iclock -h` |
+
+### 3. 典型脚本与自动化联动场景
+
+* **前端/后端长构建完成后桌面弹窗提醒**：
+  ```bash
+  npm run build && iclock -n "前端生产构建完成！"
+  ```
+* **单元测试与 CI 脚本完成提醒**：
+  ```bash
+  pytest && iclock -n "全部自检测试通过！"
+  ```
+* **极客心流深度聚焦**：
+  ```bash
+  # 终端快速开启 50 分钟深度专注
+  iclock -s 50
+  ```
 
 ---
 

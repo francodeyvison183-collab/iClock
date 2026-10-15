@@ -7,8 +7,10 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 ### Added
 
 - **Brand New Application Icon & Multi-Resolution Asset Set**: High-contrast deep navy squircle (`#131C43`) with transparent antialiased rounded corners, crisp white "i", and vibrant coral orange slash (`#FF5738`), calibrated for optimal contrast on both dark and light Windows themes. Preserved complete 9-resolution master assets in `src/icons/` (16×16 to 512×512).
+- **CLI Automation & Win32 IPC Pipeline (`WM_COPYDATA`)**: Full terminal and script automation support. Invoke commands directly from PowerShell, CMD, or Bash (`iclock -s [mins]`, `-p`, `-r`, `-t`, `--reset`, `--rest`, `-n <message>`). Built-in `--install-cli` command automatically registers iClock into User PATH, enabling global invocation without `.exe` (matching tools like `claude` and `pi`). Zero-overhead message window dispatch (`MessageWindow`, caption `"iClock.IpcWindow"`) and dynamic console attachment (`AttachConsole(-1)`) allow GUI and console integration seamlessly.
 - **Settings Dialog Live Preview & Test Alert Button**: Font, size, and color adjustments now preview directly on the active desktop overlay in real-time. Added a dedicated "Test Alert" (测试提醒演示) button to both Timer and Agent tabs to instantly audition alarm audio, popup notices, or breathing pulses without waiting for a countdown.
 - **Dynamic Running Agent Priority**: Currently active and working AI agents are dynamically prioritized and sorted to the top of the Agent Collaboration list.
+- **Automated Test Check 32**: Added reflection-based test coverage in `tests/SelfCheck.cs` verifying CLI commands (`--start 18`, `-p`, `-r`, `--reset`, `-n`), maintaining 100% test pass rate across all 32 checks.
 
 ### Changed
 

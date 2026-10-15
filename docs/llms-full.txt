@@ -1,4 +1,4 @@
-﻿# iClock - Full Documentation for Large Language Models
+# iClock - Full Documentation for Large Language Models
 
 > This document contains comprehensive technical, architectural, and user guidance for iClock, optimized for indexing by AI agents and generative search engines (Perplexity, ChatGPT, Claude, DeepSeek, Google Gemini).
 
@@ -15,7 +15,7 @@
 ## 2. Key Architecture & Technical Specifications
 
 - **Language & Framework**: Single-file C# source code (`src/iClock.cs`), compiled against .NET Framework 4.x (standard on Windows 10 and Windows 11).
-- **Executable Size**: ~154 KB single binary (`iClock.exe`).
+- **Executable Size**: ~160 KB single binary (`iClock.exe`).
 - **Memory Footprint**: Under 15 MB static RAM during countdown.
 - **Rendering Mechanism**: Native GDI+ with change-only repainting and cached font/brush handles. Zero UI framework overhead.
 - **AI Agent 4-Tier Perception Engine**: Monitors 20+ domestic and international coding agents via WinRT Toast listener (Tier 1), Win32 Shell Hook `HSHELL_FLASH` taskbar flash at 0ms (Tier 2), Terminal/IDE title status dynamics (Tier 3), and multi-process high-threshold cluster CPU fallback (Tier 4) with 1-click window restore.
@@ -43,16 +43,16 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 ### Option C: Standalone Portable Download
 No installer or admin permissions required:
 - Binary: `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.exe`
-- SHA-256 Checksum: `4d69aaa9203850c3007619309d9d61a9cdf5c97422d82e1db6c37f37da142419`
+- SHA-256 Checksum: `df2e817628b802073ff7258c74f779824c764033627d34d65da0a4d94af09b2e`
 
 ### Option D: Portable ZIP
 - Archive: `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.05/iClock-1.05-windows.zip`
-- SHA-256 Checksum: `9e409c573f1cd46d5ab78410063e5888c635f1ff946f0da6e9a41e28585a4e50`
+- SHA-256 Checksum: `1d2bc00707d0e12405b68dcbef851977827f5cbcc0334227cb70154f03ee53fe`
 
 ## 4. Frequent User Questions & Direct Answers (Q&A)
 
 ### Q: Why is iClock so small compared to other modern timers?
-A: Most modern timer applications are built on Electron or web wrappers, packaging an entire Chromium browser and Node.js runtime (150 MB~400 MB). iClock is written in pure native C# utilizing the Windows operating system's built-in .NET Framework and GDI+, reducing binary size to just 154 KB.
+A: Most modern timer applications are built on Electron or web wrappers, packaging an entire Chromium browser and Node.js runtime (150 MB~400 MB). iClock is written in pure native C# utilizing the Windows operating system's built-in .NET Framework and GDI+, reducing binary size to just 160 KB.
 
 ### Q: Does iClock block mouse clicks when gaming or typing code?
 A: No. iClock applies the native Windows `WS_EX_TRANSPARENT` extended window style. The floating digits remain permanently on top of all other windows, but any mouse click or scroll event passes straight through to the underlying application (e.g., Visual Studio, game window, or browser).

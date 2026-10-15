@@ -1703,6 +1703,63 @@ internal static class TestCheck
 
             Console.WriteLine("PASS: SettingsDialog live screen preview, test alert button, and pause badge verified.");
 
+            // 32. Verify CLI IPC commands (HandleIpcCommand)
+            MethodInfo handleIpc = appType.GetMethod("HandleIpcCommand", bf);
+            if (handleIpc == null)
+            {
+                Console.WriteLine("FAIL: HandleIpcCommand method not found on AppContext");
+                return 50;
+            }
+
+            // Test --start 18
+            handleIpc.Invoke(app, new object[] { "--start 18" });
+            int sessMins = (int)appType.GetField("sessionMinutes", bf).GetValue(app);
+            bool isRun = (bool)appType.GetField("running", bf).GetValue(app);
+            if (sessMins != 18 || !isRun || !overlay.Visible)
+            {
+                Console.WriteLine("FAIL: HandleIpcCommand('--start 18') failed, sessMins=" + sessMins + ", isRun=" + isRun + ", visible=" + overlay.Visible);
+                return 50;
+            }
+
+            // Test -p (pause)
+            handleIpc.Invoke(app, new object[] { "-p" });
+            isRun = (bool)appType.GetField("running", bf).GetValue(app);
+            if (isRun)
+            {
+                Console.WriteLine("FAIL: HandleIpcCommand('-p') did not pause");
+                return 50;
+            }
+
+            // Test -r (resume)
+            handleIpc.Invoke(app, new object[] { "-r" });
+            isRun = (bool)appType.GetField("running", bf).GetValue(app);
+            if (!isRun)
+            {
+                Console.WriteLine("FAIL: HandleIpcCommand('-r') did not resume");
+                return 50;
+            }
+
+            // Test --reset
+            handleIpc.Invoke(app, new object[] { "--reset" });
+            isRun = (bool)appType.GetField("running", bf).GetValue(app);
+            if (isRun || overlay.Visible)
+            {
+                Console.WriteLine("FAIL: HandleIpcCommand('--reset') did not reset timer or hide overlay");
+                return 50;
+            }
+
+            // Test -n (notice)
+            handleIpc.Invoke(app, new object[] { "-n Build Success" });
+            Form cliNotice = (Form)appType.GetField("activeNotice", bf).GetValue(app);
+            if (cliNotice == null || cliNotice.IsDisposed)
+            {
+                Console.WriteLine("FAIL: HandleIpcCommand('-n') did not create activeNotice");
+                return 50;
+            }
+            cliNotice.Close();
+
+            Console.WriteLine("PASS: CLI IPC commands (--start, -p, -r, --reset, -n) successfully verified.");
+
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);
             if (sActiveField != null) sActiveField.SetValue(app, false);
             MethodInfo exit = appType.GetMethod("Exit", bf);

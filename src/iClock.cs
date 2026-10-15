@@ -15,6 +15,7 @@ using System.Drawing.Imaging;
 using System.Globalization;
 using System.Collections;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 internal sealed class Settings
@@ -157,8 +158,24 @@ internal static class NativeMethods
     public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct COPYDATASTRUCT
+    {
+        public IntPtr dwData;
+        public int cbData;
+        public IntPtr lpData;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, ref RECT lParam);
+    [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, ref COPYDATASTRUCT lParam);
+
+    [DllImport("kernel32.dll", SetLastError = true)] public static extern bool AttachConsole(int dwProcessId);
+    [DllImport("kernel32.dll", SetLastError = true)] public static extern bool FreeConsole();
+    [DllImport("kernel32.dll", SetLastError = true)] public static extern IntPtr GetStdHandle(int nStdHandle);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr SetWindowsHookEx(int idHook, LowLevelMouseProc lpfn, IntPtr hMod, uint dwThreadId);
@@ -2302,7 +2319,9 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
-    public AppContext()
+    public AppContext() : this(null) { }
+
+    public AppContext(string[] initialArgs)
     {
         settings = Settings.Load();
         appIcon = CreateIcon();
@@ -2420,6 +2439,10 @@ internal sealed class AppContext : ApplicationContext
         {
             overlay.BeginInvoke(new Action(delegate { ShowWelcome(fallbackUsed); }));
         }
+        if (initialArgs != null && initialArgs.Length > 0)
+        {
+            HandleIpcCommand(string.Join(" ", initialArgs));
+        }
     }
 
     private void ShowWelcome(bool fallbackUsed = false)
@@ -2478,7 +2501,7 @@ internal sealed class AppContext : ApplicationContext
         return m;
     }
 
-    private void Reset()
+    internal void Reset()
     {
         if (overlay.IsPulsing) overlay.StopBreathingPulse();
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
@@ -2573,10 +2596,17 @@ internal sealed class AppContext : ApplicationContext
 
     internal void StartWork()
     {
+        StartWorkWithMinutes(settings.Minutes);
+    }
+
+    internal void StartWorkWithMinutes(int minutes)
+    {
         pausedByLock = false;
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
-        if (remaining <= TimeSpan.Zero) remaining = TimeSpan.FromMinutes(settings.Minutes);
-        if (!sessionActive) { sessionStart = DateTime.Now; sessionMinutes = settings.Minutes; }
+        int m = minutes > 0 ? Math.Min(1440, minutes) : settings.Minutes;
+        remaining = TimeSpan.FromMinutes(m);
+        sessionStart = DateTime.Now;
+        sessionMinutes = m;
         deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency);
         SetState(ClockState.Running);
         lastSeconds = -1;
@@ -2630,6 +2660,73 @@ internal sealed class AppContext : ApplicationContext
         if (running) { Pause(); return; }
         if (sessionActive) { Resume(); return; }
         StartWork();
+    }
+
+    internal void HandleIpcCommand(string cmd)
+    {
+        if (string.IsNullOrEmpty(cmd)) return;
+        if (overlay != null && overlay.InvokeRequired)
+        {
+            overlay.BeginInvoke(new Action(delegate { HandleIpcCommand(cmd); }));
+            return;
+        }
+        cmd = cmd.Trim();
+        string[] parts = cmd.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return;
+        string action = parts[0].ToLowerInvariant();
+        string arg = parts.Length > 1 ? parts[1].Trim() : null;
+
+        if (action == "start" || action == "-s" || action == "--start")
+        {
+            int mins = settings.Minutes;
+            if (!string.IsNullOrEmpty(arg))
+            {
+                int parsed;
+                if (int.TryParse(arg, out parsed) && parsed > 0) mins = parsed;
+            }
+            StartWorkWithMinutes(mins);
+        }
+        else if (action == "pause" || action == "-p" || action == "--pause")
+        {
+            Pause();
+        }
+        else if (action == "resume" || action == "-r" || action == "--resume")
+        {
+            Resume();
+        }
+        else if (action == "toggle" || action == "-t" || action == "--toggle")
+        {
+            Toggle();
+        }
+        else if (action == "reset" || action == "--reset")
+        {
+            Reset();
+        }
+        else if (action == "rest" || action == "--rest")
+        {
+            int mins = 5;
+            if (!string.IsNullOrEmpty(arg))
+            {
+                int parsed;
+                if (int.TryParse(arg, out parsed) && parsed > 0) mins = parsed;
+            }
+            StartRest(mins);
+        }
+        else if (action == "notice" || action == "-n" || action == "--notice")
+        {
+            TriggerCliNotice(arg);
+        }
+    }
+
+    internal void TriggerCliNotice(string message)
+    {
+        if (string.IsNullOrEmpty(message)) message = settings.Language == "en" ? "Task completed!" : "任务已完成！";
+        if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
+        if (settings.EndSound) PlaySoundStyle(settings.EndSoundStyle);
+        activeNotice = new NoticeDialog(settings, DateTime.Now, "CLI", IntPtr.Zero, null, message);
+        activeNotice.FormClosed += delegate { activeNotice = null; };
+        activeNotice.Show();
+        activeNotice.ForceTopMost();
     }
 
     private TimeSpan ReadRemaining()
@@ -4995,13 +5092,37 @@ internal sealed class AppContext : ApplicationContext
     private sealed class MessageWindow : NativeWindow
     {
         private AppContext owner;
-        public MessageWindow(AppContext a) { owner = a; CreateHandle(new CreateParams()); }
+        public MessageWindow(AppContext a)
+        {
+            owner = a;
+            CreateParams cp = new CreateParams();
+            cp.Caption = "iClock.IpcWindow";
+            CreateHandle(cp);
+        }
         protected override void WndProc(ref Message m)
         {
             if (m.Msg == WM_HOTKEY) owner.HandleHotkey();
             else if (owner.shellHookMsg != 0 && (uint)m.Msg == owner.shellHookMsg)
             {
                 owner.HandleShellHook(m.WParam.ToInt32(), m.LParam);
+            }
+            else if (m.Msg == 0x004A) // WM_COPYDATA
+            {
+                try
+                {
+                    NativeMethods.COPYDATASTRUCT cds = (NativeMethods.COPYDATASTRUCT)Marshal.PtrToStructure(m.LParam, typeof(NativeMethods.COPYDATASTRUCT));
+                    if (cds.lpData != IntPtr.Zero && cds.cbData > 0)
+                    {
+                        string cmd = Marshal.PtrToStringUni(cds.lpData);
+                        if (!string.IsNullOrEmpty(cmd))
+                        {
+                            owner.HandleIpcCommand(cmd);
+                        }
+                    }
+                    m.Result = (IntPtr)1;
+                    return;
+                }
+                catch { }
             }
             base.WndProc(ref m);
         }
@@ -5014,15 +5135,162 @@ internal sealed class AppContext : ApplicationContext
 
 internal static class Program
 {
-    [STAThread]
-    private static void Main()
+    private static void WriteToConsole(string text)
     {
+        bool attached = false;
+        IntPtr stdout = NativeMethods.GetStdHandle(-11);
+        if (stdout == IntPtr.Zero || stdout == (IntPtr)(-1))
+        {
+            if (NativeMethods.AttachConsole(-1))
+            {
+                attached = true;
+                stdout = NativeMethods.GetStdHandle(-11);
+            }
+        }
+        else
+        {
+            if (NativeMethods.AttachConsole(-1)) attached = true;
+        }
+
+        if (stdout != IntPtr.Zero && stdout != (IntPtr)(-1))
+        {
+            try
+            {
+                using (FileStream fs = new FileStream(new Microsoft.Win32.SafeHandles.SafeFileHandle(stdout, false), FileAccess.Write))
+                using (StreamWriter sw = new StreamWriter(fs, Console.OutputEncoding ?? Encoding.Default))
+                {
+                    sw.WriteLine(text);
+                    sw.Flush();
+                }
+            }
+            catch { }
+        }
+        if (attached) NativeMethods.FreeConsole();
+    }
+
+    private static void InstallCli()
+    {
+        try
+        {
+            string dir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
+            string userPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User) ?? "";
+            string[] paths = userPath.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+            bool found = false;
+            foreach (string p in paths)
+            {
+                if (string.Equals(p.Trim().TrimEnd('\\', '/'), dir, StringComparison.OrdinalIgnoreCase))
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+            {
+                string newPath = string.IsNullOrEmpty(userPath) ? dir : (userPath.TrimEnd(';') + ";" + dir);
+                Environment.SetEnvironmentVariable("PATH", newPath, EnvironmentVariableTarget.User);
+                WriteToConsole("[iClock] CLI environment configured successfully!\r\n[iClock] You can now type 'iclock' directly in any terminal.");
+            }
+            else
+            {
+                WriteToConsole("[iClock] CLI path is already configured in User PATH:\r\n  " + dir);
+            }
+        }
+        catch (Exception ex)
+        {
+            WriteToConsole("[iClock] Failed to configure PATH: " + ex.Message);
+        }
+    }
+
+    private static void PrintHelp()
+    {
+        string help = 
+@"iClock - Desktop Focus Clock & CLI Pipeline
+
+Usage:
+  iclock                          Start iClock GUI (if not running)
+  iclock [options]                Send command to running iClock instance
+
+Options:
+  -s, --start [mins]              Start countdown timer (default: settings minutes)
+  -p, --pause                     Pause countdown timer
+  -r, --resume                    Resume countdown timer
+  -t, --toggle                    Toggle between pause and resume
+  --reset                         Reset countdown timer to idle
+  --rest [mins]                   Start break timer (default: 5 minutes)
+  -n, --notice <message>          Display popup notification and sound
+  --install-cli                   Add iClock directory to User PATH
+  -h, --help                      Show this help information
+
+Examples:
+  iclock --start 25               Start a 25-minute Pomodoro timer
+  iclock -s 45                    Start a 45-minute countdown
+  iclock -p                       Pause current timer
+  iclock -r                       Resume paused timer
+  iclock -n ""Build finished!""     Trigger completion notice from script";
+        WriteToConsole(help);
+    }
+
+    [STAThread]
+    private static void Main(string[] args)
+    {
+        if (args != null && args.Length > 0)
+        {
+            string first = args[0].ToLowerInvariant();
+            if (first == "-h" || first == "--help" || first == "/?" || first == "help")
+            {
+                PrintHelp();
+                return;
+            }
+            if (first == "--install-cli" || first == "install-cli")
+            {
+                InstallCli();
+                return;
+            }
+        }
+
         bool created;
         using (System.Threading.Mutex m = new System.Threading.Mutex(true, "iClock.SingleInstance", out created))
         {
-            if (!created) return;
-            Application.EnableVisualStyles(); Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new AppContext());
+            if (!created)
+            {
+                if (args != null && args.Length > 0)
+                {
+                    IntPtr hWnd = NativeMethods.FindWindow(null, "iClock.IpcWindow");
+                    if (hWnd != IntPtr.Zero)
+                    {
+                        string cmd = string.Join(" ", args);
+                        byte[] bytes = Encoding.Unicode.GetBytes(cmd + "\0");
+                        IntPtr ptr = Marshal.AllocHGlobal(bytes.Length);
+                        try
+                        {
+                            Marshal.Copy(bytes, 0, ptr, bytes.Length);
+                            NativeMethods.COPYDATASTRUCT cds;
+                            cds.dwData = IntPtr.Zero;
+                            cds.cbData = bytes.Length;
+                            cds.lpData = ptr;
+                            NativeMethods.SendMessage(hWnd, 0x004A, IntPtr.Zero, ref cds);
+                            WriteToConsole("[iClock] Command sent: " + cmd);
+                        }
+                        finally
+                        {
+                            Marshal.FreeHGlobal(ptr);
+                        }
+                    }
+                    else
+                    {
+                        WriteToConsole("[iClock] Error: Running instance IPC window not found.");
+                    }
+                }
+                else
+                {
+                    WriteToConsole("[iClock] Already running in background tray.");
+                }
+                return;
+            }
+
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new AppContext(args));
         }
     }
 }

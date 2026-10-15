@@ -61,4 +61,52 @@ Choose **View today's history** from the tray menu to open the comprehensive his
 - **穿透钻取**：在按天汇总表中双击任意一行日期，即可无缝穿透跳转至该日的“单日明细”查看具体会话。
 - **快捷交互**：支持通过键盘 `←` / `→` 键前后切换日期，`Ctrl+Tab` 快速切换视图，选中文本支持 `Ctrl+C` 复制到剪贴板。
 
+## Command Line & Script Pipeline (IPC) / 命令行与脚本联动
+
+iClock includes a native zero-latency Win32 IPC messaging pipeline (`WM_COPYDATA`). When iClock is running in the background, secondary CLI executions transmit commands directly to the active process without spawning duplicate instances.
+
+iClock 内置原生的 Win32 IPC 消息管道（`WM_COPYDATA`）。当 iClock 在后台常驻运行时，终端再次执行命令行会直接将指令秒级传递给后台主进程，零内存开销、0ms 响应，绝不重复拉起进程。
+
+### Global PATH Setup / 全局免 .exe 终端配置
+
+Windows natively supports command execution without `.exe` via `%PATHEXT%`. To call `iclock` from anywhere (like `claude` or `pi`), run once:
+
+Windows 系统原生支持无需输入 `.exe` 后缀。首次使用时，只需在终端运行一次内置的 `--install-cli` 指令：
+
+```powershell
+.\dist\iClock --install-cli
+```
+
+This appends iClock's directory to your User `PATH` environment variable. Open any new terminal window and type `iclock` directly.
+
+程序会自动将当前程序目录写入用户的 `PATH` 环境变量。之后新开任意终端窗口，即可直接输入 `iclock`。
+
+### Command Options / 参数速查
+
+| Option / 参数 | Shorthand / 简写 | Description / 说明 | Example / 示例 |
+| :--- | :--- | :--- | :--- |
+| `iclock` | - | Launch GUI or bring running instance to front / 启动主程序 | `iclock` |
+| `--start [mins]` | `-s [m]` | Start work countdown / 启动自定义分钟工作倒计时 | `iclock -s 25` |
+| `--pause` | `-p` | Pause active countdown / 暂停倒计时 | `iclock -p` |
+| `--resume` | `-r` | Resume paused countdown / 继续倒计时 | `iclock -r` |
+| `--toggle` | `-t` | Toggle Pause/Resume / 切换暂停与继续 | `iclock -t` |
+| `--reset` | - | Reset timer to idle & hide overlay / 重置并隐藏倒计时 | `iclock --reset` |
+| `--rest [mins]` | - | Start rest break timer (default 5m) / 开启休息倒计时 | `iclock --rest 10` |
+| `-n <msg>` | `--notice` | Trigger TopMost alert & chime / 触发置顶弹窗与提示音 | `iclock -n "Task Done"` |
+| `--install-cli` | - | Configure User PATH / 自动配置全局 PATH | `iclock --install-cli` |
+| `--help` | `-h` | Display help in terminal / 控制台打印帮助 | `iclock -h` |
+
+### Script Integration Examples / 脚本联动示例
+
+```bash
+# 1. Alert when a long compilation or build finishes / 构建完成后提醒
+npm run build && iclock -n "前端构建成功！"
+
+# 2. Alert after automated test execution / 测试套件跑完提醒
+pytest && iclock -n "All tests passed!"
+
+# 3. Start a focus session from terminal / 终端快速开启专注计时
+iclock -s 45
+```
+
 Settings are stored in `%APPDATA%\iClock\settings.ini`. History files are stored as UTF-8 TSV files named `history-YYYYMMDD.tsv` under the same directory, using the session's start date.
