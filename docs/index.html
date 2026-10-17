@@ -235,7 +235,7 @@
     .nav-links {
       display: flex;
       align-items: center;
-      gap: 22px;
+      gap: clamp(14px, 1.8vw, 24px);
       list-style: none;
     }
 
@@ -243,6 +243,7 @@
       font-size: 14.5px;
       font-weight: 500;
       color: var(--text-muted);
+      white-space: nowrap;
       transition: color 0.15s ease;
     }
 
@@ -1419,15 +1420,11 @@
         <span class="version-tag">v1.07</span>
       </a>
       <ul class="nav-links">
-        <li><a href="#why" data-i18n="nav_why">设计初衷</a></li>
-        <li><a href="#features" data-i18n="nav_features">三大功能</a></li>
+        <li><a href="#features" data-i18n="nav_features">功能特性</a></li>
         <li><a href="#comparison" data-i18n="nav_comparison">硬核对比</a></li>
-        <li><a href="#download" data-i18n="nav_download">下载上手</a></li>
-        <li><a href="#mcp" data-i18n="nav_mcp">MCP 协议</a></li>
-        <li><a href="#cli" data-i18n="nav_cli">CLI 自动化</a></li>
+        <li><a href="#mcp" data-i18n="nav_mcp">MCP 智能体</a></li>
         <li><a href="#shortcuts" data-i18n="nav_shortcuts">快捷键</a></li>
         <li><a href="#faq" data-i18n="nav_faq">常见问答</a></li>
-        <li><a href="#sponsor" data-i18n="nav_sponsor">赞赏致谢</a></li>
       </ul>
       <div class="nav-actions">
         <!-- 语言切换器 -->
@@ -2113,10 +2110,10 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         page_title: "iClock — 专为开发者与效率玩家打造的 Windows 原生极简效率中枢 (253 KB)",
         page_desc: "专为开发者与效率玩家打造的 Windows 原生效率中枢（仅 253 KB）。支持点击穿透悬浮倒计时、零轮询桌面每日格言、20+ 款 AI 智能体长任务协同与内置原生 MCP 服务器（含桌面请示门禁）。单文件、纯本地、解压即用。",
         nav_why: "设计初衷",
-        nav_features: "三大功能",
+        nav_features: "功能特性",
         nav_comparison: "硬核对比",
         nav_download: "下载上手",
-        nav_mcp: "MCP 协议",
+        nav_mcp: "MCP 智能体",
         nav_cli: "CLI 自动化",
         nav_shortcuts: "快捷键",
         nav_faq: "常见问答",
@@ -2311,9 +2308,9 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         page_desc: "Ultra-lightweight 253 KB native productivity hub for Windows: click-through transparent timer, 0-polling ambient quotes, 20+ AI agents monitor & native stdio MCP server.",
         nav_why: "Philosophy",
         nav_features: "Features",
-        nav_comparison: "Benchmark",
+        nav_comparison: "Benchmarks",
         nav_download: "Download",
-        nav_mcp: "MCP Protocol",
+        nav_mcp: "MCP Agent",
         nav_cli: "CLI Pipeline",
         nav_shortcuts: "Shortcuts",
         nav_faq: "FAQ",
