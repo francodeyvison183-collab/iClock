@@ -23,6 +23,7 @@ iClock is an open-source, minimalist Windows desktop productivity hub designed f
   - `iclock_status`: Agent queries runtime system and timer status
 - **Ambient Daily Quotes**: 0-Polling event-driven hibernation (0.0% CPU idle), 300+ bilingual library, AI/MCP batch expansion with automatic deduplication and `quotes.txt.bak` backup
 - **License**: MIT License (100% free and open-source)
+- **Author & Maintainer**: gujiangwen (francodeyvison183@gmail.com)
 - **Privacy & Safety**: 0 Ads, zero bundled software, zero background telemetry
 
 ## Download & Installation

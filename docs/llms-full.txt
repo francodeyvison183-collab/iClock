@@ -26,6 +26,7 @@ iClock is an ultra-lightweight (253 KB), open-source Windows native desktop prod
 | **Input Pass-Through** | WS_EX_LAYERED \| WS_EX_TRANSPARENT | 100% mouse click-through; never steals focus |
 | **IPC Pipeline** | Win32 WM_COPYDATA | 0ms latency inter-process control |
 | **MCP Protocol** | Anthropic Model Context Protocol (JSON-RPC 2.0) | Native stdio transport (`iclock.com --mcp`) |
+| **Author & Maintainer** | gujiangwen (`francodeyvison183@gmail.com`) | 100% open-source under MIT License |
 
 ---
 

@@ -10,6 +10,7 @@
 [![Size](https://img.shields.io/badge/Size-253%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![MCP Protocol](https://img.shields.io/badge/MCP-Native%20Stdio-8A2BE2)](https://github.com/francodeyvison183-collab/iClock)
+[![Author](https://img.shields.io/badge/Author-gujiangwen-blue.svg)](mailto:francodeyvison183@gmail.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
@@ -239,6 +240,17 @@ cd iClock
   <p><b>微信扫一扫 赞赏作者</b></p>
   <p><i>感谢每一位支持开源创作的朋友！</i></p>
 </div>
+
+---
+
+## 👨‍💻 作者与联系方式
+
+* **作者 / 开发者**：`gujiangwen`
+* **反馈与交流邮箱**：[`francodeyvison183@gmail.com`](mailto:francodeyvison183@gmail.com)
+* **GitHub 仓库**：[francodeyvison183-collab/iClock](https://github.com/francodeyvison183-collab/iClock)
+* **官方主页**：[https://francodeyvison183-collab.github.io/iClock/](https://francodeyvison183-collab.github.io/iClock/)
+
+欢迎提交 Issue、Pull Request 或随时通过邮件交流产品建议与使用体验！
 
 ---
 

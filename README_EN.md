@@ -10,6 +10,7 @@
 [![Size](https://img.shields.io/badge/Size-253%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![MCP Protocol](https://img.shields.io/badge/MCP-Native%20Stdio-8A2BE2)](https://github.com/francodeyvison183-collab/iClock)
+[![Author](https://img.shields.io/badge/Author-gujiangwen-blue.svg)](mailto:francodeyvison183@gmail.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
@@ -234,6 +235,17 @@ If iClock makes your workspace cleaner and your focus sharper, please give us a 
   <p><b>Buy the author a coffee via WeChat Pay</b></p>
   <p><i>Thank you for supporting indie open-source software!</i></p>
 </div>
+
+---
+
+## 👨‍💻 Author & Contact
+
+* **Author & Developer**: `gujiangwen`
+* **Email & Feedback**: [`francodeyvison183@gmail.com`](mailto:francodeyvison183@gmail.com)
+* **Official Website**: [https://francodeyvison183-collab.github.io/iClock/](https://francodeyvison183-collab.github.io/iClock/)
+* **GitHub Repository**: [francodeyvison183-collab/iClock](https://github.com/francodeyvison183-collab/iClock)
+
+Feel free to open an issue, submit a pull request, or send an email with suggestions and feedback!
 
 ---
 
