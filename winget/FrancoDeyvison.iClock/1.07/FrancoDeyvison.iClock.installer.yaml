@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+
+PackageIdentifier: FrancoDeyvison.iClock
+PackageVersion: 1.07
+InstallerType: portable
+Commands:
+  - iClock
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.07/iClock-1.07-windows.exe
+    InstallerSha256: A753262BF93FFAE4F7B5B632E040F6F82A6FC2DF95878B15872B7932CBCC152D
+  - Architecture: x86
+    InstallerUrl: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.07/iClock-1.07-windows.exe
+    InstallerSha256: A753262BF93FFAE4F7B5B632E040F6F82A6FC2DF95878B15872B7932CBCC152D
+ManifestType: installer
+ManifestVersion: 1.6.0

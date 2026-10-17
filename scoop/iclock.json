@@ -1,10 +1,10 @@
 {
-  "version": "1.05",
-  "description": "Ultra-lightweight (169 KB), transparent, click-through desktop countdown timer for Windows",
+  "version": "1.07",
+  "description": "Ultra-lightweight (253 KB), transparent, click-through desktop countdown timer for Windows",
   "homepage": "https://francodeyvison183-collab.github.io/iClock/",
   "license": "MIT",
-  "url": "https://github.com/francodeyvison183-collab/iClock/releases/download/1.05/iClock-1.05-windows.exe#/iClock.exe",
-  "hash": "d1a4d5ee8af3cd225db32e0bbe1febaf3578d0bb479e6f0403605948ba578a3d",
+  "url": "https://github.com/francodeyvison183-collab/iClock/releases/download/v1.07/iClock-1.07-windows.exe#/iClock.exe",
+  "hash": "a753262bf93ffae4f7b5b632e040f6f82a6fc2df95878b15872b7932cbcc152d",
   "bin": "iClock.exe",
   "shortcuts": [
     [
@@ -16,6 +16,6 @@
     "github": "https://github.com/francodeyvison183-collab/iClock"
   },
   "autoupdate": {
-    "url": "https://github.com/francodeyvison183-collab/iClock/releases/download/$version/iClock-$version-windows.exe#/iClock.exe"
+    "url": "https://github.com/francodeyvison183-collab/iClock/releases/download/v$version/iClock-$version-windows.exe#/iClock.exe"
   }
 }

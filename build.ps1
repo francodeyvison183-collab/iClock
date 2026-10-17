@@ -17,7 +17,9 @@ $source = Join-Path $projectRoot 'src\iClock.cs'
 $zan = Join-Path $projectRoot 'src\zan.jpg'
 $appIco = Join-Path $projectRoot 'src\app.ico'
 
-$compilerArgs = @('/nologo', '/target:winexe', '/optimize+', "/out:$outputExe", '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Runtime.WindowsRuntime.dll')
+Get-Process | Where-Object { $_.ProcessName -like "iClock*" -or $_.ProcessName -eq "SelfCheck" } | Stop-Process -Force
+
+$compilerArgs = @('/nologo', '/target:winexe', '/optimize+', '/codepage:65001', "/out:$outputExe", '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Runtime.WindowsRuntime.dll', '/r:System.Web.Extensions.dll')
 if (Test-Path -LiteralPath $zan) {
     $compilerArgs += "/resource:$zan,zan.jpg"
 }
@@ -32,3 +34,24 @@ if ($LASTEXITCODE -ne 0) { throw "Compilation failed with exit code $LASTEXITCOD
 
 $size = (Get-Item -LiteralPath $outputExe).Length
 Write-Host "Built $outputExe ($size bytes)."
+
+$cliSource = Join-Path $projectRoot 'src\iclock_cli.cs'
+if (Test-Path -LiteralPath $cliSource) {
+    $cliExe = Join-Path $outputDir 'iclock.com'
+    $cliArgs = @('/nologo', '/target:exe', '/optimize+', '/codepage:65001', "/out:$cliExe", '/r:System.Web.Extensions.dll')
+    if (Test-Path -LiteralPath $appIco) { $cliArgs += "/win32icon:$appIco" }
+    $cliArgs += $cliSource
+    & $compiler $cliArgs
+    if ($LASTEXITCODE -ne 0) { throw "CLI shim compilation failed with exit code $LASTEXITCODE." }
+    $cliSize = (Get-Item -LiteralPath $cliExe).Length
+    Write-Host "Built $cliExe ($cliSize bytes)."
+}
+
+$testSource = Join-Path $projectRoot 'tests\SelfCheck.cs'
+if (Test-Path -LiteralPath $testSource) {
+    $testExe = Join-Path $outputDir 'SelfCheck.exe'
+    & $compiler @('/nologo', '/target:exe', '/optimize+', '/codepage:65001', "/out:$testExe", '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Web.Extensions.dll', $testSource)
+    if ($LASTEXITCODE -ne 0) { throw "SelfCheck compilation failed with exit code $LASTEXITCODE." }
+    $testSize = (Get-Item -LiteralPath $testExe).Length
+    Write-Host "Built $testExe ($testSize bytes)."
+}

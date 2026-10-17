@@ -2,6 +2,199 @@
 
 This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY-MM-DD`).
 
+## [1.07] - 2026-10-17
+
+### Added
+
+- **Streamlined Tray Menu & Terminal CLI Guidance in AI Collaboration Tab (托盘菜单瘦身、移除冗余命令行弹窗并归并至 AI 协作设置)**:
+  - **Eliminated Redundant GUI Dialog (彻底移除冗余的图形化命令行窗口 `CliHelpDialog`)**: Deleted the 185-line WinForms `CliHelpDialog` class and associated window management code. Standardized terminal CLI help on `iclock.com -h` and `iclock --help` (single source of truth for all commands, options, and exit codes).
+  - **Streamlined Tray Menu (系统托盘一级菜单瘦身)**: Removed the niche `命令行 (CLI)...` item from the system tray context menu, reducing clutter and cognitive friction for everyday users.
+  - **Consolidated Terminal CLI Tip in Settings Tab 2 (在「AI 协作」页面底部加入终端指令引导)**: Added a clean guidance tip at the bottom of Tab 2 merged into a single sentence (`提示：支持在终端直接运行 iclock -h 查看脚本控制指令，或执行 iclock --install-cli 写入 PATH 环境变量。` / `Tip: Run iclock -h in terminal for CLI & script automation, or run iclock --install-cli to add iClock to User PATH.`). Implemented custom GDI+ word-wrapping via `StyledCliTipLabel` with automatic width wrapping (no hardcoded `\n`) and syntax-highlighted commands (`iclock -h` and `iclock --install-cli`) rendered in **Italic Blue** (`AppContext.Win11Accent` `#0067C0`), seamlessly matching the Win11 visual rhythm of Tab 1.
+  - **Optimized Tab 2 Vertical Spacing & 3-Row Agent List (优化智能体列表高度为规整 3 行)**: Reduced `panelAgentBox` height from 138px to 114px so exactly 3 agent cards are displayed without partial bottom card truncation. Freed up 24px of vertical breathing room, cleanly distributing margins across the header, agent list, MCP capabilities card, and the bottom tip.
+  - **SelfCheck Test Suite Updated (自检测试套件全面同步)**: Updated Tests 33 and 40 in `tests/SelfCheck.cs` to verify `menuCli` elimination, `CliHelpDialog` removal, Tab 2 `lblAgentCliTip` presence, command text containment, and visibility across both languages (all 44 checks passing).
+
+- **Desktop Quote Alt + Drag Mode & Zero-Polling Background Optimization (桌面格言 Alt + 拖拽交互统一与零轮询性能优化)**:
+  - **Interaction Consistency (交互体验完全统一)**: Aligned desktop quote position adjustment with the countdown overlay (`Alt + Drag`). In normal desktop state, the quote is 100% click-through (`HTTRANSPARENT`), never intercepting clicks or accidentally popping up when moving the cursor. Holding `Alt` (or clicking "调整位置" in tray menu) instantly makes it interactive (`HTCLIENT`), revealing its rounded translucent card frame, action buttons (Next quote, Pin, Close), and resize handle.
+  - **Eliminated 200ms Continuous Cursor Polling (彻底移除 200ms 鼠标轮询)**: Removed the legacy periodic timer checking `Cursor.Position` and bounding box containment 5 times per second. When pinned to desktop (`IsPinned == true`), `countdownTimer` is completely stopped. Result: **0 timer wakeups, 0% CPU, and zero memory allocations** while idling on desktop.
+  - **Tray MoveMode Synchronization (托盘调整位置模式双向联动)**: `AppContext.ToggleMove()` now synchronously enables/disables `MoveMode` on `DailyQuoteDialog`. Clicking "调整位置" from the tray menu activates drag frames for both countdown and desktop quote simultaneously.
+  - **Settings Tab 1 Tip Refinement (设置界面底部操作提示与 ToolTip 同步更新)**: Updated `lblQuoteTip` on Tab 1 with unified `StyledTipLabel` supporting clause-aware auto-wrapping without manual linebreaks, precise scope clarification (`提示：在桌面格言文字上按住 Alt + 拖拽调整位置，拖动右边缘调节宽度，Alt + Ctrl + 滚轮缩放字号。` / `Tip: Hold Alt + drag on quote text to move, drag right edge to resize, Alt + Ctrl + wheel to scale font.`), and syntax-highlighted shortcut tokens (`Alt + 拖拽` and `Alt + Ctrl + 滚轮`) rendered in **Italic Blue** (`AppContext.Win11Accent` `#0067C0`), aligning baseline layout with Tab 2 (`(18, 412, 344, 40)`), and added descriptive hover tooltip on `桌面悬浮显示` checkbox.
+  - **Added SelfCheck Test 44 (自检测试覆盖)**: Added test suite coverage verifying `MoveMode` state toggling, `HTCLIENT`/`HTTRANSPARENT` transitions, and timer shutdown when pinned (44/44 tests green).
+
+- **About Dialog Author Email & Feedback Channel (关于页面新增作者邮箱与即时反馈交互)**:
+  - Added author email link `francodeyvison183@gmail.com` in `AboutDialog` with clean, two-line centered layout (`作者：gujiangwen` followed by `反馈交流：francodeyvison183@gmail.com` / `Feedback: francodeyvison183@gmail.com`).
+  - Implemented modern interaction: hover-only underline (`HoverUnderline`), `mailto:` trigger on click, automatic clipboard copy with native 2-second ToolTip toast (`✓ 邮箱地址已复制到剪贴板！` / `✓ Email copied to clipboard!`).
+  - Adjusted window height from 506px to 528px (+22px) with balanced vertical spacing and native Win11 Fluent styling.
+  - Added test assertion coverage in `tests/SelfCheck.cs` (Test 40) ensuring 100% test pass rate across all 43 tests.
+
+- **Fix Tray Scroll Wheel Hijacking Running Countdown (修复托盘启动倒计时后滚轮意外篡改时间缺陷)**:
+  - Addressed root cause: `tray.MouseMove` previously installed a global low-level mouse hook (`WH_MOUSE_LL`) with a 2-second timeout lease that intercepted wheel messages system-wide and altered running countdown sessions.
+  - Added strict state gating: when the countdown is running or session is active (`running || sessionActive`), `tray.MouseMove` never installs the hook, and `SetState` / `Toggle` / `tray.MouseClick` immediately unhooks any active hook.
+  - Added cursor workspace boundary check in `MouseHookCallback`: if the mouse cursor leaves the taskbar notification area and enters the desktop workspace (`WorkingArea.Contains`), the hook immediately self-unhooks, preventing mouse wheel hijacking in editors or browsers.
+  - Reduced idle hover lease timeout from 2000ms to 800ms and removed recursive timeout resets on wheel turns.
+
+- **Desktop Quote Default Horizontal Centering & Decoupling (桌面格言默认水平居中与坐标解耦)**:
+  - Decoupled `QuoteX` and `QuoteY` coordinate resolution in `DailyQuoteDialog.UpdatePosition`: `QuoteX < 0` (sentinel `-99999` and `-1`) guarantees standard horizontal centering on screen (`WorkingArea.Left + (Width - CardWidth) / 2`), while preserving custom vertical position `QuoteY >= 0` (or default Y=120px sandwich position).
+  - Ensured dynamic re-centering on quote length or font size changes when in default centered mode (`QuoteX < 0`), preventing horizontal drifting.
+  - In `OnMouseUp`, resizing width no longer hardcodes `QuoteX` to a fixed pixel coordinate when in auto-center mode, and dragging near horizontal center (±24px) snaps cleanly back to `QuoteX = -1`.
+
+- **AI Agent Quote Expansion (每日格言 AI 智能体 MCP 极简自动扩充)**:
+  - Added side-by-side `[ 📂 自定义名言 ]` (90px) and `[ ✨ AI 扩充… ]` (90px) buttons in Settings Tab 1, perfectly matching the 188px column alignment with surrounding controls.
+  - New minimalist `AiQuoteDialog` window (410 × 265px) featuring a unified tag pool model:
+    - Default curated tags (`极客心流`, `斯多葛`, `东方智慧`, `从容反内卷` in ZH; `Geek Flow`, `Stoicism`, `Wisdom`, `Balance` in EN).
+    - Every tag pill features a delete button (`✕`) allowing removal of any tag.
+    - Quick input box with `➕ 添加` (or Enter key / comma-separation) for adding custom preference tags.
+    - Tag changes automatically persist across restarts in `settings.ini` (`AiQuoteKeywords`).
+    - All tags in the pool apply directly to generation without redundant labels.
+  - **Dual-Track In-Place Execution & Completion Reporting (双轨就地执行与实时汇报反馈)**:
+    - Eliminates silent dialog closing: clicking "立即扩充" keeps the dialog open in-place, guiding user actions and eliminating expectation mismatch.
+    - **CLI Track (后台直接扩充)**: For agents supporting direct headless CLI generation (e.g. Claude Code CLI, Ollama, Antigravity CLI), clicking `[ ⚡ 直接扩充 ]` runs generation in background, parses quotes, saves them to library, and immediately presents the success report in the dialog with quote preview and desktop projection.
+    - **IDE Collaboration Track (对话框协作)**: For IDEs (e.g. Cursor, Windsurf), clicking `[ ✨ 立即扩充 ]` copies 30-quote prompt to clipboard, attempts foreground window activation, and enters a real-time listening state (`• 正在等待智能体通过 MCP 写入词库...`). Provides `[ 唤起窗口 ]` and `[ 重新复制 ]` shortcuts.
+    - **Realtime IPC Callback**: Subscribes to `AiAgentQuoteHelper.OnQuotesAdded`; when the agent executes `iclock_quote(action: "add")`, the dialog transitions on the fly to `✨ 格言扩充完成！` reporting the 30 added quotes, previewing the latest quote, and providing `[ 查看词库 ]` and `[ 完成 ]` actions.
+  - 100% aligned with Tab 2's MCP ecosystem:
+    - Candidate list exclusively presents agents that have already connected to MCP (e.g. `⚡ [Name] (已接入 MCP · 运行中 · 支持后台直接扩充)` / `⚡ [Name] (已接入 MCP · 已就绪 · 对话框协作)`).
+    - Unconfigured agents are completely hidden; if no MCP agent is configured, displays a prompt to configure MCP in 【Settings ➔ AI Collaboration】 and disables the Expand button.
+    - Automatically remembers the user's selected agent in `settings.AiAgentType`.
+  - Batch expansion scale set to **30 curated quotes** per invocation.
+  - Native `iclock_quote` MCP tool enhancement:
+    - Extended schema with `action: "add"` and batch `quotes: [...]` parameters.
+    - Agent calls tool to atomically write quotes with anti-hallucination parsing, `.bak` backup, strict deduplication, and instant desktop HUD refresh.
+  - Added unit and integration test suite verification in `SelfCheck.exe` (Test 43, 43/43 passing).
+
+- **Quote Library Button Layout & Text Optimization (名言词库操作按钮文案与布局优化)**:
+  - Resolved right-edge text truncation on the Quote Library row in Settings Tab 1.
+  - Replaced overly wide labels with crisp, clean labels: `[ 自定义… ]` (54px) and `[ ✨ AI 扩充 ]` (68px) in Chinese; `[ Edit Quotes ]` (72px) and `[ ✨ AI Quotes ]` (74px) in English.
+  - Added descriptive hover ToolTips (`在记事本中自定义编辑名言 (quotes.txt)` / `通过 AI 智能体 / MCP 批量创作并扩充词库`) for complete clarity.
+
+- **Silent MCP Handshake & Prompt-Driven Verification (MCP 静默握手与提示词驱动的主动验证)**:
+  - Eliminated the intrusive C# bottom-right popup toast (`McpToastDialog`) and configuration field (`McpNotifiedClients`), removing dead UI code and Win32 process-tree queries (`CreateToolhelp32Snapshot`).
+  - Upgraded MCP setup prompt (`McpConfigHelper.GenerateAgentPrompt`): after merging configuration, the AI Agent instructs the user to reload the editor window (e.g. `Developer: Reload Window` in Cursor) and then calls the `iclock_notify` tool to send a greeting, verifying desktop connectivity on demand.
+
+- **Removal of Legacy Tool-Side MCP Auto-Injection (彻底移除工具端盲注代码与过时指令)**:
+  - Completely deleted legacy tool-side file manipulation code: `McpConfigHelper.Inject`, `McpConfigHelper.Remove`, and JSON formatting utility `McpConfigHelper.FormatJson` (~150 lines).
+  - Removed obsolete `--mcp-install` and `--mcp-uninstall` CLI commands and help entries.
+  - Fully embraced the modern AI Agent prompt-driven autonomous configuration workflow (`--mcp-prompt`), eliminating brittle hardcoded path guessing and the risk of overwriting user configuration files, while preserving clean read-only MCP detection (`IsAgentMcpConfigured`).
+
+- **Binary Footprint Reduction & Codebase Pruning (可执行文件体积深度优化)**:
+  - Deduplicated repeated ComboBox setup logic in `SettingsDialog` (`AddCombo`).
+  - Pruned unused helper overloads in `AiAgentQuoteHelper` and replaced redundant closure delegates with native button hover properties.
+  - Eliminated `CliHelpDialog`, `McpToastDialog`, `McpNotifiedClients`, and legacy tool-side MCP injection routines.
+  - Maintained `iClock.exe` size at ultra-light **253 KB (260,096 bytes)** while packaging full Win11 Fluent UI, stdio MCP Server, IPC pipeline, and 20+ AI agent presets.
+  - All 44 regression tests in `SelfCheck.exe` remain 100% green.
+
+## [1.06] - 2026-10-16
+
+### Added
+
+- **Smart Custom Quote Sequence Number Stripping (自定义名言序号智能剥离)**:
+  - Supports adding arbitrary sequence numbers to quotes in `quotes.txt` for easy maintenance and sorting in text editors (e.g. `1. `, `02、`, `[3]`, `(4)`, `5) `, `6: `, `No. 7 `, `#8 `, `①`, `1．`, `１．`).
+  - Sequence numbers are automatically parsed and stripped at the `QuoteItem` single-point choke gate without altering the quote text or author.
+  - Desktop quote HUD overlay, Settings Tab 1 preview card, and MCP status projections automatically present clean, unnumbered quotes.
+  - Anti-false-positive regex preserves numbers within actual quote texts (e.g. `《1984》是一部好书`, `3.1415926是圆周率`, `1984年发生的事`, `100%努力`).
+
+- **Native MCP (Model Context Protocol) Server & Desktop Decision Gate (`iclock.com --mcp`)**:
+  - Built-in JSON-RPC 2.0 stdio Model Context Protocol (MCP) server directly inside `iclock.com` with **0 external dependencies** (using .NET standard library `JavaScriptSerializer`).
+  - Seamlessly bridges AI assistants and autonomous coding agents (Claude Desktop, Cursor, Antigravity, Cline, Roo Code, etc.) with the user's physical Windows desktop.
+  - Features 5 native MCP tools:
+    - **`iclock_ask_human` (Desktop Decision Gate / 桌面决策请示门禁)**: The flagship Human-in-the-Loop tool. Allows AI agents to pop up an elegant, TopMost Win11 Fluent modal card on the user's screen before making high-stakes decisions (e.g. database migration, deleting files, committing to main, paid API calls). Supports option buttons with number key shortcuts (`1`..`9`), free-text input mode, and defaults to patient infinite wait (永不超时 / 无倒计时焦虑), with optional timeout for unattended scripts.
+      - **智能前后台感知与免打扰 (Smart Focus Detection)**：当宿主（如 Cursor）处于前台活跃状态时，门禁窗口以温和非抢焦模式（`ShowWithoutActivation`）置顶浮现，不中断正在打字输入的代码与编辑器焦点；仅当宿主处于后台（用户切去浏览器、全屏视频等）时才触发机械铃音与强聚焦唤醒。
+      - **支持 `background_only` 聊天窗自适应降级**：支持传入 `background_only: true`。若检测到用户正聚焦宿主窗口，工具立即返回 `{ in_foreground: true }`，引导智能体自主转而在内置聊天窗口提问。
+    - **`iclock_timer`**: Start work/break timers, pause, resume, or reset active desktop countdowns with custom end messages.
+    - **`iclock_notify`**: Push custom desktop notification alerts with optional sound effects when background agent tasks complete.
+    - **`iclock_quote`**: Display inspirational quotes or custom status messages directly on the desktop overlay.
+    - **`iclock_status`**: Real-time query of the countdown timer's active state, remaining seconds, and configured duration.
+  - **Zero-Modal Unified MCP Setup & 3 Core Capabilities Showcase (零弹窗单页统一 MCP 配置与三大核心能力演示矩阵)**:
+    - **智能体列表精简为 3~4 行与滚动暗示**：将智能体检测列表由 232px 精简至 116px（完整容纳 3 张卡片并自然微露第 4 张上沿，保留流畅鼠标滚轮与滚动条），释放出 116px 黄金纵向空间。
+    - **剔除生硬黑色外框，升级原生 Win11 纯白卡片与微发丝线分割 (Hairline Divided Card Container)**：
+      - 彻底去除各功能项原生的 `BorderStyle.FixedSingle` 粗黑单线边框。
+      - 采用一体化纯白卡片容器 (`panelMcpBox`)，外围环绕浅淡精致的 Win11 边框 (`#D8DCE4`)，行间通过微发丝分割线 (`#EEF0F4`) 柔和分隔，完美融入 Win11 设置美学。
+    - **精简聚焦 3 项刚需核心能力与统一对齐的 `[ 演示 ]` 按钮**：
+      - 去除智能体协作中必要性较低的“倒计时协同”项，聚焦高价值刚需场景：
+      - **决策请示门禁 (`ask_human`)**：关键高危操作置顶阻断式人工审批 $\rightarrow$ `[ 演示 ]`（弹出置顶阻断决策卡片）。
+      - **任务完成提醒 (`notify`)**：后台耗时任务完成时全向弹窗与声音唤醒 $\rightarrow$ `[ 演示 ]`（播放机械铃音并弹出完成气泡）。
+      - **桌面状态投射 (`quote`)**：智能体在屏幕投射当前进展与工作便签 $\rightarrow$ `[ 演示 ]`（桌面浮现磨砂态势浮窗，展示 AI 实时状态）。
+    - **智能体后台任务提醒与 MCP 直连同级融合架构 (Proposal A+C Macro Fusion & Live Status Toggle)**：
+      - **同级对齐的两大核心板块**：
+        - **上半板块（智能体后台任务提醒）**：采用两行式左侧标题区（粗体标题 + 核心能力副标题说明），右侧对称布置 `[ 重新检测 ]` (72px) 与动态状态切换胶囊按钮 `[ ● 已开启 ]` / `[ ○ 已停用 ]` (76px)，支持用户点击即时启停后台任务检测，同时卡片状态在“正在监听”与“未监听”之间联动过渡；智能体列表精简卡片结构，仅呈现清晰的状态圆点、进程名称与状态徽章（`[ 运行中 ]` / `[ 已就绪 ]` / `[ 未监听 ]`），彻底移除了脆弱且冗余的行内单体配置按钮，配合原生 Win11 7px 超轻极简滚动条，杜绝空白回顶异常。
+        - **下半板块（MCP 协议直连·通用智能体一键接入提示词）**：粗体标题 `MCP 协议直连 (3项核心能力)` 与右侧 `[ 复制接入提示词 ]` (118px) 严密对齐；点击即可一键将结构化的智能体接入提示词（含当前机器上的 `iclock.com` 绝对物理路径与参数说明）写入剪贴板，用户只需直接发给任意 AI 智能体（Antigravity、Cursor、Claude、Windsurf、Cline、Roo Code 等），由智能体依据宿主环境全自动完成合并与配置，省去繁琐的手动编辑；下承 150px 纯白发丝线卡片，清晰罗列决策请示门禁、任务完成提醒、桌面状态投射三大核心能力，每项右侧统一匹配极简 `[ 演示 ]` 按钮。
+        - **CLI 新增 `--mcp-prompt` 命令行指令**：终端直接执行 `iclock --mcp-prompt` 即可标准输出专用于 AI 智能体的 MCP 接入提示词。
+    - **彻底移除底部“保存”和“取消”按钮及分割线（Win11 Fluent 即改即存模式）**：
+      - 依循 Windows 11 现代 Fluent 交互规范，消灭传统旧式对话框底部的“保存”和“取消”按钮及横向分割底线。
+      - 窗口客户区高度精简至 468px，垂直边距均匀通透，三个 Tab 均告别遮挡与冗余视觉噪音。
+      - 引入即改即存（Auto-save on change/close）机制：关闭设置窗口时全量草稿设置自动提交持久化；“开机自启动”勾选时支持即时检测临时/下载目录风险提示，提升交互平滑度与安全性。
+    - Automated test coverage: Check 41 in `tests/SelfCheck.cs` verifying full MCP protocol handshake (`initialize`, `ping`, `tools/list`, error handling), `McpConfigHelper` mapping and lossless merge/removal, unified Tab 2 MCP controls (`btnMcpCopyJson`, `btnMcpDemo`, `btnMcpDemoNotify`, `btnMcpDemoQuote`), `GenerateAgentPrompt`, `--mcp-config`, `--mcp-prompt`, dynamic status toggling, and IPC dispatch. All 41 tests pass with 100% success rate.
+
+- **Daily Inspirational Quote Popup (每日格言 / Daily Quotes)**:
+  - Automatically pops up once daily upon application startup or morning unlock, elegantly floating horizontally centered at `Y = 120px` (comfortably below countdown text `Y = 60..96px` and above the centered settings panel `Y = 242px+`).
+  - Ultra-minimalist borderless design: 100% transparent background and mouse click-through (`HTTRANSPARENT`) by default, completely unblocking clicks to underlying windows or documents. Removed redundant headers to direct attention straight to quote text and author.
+  - Hover activation & 80% frosted glass transparency: moving mouse into the card dynamically surfaces a Win11 frosted acrylic card rendered with native 32-bit ARGB `UpdateLayeredWindow` at 80% transparency (20% opacity), with micro vector action glyphs (`↻` Next Quote / 换一句, `📌` Pin to desktop / 钉在屏幕, `✕` Close / 关闭) and bottom progress line.
+  - Font & color consistency with countdown: automatically inherits the countdown timer's font family (`settings.FontFamily`) and vibrant color (`settings.Color`), with adaptive dual-layer high-contrast drop-shadows ensuring crystal-clear text on any light or dark background.
+  - Right-edge width drag resizing: hover over the right edge (highlighted with a 3-dot grip handle and `↔` cursor) to freely widen or narrow the card; text re-wraps in real time, card height adapts dynamically, and customized width is automatically saved across sessions (`QuoteWidth`).
+  - Zero-overhead adaptive timer: 巡检 timer frequency optimized to 200ms (cutting 75% timer wakeups), and completely hibernates (0% polling) during hover interactions via event-driven Win32 mouse tracking.
+  - Direct dragging & intuitive gestures: double-click anywhere on the card to cycle to the next quote, press `Esc` to dismiss, drag anywhere on the card blank area to reposition freely with automatic coordinate persistence, and `Ctrl + MouseWheel` to scale font size (`8pt` - `24pt`) with automatic persistence across sessions (`QuoteFontSize`).
+  - Dual quotes source: bundled with 10 classic quotes, and seamlessly reads user-defined quotes from `quotes.txt` with adaptive UTF-8 / ANSI encoding detection.
+  - 3-Tab Settings Architecture & Aesthetic Customization (三标签独立架构与独立美化):
+    - SettingsDialog cleanly refactored into 3 independent tabs: `倒计时 (Timer)`, `每日格言 (Daily Quotes)`, and `AI 智能体 (AI Agents)`. Upgraded tab navigation to authentic **Windows 11 File Explorer Multi-Tab Architecture (Win11 资源管理器标签页风格)**: pure white elevated cards with 6px top rounded corners and seamless flat-bottom connection directly into the content pane for the active tab, subtle 14px vertical dividers between inactive tabs, and pure clean typography without emoji visual clutter.
+    - **Top-Left "今日" / "TODAY" Diagonal Corner Ribbon Badge (格言框左上角 45° 缎带角标)**:
+      - 在「每日格言」展示卡片 (`panelQuoteCard`) 左上角新增 Windows 11 主题蓝 (`#0067C0`) 45° 斜向缎带小三角角标。
+      - 纯白粗体字标示“今日”（英文环境下自适应为“TODAY”），赋予卡片精致的今日日历与便签标签感；通过原生 GDI+ 矢量渲染 (`FillPolygon` + 旋转 `DrawString`)，零内存泄漏、零额外控件开销。
+    - Unified Color ComboBox & Preset Palette (双面板统一色卡下拉框):
+      - Replaced the asymmetric 128px "点击选取…" button and 52px preview square in Tab 0 with the exact same full-width 188px `ComboBox` (`timerColorCombo`) used in Tab 1.
+      - Integrated 9 one-click preset colors (Classic Red, Soft White, Warm Gold, Mint, Cyan, Pink, Green, Purple, Warm Orange) with anti-aliased 10px circular color chips, plus a "自选… / Custom…" option for arbitrary colors.
+      - 100% shared rendering logic (`DrawColorItem`) and real-time cross-tab synchronization with `quoteColorCombo` ("跟随倒计时").
+    - Pinned Desktop Quote Persistence on Tab Switch (标签页切换桌面格言防清除):
+      - Fixed an issue where switching from "每日格言" to "倒计时" or "AI 智能体" tabs erroneously cleared the pinned quote widget from the desktop.
+      - Desktop quotes that are pinned (`📌`) or set to "桌面悬浮显示" now seamlessly persist and maintain their configured window level across tab switches.
+    - Standardized 34px Vertical Rhythm & Unified 28px Control Heights (统一 34px 行距节律与 28px 控件等高规范):
+      - Standardized all input boxes (`TextBox`), dropdown boxes (`ComboBox`), and interactive buttons (`Button`) across the right column (`X = 172, Width = 188`) to a strictly consistent **28px height** (eliminating the previous 36px oversized multiline input box discrepancy).
+      - Applied internal 4px padding with `EM_SETRECTNP` formatting rects to ensure single-line text in both `endMessage` and `hotkeyBox` is optically and vertically centered, perfectly harmonizing with all dropdown rows.
+      - Aligned sound, notice, and startup rows in Tab 0 to a strict 34px vertical pitch (`Top = 334, 368, 402`), eliminating previous bottom crowding and achieving horizontal baseline parity with Tab 1.
+    - 20px Tab Header Spacing & Balanced Whitespace (Tab 标签与设置内容 20px 舒适间距):
+      - Expanded the vertical spacing between the Win11 Tab bar baseline (`Y = 42`) and the first row / hero container of all 3 tabs (`Top = 62`) to exactly **20px**, giving the settings content ample breathing room and a refined native desktop layout.
+      - Synchronized all downstream row coordinates in Tab 0, Tab 1, and Tab 2, ensuring consistent margins above the footer divider line (`Y = 464`).
+    - Dual Switches Row: Master switch `[√] 开启每日格言` on the left (`X = 18, Y = 172`) and `[√] 桌面悬浮显示` right-aligned (`Right = 362, Y = 172`) directly beneath the hero card.
+    - Smart Window Layering & Desktop Background Placement (智能动静分层与桌面置底):
+      - *Morning wakeup popup* (`!isPinned`): stays `TopMost = true` (`HWND_TOPMOST`) for 10s so open windows never occlude it.
+      - *Pinned desktop widget* (`isPinned`): defaults to `HWND_BOTTOM` (`TopMost = false`, 贴在桌面壁纸背景层), acting as an ambient desk calendar that never obstructs code or active documents.
+      - *Configurable Window Level (常驻层级)*: added dropdown in Settings (`桌面背景置底 (默认)` / `始终置顶显示`), saved to `QuotePinTopMost`.
+      - *Automatic Layer Re-seating*: seamless return to `HWND_BOTTOM` after mouse drag release (`OnMouseUp`) or hover exit (`ExitHoverState`).
+    - Multi-Monitor Position Memory & Safety Recovery: supports extended screens situated to the left or above the primary monitor (preserving valid negative coordinates `QuoteX`/`QuoteY` with `-99999` sentinel). Seamlessly verifies visibility across `Screen.AllScreens` and safely auto-recovers upon display disconnects.
+    - Pinned Quote Desktop Persistence (钉住桌面格言持久化): quotes pinned (`📌`) on the desktop remain active and pinned after closing SettingsDialog, preserving workflow continuity.
+    - Unified 2-Column Styling Grid mirroring Tab 0: strict 34px vertical pitch (`X = 18` labels, `X = 172` controls). Consistent "文字大小" (Text size) and "字体样式" (Font style) terminology. Real font face preview rendering via `OnDrawQuoteFontItem`.
+    - Redundancy Elimination (去除冗余色块): Removed duplicate 52px color preview panel in favor of a clean standard 188px full-width color dropdown (`quoteColorCombo`) with embedded 10px circular color chips, achieving pixel-perfect column alignment.
+    - Subtractive simplification (YAGNI): Cleanly removed `panelQuotePreview`, `btnPreviewQuote`, `btnTestAlert`, `btnResetQuotePos`, `quoteColorPreview`, and matrix buttons, purifying dialog interior and footer.
+  - CLI integration: `-q` / `--quote` command to trigger the Daily Quote popup on demand.
+  - **In-Card Native Badge Tooltip (卡片内原生自绘微型胶囊气泡提示)**:
+    - Completely replaced legacy OS `ToolTip` window (which suffered from 300ms latency and 25px+ cursor-drop offset) with an in-card native acrylic badge pill rendered directly on the 32-bit ARGB layered window canvas (`UpdateLayeredWindow`).
+    - Positioned inline horizontally to the left of the button cluster (`X = btnRefreshRect.Left - 6 - badgeW, Y = 6`), with `padTop` elevated to strictly separate the top action bar from quote text, ensuring 100% zero occlusion of quote text and zero screen-edge clipping.
+    - 0ms zero-latency instant response on hover, clean 1px border highlight, soft drop-shadow, and instant state toggle (e.g. clicking pin immediately toggles between "钉在桌面" and "取消固定").
+  - **Dual-Subsystem CLI Architecture (`iclock.com` + `iClock.exe`)**:
+    - Replaced asynchronous console attachment hacks (`RestoreConsolePrompt()`) with an ultra-lightweight Windows console shim `iclock.com` (7.6KB).
+    - In command lines (PowerShell / CMD), typing `iclock` prioritizes `.com` according to Windows `%PATHEXT%` precedence, synchronously awaiting execution and placing the shell prompt cleanly below all output.
+    - Double-clicking or shortcut launch runs `iClock.exe` (`/target:winexe`), maintaining zero-console flash for pure GUI desktop workflows.
+  - **CLI Lifecycle & Single-Run Automation (`--quit` & `--once`)**:
+    - Added graceful CLI exit commands (`iclock --quit`, `iclock quit`, `iclock --exit`, `iclock exit`, `iclock -x`), allowing scripts and terminal workflows to safely terminate the running background instance with clean session persistence and hotkey unregistration.
+    - Added single-run mode (`--once`): allows standalone one-shot timers (`iclock -s 25 --once`) or script notices (`iclock -n "Done" --once`) that cleanly exit after completion/dismissal without lingering in the system tray.
+    - **Running Desktop Instance Protection (桌面常驻进程防退出保护)**: When iClock is already running as a resident desktop app, issuing commands with `--once` safely executes the countdown or notification on the desktop without terminating the resident program upon completion.
+  - **Desktop Quote Font Size Synchronization & Tab 0 Color Immunity**:
+    - Fixed an issue where changing countdown timer colors in Tab 0 clobbered and altered the desktop quote's font size back to stale settings.
+  - **Interface Introductions Modernization & Alignment (界面工具介绍与指引现代化升级)**:
+    - **AboutDialog Product Positioning Modernization (关于窗口产品定位与一句式概括)**:
+      - Updated subtitle from the legacy narrow "桌面极简悬浮倒计时工具" to a holistic, feature-free single-sentence byline:
+        - 中文：`极简通透、轻量无打扰的桌面专注与效率伴侣`
+        - English: `Minimalist & distraction-free desktop focus companion`
+      - Enabled `lblDesc.UseMnemonic = false` to eliminate accelerator key consumption of literal `&`, displaying crisply on a single line within 310px width.
+      - Added author signature attribution at the bottom of the dialog: `作者：gujiangwen` (zh) / `Designed & Built by gujiangwen` (en).
+    - **SettingsDialog Tab 0 Minimalist Layout (倒计时设置界面底部留白极简优化)**:
+      - 依用户需求精简移除了倒计时设置面板底部的提示文字，保持界面开阔通透、纯粹简洁。
+    - **SettingsDialog Tab 2 AI Agent Single-Line Desc (AI 智能体说明文案单行自适应升级)**:
+      - 将「启用智能体后台任务完成提醒」下方的多行硬编码介绍精炼为一句概括性单行文案（`智能体后台任务完成时自动弹窗提醒，点击可切回工作窗口。`），去除 `\n` 硬回车并启用控件级自适应折行。
+      - 释放垂直空间使智能体列表容器高度扩展 18px（`panelAgentBox` 增至 232px），提升列表展示容量与整体精致度。
+    - **CliHelpDialog Command Quick Reference Expansion (命令行帮助弹窗 8 大高频命令补齐)**:
+      - Expanded the CLI command reference from 5 commands to 8 comprehensive commands (`-s`, `-p/-r`, `--reset`, `--rest`, `-n`, `-q`, `--once`, `--quit`).
+      - Dynamically bound command bounds (`Width = 142px` code font, `Width = 234px` description) and expanded `ClientSize` to `420 x 430` for comfortable, non-wrapping presentation.
+- **Classic Telephone Mechanical Ring Alert**: Replaced alert sound 2 with an authentic mechanical two-bell telephone chime ("叮铃铃") generated via harmonic frequency synthesis (440Hz + 480Hz modulated at 20Hz ringer cadence).
+- **Automated Test Suite Expansion**: Added test checks 34 to 40 in `tests/SelfCheck.cs`, verifying telephone tone synthesis, 3-tab settings navigation, daily quote live preview controls, color/font serialization, custom quote parsing, IPC triggers, quote font size wheel synchronization, Tab 0 timer color change immunity, CLI `--once` running instance immunity & quit lifecycle, in-card badge tooltips, centered sandwich layout positioning, and user-facing tool introductions modernization. All 40 tests pass with 100% success rate.
+
 ## [1.05] - 2026-10-15
 
 ### Added

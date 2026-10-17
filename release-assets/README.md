@@ -1,9 +1,9 @@
-# GitHub Release assets
+# GitHub Release Assets
 
-Upload these two files to the corresponding GitHub Release:
+Upload these release assets to the corresponding GitHub Release:
 
-- `iClock-1.01-windows.exe` — standalone executable.
-- `iClock-1.01-windows.zip` — application portable package.
-- `iClock-1.01-SHA256SUMS.txt` — SHA-256 checksums.
+- `iClock-1.07-windows.zip` — application portable package (Default recommended download).
+- `iClock-1.07-windows.exe` — standalone executable.
+- `iClock-1.07-SHA256SUMS.txt` — SHA-256 integrity checksums.
 
-These generated assets are ignored by Git so binaries do not enter the source history. Publish the ZIP package so users receive the application, quick-start guide, and license together. Do not upload the standalone `.exe` sidecar; the ZIP is the supported download package.
+These generated assets are ignored by Git so binaries do not enter the source history. The portable ZIP package is the primary, default recommended download: it prevents modern browser (Edge / Chrome) and Windows SmartScreen untrusted binary false alarms, and provides the application, quick-start guide, and license together.

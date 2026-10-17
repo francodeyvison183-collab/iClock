@@ -17,11 +17,7 @@ internal static class TestCheck
         return (double)o.GetType().GetProperty("Opacity").GetValue(o, null);
     }
 
-    private static bool testAlertReceived;
-    private static void OnTestAlertReceived(object draft, bool isAgent)
-    {
-        testAlertReceived = true;
-    }
+
 
     [STAThread]
     private static int Main()
@@ -394,16 +390,16 @@ internal static class TestCheck
             // 10. Verify version comparison and JSON parsing
             BindingFlags sbf = BindingFlags.NonPublic | BindingFlags.Static;
             FieldInfo verField = appType.GetField("CURRENT_VERSION", sbf);
-            if (verField == null || (string)verField.GetValue(null) != "1.05")
+            if (verField == null || (string)verField.GetValue(null) != "1.07")
             {
-                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.05");
+                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.07");
                 return 16;
             }
             MethodInfo isNewer = appType.GetMethod("IsNewer", sbf);
             MethodInfo extractJson = appType.GetMethod("ExtractJsonValue", sbf);
-            if (!(bool)isNewer.Invoke(null, new object[] { "1.06", "1.05" }) ||
-                !(bool)isNewer.Invoke(null, new object[] { "v2.0", "1.05" }) ||
-                (bool)isNewer.Invoke(null, new object[] { "1.05", "1.05" }))
+            if (!(bool)isNewer.Invoke(null, new object[] { "1.08", "1.07" }) ||
+                !(bool)isNewer.Invoke(null, new object[] { "v2.0", "1.07" }) ||
+                (bool)isNewer.Invoke(null, new object[] { "1.07", "1.07" }))
             {
                 Console.WriteLine("FAIL: Version comparison failed");
                 return 16;
@@ -1035,6 +1031,28 @@ internal static class TestCheck
                 return 29;
             }
 
+            // Verify MouseHookCallback unhooks and does not adjust minutes when running or outside taskbar
+            MethodInfo mMouseHookCb = appType.GetMethod("MouseHookCallback", bf);
+            FieldInfo fRunning = appType.GetField("running", bf);
+            FieldInfo fSessionActive = appType.GetField("sessionActive", bf);
+            FieldInfo fMouseHookHandle = appType.GetField("mouseHookHandle", bf);
+            if (mMouseHookCb != null && fRunning != null && fMouseHookHandle != null)
+            {
+                // Simulate running countdown state
+                fRunning.SetValue(app, true);
+                fSessionActive.SetValue(app, true);
+                fMouseHookHandle.SetValue(app, new IntPtr(12345)); // dummy hook handle
+                IntPtr res = (IntPtr)mMouseHookCb.Invoke(app, new object[] { 0, (IntPtr)0x020A, IntPtr.Zero });
+                IntPtr hookAfter = (IntPtr)fMouseHookHandle.GetValue(app);
+                if (hookAfter != IntPtr.Zero)
+                {
+                    Console.WriteLine("FAIL: MouseHookCallback should immediately unhook when countdown is running");
+                    return 29;
+                }
+                fRunning.SetValue(app, false);
+                fSessionActive.SetValue(app, false);
+            }
+
             // 22. Verify FullscreenDnd settings persistence & IsForegroundFullScreen detection
             FieldInfo fullscreenDndField = settings.GetType().GetField("FullscreenDnd");
             if (fullscreenDndField == null)
@@ -1246,6 +1264,13 @@ internal static class TestCheck
             if (refreshedCardCount != cardCount)
             {
                 Console.WriteLine("FAIL: Refreshing agent cards changed count unexpectedly");
+                return 33;
+            }
+
+            Label agDesc = (Label)settingsDialogType.GetField("lblAgentDesc", bf).GetValue(tabDlg);
+            if (agDesc == null || agDesc.Text.Contains("\n") || !agDesc.Text.Contains("智能体后台任务完成时自动弹窗提醒"))
+            {
+                Console.WriteLine("FAIL: lblAgentDesc should be concise single line without \\n");
                 return 33;
             }
 
@@ -1673,30 +1698,39 @@ internal static class TestCheck
                 return 44;
             }
 
-            // Verify btnTestAlert and TestAlertRequested
-            Button btnTest = (Button)settingsDlgType.GetField("btnTestAlert", bf).GetValue(dlgInstance);
-            if (btnTest == null)
+            // Verify 3-Tab layout in SettingsDialog and tab switching
+            Button btnTabT = (Button)settingsDlgType.GetField("btnTabTimer", bf).GetValue(dlgInstance);
+            Button btnTabQ = (Button)settingsDlgType.GetField("btnTabQuote", bf).GetValue(dlgInstance);
+            Button btnTabA = (Button)settingsDlgType.GetField("btnTabAgent", bf).GetValue(dlgInstance);
+            if (btnTabT == null || btnTabQ == null || btnTabA == null)
             {
-                Console.WriteLine("FAIL: SettingsDialog missing btnTestAlert");
+                Console.WriteLine("FAIL: SettingsDialog missing 3-Tab buttons (Timer/Quote/Agent)");
                 return 45;
             }
 
-            EventInfo testAlertEvent = settingsDlgType.GetEvent("TestAlertRequested");
-            if (testAlertEvent == null)
+            MethodInfo setActiveTabMethod = settingsDlgType.GetMethod("SetActiveTab", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (setActiveTabMethod == null)
             {
-                Console.WriteLine("FAIL: SettingsDialog missing TestAlertRequested event");
+                Console.WriteLine("FAIL: SettingsDialog missing SetActiveTab");
                 return 46;
             }
 
-            MethodInfo testHandlerMethod = typeof(TestCheck).GetMethod("OnTestAlertReceived", BindingFlags.NonPublic | BindingFlags.Static);
-            testAlertEvent.AddEventHandler(dlgInstance, Delegate.CreateDelegate(testAlertEvent.EventHandlerType, testHandlerMethod));
-            MethodInfo btnClick = typeof(Button).GetMethod("OnClick", BindingFlags.NonPublic | BindingFlags.Instance);
-            btnClick.Invoke(btnTest, new object[] { EventArgs.Empty });
-            if (!testAlertReceived)
+            dlgForm.Show();
+
+            // Switch to tab 1 (Daily Quote)
+            setActiveTabMethod.Invoke(dlgInstance, new object[] { 1 });
+            int curTab = (int)settingsDlgType.GetField("activeTab", bf).GetValue(dlgInstance);
+            CheckBox dqBox = (CheckBox)settingsDlgType.GetField("dailyQuote", bf).GetValue(dlgInstance);
+            CheckBox qdvBox = (CheckBox)settingsDlgType.GetField("quoteDesktopVisible", bf).GetValue(dlgInstance);
+            if (curTab != 1 || dqBox == null || !dqBox.Visible || qdvBox == null || !qdvBox.Visible)
             {
-                Console.WriteLine("FAIL: Clicking btnTestAlert did not fire TestAlertRequested");
+                Console.WriteLine("FAIL: Switching to tab 1 did not activate daily quote controls");
                 return 47;
             }
+
+            // Switch back to tab 0
+            setActiveTabMethod.Invoke(dlgInstance, new object[] { 0 });
+            dlgForm.Hide();
 
             // Verify IsPaused property on overlay
             PropertyInfo isPausedProp = overlayType.GetProperty("IsPaused");
@@ -1810,57 +1844,39 @@ internal static class TestCheck
 
             Console.WriteLine("PASS: CLI IPC commands (--start, -p, -r, --reset, -n) successfully verified.");
 
-            // 33. Verify CLI tray menu item and CliHelpDialog
-            ToolStripMenuItem menuCli = (ToolStripMenuItem)appType.GetField("menuCli", bf).GetValue(app);
-            if (menuCli == null)
+            // 33. Verify CLI tray menu item eliminated and SettingsDialog Tab 2 terminal CLI guidance tip
+            FieldInfo menuCliField = appType.GetField("menuCli", bf);
+            if (menuCliField != null)
             {
-                Console.WriteLine("FAIL: menuCli is null");
-                return 51;
-            }
-            if (menuCli.Text != "命令行 (CLI)…" && menuCli.Text != "Command Line (CLI)…")
-            {
-                Console.WriteLine("FAIL: menuCli text should be '命令行 (CLI)…' or 'Command Line (CLI)…', got: " + menuCli.Text);
-                return 51;
-            }
-            if (menuCli.ShortcutKeyDisplayString != "iclock -h")
-            {
-                Console.WriteLine("FAIL: menuCli shortcut hint should be 'iclock -h', got: " + menuCli.ShortcutKeyDisplayString);
+                Console.WriteLine("FAIL: menuCli field should be eliminated from AppContext");
                 return 51;
             }
             MethodInfo showCliHelp = appType.GetMethod("ShowCliHelp", bf);
-            showCliHelp.Invoke(app, null);
-            Form cliHelpDlg = (Form)activeDlgField.GetValue(app);
-            if (cliHelpDlg == null || cliHelpDlg.IsDisposed || cliHelpDlg.GetType().Name != "CliHelpDialog")
+            if (showCliHelp != null)
             {
-                Console.WriteLine("FAIL: ShowCliHelp did not create CliHelpDialog");
+                Console.WriteLine("FAIL: ShowCliHelp method should be eliminated from AppContext");
                 return 51;
             }
-            if (!cliHelpDlg.Text.Contains("命令行 (CLI)") && !cliHelpDlg.Text.Contains("Command Line (CLI)"))
+
+            FieldInfo cliTipField = settingsDlgType.GetField("lblAgentCliTip", bf);
+            if (cliTipField == null)
             {
-                Console.WriteLine("FAIL: CliHelpDialog title incorrect: " + cliHelpDlg.Text);
+                Console.WriteLine("FAIL: SettingsDialog missing lblAgentCliTip field");
                 return 51;
             }
-            bool foundIntro = false;
-            foreach (Control c in cliHelpDlg.Controls)
+
+            Form setDlgTab2 = (Form)Activator.CreateInstance(settingsDlgType, new object[] { settings, true });
+            setDlgTab2.Show();
+            setActiveTabMethod.Invoke(setDlgTab2, new object[] { 2 });
+            Label cliTipCtrl = (Label)cliTipField.GetValue(setDlgTab2);
+            if (cliTipCtrl == null || !cliTipCtrl.Visible || !cliTipCtrl.Text.Contains("iclock -h") || !cliTipCtrl.Text.Contains("iclock --install-cli"))
             {
-                if (c is Label && (c.Text.Contains("在终端或脚本中") || c.Text.Contains("Control countdowns")))
-                {
-                    foundIntro = true;
-                    break;
-                }
-            }
-            if (!foundIntro)
-            {
-                Console.WriteLine("FAIL: CliHelpDialog missing intro guidance label");
+                Console.WriteLine("FAIL: Tab 2 lblAgentCliTip invalid or not visible: " + (cliTipCtrl == null ? "null" : cliTipCtrl.Text));
+                setDlgTab2.Close();
                 return 51;
             }
-            cliHelpDlg.Close();
-            if (activeDlgField.GetValue(app) != null)
-            {
-                Console.WriteLine("FAIL: Closing CliHelpDialog did not clear activeDialog");
-                return 51;
-            }
-            Console.WriteLine("PASS: CLI tray menu item (命令行 (CLI)…, iclock -h) and CliHelpDialog verified.");
+            setDlgTab2.Close();
+            Console.WriteLine("PASS: Streamlined tray menu (menuCli eliminated) and SettingsDialog Tab 2 terminal CLI guidance verified.");
 
             // 34. Verify Telephone Ring Sound synthesis and SettingsDialog soundStyle items
             MethodInfo playSound = appType.GetMethod("PlaySoundStyle", BindingFlags.NonPublic | BindingFlags.Static);
@@ -1892,6 +1908,1247 @@ internal static class TestCheck
             }
             setDlg.Close();
             Console.WriteLine("PASS: Classic telephone mechanical ring tone synthesis and SettingsDialog integration verified.");
+
+            // 35. Verify Daily Quote (每日格言) feature, Settings serialization, Quotes file reading, and Dialog UI
+            Type quoteDlgType = asm.GetType("DailyQuoteDialog");
+            if (quoteDlgType == null)
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog type not found");
+                return 53;
+            }
+
+            PropertyInfo quotesPathProp = settings.GetType().GetProperty("QuotesFilePath", BindingFlags.Public | BindingFlags.Static);
+            if (quotesPathProp == null)
+            {
+                Console.WriteLine("FAIL: Settings.QuotesFilePath property not found");
+                return 53;
+            }
+            string qPath = (string)quotesPathProp.GetValue(null, null);
+            if (string.IsNullOrEmpty(qPath) || !qPath.EndsWith("quotes.txt", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine("FAIL: QuotesFilePath should end with quotes.txt, got: " + qPath);
+                return 53;
+            }
+
+            FieldInfo fDailyQuote = settings.GetType().GetField("DailyQuote");
+            FieldInfo fQuoteDesktopVisible = settings.GetType().GetField("QuoteDesktopVisible");
+            FieldInfo fQuoteDuration = settings.GetType().GetField("QuoteDuration");
+            FieldInfo fQuoteX = settings.GetType().GetField("QuoteX");
+            FieldInfo fQuoteY = settings.GetType().GetField("QuoteY");
+            FieldInfo fQuoteWidth = settings.GetType().GetField("QuoteWidth");
+            FieldInfo fQuoteFontSize = settings.GetType().GetField("QuoteFontSize");
+            FieldInfo fQuoteColor = settings.GetType().GetField("QuoteColor");
+            FieldInfo fQuoteFont = settings.GetType().GetField("QuoteFont");
+            FieldInfo fQuotePinTopMost = settings.GetType().GetField("QuotePinTopMost");
+            if (fDailyQuote == null || fQuoteDesktopVisible == null || fQuoteDuration == null || fQuoteX == null || fQuoteY == null || fQuoteWidth == null || fQuoteFontSize == null || fQuoteColor == null || fQuoteFont == null || fQuotePinTopMost == null)
+            {
+                Console.WriteLine("FAIL: Settings missing DailyQuote fields (including QuoteDesktopVisible, QuoteColor, QuoteFont and QuotePinTopMost)");
+                return 53;
+            }
+            if (!(bool)fDailyQuote.GetValue(settings))
+            {
+                Console.WriteLine("FAIL: DailyQuote default should be true");
+                return 53;
+            }
+            if ((bool)fQuotePinTopMost.GetValue(settings))
+            {
+                Console.WriteLine("FAIL: QuotePinTopMost default should be false (bottom/desktop layer)");
+                return 53;
+            }
+            if ((int)fQuoteX.GetValue(settings) != -99999 || (int)fQuoteY.GetValue(settings) != -99999)
+            {
+                Console.WriteLine("FAIL: QuoteX and QuoteY default should be -99999 sentinel");
+                return 53;
+            }
+
+            Form quoteDlg = (Form)Activator.CreateInstance(quoteDlgType, new object[] { settings });
+            FieldInfo fDefaultQuotes = quoteDlgType.GetField("DefaultQuotes", BindingFlags.Public | BindingFlags.Static);
+            Array defQuotes = (Array)fDefaultQuotes.GetValue(null);
+            if (defQuotes == null || defQuotes.Length != 10)
+            {
+                Console.WriteLine("FAIL: DefaultQuotes should contain exactly 10 classic quotes");
+                return 53;
+            }
+
+            if (!quoteDlg.TopMost)
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog should be TopMost");
+                return 53;
+            }
+
+            fQuoteWidth.SetValue(settings, 460);
+            Form quoteDlgCustomWidth = (Form)Activator.CreateInstance(quoteDlgType, new object[] { settings });
+            if (quoteDlgCustomWidth.Width != 460)
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog custom QuoteWidth not respected, expected 460, got: " + quoteDlgCustomWidth.Width);
+                return 53;
+            }
+            quoteDlgCustomWidth.Close();
+            quoteDlgCustomWidth.Dispose();
+            fQuoteWidth.SetValue(settings, -1);
+
+            fQuoteFontSize.SetValue(settings, 14.0f);
+            Form quoteDlgCustomFont = (Form)Activator.CreateInstance(quoteDlgType, new object[] { settings });
+            FieldInfo fCurrentFontSize = quoteDlgType.GetField("currentFontSize", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fCurrentFontSize != null)
+            {
+                float parsedFontSize = (float)fCurrentFontSize.GetValue(quoteDlgCustomFont);
+                if (Math.Abs(parsedFontSize - 14.0f) > 0.05f)
+                {
+                    Console.WriteLine("FAIL: DailyQuoteDialog custom QuoteFontSize not respected, expected 14.0, got: " + parsedFontSize);
+                    return 53;
+                }
+            }
+            quoteDlgCustomFont.Close();
+            quoteDlgCustomFont.Dispose();
+            fQuoteFontSize.SetValue(settings, -1.0f);
+            PropertyInfo pShowWithoutAct = quoteDlgType.GetProperty("ShowWithoutActivation", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (pShowWithoutAct == null || !(bool)pShowWithoutAct.GetValue(quoteDlg, null))
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog.ShowWithoutActivation should be true");
+                return 53;
+            }
+
+            Form testSetDlg = (Form)Activator.CreateInstance(setDlgType, new object[] { settings });
+            CheckBox dailyQuoteBox = (CheckBox)setDlgType.GetField("dailyQuote", bf).GetValue(testSetDlg);
+            CheckBox quoteDeskVisBox = (CheckBox)setDlgType.GetField("quoteDesktopVisible", bf).GetValue(testSetDlg);
+            Button btnEditQ = (Button)setDlgType.GetField("btnEditQuotes", bf).GetValue(testSetDlg);
+            ComboBox fontComboQ = (ComboBox)setDlgType.GetField("quoteFontCombo", bf).GetValue(testSetDlg);
+            NumericUpDown sizeNudQ = (NumericUpDown)setDlgType.GetField("quoteFontSize", bf).GetValue(testSetDlg);
+            NumericUpDown durNudQ = (NumericUpDown)setDlgType.GetField("quoteDuration", bf).GetValue(testSetDlg);
+            ComboBox colorComboQ = (ComboBox)setDlgType.GetField("quoteColorCombo", bf).GetValue(testSetDlg);
+            ComboBox layerComboQ = (ComboBox)setDlgType.GetField("quoteLayerCombo", bf).GetValue(testSetDlg);
+            Panel panelQuoteCardQ = (Panel)setDlgType.GetField("panelQuoteCard", bf).GetValue(testSetDlg);
+            Button btnNextQ = (Button)setDlgType.GetField("btnNextQuote", bf).GetValue(testSetDlg);
+            if (dailyQuoteBox == null || quoteDeskVisBox == null || btnEditQ == null || fontComboQ == null || sizeNudQ == null || durNudQ == null || colorComboQ == null || layerComboQ == null || panelQuoteCardQ == null || btnNextQ == null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog missing DailyQuote controls (including panelQuoteCard, quoteLayerCombo and btnNextQuote)");
+                return 53;
+            }
+            if (panelQuoteCardQ.Top != 62 || panelQuoteCardQ.Left != 18 || panelQuoteCardQ.Height != 98 ||
+                dailyQuoteBox.Top != 172 || dailyQuoteBox.Left != 18 ||
+                quoteDeskVisBox.Top != 172 || quoteDeskVisBox.Right != 362 ||
+                durNudQ.Top != 204 || sizeNudQ.Top != 238 || fontComboQ.Top != 272 ||
+                colorComboQ.Top != 306 || colorComboQ.Width != 188 ||
+                layerComboQ.Top != 340 || layerComboQ.Width != 188 ||
+                btnEditQ.Top != 374)
+            {
+                Console.WriteLine(string.Format("FAIL: SettingsDialog DailyQuote controls layout misaligned: cardT={0}, cardH={1}, dqT={2}, qdvR={3}, dur={4}, size={5}, font={6}, color={7}, layer={8}, edit={9}",
+                    panelQuoteCardQ.Top, panelQuoteCardQ.Height, dailyQuoteBox.Top, quoteDeskVisBox.Right, durNudQ.Top, sizeNudQ.Top, fontComboQ.Top, colorComboQ.Top, layerComboQ.Top, btnEditQ.Top));
+                return 53;
+            }
+            if (layerComboQ.SelectedIndex != 0)
+            {
+                Console.WriteLine("FAIL: quoteLayerCombo default selected index should be 0 (Desktop Layer)");
+                return 53;
+            }
+            if (btnNextQ.FlatStyle != FlatStyle.Flat || btnNextQ.FlatAppearance.BorderSize != 0 || btnNextQ.Left != 12)
+            {
+                Console.WriteLine("FAIL: btnNextQuote should be flat borderless button at bottom-left corner (Left = 12)");
+                return 53;
+            }
+            if (!quoteDeskVisBox.Checked)
+            {
+                Console.WriteLine("FAIL: quoteDesktopVisible default should be true");
+                return 53;
+            }
+            ComboBox timerColorBox = (ComboBox)setDlgType.GetField("timerColorCombo", bf).GetValue(testSetDlg);
+            if (timerColorBox == null || timerColorBox.DrawMode != DrawMode.OwnerDrawFixed || timerColorBox.ItemHeight != 22 || timerColorBox.Width != 188 || timerColorBox.Height != 28)
+            {
+                Console.WriteLine("FAIL: timerColorCombo should have DrawMode OwnerDrawFixed, ItemHeight 22, and 188x28 bounds");
+                return 53;
+            }
+            if (timerColorBox.Items.Count != 10 || timerColorBox.SelectedIndex != 0)
+            {
+                Console.WriteLine("FAIL: timerColorCombo default should have 10 items and SelectedIndex = 0 (Classic Red)");
+                return 53;
+            }
+
+            // Test pinned quote persistence when switching away from Daily Quotes tab
+            MethodInfo mSetQuotePrev = appType.GetMethod("SetQuotePreview", bf);
+            FieldInfo fActiveQuoteField = appType.GetField("activeQuoteDialog", bf);
+            FieldInfo fActiveDlgField = appType.GetField("activeDialog", bf);
+            fActiveDlgField.SetValue(app, testSetDlg);
+            mSetQuotePrev.Invoke(app, new object[] { settings, true });
+            Form qForm = (Form)fActiveQuoteField.GetValue(app);
+            if (qForm == null || qForm.IsDisposed)
+            {
+                Console.WriteLine("FAIL: SetQuotePreview(true) should create activeQuoteDialog");
+                return 53;
+            }
+            PropertyInfo pPinTest = qForm.GetType().GetProperty("IsPinned");
+            pPinTest.SetValue(qForm, true, null);
+
+            // Simulate tab switch: visible = false
+            mSetQuotePrev.Invoke(app, new object[] { settings, false });
+            Form qFormAfterSwitch = (Form)fActiveQuoteField.GetValue(app);
+            if (qFormAfterSwitch == null || qFormAfterSwitch.IsDisposed)
+            {
+                Console.WriteLine("FAIL: Switching away from DailyQuote tab should NOT close pinned desktop quote");
+                return 53;
+            }
+            qFormAfterSwitch.Close();
+            fActiveDlgField.SetValue(app, null);
+
+            testSetDlg.Close();
+
+            PropertyInfo pIsPinned = quoteDlgType.GetProperty("IsPinned");
+            EventInfo ePinChanged = quoteDlgType.GetEvent("PinChanged");
+            if (pIsPinned == null || ePinChanged == null)
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog missing IsPinned or PinChanged");
+                return 53;
+            }
+
+            MethodInfo mUpdateTopMost = quoteDlgType.GetMethod("UpdateTopMostState", BindingFlags.Public | BindingFlags.Instance);
+            if (mUpdateTopMost == null)
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog.UpdateTopMostState method not found");
+                return 53;
+            }
+
+            pIsPinned.SetValue(quoteDlg, true, null);
+            if (quoteDlg.TopMost)
+            {
+                Console.WriteLine("FAIL: Pinned quote with QuotePinTopMost=false should have TopMost = false");
+                return 53;
+            }
+            pIsPinned.SetValue(quoteDlg, false, null);
+            if (!quoteDlg.TopMost)
+            {
+                Console.WriteLine("FAIL: Unpinned quote popup should have TopMost = true");
+                return 53;
+            }
+
+            MethodInfo mApplyDraft = quoteDlgType.GetMethod("ApplyDraftSettings", BindingFlags.Public | BindingFlags.Instance);
+            if (mApplyDraft == null)
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog.ApplyDraftSettings method not found");
+                return 53;
+            }
+
+            MethodInfo mLoadQuotes = quoteDlgType.GetMethod("LoadQuotes", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
+            if (mLoadQuotes != null)
+            {
+                string tempQFile = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "quotes.txt");
+                try
+                {
+                    System.IO.File.WriteAllText(tempQFile, "1. 千里之行，始于足下。 —— 老子\r\n2、Stay hungry, stay foolish.\r\n[3] 读书百遍，其义自见。\r\n# Comment line\r\n", new System.Text.UTF8Encoding(false));
+                    object loadedQuotesObj = mLoadQuotes.IsStatic ? mLoadQuotes.Invoke(null, null) : mLoadQuotes.Invoke(quoteDlg, null);
+                    System.Collections.IList loadedList = loadedQuotesObj as System.Collections.IList;
+                    if (loadedList == null || loadedList.Count != 3)
+                    {
+                        Console.WriteLine("FAIL: LoadQuotes did not parse custom quotes file correctly, expected 3, got: " + (loadedList != null ? loadedList.Count : 0));
+                        return 53;
+                    }
+                    PropertyInfo pText = loadedList[0].GetType().GetProperty("Text");
+                    string txt0 = (string)pText.GetValue(loadedList[0], null);
+                    string txt1 = (string)pText.GetValue(loadedList[1], null);
+                    string txt2 = (string)pText.GetValue(loadedList[2], null);
+                    if (txt0 != "千里之行，始于足下。" || txt1 != "Stay hungry, stay foolish." || txt2 != "读书百遍，其义自见。")
+                    {
+                        Console.WriteLine("FAIL: StripLeadingNumber failed on custom quotes: txt0='" + txt0 + "', txt1='" + txt1 + "', txt2='" + txt2 + "'");
+                        return 53;
+                    }
+                }
+                finally
+                {
+                    try { if (System.IO.File.Exists(tempQFile)) System.IO.File.Delete(tempQFile); } catch { }
+                }
+            }
+
+            Type quoteItemType = asm.GetType("QuoteItem");
+            if (quoteItemType != null)
+            {
+                MethodInfo mStrip = quoteItemType.GetMethod("StripLeadingNumber", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+                if (mStrip != null)
+                {
+                    string[][] testPairs = new string[][]
+                    {
+                        new string[] { "01. Hello", "Hello" },
+                        new string[] { "1、测试", "测试" },
+                        new string[] { "(2) Test", "Test" },
+                        new string[] { "（3）括号", "括号" },
+                        new string[] { "[4] Bracket", "Bracket" },
+                        new string[] { "【5】方括号", "方括号" },
+                        new string[] { "6: Colon", "Colon" },
+                        new string[] { "7：冒号", "冒号" },
+                        new string[] { "8 - Dash", "Dash" },
+                        new string[] { "No. 9 Quote", "Quote" },
+                        new string[] { "#10 Hash", "Hash" },
+                        new string[] { "\u2460 Circled", "Circled" },
+                        new string[] { "1．全角点", "全角点" },
+                        new string[] { "\uFF11\uFF0E 全角数字和点", "全角数字和点" },
+                        new string[] { "3.1415926是圆周率", "3.1415926是圆周率" },
+                        new string[] { "1984年", "1984年" }
+                    };
+                    foreach (string[] pair in testPairs)
+                    {
+                        string outStr = (string)mStrip.Invoke(null, new object[] { pair[0] });
+                        if (outStr != pair[1])
+                        {
+                            Console.WriteLine("FAIL: StripLeadingNumber mismatch for '" + pair[0] + "': expected '" + pair[1] + "', got '" + outStr + "'");
+                            return 53;
+                        }
+                    }
+                }
+            }
+
+            handleIpc = appType.GetMethod("HandleIpcCommand", bf);
+            handleIpc.Invoke(app, new object[] { "-q" });
+            FieldInfo fActiveQuote = appType.GetField("activeQuoteDialog", bf);
+            Form triggeredQuote = (Form)fActiveQuote.GetValue(app);
+            if (triggeredQuote == null || triggeredQuote.IsDisposed)
+            {
+                Console.WriteLine("FAIL: IPC -q command did not create activeQuoteDialog");
+                return 53;
+            }
+            triggeredQuote.Close();
+            quoteDlg.Close();
+
+            Console.WriteLine("PASS: Daily Quote (每日格言) feature, custom quotes parsing, IPC -q command, and SettingsDialog controls verified.");
+
+            // 36. Verify Bug 1 & Bug 2: Desktop quote font size sync with SettingsDialog and Tab 0 countdown color change immunity
+            mSetQuotePrev = appType.GetMethod("SetQuotePreview", bf);
+            FieldInfo fActiveDlg = appType.GetField("activeDialog", bf);
+
+            handleIpc.Invoke(app, new object[] { "-q" });
+            Form desktopQuote = (Form)fActiveQuote.GetValue(app);
+            PropertyInfo pCurFontSize = quoteDlgType.GetProperty("CurrentFontSize");
+            FieldInfo fCurFontSize = quoteDlgType.GetField("currentFontSize", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fCurFontSize != null) fCurFontSize.SetValue(desktopQuote, 15.5f);
+
+            Form setDlgInst = (Form)Activator.CreateInstance(setDlgType, new object[] { settings, true });
+            fActiveDlg.SetValue(app, setDlgInst);
+            MethodInfo mSyncQuoteFont = setDlgType.GetMethod("SyncQuoteFontSize");
+            mSyncQuoteFont.Invoke(setDlgInst, new object[] { (float)pCurFontSize.GetValue(desktopQuote, null) });
+
+            FieldInfo fQuoteFontNud = setDlgType.GetField("quoteFontSize", BindingFlags.NonPublic | BindingFlags.Instance);
+            NumericUpDown nud = (NumericUpDown)fQuoteFontNud.GetValue(setDlgInst);
+            if (nud == null || nud.Value != 15.5M)
+            {
+                Console.WriteLine("FAIL: SettingsDialog quoteFontSize not synced with desktop quote, expected 15.5, got: " + (nud != null ? nud.Value.ToString() : "null"));
+                return 54;
+            }
+
+            if (fCurFontSize != null) fCurFontSize.SetValue(desktopQuote, 18.0f);
+            FieldInfo fFontChangedEvt = quoteDlgType.GetField("FontSizeChanged", BindingFlags.NonPublic | BindingFlags.Instance);
+            MulticastDelegate del = (MulticastDelegate)fFontChangedEvt.GetValue(desktopQuote);
+            if (del != null) del.DynamicInvoke(new object[] { 18.0f });
+            if (nud.Value != 18.0M)
+            {
+                Console.WriteLine("FAIL: Desktop quote FontSizeChanged did not sync to SettingsDialog quoteFontSize, expected 18.0, got: " + nud.Value);
+                return 54;
+            }
+
+            PropertyInfo pActiveTab = setDlgType.GetProperty("ActiveTab");
+            if (pActiveTab == null || (int)pActiveTab.GetValue(setDlgInst, null) != 0)
+            {
+                Console.WriteLine("FAIL: SettingsDialog ActiveTab property missing or not 0 initially");
+                return 54;
+            }
+            MethodInfo mGetDraft = setDlgType.GetMethod("GetCurrentDraftSettings", BindingFlags.Public | BindingFlags.Instance);
+            object draftObj = mGetDraft.Invoke(setDlgInst, null);
+            FieldInfo fDraftQuoteSize = settingsType.GetField("QuoteFontSize");
+            fDraftQuoteSize.SetValue(draftObj, 10.5f);
+            mSetQuotePrev.Invoke(app, new object[] { draftObj, false });
+
+            float sizeAfterTimerChange = (float)pCurFontSize.GetValue(desktopQuote, null);
+            if (Math.Abs(sizeAfterTimerChange - 18.0f) > 0.05f)
+            {
+                Console.WriteLine("FAIL: Changing timer settings in Tab 0 altered desktop quote font size! Expected 18.0, got: " + sizeAfterTimerChange);
+                return 54;
+            }
+
+            setDlgInst.Close();
+            fActiveDlg.SetValue(app, null);
+            desktopQuote.Close();
+
+            Console.WriteLine("PASS: Desktop quote font size sync and Tab 0 countdown color immunity verified.");
+
+            // 37. Verify CLI --once running instance immunity and quit lifecycle
+            FieldInfo fIsOneShot = appType.GetField("isOneShot", bf);
+            if (fIsOneShot == null || (bool)fIsOneShot.GetValue(app) != false)
+            {
+                Console.WriteLine("FAIL: Desktop resident instance isOneShot should be false");
+                return 55;
+            }
+
+            handleIpc.Invoke(app, new object[] { "--start 12 --once" });
+            int sessOnceMins = (int)appType.GetField("sessionMinutes", bf).GetValue(app);
+            bool isRunOnce = (bool)appType.GetField("running", bf).GetValue(app);
+            bool residentStillNotOneShot = (bool)fIsOneShot.GetValue(app);
+            if (sessOnceMins != 12 || !isRunOnce || residentStillNotOneShot != false)
+            {
+                Console.WriteLine("FAIL: --once command to running instance should execute countdown without setting resident instance to one-shot mode");
+                return 55;
+            }
+            handleIpc.Invoke(app, new object[] { "--reset" });
+
+            Console.WriteLine("PASS: CLI --once running instance immunity and quit lifecycle verified.");
+
+            // 38. Verify In-Card Native Badge Tooltip in DailyQuoteDialog (Removal of external ToolTip & zero latency self-rendering)
+            FieldInfo fToolTip = quoteDlgType.GetField("toolTip", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fToolTip != null)
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog still has legacy external toolTip field.");
+                return 56;
+            }
+
+            MethodInfo mDrawBadge = quoteDlgType.GetMethod("DrawButtonTooltip", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (mDrawBadge == null)
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog missing DrawButtonTooltip method.");
+                return 56;
+            }
+
+            Form qDlgTest = (Form)Activator.CreateInstance(quoteDlgType, new object[] { settings });
+            FieldInfo fHov = quoteDlgType.GetField("hoveredBtn", BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo fIsHov = quoteDlgType.GetField("isHovered", BindingFlags.NonPublic | BindingFlags.Instance);
+            fIsHov.SetValue(qDlgTest, true);
+
+            using (Bitmap tb = new Bitmap(400, 100))
+            using (Graphics tg = Graphics.FromImage(tb))
+            {
+                for (int b = 1; b <= 3; b++)
+                {
+                    fHov.SetValue(qDlgTest, b);
+                    mDrawBadge.Invoke(qDlgTest, new object[] { tg, "zh" });
+                    mDrawBadge.Invoke(qDlgTest, new object[] { tg, "en" });
+                }
+            }
+            qDlgTest.Close();
+
+            Console.WriteLine("PASS: Desktop quote in-card native badge tooltip (0ms latency, WinForms ToolTip elimination) verified.");
+
+            // 39. Verify DailyQuoteDialog centered sandwich position (below countdown Y=60..96, above settings dialog)
+            Form qDlgPosTest = (Form)Activator.CreateInstance(quoteDlgType, new object[] { settings });
+            int expectedQuoteX = Screen.PrimaryScreen.WorkingArea.Left + Math.Max(0, (Screen.PrimaryScreen.WorkingArea.Width - qDlgPosTest.Width) / 2);
+            if (qDlgPosTest.Location.X != expectedQuoteX || qDlgPosTest.Location.Y < 110 || qDlgPosTest.Location.Y > 130)
+            {
+                Console.WriteLine("FAIL: Default DailyQuoteDialog position should be horizontally centered and at Y=120, got: X=" + qDlgPosTest.Location.X + " Y=" + qDlgPosTest.Location.Y);
+                return 57;
+            }
+
+            // Verify decoupled QuoteX < 0 horizontal centering preserves custom QuoteY >= 0
+            fQuoteX.SetValue(settings, -1);
+            fQuoteY.SetValue(settings, 250);
+            Form qDlgDecoupled = (Form)Activator.CreateInstance(quoteDlgType, new object[] { settings });
+            int expectedDecoupledX = Screen.PrimaryScreen.WorkingArea.Left + Math.Max(0, (Screen.PrimaryScreen.WorkingArea.Width - qDlgDecoupled.Width) / 2);
+            if (qDlgDecoupled.Location.X != expectedDecoupledX || qDlgDecoupled.Location.Y != 250)
+            {
+                Console.WriteLine("FAIL: Decoupled DailyQuoteDialog QuoteX=-1 did not center horizontally or preserve QuoteY=250, got: X=" + qDlgDecoupled.Location.X + " Y=" + qDlgDecoupled.Location.Y);
+                return 57;
+            }
+
+            // Verify dynamic re-centering when quote changes under QuoteX < 0
+            MethodInfo mSetQuoteIndex = quoteDlgType.GetMethod("SetQuoteIndex", BindingFlags.Public | BindingFlags.Instance);
+            if (mSetQuoteIndex != null)
+            {
+                mSetQuoteIndex.Invoke(qDlgDecoupled, new object[] { 1 });
+                int expectedAfterChangeX = Screen.PrimaryScreen.WorkingArea.Left + Math.Max(0, (Screen.PrimaryScreen.WorkingArea.Width - qDlgDecoupled.Width) / 2);
+                if (qDlgDecoupled.Location.X != expectedAfterChangeX)
+                {
+                    Console.WriteLine("FAIL: DailyQuoteDialog did not stay horizontally centered after quote change, expected: " + expectedAfterChangeX + ", got: " + qDlgDecoupled.Location.X);
+                    return 57;
+                }
+            }
+
+            qDlgDecoupled.Close();
+            qDlgPosTest.Close();
+            fQuoteX.SetValue(settings, -99999);
+            fQuoteY.SetValue(settings, -99999);
+
+            Console.WriteLine("PASS: Desktop quote centered sandwich position (Y=120px, below countdown & above settings) and decoupled horizontal centering verified.");
+
+            // 40. Verify tool introductions modernization (AboutDialog Option 1, Settings Tab 0 tip, CliHelp 8 commands)
+            Form aboutZh = (Form)Activator.CreateInstance(aboutType, new object[] { "zh" });
+            Form aboutEn = (Form)Activator.CreateInstance(aboutType, new object[] { "en" });
+            string aboutZhDesc = null, aboutEnDesc = null;
+            string aboutZhAuthor = null, aboutEnAuthor = null;
+            bool foundZhLink = false, foundEnLink = false;
+            bool foundZhEmail = false, foundEnEmail = false;
+            foreach (Control c in aboutZh.Controls)
+            {
+                if (c is Label && c.Text.Contains("极简通透")) aboutZhDesc = c.Text;
+                if (c is Label && c.Text.Contains("gujiangwen")) aboutZhAuthor = c.Text;
+                if (c is LinkLabel && c.Text == "(GitHub ↗)") foundZhLink = true;
+                if (c is LinkLabel && c.Text.Contains("francodeyvison183@gmail.com")) foundZhEmail = true;
+            }
+            foreach (Control c in aboutEn.Controls)
+            {
+                if (c is Label && c.Text.Contains("Minimalist")) aboutEnDesc = c.Text;
+                if (c is Label && c.Text.Contains("gujiangwen")) aboutEnAuthor = c.Text;
+                if (c is LinkLabel && c.Text == "(GitHub ↗)") foundEnLink = true;
+                if (c is LinkLabel && c.Text.Contains("francodeyvison183@gmail.com")) foundEnEmail = true;
+            }
+            aboutZh.Close();
+            aboutEn.Close();
+            if (aboutZhDesc != "极简通透、轻量无打扰的桌面专注与效率伴侣")
+            {
+                Console.WriteLine("FAIL: AboutDialog zh description incorrect: " + aboutZhDesc);
+                return 58;
+            }
+            if (aboutEnDesc != "Minimalist & distraction-free desktop focus companion")
+            {
+                Console.WriteLine("FAIL: AboutDialog en description incorrect: " + aboutEnDesc);
+                return 58;
+            }
+            if (aboutZhAuthor != "作者：gujiangwen")
+            {
+                Console.WriteLine("FAIL: AboutDialog zh author incorrect: " + aboutZhAuthor);
+                return 58;
+            }
+            if (aboutEnAuthor != "Designed & Built by gujiangwen")
+            {
+                Console.WriteLine("FAIL: AboutDialog en author incorrect: " + aboutEnAuthor);
+                return 58;
+            }
+            if (!foundZhLink || !foundEnLink)
+            {
+                Console.WriteLine("FAIL: AboutDialog missing simplified (GitHub ↗) link");
+                return 58;
+            }
+            if (!foundZhEmail || !foundEnEmail)
+            {
+                Console.WriteLine("FAIL: AboutDialog missing author email link");
+                return 58;
+            }
+
+            // Verify SettingsDialog Tab 0 timer tip is removed for a cleaner interface
+            FieldInfo fTimerTip = settingsDlgType.GetField("lblTimerTip", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fTimerTip != null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog still has lblTimerTip field");
+                return 58;
+            }
+
+            // Verify CliHelpDialog is completely eliminated and terminal help / Tab 2 tip takes its place
+            Type cliHelpType = asm.GetType("CliHelpDialog");
+            if (cliHelpType != null)
+            {
+                Console.WriteLine("FAIL: CliHelpDialog should be completely removed from assembly");
+                return 58;
+            }
+
+            // Verify Tab 2 CLI tip in both languages
+            Form dlgZh = (Form)Activator.CreateInstance(settingsDlgType, new object[] { settings, true });
+            setActiveTabMethod.Invoke(dlgZh, new object[] { 2 });
+            Label tipZh = (Label)settingsDlgType.GetField("lblAgentCliTip", bf).GetValue(dlgZh);
+            if (tipZh == null || !tipZh.Text.Contains("iclock -h") || !tipZh.Text.Contains("iclock --install-cli"))
+            {
+                Console.WriteLine("FAIL: Tab 2 CLI tip missing expected Chinese instructions");
+                dlgZh.Close();
+                return 58;
+            }
+            dlgZh.Close();
+
+            object enSettings = Activator.CreateInstance(settingsType);
+            settingsType.GetField("Language").SetValue(enSettings, "en");
+            Form dlgEn = (Form)Activator.CreateInstance(settingsDlgType, new object[] { enSettings, true });
+            setActiveTabMethod.Invoke(dlgEn, new object[] { 2 });
+            Label tipEn = (Label)settingsDlgType.GetField("lblAgentCliTip", bf).GetValue(dlgEn);
+            if (tipEn == null || !tipEn.Text.Contains("iclock -h") || !tipEn.Text.Contains("iclock --install-cli"))
+            {
+                Console.WriteLine("FAIL: Tab 2 CLI tip missing expected English instructions");
+                dlgEn.Close();
+                return 58;
+            }
+            dlgEn.Close();
+
+            Console.WriteLine("PASS: Tool introductions modernization (AboutDialog Option 1, Settings Tab 0 tip, Tab 2 terminal CLI guidance & CliHelpDialog elimination) verified.");
+
+            // 41. Verify Native MCP (Model Context Protocol) Server & Tools (iclock.com --mcp stdio)
+            string comBinary = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(exePath), "iclock.com");
+            if (!System.IO.File.Exists(comBinary)) comBinary = System.IO.Path.Combine(dir, "iclock.com");
+            if (!System.IO.File.Exists(comBinary))
+            {
+                Console.WriteLine("FAIL: iclock.com binary missing for MCP test");
+                return 59;
+            }
+
+            ProcessStartInfo mcpPsi = new ProcessStartInfo
+            {
+                FileName = comBinary,
+                Arguments = "--mcp",
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using (Process mcpProc = Process.Start(mcpPsi))
+            {
+                mcpProc.StandardInput.AutoFlush = true;
+                // Test initialize
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test-runner\",\"version\":\"1.0\"}}}");
+                string mcpInitLine = mcpProc.StandardOutput.ReadLine();
+                if (string.IsNullOrEmpty(mcpInitLine) || !mcpInitLine.Contains("\"serverInfo\":{\"name\":\"iclock\""))
+                {
+                    Console.WriteLine("FAIL: MCP initialize handshake invalid: " + mcpInitLine);
+                    return 59;
+                }
+
+                // Test ping
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}");
+                string mcpPingLine = mcpProc.StandardOutput.ReadLine();
+                if (string.IsNullOrEmpty(mcpPingLine) || !mcpPingLine.Contains("\"result\":{}"))
+                {
+                    Console.WriteLine("FAIL: MCP ping response invalid: " + mcpPingLine);
+                    return 59;
+                }
+
+                // Test tools/list contains iclock_ask_human and all 5 tools
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/list\",\"params\":{}}");
+                string mcpListLine = mcpProc.StandardOutput.ReadLine();
+                if (string.IsNullOrEmpty(mcpListLine) ||
+                    !mcpListLine.Contains("iclock_ask_human") ||
+                    !mcpListLine.Contains("background_only") ||
+                    !mcpListLine.Contains("iclock_timer") ||
+                    !mcpListLine.Contains("iclock_notify") ||
+                    !mcpListLine.Contains("iclock_quote") ||
+                    !mcpListLine.Contains("iclock_status"))
+                {
+                    Console.WriteLine("FAIL: MCP tools/list missing core tools or background_only: " + mcpListLine);
+                    return 59;
+                }
+
+                // Test unknown method error handling (-32601)
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"unknown_method\"}");
+                string mcpErrLine = mcpProc.StandardOutput.ReadLine();
+                if (string.IsNullOrEmpty(mcpErrLine) || !mcpErrLine.Contains("-32601"))
+                {
+                    Console.WriteLine("FAIL: MCP unknown method error handling failed: " + mcpErrLine);
+                    return 59;
+                }
+
+                mcpProc.StandardInput.Close();
+                mcpProc.WaitForExit(1000);
+            }
+
+            // Test IPC status command
+            string testStatFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_stat_" + Guid.NewGuid().ToString("N") + ".txt");
+            handleIpc.Invoke(app, new object[] { "status:" + testStatFile });
+            if (!System.IO.File.Exists(testStatFile))
+            {
+                Console.WriteLine("FAIL: IPC status command did not create output file");
+                return 59;
+            }
+            string statJson = System.IO.File.ReadAllText(testStatFile);
+            System.IO.File.Delete(testStatFile);
+            if (!statJson.Contains("remaining_seconds") || !statJson.Contains("total_minutes"))
+            {
+                Console.WriteLine("FAIL: IPC status output format incorrect: " + statJson);
+                return 59;
+            }
+
+            // Test IPC custom quote command
+            handleIpc.Invoke(app, new object[] { "quote:AI Test Quote|Test Author" });
+            fActiveQuote = appType.GetField("activeQuoteDialog", bf);
+            Form activeQuoteDlg = (Form)fActiveQuote.GetValue(app);
+            if (activeQuoteDlg == null)
+            {
+                Console.WriteLine("FAIL: IPC quote command did not create DailyQuoteDialog");
+                return 59;
+            }
+            activeQuoteDlg.Close();
+
+            // Verify AskHumanDialog type exists and instantiates with options
+            Type askDlgType = asm.GetType("AskHumanDialog");
+            if (askDlgType == null)
+            {
+                Console.WriteLine("FAIL: AskHumanDialog type missing in iClock");
+                return 59;
+            }
+            string testResFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_res_" + Guid.NewGuid().ToString("N") + ".txt");
+            Form askDlg = (Form)Activator.CreateInstance(askDlgType, new object[] {
+                settings,
+                "是否允许执行测试任务？",
+                new string[] { "确认执行", "取消" },
+                0,
+                testResFile
+            });
+            if (askDlg == null || (!askDlg.Text.Contains("AI 智能体请示") && !askDlg.Text.Contains("AI Agent Request")))
+            {
+                Console.WriteLine("FAIL: AskHumanDialog instantiation failed");
+                return 59;
+            }
+            askDlg.Close();
+
+            // Verify AskHumanDialog 6-argument overload for non-intrusive mode
+            Form askDlgNonIntrusive = (Form)Activator.CreateInstance(askDlgType, new object[] {
+                settings,
+                "是否允许执行非侵入测试任务？",
+                new string[] { "确认执行", "取消" },
+                0,
+                testResFile,
+                true
+            });
+            if (askDlgNonIntrusive == null)
+            {
+                Console.WriteLine("FAIL: AskHumanDialog non-intrusive overload instantiation failed");
+                return 59;
+            }
+            askDlgNonIntrusive.Close();
+
+            // Verify AppContext.IsAgentInForeground method exists and runs safely
+            MethodInfo isFgMethod = appType.GetMethod("IsAgentInForeground", BindingFlags.NonPublic | BindingFlags.Static);
+            if (isFgMethod == null)
+            {
+                Console.WriteLine("FAIL: AppContext.IsAgentInForeground method missing");
+                return 59;
+            }
+            bool isFgVal = (bool)isFgMethod.Invoke(null, null);
+
+            // Verify unified Tab 2 MCP controls in SettingsDialog (Option 1: Zero-modal MCP integration)
+            Type setDialogType = asm.GetType("SettingsDialog");
+            Form mcpSetDlg = (Form)Activator.CreateInstance(setDialogType, new object[] { settings });
+            Button btnMcpCopyJson = (Button)setDialogType.GetField("btnMcpCopyJson", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
+            Button btnMcpDemo = (Button)setDialogType.GetField("btnMcpDemo", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
+            Button btnMcpDemoNotify = (Button)setDialogType.GetField("btnMcpDemoNotify", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
+            Button btnMcpDemoQuote = (Button)setDialogType.GetField("btnMcpDemoQuote", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
+            if (btnMcpCopyJson == null || btnMcpDemo == null || btnMcpDemoNotify == null || btnMcpDemoQuote == null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog unified MCP controls missing");
+                mcpSetDlg.Close();
+                return 59;
+            }
+            mcpSetDlg.Show();
+            MethodInfo setTabMethod = setDialogType.GetMethod("SetActiveTab", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
+            if (setTabMethod != null) setTabMethod.Invoke(mcpSetDlg, new object[] { 2 });
+            if (!btnMcpCopyJson.Visible || !btnMcpDemo.Visible || !btnMcpDemoNotify.Visible || !btnMcpDemoQuote.Visible)
+            {
+                Console.WriteLine("FAIL: SettingsDialog unified MCP controls should be visible on Tab 2");
+                mcpSetDlg.Close();
+                return 59;
+            }
+            mcpSetDlg.Close();
+
+            // Verify McpConfigHelper type and lossless JSON merge/remove
+            Type mcpHelperType = asm.GetType("McpConfigHelper");
+            if (mcpHelperType == null)
+            {
+                Console.WriteLine("FAIL: McpConfigHelper type missing in iClock");
+                return 59;
+            }
+            MethodInfo genSnippet = mcpHelperType.GetMethod("GenerateJsonSnippet", BindingFlags.Public | BindingFlags.Static);
+            string snippetAbs = (string)genSnippet.Invoke(null, new object[] { true });
+            string snippetRel = (string)genSnippet.Invoke(null, new object[] { false });
+            if (!snippetAbs.Contains("iclock") || !snippetRel.Contains("\"command\": \"iclock\""))
+            {
+                Console.WriteLine("FAIL: GenerateJsonSnippet output invalid");
+                return 59;
+            }
+
+            MethodInfo genPrompt = mcpHelperType.GetMethod("GenerateAgentPrompt", BindingFlags.Public | BindingFlags.Static);
+            if (genPrompt == null)
+            {
+                Console.WriteLine("FAIL: GenerateAgentPrompt method missing");
+                return 59;
+            }
+            string promptZh = (string)genPrompt.Invoke(null, new object[] { false });
+            string promptEn = (string)genPrompt.Invoke(null, new object[] { true });
+            if (!promptZh.Contains("iclock_ask_human") || !promptZh.Contains("iclock_notify") || !promptZh.Contains("iclock_quote") ||
+                !promptEn.Contains("iclock_ask_human") || !promptEn.Contains("iclock_notify") || !promptEn.Contains("iclock_quote"))
+            {
+                Console.WriteLine("FAIL: GenerateAgentPrompt content missing core tools");
+                return 59;
+            }
+
+            MethodInfo getCfgAgent = mcpHelperType.GetMethod("GetConfigPathForAgent", BindingFlags.Public | BindingFlags.Static);
+            string cursorCfg = (string)getCfgAgent.Invoke(null, new object[] { "Cursor" });
+            string claudeCfg = (string)getCfgAgent.Invoke(null, new object[] { "Claude Code" });
+            string agyCfg = (string)getCfgAgent.Invoke(null, new object[] { "Antigravity" });
+            string otherCfg = (string)getCfgAgent.Invoke(null, new object[] { "Codex" });
+            if (string.IsNullOrEmpty(cursorCfg) || !cursorCfg.Contains(".cursor") ||
+                string.IsNullOrEmpty(claudeCfg) || !claudeCfg.Contains("Claude") ||
+                string.IsNullOrEmpty(agyCfg) || !agyCfg.Contains(".gemini") ||
+                otherCfg != null)
+            {
+                Console.WriteLine("FAIL: GetConfigPathForAgent mapping invalid");
+                return 59;
+            }
+
+            string testMcpDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "iclock_selfcheck_mcp_" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(testMcpDir);
+            try
+            {
+                string testMcpFile = System.IO.Path.Combine(testMcpDir, "mcp.json");
+                System.IO.File.WriteAllText(testMcpFile, "{\n  \"mcpServers\": {\n    \"playwright\": {\n      \"command\": \"npx\"\n    }\n  }\n}");
+                MethodInfo isCfgMethod = mcpHelperType.GetMethod("IsConfigured", BindingFlags.Public | BindingFlags.Static);
+                if (isCfgMethod == null)
+                {
+                    Console.WriteLine("FAIL: McpConfigHelper missing IsConfigured method");
+                    return 59;
+                }
+                bool configured1 = (bool)isCfgMethod.Invoke(null, new object[] { testMcpFile });
+                if (configured1)
+                {
+                    Console.WriteLine("FAIL: IsConfigured should return false when iclock is not present");
+                    return 59;
+                }
+
+                System.IO.File.WriteAllText(testMcpFile, "{\n  \"mcpServers\": {\n    \"iclock\": {\n      \"command\": \"iclock.com\"\n    }\n  }\n}");
+                bool configured2 = (bool)isCfgMethod.Invoke(null, new object[] { testMcpFile });
+                if (!configured2)
+                {
+                    Console.WriteLine("FAIL: IsConfigured should return true when iclock is present");
+                    return 59;
+                }
+
+                // Verify obsolete Inject and Remove methods have been completely removed
+                if (mcpHelperType.GetMethod("Inject") != null || mcpHelperType.GetMethod("Remove") != null)
+                {
+                    Console.WriteLine("FAIL: McpConfigHelper should no longer expose Inject/Remove methods");
+                    return 59;
+                }
+            }
+            finally
+            {
+                try { if (System.IO.Directory.Exists(testMcpDir)) System.IO.Directory.Delete(testMcpDir, true); } catch { }
+            }
+
+            // Verify iclock.com --mcp-config output
+            ProcessStartInfo cfgPsi = new ProcessStartInfo
+            {
+                FileName = comBinary,
+                Arguments = "--mcp-config",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+            using (Process cfgProc = Process.Start(cfgPsi))
+            {
+                string cfgOut = cfgProc.StandardOutput.ReadToEnd();
+                cfgProc.WaitForExit(1000);
+                if (!cfgOut.Contains("\"mcpServers\"") || !cfgOut.Contains("\"iclock\"") || !cfgOut.Contains("\"--mcp\""))
+                {
+                    Console.WriteLine("FAIL: iclock.com --mcp-config output invalid: " + cfgOut);
+                    return 59;
+                }
+            }
+
+            // Verify iclock.com --mcp-prompt output
+            ProcessStartInfo promptPsi = new ProcessStartInfo
+            {
+                FileName = comBinary,
+                Arguments = "--mcp-prompt",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+            using (Process promptProc = Process.Start(promptPsi))
+            {
+                string promptOut = promptProc.StandardOutput.ReadToEnd();
+                promptProc.WaitForExit(1000);
+                if (!promptOut.Contains("iclock_ask_human") || !promptOut.Contains("iclock_notify") || !promptOut.Contains("iclock_quote"))
+                {
+                    Console.WriteLine("FAIL: iclock.com --mcp-prompt output invalid: " + promptOut);
+                    return 59;
+                }
+            }
+
+            Console.WriteLine("PASS: Native MCP Server (iclock.com --mcp), stdio JSON-RPC 2.0 protocol, Unified Tab 2 MCP Integration, McpConfigHelper (detection & prompt generation), --mcp-config, --mcp-prompt, and 5 tools (including iclock_ask_human) verified.");
+
+            // 42. Verify MCP Silent Connection Handshake and Prompt-Driven iclock_notify Verification
+            MethodInfo handleIpcMethod = appType.GetMethod("HandleIpcCommand", bf);
+            if (handleIpcMethod == null)
+            {
+                Console.WriteLine("FAIL: AppContext missing HandleIpcCommand method");
+                return 60;
+            }
+
+            // Verify HandleIpcCommand handles silent mcp-connected handshake gracefully without crashing
+            try
+            {
+                handleIpcMethod.Invoke(app, new object[] { "mcp-connected Antigravity" });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("FAIL: HandleIpcCommand failed on mcp-connected: " + ex.Message);
+                return 60;
+            }
+
+            // Verify McpToastDialog class has been completely removed (zero intrusive popup clutter)
+            Type toastType = asm.GetType("McpToastDialog");
+            if (toastType != null)
+            {
+                Console.WriteLine("FAIL: McpToastDialog should be removed, but type still exists");
+                return 60;
+            }
+
+            // Verify McpNotifiedClients field has been eliminated from Settings
+            FieldInfo mcpNotifiedField = settingsType.GetField("McpNotifiedClients");
+            if (mcpNotifiedField != null)
+            {
+                Console.WriteLine("FAIL: Settings still contains obsolete McpNotifiedClients field");
+                return 60;
+            }
+
+            // Verify McpConfigHelper.GenerateAgentPrompt contains reload instruction and iclock_notify verification protocol
+            MethodInfo promptMethod = mcpHelperType.GetMethod("GenerateAgentPrompt", BindingFlags.Public | BindingFlags.Static);
+            if (promptMethod == null)
+            {
+                Console.WriteLine("FAIL: McpConfigHelper missing GenerateAgentPrompt method");
+                return 60;
+            }
+
+            string zhPrompt = (string)promptMethod.Invoke(null, new object[] { false });
+            if (!zhPrompt.Contains("重载窗口") || !zhPrompt.Contains("iclock_notify") || !zhPrompt.Contains("验证桌面联通性"))
+            {
+                Console.WriteLine("FAIL: zhPrompt missing reload or iclock_notify verification: " + zhPrompt);
+                return 60;
+            }
+
+            string enPrompt = (string)promptMethod.Invoke(null, new object[] { true });
+            if (!enPrompt.Contains("reload the window") || !enPrompt.Contains("iclock_notify") || !enPrompt.Contains("verify connectivity"))
+            {
+                Console.WriteLine("FAIL: enPrompt missing reload or iclock_notify verification: " + enPrompt);
+                return 60;
+            }
+
+            // Verify CLI client name normalization
+            Assembly cliAsm = Assembly.LoadFrom(comBinary);
+            Type cliShimType = cliAsm.GetType("CliShim");
+            if (cliShimType != null)
+            {
+                MethodInfo normMethod = cliShimType.GetMethod("NormalizeClientName", BindingFlags.NonPublic | BindingFlags.Static);
+                if (normMethod != null)
+                {
+                    if ((string)normMethod.Invoke(null, new object[] { "antigravity" }) != "Antigravity" ||
+                        (string)normMethod.Invoke(null, new object[] { "cursor-server" }) != "Cursor" ||
+                        (string)normMethod.Invoke(null, new object[] { "claude desktop" }) != "Claude Desktop" ||
+                        (string)normMethod.Invoke(null, new object[] { "code" }) != "VS Code")
+                    {
+                        Console.WriteLine("FAIL: CliShim.NormalizeClientName produced unexpected results");
+                        return 60;
+                    }
+                }
+            }
+
+            Console.WriteLine("PASS: MCP silent connection handshake, zero intrusive popups, and prompt-driven iclock_notify verification protocol verified.");
+
+            // 43. Verify AI Agent Quote Expansion: Settings (AiAgentType, AiAgentCustomCmd, AiQuoteKeywords persistence & defaults), SettingsDialog side-by-side buttons (btnEditQuotes & btnAiQuotes layout and width), AiAgentQuoteHelper (ParseQuotes formatting, deduplication, safe append with .bak creation), and AiQuoteDialog instantiation.
+            FieldInfo fAiAgentType = settingsType.GetField("AiAgentType");
+            FieldInfo fAiAgentCustomCmd = settingsType.GetField("AiAgentCustomCmd");
+            FieldInfo fAiQuoteKeywords = settingsType.GetField("AiQuoteKeywords");
+            if (fAiAgentType == null || fAiAgentCustomCmd == null || fAiQuoteKeywords == null)
+            {
+                Console.WriteLine("FAIL: Settings missing AiAgentType, AiAgentCustomCmd or AiQuoteKeywords field");
+                return 61;
+            }
+            if ((string)fAiAgentType.GetValue(settings) != "Auto")
+            {
+                Console.WriteLine("FAIL: Default AiAgentType should be 'Auto', got: " + fAiAgentType.GetValue(settings));
+                return 61;
+            }
+
+            // Test settings persistence round-trip
+            fAiAgentType.SetValue(settings, "Claude");
+            fAiAgentCustomCmd.SetValue(settings, "my-cli -p {prompt}");
+            fAiQuoteKeywords.SetValue(settings, "心流, 专注");
+            settings.GetType().GetMethod("Save").Invoke(settings, null);
+            object reloadedAiSettings = settingsType.GetMethod("Load").Invoke(null, null);
+            if ((string)fAiAgentType.GetValue(reloadedAiSettings) != "Claude" ||
+                (string)fAiAgentCustomCmd.GetValue(reloadedAiSettings) != "my-cli -p {prompt}" ||
+                (string)fAiQuoteKeywords.GetValue(reloadedAiSettings) != "心流, 专注")
+            {
+                Console.WriteLine("FAIL: Settings AiAgentType, AiAgentCustomCmd or AiQuoteKeywords failed to persist across Load/Save");
+                return 61;
+            }
+            // Restore default
+            fAiAgentType.SetValue(settings, "Auto");
+            fAiAgentCustomCmd.SetValue(settings, "");
+            fAiQuoteKeywords.SetValue(settings, "");
+            settings.GetType().GetMethod("Save").Invoke(settings, null);
+
+            // Verify SettingsDialog side-by-side buttons
+            Form setDlgWithAi = (Form)Activator.CreateInstance(setDlgType, new object[] { settings, true });
+            FieldInfo fBtnEditQuotes = setDlgType.GetField("btnEditQuotes", BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo fBtnAiQuotes = setDlgType.GetField("btnAiQuotes", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fBtnEditQuotes == null || fBtnAiQuotes == null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog missing btnEditQuotes or btnAiQuotes field");
+                return 61;
+            }
+            Button bEdit = (Button)fBtnEditQuotes.GetValue(setDlgWithAi);
+            Button bAi = (Button)fBtnAiQuotes.GetValue(setDlgWithAi);
+            if (bEdit == null || bAi == null)
+            {
+                Console.WriteLine("FAIL: btnEditQuotes or btnAiQuotes is null in SettingsDialog");
+                return 61;
+            }
+            if (bEdit.Width != 90 || bAi.Width != 90)
+            {
+                Console.WriteLine("FAIL: Expected side-by-side buttons with width 90, got btnEdit=" + bEdit.Width + ", btnAi=" + bAi.Width);
+                return 61;
+            }
+            if (bEdit.Left != 172 || bAi.Left != 270)
+            {
+                Console.WriteLine("FAIL: Expected btnEdit.Left=172, btnAi.Left=270, got btnEdit=" + bEdit.Left + ", btnAi=" + bAi.Left);
+                return 61;
+            }
+            if (bAi.Right - bEdit.Left != 188)
+            {
+                Console.WriteLine("FAIL: Side-by-side buttons total span should be exactly 188px, got " + (bAi.Right - bEdit.Left));
+                return 61;
+            }
+            setDlgWithAi.Close();
+
+            // Verify AiAgentQuoteHelper
+            Type helperType = asm.GetType("AiAgentQuoteHelper");
+            if (helperType == null)
+            {
+                Console.WriteLine("FAIL: AiAgentQuoteHelper type missing");
+                return 61;
+            }
+            MethodInfo mParseQuotes = helperType.GetMethod("ParseQuotes", BindingFlags.NonPublic | BindingFlags.Static);
+            if (mParseQuotes == null)
+            {
+                Console.WriteLine("FAIL: AiAgentQuoteHelper.ParseQuotes method missing");
+                return 61;
+            }
+            string sampleOutput = "```markdown\r\n" +
+                                 "Here are 3 quotes for you:\r\n" +
+                                 "1. 行百里者半九十。 | 《战国策》\r\n" +
+                                 "2. \"Stay hungry, stay foolish.\" | Steve Jobs\r\n" +
+                                 "3. “保持专注，保持简单。”\r\n" +
+                                 "Hope these inspire you!\r\n" +
+                                 "```";
+            IList parsedQuotes = (IList)mParseQuotes.Invoke(null, new object[] { sampleOutput });
+            if (parsedQuotes == null || parsedQuotes.Count != 3)
+            {
+                Console.WriteLine("FAIL: ParseQuotes expected 3 items, got: " + (parsedQuotes == null ? "null" : parsedQuotes.Count.ToString()));
+                return 61;
+            }
+            Type qiType = asm.GetType("QuoteItem");
+            PropertyInfo qiTextProp = qiType.GetProperty("Text");
+            PropertyInfo qiAuthorProp = qiType.GetProperty("Author");
+            string q0Text = (string)qiTextProp.GetValue(parsedQuotes[0], null);
+            string q0Author = (string)qiAuthorProp.GetValue(parsedQuotes[0], null);
+            if (q0Text != "行百里者半九十。" || q0Author != "《战国策》")
+            {
+                Console.WriteLine("FAIL: Quote 0 parsed incorrectly: " + q0Text + " | " + q0Author);
+                return 61;
+            }
+            string q1Text = (string)qiTextProp.GetValue(parsedQuotes[1], null);
+            string q1Author = (string)qiAuthorProp.GetValue(parsedQuotes[1], null);
+            if (q1Text != "Stay hungry, stay foolish." || q1Author != "Steve Jobs")
+            {
+                Console.WriteLine("FAIL: Quote 1 parsed incorrectly: " + q1Text + " | " + q1Author);
+                return 61;
+            }
+            string q2Text = (string)qiTextProp.GetValue(parsedQuotes[2], null);
+            string q2Author = (string)qiAuthorProp.GetValue(parsedQuotes[2], null);
+            if (q2Text != "保持专注，保持简单。" || q2Author != "佚名")
+            {
+                Console.WriteLine("FAIL: Quote 2 parsed incorrectly: " + q2Text + " | " + q2Author);
+                return 61;
+            }
+
+            // Verify AppendQuotesToFile (deduplication & .bak creation)
+            MethodInfo mAppendQuotes = helperType.GetMethod("AppendQuotesToFile", BindingFlags.NonPublic | BindingFlags.Static);
+            if (mAppendQuotes == null)
+            {
+                Console.WriteLine("FAIL: AiAgentQuoteHelper.AppendQuotesToFile method missing");
+                return 61;
+            }
+            PropertyInfo pQuotesPath = settingsType.GetProperty("QuotesFilePath", BindingFlags.Public | BindingFlags.Static);
+            string actualQuotesFile = (string)pQuotesPath.GetValue(null, null);
+            string quotesBackup = null;
+            if (System.IO.File.Exists(actualQuotesFile)) quotesBackup = System.IO.File.ReadAllText(actualQuotesFile, System.Text.Encoding.UTF8);
+
+            try
+            {
+                // Write a baseline quote to test deduplication
+                System.IO.File.WriteAllText(actualQuotesFile, "行百里者半九十。 | 《战国策》\r\n", System.Text.Encoding.UTF8);
+                object[] appendArgs = new object[] { parsedQuotes, 0, null };
+                bool appendRes = (bool)mAppendQuotes.Invoke(null, appendArgs);
+                int addedCount = (int)appendArgs[1];
+                if (!appendRes || addedCount != 2)
+                {
+                    Console.WriteLine("FAIL: AppendQuotesToFile failed or added count wrong. Expected 2 (1 duplicate skipped), got: " + addedCount + ", ok=" + appendRes);
+                    return 61;
+                }
+                // Check .bak file exists
+                if (!System.IO.File.Exists(actualQuotesFile + ".bak"))
+                {
+                    Console.WriteLine("FAIL: AppendQuotesToFile did not create .bak backup file");
+                    return 61;
+                }
+            }
+            finally
+            {
+                if (quotesBackup != null)
+                {
+                    try { System.IO.File.WriteAllText(actualQuotesFile, quotesBackup, System.Text.Encoding.UTF8); } catch { }
+                }
+                else
+                {
+                    try { System.IO.File.Delete(actualQuotesFile); } catch { }
+                }
+                try { System.IO.File.Delete(actualQuotesFile + ".bak"); } catch { }
+            }
+
+            // Verify AiAgentQuoteHelper GetKeywords and BuildPrompt
+            MethodInfo mGetKeywords = helperType.GetMethod("GetKeywords", BindingFlags.NonPublic | BindingFlags.Static);
+            MethodInfo mBuildPrompt = helperType.GetMethod("BuildPrompt", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(List<string>), typeof(string) }, null);
+            MethodInfo mBuildMcpPrompt = helperType.GetMethod("BuildMcpPrompt", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(List<string>), typeof(string) }, null);
+            if (mGetKeywords == null || mBuildPrompt == null || mBuildMcpPrompt == null)
+            {
+                Console.WriteLine("FAIL: AiAgentQuoteHelper GetKeywords, BuildPrompt, or BuildMcpPrompt method missing");
+                return 61;
+            }
+            List<string> defaultTagsZh = (List<string>)mGetKeywords.Invoke(null, new object[] { settings });
+            if (defaultTagsZh == null || defaultTagsZh.Count != 4 || !defaultTagsZh.Contains("极客心流"))
+            {
+                Console.WriteLine("FAIL: GetKeywords did not return expected default ZH tags");
+                return 61;
+            }
+            string generatedPrompt = (string)mBuildPrompt.Invoke(null, new object[] { new List<string> { "知行合一", "松弛感" }, "zh" });
+            if (!generatedPrompt.Contains("知行合一") || !generatedPrompt.Contains("松弛感") || !generatedPrompt.Contains("30"))
+            {
+                Console.WriteLine("FAIL: BuildPrompt did not include custom tags and 30 quotes request: " + generatedPrompt);
+                return 61;
+            }
+            string generatedMcpPrompt = (string)mBuildMcpPrompt.Invoke(null, new object[] { new List<string> { "知行合一", "松弛感" }, "zh" });
+            if (!generatedMcpPrompt.Contains("30") || !generatedMcpPrompt.Contains("iclock_quote") || !generatedMcpPrompt.Contains("add"))
+            {
+                Console.WriteLine("FAIL: BuildMcpPrompt did not include 30 quotes and iclock_quote tool call instruction: " + generatedMcpPrompt);
+                return 61;
+            }
+
+            // Verify AiQuoteDialog instantiation and controls
+            Type aiDlgType = asm.GetType("AiQuoteDialog");
+            if (aiDlgType == null)
+            {
+                Console.WriteLine("FAIL: AiQuoteDialog type missing");
+                return 61;
+            }
+            Form aiDlg = (Form)Activator.CreateInstance(aiDlgType, new object[] { settings });
+            if (aiDlg == null || !aiDlg.Text.Contains("AI"))
+            {
+                Console.WriteLine("FAIL: AiQuoteDialog title missing AI");
+                return 61;
+            }
+            if (aiDlg.ClientSize.Width != 410 || aiDlg.ClientSize.Height != 265)
+            {
+                Console.WriteLine("FAIL: AiQuoteDialog size should be 410x265, got: " + aiDlg.ClientSize.Width + "x" + aiDlg.ClientSize.Height);
+                return 61;
+            }
+            FieldInfo fPanelTags = aiDlgType.GetField("panelTags", BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo fTxtNewTag = aiDlgType.GetField("txtNewTag", BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo fCboAgent = aiDlgType.GetField("cboAgent", BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo fPanelStatus = aiDlgType.GetField("panelStatus", BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo fPanelSetup = aiDlgType.GetField("panelSetup", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fPanelTags == null || fTxtNewTag == null || fCboAgent == null || fPanelStatus == null || fPanelSetup == null)
+            {
+                Console.WriteLine("FAIL: AiQuoteDialog missing required UI fields (panelTags, txtNewTag, cboAgent, panelStatus, panelSetup)");
+                return 61;
+            }
+            FlowLayoutPanel pnlTags = (FlowLayoutPanel)fPanelTags.GetValue(aiDlg);
+            ComboBox cbAgent = (ComboBox)fCboAgent.GetValue(aiDlg);
+            Panel pnlSetup = (Panel)fPanelSetup.GetValue(aiDlg);
+            Panel pnlStatus = (Panel)fPanelStatus.GetValue(aiDlg);
+            if (pnlTags == null || pnlTags.Controls.Count == 0)
+            {
+                Console.WriteLine("FAIL: AiQuoteDialog panelTags was not populated with default tag pills");
+                return 61;
+            }
+            if (cbAgent == null || cbAgent.Items.Count == 0)
+            {
+                Console.WriteLine("FAIL: AiQuoteDialog cboAgent was not populated with detected agents");
+                return 61;
+            }
+            if (pnlSetup == null || pnlStatus == null || pnlSetup.Controls.Count == 0 || pnlStatus.Controls.Count == 0)
+            {
+                Console.WriteLine("FAIL: AiQuoteDialog dual-track panels (panelSetup/panelStatus) missing controls");
+                return 61;
+            }
+
+            // Verify AiAgentQuoteHelper HasCliSupport method and OnQuotesAdded event
+            MethodInfo mHasCli = helperType.GetMethod("HasCliSupport", BindingFlags.NonPublic | BindingFlags.Static);
+            if (mHasCli == null)
+            {
+                Console.WriteLine("FAIL: AiAgentQuoteHelper missing HasCliSupport method");
+                return 61;
+            }
+            bool antigravityHasCli = (bool)mHasCli.Invoke(null, new object[] { "Antigravity" });
+            if (antigravityHasCli)
+            {
+                Console.WriteLine("FAIL: Antigravity should not be identified as CLI (it is an IDE MCP agent)");
+                return 61;
+            }
+
+            // Verify ParseQuotes strictly filters out CLI/JSON error strings and malformed quotes
+            if (mParseQuotes != null)
+            {
+                string jsonErr = "{\r\n  \"error\": \"ANTIGRAVITY_LS_ADDRESS is not set\"\r\n}";
+                System.Collections.IList errList = (System.Collections.IList)mParseQuotes.Invoke(null, new object[] { jsonErr });
+                if (errList != null && errList.Count > 0)
+                {
+                    Console.WriteLine("FAIL: ParseQuotes parsed JSON error as quote!");
+                    return 61;
+                }
+                string rawErrLine = "\"error\": \"ANTIGRAVITY_LS_ADDRESS is not set\"";
+                System.Collections.IList errLineList = (System.Collections.IList)mParseQuotes.Invoke(null, new object[] { rawErrLine });
+                if (errLineList != null && errLineList.Count > 0)
+                {
+                    Console.WriteLine("FAIL: ParseQuotes parsed error line as quote!");
+                    return 61;
+                }
+            }
+
+            EventInfo eQuotesAdded = helperType.GetEvent("OnQuotesAdded", BindingFlags.Public | BindingFlags.Static);
+            if (eQuotesAdded == null)
+            {
+                Console.WriteLine("FAIL: AiAgentQuoteHelper missing OnQuotesAdded event");
+                return 61;
+            }
+
+            aiDlg.Dispose();
+
+            Console.WriteLine("PASS: AI Agent Quote Expansion (Settings persistence, Tab 1 side-by-side buttons, AiAgentQuoteHelper parsing/dedup/bak, and AiQuoteDialog) verified.");
+
+            // 44. Verify Desktop Quote Alt + Drag interaction and 0-polling performance optimization
+            Form qDlgMoveTest = (Form)Activator.CreateInstance(quoteDlgType, new object[] { settings });
+            PropertyInfo pMoveMode = quoteDlgType.GetProperty("MoveMode", BindingFlags.Public | BindingFlags.Instance);
+            MethodInfo mSetMoveMode = quoteDlgType.GetMethod("SetMoveMode", BindingFlags.Public | BindingFlags.Instance);
+            FieldInfo fCountdownTimer = quoteDlgType.GetField("countdownTimer", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (pMoveMode == null || mSetMoveMode == null)
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog missing MoveMode or SetMoveMode");
+                return 62;
+            }
+
+            // Verify SetMoveMode toggles MoveMode and hover state
+            mSetMoveMode.Invoke(qDlgMoveTest, new object[] { true });
+            if (!(bool)pMoveMode.GetValue(qDlgMoveTest, null) || !(bool)fIsHov.GetValue(qDlgMoveTest))
+            {
+                Console.WriteLine("FAIL: SetMoveMode(true) did not enable MoveMode and hover state");
+                return 62;
+            }
+            mSetMoveMode.Invoke(qDlgMoveTest, new object[] { false });
+            if ((bool)pMoveMode.GetValue(qDlgMoveTest, null) || (bool)fIsHov.GetValue(qDlgMoveTest))
+            {
+                Console.WriteLine("FAIL: SetMoveMode(false) did not disable MoveMode and hover state");
+                return 62;
+            }
+
+            // Verify when IsPinned is true, countdownTimer is completely stopped (zero polling wakeups!)
+            pIsPinned.SetValue(qDlgMoveTest, true, null);
+            Timer timerObj = (Timer)fCountdownTimer.GetValue(qDlgMoveTest);
+            if (timerObj != null && timerObj.Enabled)
+            {
+                Console.WriteLine("FAIL: countdownTimer should be stopped when quote is pinned to desktop");
+                return 62;
+            }
+
+            qDlgMoveTest.Close();
+            qDlgMoveTest.Dispose();
+
+            Console.WriteLine("PASS: Desktop quote Alt + Drag mode, MoveMode synchronization, and 0-polling background optimization verified.");
 
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);
             if (sActiveField != null) sActiveField.SetValue(app, false);

@@ -6,17 +6,17 @@
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-169%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-253%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>Single 169 KB Binary · RAM &lt; 15 MB · Mouse Click-Through · Global Hotkey · Zero Dependencies · Pure Local Privacy</b>
+  <b>Single 253 KB Binary · RAM &lt; 15 MB · Mouse Click-Through · Global Hotkey · Zero Dependencies · Pure Local Privacy</b>
 </p>
 
 <p align="center">
   <a href="https://francodeyvison183-collab.github.io/iClock/"><b>🌐 Website</b></a> ·
-  <a href="https://github.com/francodeyvison183-collab/iClock/releases/latest"><b>🚀 Download</b></a> ·
+  <a href="https://github.com/francodeyvison183-collab/iClock/releases/latest"><b>🚀 Download Latest (ZIP Archive)</b></a> ·
   <a href="https://francodeyvison183-collab.github.io/iClock/llms.txt"><b>🤖 llms.txt</b></a> ·
   <a href="README.md">简体中文说明</a> ·
   <a href="docs/USER_GUIDE.md">User Guide</a> ·
@@ -36,13 +36,14 @@ Most timer and Pomodoro applications on Windows are bloated **100MB+** Electron 
 **iClock adheres to extreme engineering minimalism**:
 
 * 🪟 **Native 32-bit ARGB Rendering & Click-Through**: Powered by Windows native `UpdateLayeredWindow`, delivering pristine subpixel anti-aliasing without jagged monochrome edges; adaptive soft drop shadows ensure crystal-clear visibility on light, dark, or noisy backgrounds; default 100% click-through never steals focus.
-* ⚡ **Ultra-Lightweight & 0.0% CPU**: Zero third-party dependencies or runtimes. Dynamic heartbeat alignment and memory caching keep awakenings minimal and battery drain at zero.
+* ⚡ **Ultra-Lightweight & 0.0% CPU**: Zero third-party dependencies or runtimes. Pure single executable footprint of only **253 KB**. Dynamic heartbeat alignment and memory caching keep awakenings minimal and battery drain at zero.
 * ⌨️ **Ergonomic Direct Drag & Tray Scroll**: Reposition instantly by **holding `Alt` + left-click dragging** anywhere on the desktop (no tedious tray menu toggling); hover over the tray icon and **scroll your mouse wheel to adjust duration** (`±1m`, or `±5m` with `Shift`); default `Ctrl + Shift + T` global hotkey.
-* 💻 **Command Line & Script Automation (IPC Pipeline)**: Built for terminal power users and automated workflows. Features native Win32 `WM_COPYDATA` inter-process communication with 0ms latency and zero background overhead. Send commands directly from PowerShell, CMD, or Bash (`iclock -s 25`, `iclock -p`, `iclock -r`, `iclock --reset`); run `iclock --install-cli` once to add iClock to User PATH and invoke globally without `.exe` (just like `claude` or `pi`); integrate with build scripts (`npm run build && iclock -n "Build Complete"`) for instant completion alerts!
-* 🔔 **Tiered Alerts & Fullscreen/Game Do-Not-Disturb**: Choose between a **TopMost Popup Dialog** (with looping chime for critical deadlines) or an **In-Place Breathing Pulse** (desktop digits gently breathe for 5 seconds with a soft chime without stealing window focus). Built-in **Auto Fullscreen DND** automatically downgrades popups to subtle breathing pulses whenever full-screen DirectX/Vulkan games, PPT slideshows, or video playback are detected in the foreground.
-* 🤖 **AI Agent Background Task Completion Alerts**: Designed for developers utilizing AI coding assistants. Automatically monitors 20+ domestic & international agents (Cursor, Antigravity, Claude Code, GitHub Copilot, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, Aider, etc.) via a 4-tier perception matrix (Toast notification listener, Win32 Shell taskbar flash `HSHELL_FLASH` at 0ms, window title state badge, and edge-detected cluster CPU fallback). Instant zero-delay notification upon task completion with 1-click window restore!
+* 💬 **Desktop Daily Quotes & AI Expansion (0-Polling Hibernation)**: Gracefully appears centered upon startup or morning unlock; hold `Alt` to interact, drag right edge to adjust width, and use **`Alt + Ctrl + Wheel` to scale font size**; event-driven interaction completely eliminates background cursor polling timers (0 wakeups, 0% CPU while idling); expand quotes library via local AI agents / MCP in batches of 30 curated quotes.
+* 💻 **Command Line & Script Automation (IPC Pipeline & In-Tab Guidance)**: Built for terminal power users and automated workflows. Features native Win32 `WM_COPYDATA` inter-process communication with 0ms latency and zero background overhead. Settings Tab 2 provides concise guidance: run `iclock -h` in terminal for CLI commands, or execute `iclock --install-cli` once to add iClock to User PATH and invoke globally without `.exe` (just like `claude` or `pi`); integrate with build scripts (`npm run build && iclock -n "Build Complete"`) for instant completion alerts!
+* 🔔 **Tiered Alerts & Fullscreen/Game Do-Not-Disturb**: Choose between a **TopMost Popup Dialog** (with classic mechanical telephone ring or chime for critical deadlines) or an **In-Place Breathing Pulse** (desktop digits gently breathe for 5 seconds with a soft chime without stealing window focus). Built-in **Auto Fullscreen DND** automatically downgrades popups to subtle breathing pulses whenever full-screen DirectX/Vulkan games, PPT slideshows, or video playback are detected in the foreground.
+* 🤖 **AI Agent Collaboration & Native MCP Server**: Monitors 20+ domestic & international agents (Cursor, Antigravity, Claude Code, GitHub Copilot, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, Aider, etc.) via a 4-tier perception matrix with instant zero-delay notification and 1-click window restore; built-in native stdio **Model Context Protocol (MCP)** Server (`iclock.com --mcp`) featuring 5 tools including `iclock_ask_human` (Desktop Decision Gate), with 1-click prompt copying (`iclock --mcp-prompt`) for autonomous agent integration!
 * 🔒 **100% Local & Portable**: Config automatically prioritizes the executable folder (portable mode) or `%APPDATA%\iClock`, leaving no registry junk or network telemetry.
-* 🌍 **Bilingual & History Logs**: Seamlessly switch between English and Simplified Chinese in Settings. Daily countdown records are saved as clean TSV files.
+* 🌍 **Bilingual & History Logs**: Seamlessly switch between English and Simplified Chinese in Settings. About dialog features direct author feedback email (`francodeyvison183@gmail.com`). Daily countdown records are saved as clean TSV files.
 
 ---
 
@@ -50,7 +51,7 @@ Most timer and Pomodoro applications on Windows are bloated **100MB+** Electron 
 
 | Metric | **iClock (This Project)** | Typical Electron Timer | Windows Clock App |
 | :--- | :--- | :--- | :--- |
-| **Package Size** | ⚡ **169 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed |
+| **Package Size** | ⚡ **253 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed |
 | **Memory (RAM)** | ⚡ **~15 MB** (Physical baseline) | 150 MB ~ 300 MB | ~30 MB |
 | **CPU Usage** | ⚡ **0.0%** (Heartbeat aligned) | 0.5% ~ 3.0% (Polling) | 0.0% |
 | **Interaction** | ⚡ **Full click-through, borderless** | Solid window blocking view | Minimized or full window |
@@ -70,7 +71,13 @@ Most timer and Pomodoro applications on Windows are bloated **100MB+** Electron 
 
 ## 🚀 Quick Start
 
-### Option A: Windows Package Manager WinGet (Recommended)
+### Option A: Portable ZIP Archive (Official Recommended · Prevents Browser False Alarms)
+
+1. Go to [GitHub Releases](../../releases/latest) and download **`iClock-1.07-windows.zip`** (Recommended over standalone `.exe` to avoid browser SmartScreen / untrusted binary warning prompts).
+2. Extract the archive and double-click `iClock.exe` to run (100% portable, zero installer, zero registry clutter).
+3. The overlay stays hidden until you start a countdown.
+
+### Option B: Windows Package Manager WinGet
 
 Run the following in PowerShell or Command Prompt:
 ```powershell
@@ -78,24 +85,22 @@ winget install FrancoDeyvison.iClock
 ```
 > Automatically downloads, verifies, installs, and adds `iClock` to system PATH so you can launch it from any terminal.
 
-### Option B: Scoop Package Manager
+### Option C: Scoop Package Manager
 
 ```powershell
 scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json
 ```
 
-### Option C: Standalone Portable Binary
-
-1. Go to [GitHub Releases](../../releases/latest) and download `iClock-1.05-windows.zip` or `iClock-1.05-windows.exe`.
-2. Double-click to launch (no installer, no registry residue).
-3. The overlay stays hidden until you start a countdown.
-
 ### Common Controls
 
 * **Start / Pause**: Press global hotkey `Ctrl + Shift + T` (with smart fallback if occupied) or left-click the system tray icon.
-* **Direct Repositioning (Recommended)**: Hold `Alt` and drag the countdown text directly with left mouse button to reposition anywhere on screen. (Tray menu "Adjust text position" also available).
+* **Direct Repositioning (Recommended)**: Hold `Alt` and drag the countdown text directly with left mouse button to reposition anywhere on screen. (Tray menu "Adjust position" also available for both timer and quote).
 * **Tray Wheel Duration Tuning**: Hover over the system tray icon and roll your mouse wheel to quickly adjust duration (`±1 min`, or `±5 min` with `Shift`).
-* **Settings**: Right-click tray $\rightarrow$ **Settings…** features modern segmented dual tabs (⏱ Timer / 🤖 AI Agents) to configure duration, font, color, format, alert sound (Gentle Chime / Classic Notice / Alarm Ring), alert style, auto-start, and detected domestic/international AI agents (Cursor, Antigravity, Claude Code, GitHub Copilot, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, WorkBuddy, Gemini, etc.) background task completion alerts.
+* **Desktop Daily Quotes**: On desktop quote text, **hold `Alt` + drag to move**, drag right edge to adjust card width, and use **`Alt + Ctrl + Wheel` to scale font size**. Double-click to cycle quotes, or click `📌` to pin to desktop wallpaper.
+* **Settings**: Right-click tray $\rightarrow$ **Settings…** features authentic Windows 11 File Explorer multi-tab architecture (⏱ Timer / 💬 Daily Quotes / 🤖 AI Agents):
+  - **Timer**: Duration, font, color, format, alert sound (Gentle Chime / Classic Telephone Bell / Alarm Ring), alert style, auto-start.
+  - **Daily Quotes**: Enable switch, desktop display toggle, window level, 10 color chips, `[ Edit Quotes ]` and `[ ✨ AI Quotes ]` batch expansion.
+  - **AI Agents**: Agent background task monitor switch, process list, MCP protocol connection (1-click copy setup prompt, 3 core demo triggers), and bottom terminal guidance (`iclock -h` / `iclock --install-cli`).
 * **View History & Daily Statistics**: Right-click tray $\rightarrow$ **View today's history…** to inspect granular sessions with date steppers, or switch to **Days Summary** to track focus streaks across the last 7/14/30 days with completion rates, evaluations, double-click drill-down, and `Ctrl+C` table export.
 
 ---
@@ -155,7 +160,7 @@ iclock --help
 
 * **Q: Does it interfere with mouse clicks when gaming or coding?**  
   **A**: No. iClock leverages the Windows native `WS_EX_TRANSPARENT` style. Floating digits remain on the topmost layer, but all mouse clicks and scrolls pass through to underlying applications without stealing window focus.
-* **Q: Why is the binary only 169 KB?**  
+* **Q: Why is the binary only 253 KB?**  
   **A**: Engineering purity. Built with Windows native C# and GDI+ rendering, avoiding any 100MB+ Electron wrappers. Runtime RAM consumption stays strictly under 15 MB.
 * **Q: Is it safe, clean, and ad-free?**  
   **A**: 100% open-source under the MIT License. Zero ads, zero background services, zero telemetry. Exiting completely releases all resources. See [PRIVACY.md](docs/PRIVACY.md).
@@ -171,7 +176,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> Output binary is generated at `dist/iClock.exe` (169 KB). See [Build Guide](docs/BUILDING.md).
+> Output binary is generated at `dist/iClock.exe` (253 KB). See [Build Guide](docs/BUILDING.md).
 
 ---
 
