@@ -2,23 +2,25 @@
 
 # <img src="docs/icon-64.png" width="36" height="36" style="vertical-align: -6px;" alt="iClock Logo" /> iClock
 
-### 专为开发者与效率玩家打造的 Windows 极简透明悬浮倒计时
+### 专为开发者与效率玩家打造的 Windows 原生极简效率中枢 (253 KB)
+**⏱ 极简悬浮倒计时 · 💬 桌面每日格言 · 🤖 AI 智能体协同 & 原生 MCP 服务器**
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Size](https://img.shields.io/badge/Size-253%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
+[![MCP Protocol](https://img.shields.io/badge/MCP-Native%20Stdio-8A2BE2)](https://github.com/francodeyvison183-collab/iClock)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>单文件 253 KB · 运行内存 &lt; 15 MB · 鼠标点击穿透 · 全局热键 · 零第三方依赖 · 纯本地隐私</b>
+  <b>单文件 253 KB · 运行内存 &lt; 15 MB · 0.0% CPU 占用 · 鼠标点击穿透 · 零轮询桌面格言 · 原生 MCP 智能体协同</b>
 </p>
 
 <p align="center">
   <a href="https://francodeyvison183-collab.github.io/iClock/"><b>🌐 访问官网</b></a> ·
-  <a href="https://github.com/francodeyvison183-collab/iClock/releases/latest"><b>🚀 下载最新版 (ZIP 便携包)</b></a> ·
+  <a href="https://github.com/francodeyvison183-collab/iClock/releases/latest"><b>🚀 下载最新版 (ZIP 便携包 · 推荐)</b></a> ·
   <a href="https://francodeyvison183-collab.github.io/iClock/llms.txt"><b>🤖 llms.txt</b></a> ·
-  <a href="README_EN.md">English Documentation</a> ·
+  <a href="README_EN.md"><b>English Documentation</b></a> ·
   <a href="docs/USER_GUIDE.md">使用指南</a> ·
   <a href="CHANGELOG.md">更新日志</a>
 </p>
@@ -31,41 +33,50 @@
 
 ## 💡 为什么选择 iClock？
 
-市面上的倒计时与番茄钟软件，往往动辄 **100MB+**（Electron 臃肿应用），常驻后台持续消耗 CPU 与内存，甚至带有弹窗广告和后台遥测；而传统窗口则会死死遮挡桌面，干扰鼠标操作。
+市面上的桌面工具往往走向两个极端：要么功能单一粗糙，要么动辄 **100MB+**（Electron 臃肿应用），常驻后台持续消耗 CPU 与数百兆内存，甚至带有弹窗广告和后台遥测；而传统窗口还会死死遮挡桌面，严重干扰鼠标操作与编辑视线。
 
-**iClock 坚持极致的工程师极简克制哲学**：
+**iClock 坚持极致的工程师极简克制哲学**：基于 Windows 原生底层 Win32 与 GDI+ API 构建，不含任何第三方依赖或庞大运行时，单文件仅 **253 KB**，运行内存稳定在 **15 MB** 以内。它不仅是一个支持点击穿透的极简悬浮倒计时，更是融合了**零轮询桌面灵感格言**与**原生 MCP 智能体长任务协同**的桌面效率中枢。
 
-* 🪟 **原生 32 位 ARGB 渲染 & 鼠标穿透**：基于 Windows 原生 `UpdateLayeredWindow` 渲染，彻底消除传统色键点阵毛刺，文字边缘细腻平滑（抗锯齿）；自适应边缘微投影保证在浅色文档、深黑终端或游戏画面上清晰锐利；默认完全点击穿透，不抢焦点、不阻挡操作。
-* ⚡ **单文件极简 & 0.0% CPU**：不含任何第三方依赖或庞大运行时，体积仅 **253 KB**。经过深度的资源预分配与动态心跳对齐优化，唤醒开销降至极限，笔记本长驻运行零耗电。
-* ⌨️ **随心微交互 & 托盘滚轮**：在屏幕上**按住 `Alt` + 鼠标左键直接拖拽**瞬时定位（无需繁琐进出托盘菜单）；鼠标悬停托盘图标**滚动滚轮快速微调时长**（`±1m`，按住 `Shift` 为 `±5m`）；默认 `Ctrl + Shift + T` 全局热键盲开/暂停，支持托盘单击启停。
-* 💬 **桌面每日格言 & AI 扩充 (0 轮询休眠)**：开机/解锁晨间唤醒，居中优雅浮现；在桌面格言文字上**按住 `Alt` + 拖拽调整位置**，拖动右边缘调节宽度，**`Alt + Ctrl + 滚轮` 缩放字号**；基于原生消息驱动彻底移除了后台轮询定时器（桌面常驻时 0 唤醒、0% CPU 占用）；支持在设置中通过本地 AI 智能体 / MCP 批量精选创作并扩充 30 条格言。
-* 💻 **命令行与自动化脚本联动 (IPC 管道 & 终端指引)**：专为终端极客与自动化工作流打造。原生支持 Windows `WM_COPYDATA` 超轻量进程间管道，0ms 即时响应、零内存常驻开销。在「设置 ➔ AI 协作」底部提供清晰的终端指引；在终端直接输入 `iclock -h` 查看脚本指令，执行 `iclock --install-cli` 一键写入用户 PATH 环境变量，无需输入 `.exe` 即可全局调用（像 `claude` / `pi` 一样方便）；支持任意脚本在构建/测试完成后调用 `iclock -n "构建完成"` 触发即时置顶弹窗与提示音！
-* 🔔 **阶梯提醒（强置顶 vs 原位呼吸轻提醒）与全屏免打扰**：支持**弹窗强提醒**（全屏置顶弹窗+经典电话铃声/闹铃，防错过）与**原位呼吸轻提醒**（桌面悬浮文字原地柔和呼吸微闪烁 5 秒+单次提示音，绝不抢占前台焦点打断心流）；**全屏/游戏场景自动免打扰**：智能检测前台全屏游戏、DirectX/Vulkan 渲染或 PPT 幻灯片放映，自动将强弹窗平滑降级为原位呼吸提醒。
-* 🤖 **AI 智能体长任务协同 & 原生 MCP 服务**：全面覆盖国内外主流智能体（Cursor、Antigravity、Claude Code、GitHub Copilot、Trae、通义灵码、CodeGeeX、文心快码、MiniMax、CodeBuddy、Aider 等 20+ 款），四级感知矩阵任务结束即时提醒并支持一键还原窗口；内置原生 stdio **Model Context Protocol (MCP)** Server (`iclock.com --mcp`)，提供 `iclock_ask_human` 桌面决策请示门禁等 5 大工具，支持终端 `iclock --mcp-prompt` 或界面一键复制接入提示词让智能体自主配置！
-* 🔒 **纯本地、便携免安装**：配置文件优先读取程序同目录（便携模式），未找到时保存在 `%APPDATA%\iClock`，不写系统垃圾，不收集任何隐私遥测。
-* 🌍 **中英双语与历史日志**：托盘菜单一键无缝切换语言；关于窗口提供作者直连交流邮箱（`francodeyvison183@gmail.com`，点击即复制）；自动生成按天归档的专注历史 TSV 文件。
+---
+
+## 🌟 三大核心功能支柱 (Core Pillars)
+
+### 1. ⏱ 极简悬浮倒计时 (The Minimalist Focus Timer)
+* 🪟 **原生 32 位 ARGB 渲染 & 鼠标全穿透**：基于 Windows 原生 `UpdateLayeredWindow` 渲染，文字边缘细腻平滑无毛刺，自适应微投影在深浅色背景与游戏画面上清晰锐利；默认完全点击穿透（`WS_EX_TRANSPARENT`），不抢焦点、不阻挡代码与网页点击。
+* ⌨️ **随心微交互 & 托盘滚轮调时**：在屏幕上**按住 `Alt` + 鼠标左键直接拖拽**瞬时定位；鼠标悬停托盘图标**滚动滚轮快速微调时长**（`±1m`，按住 `Shift` 为 `±5m`）；支持 `Ctrl + Shift + T` 全局热键盲操启停与托盘单击切换。
+* 🔔 **阶梯提醒与全屏免打扰**：支持**全屏置顶弹窗强提醒**（经典机械电话铃声/闹铃，防沉迷）与**原位呼吸轻提醒**（桌面悬浮文字原地柔和呼吸微闪烁 5 秒+单次轻音，绝不抢占前台焦点打断心流）；智能检测前台全屏游戏、DirectX/Vulkan 渲染或 PPT 幻灯片放映，**自动平滑降级为原位呼吸免打扰**。
+* 📊 **今日专注与多维统计**：支持【单日明细】（历史日期切换、当日汇总）与【按天汇总】（查看最近 7/14/30 天或全部历史的专注总时长、周期数、达成率与成就评价），选中文本 `Ctrl+C` 一键复制，本地 TSV 自动归档。
+
+### 2. 💬 桌面每日格言与灵感常驻 (Ambient Desktop Inspiration)
+* 🌅 **晨间唤醒与常驻桌面**：开机/解锁晨间唤醒居中优雅浮现；支持一键将格言钉在桌面背景或悬浮常驻。
+* ⚡ **0-Polling 零轮询极致节能**：基于 Windows 原生消息驱动架构，彻底剔除了后台循环轮询定时器，桌面常驻时 **0 唤醒、0.0% CPU 占用**。
+* 🎨 **桌面随心微交互**：在桌面格言文字上**按住 `Alt` + 拖拽调整位置**，拖动右边缘调节文本换行宽度，**`Alt + Ctrl + 滚轮` 快速缩放字号**，双击快速换一句。
+* 📚 **海量词库与 AI 智能体批量扩充**：内置 300+ 离线中英文精选格言，支持在记事本中自定义编辑 `quotes.txt`；更可在设置中一键调用本地 AI 智能体 / MCP **批量精选扩充 30 条格言**，全自动执行去重合并与 `quotes.txt.bak` 安全备份。
+
+### 3. 🤖 AI 智能体长任务协同 & 原生 MCP 服务器 (AI Agent Monitor & Native MCP Hub)
+* 👁 **20+ 款主流编程智能体任务感知矩阵**：全面覆盖 Cursor、Antigravity、Claude Code、GitHub Copilot、Windsurf、Trae、通义灵码、CodeGeeX、文心快码、MiniMax、CodeBuddy、Aider 等主流智能体。采用四级感知矩阵（Windows Toast 拦截、`HSHELL_FLASH` 窗口闪烁、窗口标题变化、多进程生命周期），智能体跑长任务完毕 **0ms 零误报即时提醒**，支持一键点击还原智能体窗口。
+* 🔌 **内置原生 stdio MCP Server (`iclock.com --mcp`)**：零额外环境依赖，原生支持 Anthropic Model Context Protocol 标准 JSON-RPC 2.0 协议，向智能体开放 5 大核心工具：
+  - `iclock_ask_human`：**桌面决策请示门禁 (Human-in-the-Loop)**。智能体执行高危操作（如删除文件、执行不可逆脚本、发布代码）时，主动在用户桌面弹出原生置顶请示对话框，获取人类授权与输入反馈；
+  - `iclock_timer`：智能体自主为用户设定、控制与查询专注倒计时；
+  - `iclock_notify`：智能体长任务完成或阶段汇报时触发桌面强置顶/轻提醒与铃声；
+  - `iclock_quote`：智能体查询或为用户切换桌面励志格言；
+  - `iclock_status`：智能体获取系统与 iClock 运行状态。
+* 💻 **极简命令行与脚本自动化 (CLI & IPC Pipeline)**：内置 `WM_COPYDATA` 超轻量 IPC 管道，支持 `iclock --install-cli` 一键写入环境变量，像 `claude` / `git` 一样免 `.exe` 全局调用；支持 CI/CD 与构建脚本一行命令触发桌面提醒（如 `npm run build && iclock -n "生产构建完成"`）。
 
 ---
 
 ## 📊 性能与体验横向对比
 
-| 核心维度 | **iClock (本项目)** | 常见 Electron 计时器 | Windows 自带闹钟 |
-| :--- | :--- | :--- | :--- |
-| **安装包体积** | ⚡ **253 KB** (绿色单文件，解压即用) | 120 MB ~ 250 MB | 预装应用 |
-| **常驻内存** | ⚡ **~15 MB** (物理基线) | 150 MB ~ 300 MB | ~30 MB |
-| **CPU 占用** | ⚡ **0.0%** (动态心跳对齐) | 0.5% ~ 3.0% (后台轮询) | 0.0% |
-| **交互阻碍** | ⚡ **完全点击穿透，无边框** | 实体窗口遮挡代码与网页 | 最小化或全屏窗口 |
-| **启动速度** | ⚡ **< 100ms** (瞬间启动) | 2 ~ 4 秒 | 1 ~ 2 秒 |
-| **网络行为** | ⚡ **0 联网请求，纯本地** | 多数携带统计与更新上报 | 绑定微软在线账户 |
-
----
-
-## 🎯 典型使用场景
-
-* 🍅 **开发者深度心流 / 番茄工作法**：写代码时一键启动 25 分钟，数字透明显示在屏幕一角，不遮挡编辑器视线。
-* 🎤 **技术分享 / 会议演讲控时**：在屏幕右下角低调提示剩余发言时间，鼠标自由翻动 PPT。
-* 🎮 **游戏技能 / 任务等待冷却**：全屏或无边框窗口直接穿透，激烈操作绝不误点。
-* ☕ **久坐起身 / 喝水护眼提醒**：设定 45 分钟，到点后强制置顶提醒活动身体。
+| 核心维度 | **iClock (本项目)** | 常见 Electron 计时器 | Windows 自带闹钟 | 网页在线番茄钟 |
+| :--- | :--- | :--- | :--- | :--- |
+| **安装包体积** | ⚡ **253 KB** (单文件免安装) | 120 MB ~ 250 MB | 系统预装应用 | 每次加载数 MB |
+| **常驻内存** | ⚡ **~15 MB** (物理基线) | 150 MB ~ 300 MB | ~30 MB | 80 MB ~ 200 MB (浏览器标签) |
+| **CPU 占用** | ⚡ **0.0%** (动态心跳对齐) | 0.5% ~ 3.0% (后台轮询) | 0.0% | 0.3% ~ 1.5% |
+| **交互阻碍** | ⚡ **完全点击穿透，不挡鼠标** | 实体窗口遮挡代码与网页 | 最小化或占用全屏 | 必须切出浏览器查看 |
+| **原生 MCP 支持** | ⚡ **内置 stdio MCP Server (5工具)** | ❌ 无 | ❌ 无 | ❌ 无 |
+| **AI 任务监听** | ⚡ **20+ 款智能体任务结束感知** | ❌ 无 | ❌ 无 | ❌ 无 |
+| **桌面灵感格言** | ⚡ **0-Polling 悬浮 + AI 扩充** | ❌ 无 | ❌ 无 | ❌ 仅限网页内显示 |
+| **网络行为** | ⚡ **0 联网请求，纯本地隐私** | 多数携带统计与更新上报 | 绑定微软在线账户 | 数据上报云端服务器 |
 
 ---
 
@@ -91,79 +102,110 @@ winget install FrancoDeyvison.iClock
 scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json
 ```
 
-### 常用操作
+---
 
-* **启动 / 暂停**：按下全局快捷键 `Ctrl + Shift + T`（支持备选冲突顺延与自定义），或直接鼠标左键单击托盘图标。
-* **随心移动位置（推荐）**：在屏幕上**按住 `Alt` 键 + 鼠标左键直接拖拽**倒计时文字，拖到任意位置松开即自动保存。亦可通过托盘菜单“调整位置”同时定位倒计时与格言。
-* **托盘滚轮微调时长**：鼠标悬停在系统托盘小图标上，直接滚动滚轮快速微调时长（`±1分钟`，按住 `Shift` 为 `±5分钟`）。
-* **桌面每日格言微交互**：在桌面格言文字上**按住 `Alt` + 拖拽调整位置**，拖动右边缘调节宽度，**`Alt + Ctrl + 滚轮` 缩放字号**，双击快速换一句，点击 `📌` 钉在桌面背景。
-* **自定义配置**：右键托盘图标 $\rightarrow$ **“设置”**，采用原生 Win11 资源管理器风格 3 标签页（⏱ 倒计时 / 💬 每日格言 / 🤖 AI 智能体）：
-  - **倒计时**：配置时长、字号、颜色、字体、显示格式、提示声音（QQ 提示音 / 经典机械电话铃 / 醒目闹铃）、提醒方式、开机自启。
-  - **每日格言**：开启/关闭每日格言、桌面悬浮显示、常驻层级、10 色预设卡、`[ 自定义… ]` 编辑词库与 `[ ✨ AI 扩充 ]` 智能扩充。
-  - **AI 智能体**：智能体后台任务监控开关与进程卡片，MCP 协议直连（一键复制接入提示词、三大核心能力演示），底部附有终端 `iclock -h` 与 `iclock --install-cli` 便捷指引。
-* **查看专注历史与统计**：右键托盘图标 $\rightarrow$ **“查看今日记录”**，支持【单日明细】（带历史日期切换器、当日汇总与键盘 `←` / `→` 步进）与【按天汇总】（查看最近 7/14/30 天或全部历史的专注总时长、周期数、完成率及达成评价，支持双击任意日期穿透下钻），选中文本支持 `Ctrl+C` 一键复制。
+## 🔌 30 秒配置 Claude Desktop / Cursor 原生 MCP 服务
+
+iClock 内置了无需 Node.js、无需 Python 的原生 Windows stdio MCP Server（`iclock.com --mcp`）。
+
+### 1. Claude Desktop 配置
+编辑 `%APPDATA%\Claude\claude_desktop_config.json`，在 `mcpServers` 中添加：
+```json
+{
+  "mcpServers": {
+    "iclock": {
+      "command": "C:\\Path\\To\\iClock\\iclock.com",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+### 2. Cursor / Windsurf 配置
+在 `.cursor/mcp.json` 或设置面板的 MCP 模块中添加：
+```json
+{
+  "mcpServers": {
+    "iclock": {
+      "command": "C:/Path/To/iClock/iclock.com",
+      "args": ["--mcp"]
+    }
+  }
+}
+```
+
+### 3. 一键配置提示词 (Prompt)
+你也可以在 iClock 的「设置 ➔ AI 协作」中点击 **`[ 复制接入提示词 ]`**，直接发给任意支持 MCP 的智能体，让它自主完成配置连接！
 
 ---
 
-## 💻 命令行与脚本联动 (CLI & IPC Pipeline)
+## 💻 命令行与脚本自动化 (CLI & IPC Pipeline)
 
 iClock 内置原生 **Win32 IPC 消息管道 (`WM_COPYDATA`)**。二次运行命令行不会启动重复进程，而是秒级穿透控制正在后台常驻的 iClock。
 
-### 1. 一键全局免 `.exe` 终端调用（像 claude / pi 一样）
+### 1. 一键全局免 `.exe` 终端调用（像 claude / git 一样）
 
-Windows 借助 `%PATHEXT%` 原生支持无需输入 `.exe` 后缀。首次使用时，只需在终端运行一次内置的 `--install-cli` 指令：
-
+首次使用时，只需在终端运行一次内置的 `--install-cli` 指令：
 ```powershell
-.\dist\iClock --install-cli
+iclock --install-cli
 ```
-
-程序会自动将当前目录写入用户的 **User PATH** 环境变量。之后在任何目录、任何终端（PowerShell / CMD / Git Bash / Windows Terminal），均可直接输入 `iclock` 全局调用：
-
-```bash
-iclock --help
-```
+程序会自动将当前程序所在目录写入用户的 **User PATH** 环境变量。之后在任何目录、任何终端（PowerShell / CMD / Git Bash / Windows Terminal），均可直接输入 `iclock` 全局调用：
 
 ### 2. 常用命令行参数速查
 
 | 命令 | 简写 | 功能说明 | 典型示例 |
 | :--- | :--- | :--- | :--- |
-| `iclock` | - | 启动 iClock（若已在后台常驻则保持） | `iclock` |
-| `iclock --start [分钟]` | `iclock -s [m]` | 启动自定义分钟的工作倒计时 | `iclock -s 25` 或 `iclock -s 45` |
-| `iclock --pause` | `iclock -p` | 暂停当前倒计时 | `iclock -p` |
+| `iclock` | - | 唤醒或启动 iClock 后台常驻 | `iclock` |
+| `iclock --start [分钟]` | `iclock -s [m]` | 启动指定分钟的工作倒计时 | `iclock -s 25` 或 `iclock -s 45` |
+| `iclock --pause` | `iclock -p` | 暂停当前运行的倒计时 | `iclock -p` |
 | `iclock --resume` | `iclock -r` | 恢复已暂停的倒计时 | `iclock -r` |
-| `iclock --toggle` | `iclock -t` | 切换 暂停 / 继续 | `iclock -t` |
-| `iclock --reset` | - | 重置倒计时为待命状态并隐藏文字 | `iclock --reset` |
+| `iclock --toggle` | `iclock -t` | 快速切换 暂停 / 继续 | `iclock -t` |
+| `iclock --reset` | - | 重置倒计时为待命状态并隐藏悬浮字 | `iclock --reset` |
 | `iclock --rest [分钟]` | - | 开启休息倒计时（默认 5 分钟） | `iclock --rest 10` |
-| `iclock -n <消息>` | `iclock --notice` | 触发置顶通知弹窗与提示音（供脚本联动） | `iclock -n "自动化测试已通过！"` |
+| `iclock -n <消息>` | `iclock --notice` | 触发桌面置顶强通知弹窗与提示音 | `iclock -n "生产构建已完成！"` |
+| `iclock -q` | `iclock --quote` | 随机换一句桌面格言 | `iclock -q` |
 | `iclock --install-cli` | - | 自动将当前目录加入用户 PATH 环境变量 | `iclock --install-cli` |
 | `iclock --help` | `iclock -h` | 在终端控制台打印帮助手册 | `iclock -h` |
 
-### 3. 典型脚本与自动化联动场景
+### 3. 典型脚本联动示例
+```bash
+# 前端长构建完成提醒
+npm run build && iclock -n "前端构建完成，用时 45 秒！"
 
-* **前端/后端长构建完成后桌面弹窗提醒**：
-  ```bash
-  npm run build && iclock -n "前端生产构建完成！"
-  ```
-* **单元测试与 CI 脚本完成提醒**：
-  ```bash
-  pytest && iclock -n "全部自检测试通过！"
-  ```
-* **极客心流深度聚焦**：
-  ```bash
-  # 终端快速开启 50 分钟深度专注
-  iclock -s 50
-  ```
+# 单元测试与自动化回归通过提醒
+pytest && iclock -n "44 项全量测试全部通过！"
+
+# 终端一键开启 50 分钟极客冲刺
+iclock -s 50
+```
+
+---
+
+## 🎯 常用快捷键与交互指南
+
+* **启动 / 暂停**：按下全局快捷键 `Ctrl + Shift + T`，或直接鼠标左键单击托盘图标。
+* **随心移动倒计时位置**：在屏幕上**按住 `Alt` 键 + 鼠标左键直接拖拽**倒计时文字，松开即自动保存。
+* **托盘滚轮微调时长**：鼠标悬停在系统托盘小图标上，直接滚动滚轮快速微调时长（`±1m`，按住 `Shift` 为 `±5m`）。
+* **桌面每日格言微交互**：在桌面格言文字上**按住 `Alt` + 拖拽调整位置**，拖动右边缘调节宽度，**`Alt + Ctrl + 滚轮` 快速缩放字号**，双击快速换一句，点击 `📌` 钉在桌面背景。
+* **自定义配置**：右键托盘图标 $\rightarrow$ **“设置”**，原生 Win11 资源管理器风格 3 标签页：
+  - **⏱ 倒计时**：配置时长、字号、颜色、字体、显示格式、提示声音（QQ提示音/机械电话铃/闹铃）、提醒方式、开机自启。
+  - **💬 每日格言**：开启/关闭每日格言、桌面常驻显示、层级、10 色预设卡、`[ 自定义… ]` 编辑与 `[ ✨ AI 扩充 ]` 批量扩充。
+  - **🤖 AI 协作**：智能体后台任务监控开关、MCP 协议状态与直连提示词、终端 `iclock -h` 与 `iclock --install-cli` 快捷指令指引。
 
 ---
 
 ## ❓ 常见问题 (FAQ)
 
 * **Q: 为什么打游戏或写代码时不挡鼠标操作？**  
-  **A**: iClock 深度利用了 Windows 底层 `WS_EX_TRANSPARENT` 穿透特性。倒计时文字置顶浮现于所有窗口之上，但所有鼠标点击和滚轮事件都会直接穿透到底层的游戏或编辑器，丝毫不抢占焦点。
+  **A**: iClock 深度利用了 Windows 底层 `WS_EX_TRANSPARENT` 穿透特性。倒计时浮层浮现在所有窗口最顶层，但所有鼠标点击与滚轮事件均直接穿透到底层的编辑器、终端或全屏游戏，绝不抢占焦点。
 * **Q: 为什么软件体积只有 253 KB？**  
   **A**: 坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 15 MB 以内。
+* **Q: 为什么桌面格言常驻后台不耗电？**  
+  **A**: iClock 采用原生 Windows 消息驱动与 0-Polling 架构，没有后台死循环轮询。静止常驻时 CPU 占用为 0.0%，唤醒开销降至极限，笔记本长驻运行零耗电。
+* **Q: 原生 MCP 服务支持哪些智能体？**  
+  **A**: 凡是支持 Anthropic Model Context Protocol 标准的工具（Claude Desktop、Cursor、Windsurf、Antigravity 等）均可无缝对接；同时通过 CLI 管道可支持任意脚本及命令行 Agent（如 Aider、AutoGPT 等）。
 * **Q: 软件是否安全、纯净无广告？**  
-  **A**: 100% 开源（MIT 协议），零流氓广告，零捆绑插件，零后台常驻进程，退出即彻底释放。详见 [PRIVACY.md](docs/PRIVACY.md)。
+  **A**: 100% 开源（MIT 协议），零流氓广告，零捆绑插件，零后台常驻守护进程，退出即彻底释放。详见 [PRIVACY.md](docs/PRIVACY.md)。
 
 ---
 
@@ -182,9 +224,9 @@ cd iClock
 
 ## 🔒 隐私与安全说明
 
-* **存储位置**：所有配置文件与历史记录均存放在本地 `%APPDATA%\iClock`，卸载时直接删除该文件夹即可。
-* **系统修改**：仅当在设置中显式勾选“开机自启动”时，才会写入当前用户的注册表自启项 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`。
-* **零网络通信**：代码无任何 Socket、HTTP 或遥测 API 调用，可完全断网运行。详见[隐私说明](docs/PRIVACY.md)。
+* **存储位置**：所有配置文件与历史记录均保存在本地目录（便携模式优先）或 `%APPDATA%\iClock`，不留系统垃圾。
+* **系统修改**：仅当在设置中显式勾选“开机自启动”时，才会写入当前用户的注册表自启项 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`；运行 `--install-cli` 时仅向当前用户的 User PATH 追加单条路径。
+* **零网络通信**：代码无任何第三方 Socket 遥测或云端上报，可完全断网离线安全运行。详见[隐私说明](docs/PRIVACY.md)。
 
 ---
 

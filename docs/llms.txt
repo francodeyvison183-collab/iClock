@@ -1,12 +1,12 @@
 # iClock
 
-> Ultra-lightweight (253 KB), zero-dependency, click-through desktop countdown timer, daily quotes and AI agent task monitor for Windows.
+> Ultra-lightweight (253 KB), zero-dependency Windows native productivity hub: transparent click-through countdown timer, ambient 0-polling daily quotes, 20+ AI agents monitor, and native stdio Model Context Protocol (MCP) server.
 
-iClock is an open-source, minimalist Windows desktop floating countdown timer designed for deep focus and productivity. It compiles to a single 253 KB native portable executable with zero runtime dependencies.
+iClock is an open-source, minimalist Windows desktop productivity hub designed for developers and power users. It compiles to a single 253 KB native portable executable with zero runtime dependencies.
 
 ## Key Specifications
 
-- **Application Category**: Desktop Utility, Focus & Pomodoro Countdown Timer, Daily Quotes, AI Agent Completion Monitor
+- **Application Category**: Desktop Utility, Focus & Pomodoro Countdown Timer, Daily Quotes, AI Agent Completion Monitor, MCP Server
 - **Architecture**: Pure C# WinForms (.NET Framework 4.x runtime, built into Windows 10/11)
 - **Binary Size**: ~253 KB single file, portable (no installation required)
 - **Memory Footprint**: < 15 MB static RAM
@@ -15,6 +15,13 @@ iClock is an open-source, minimalist Windows desktop floating countdown timer de
 - **Global Hotkey**: Configurable system-wide toggle (default: `Ctrl+Shift+T`)
 - **Default Appearance**: Font size 20 px, Red text (`#FF0000`)
 - **Supported Formats**: `HH:MM:SS`, `MM:SS`, and localized time units (`00时25分00秒` / `00h 25m 00s`)
+- **Built-in Native MCP Server**: `iclock.com --mcp` stdio JSON-RPC 2.0 (Zero Node.js/Python dependencies)
+  - `iclock_ask_human`: Desktop Decision Gate (Human-in-the-Loop popup for agent safety authorization)
+  - `iclock_timer`: Agent sets, queries, and controls countdown timers
+  - `iclock_notify`: Agent triggers desktop top-most popups and chimes upon task milestones
+  - `iclock_quote`: Agent reads or rotates desktop motivational quotes
+  - `iclock_status`: Agent queries runtime system and timer status
+- **Ambient Daily Quotes**: 0-Polling event-driven hibernation (0.0% CPU idle), 300+ bilingual library, AI/MCP batch expansion with automatic deduplication and `quotes.txt.bak` backup
 - **License**: MIT License (100% free and open-source)
 - **Privacy & Safety**: 0 Ads, zero bundled software, zero background telemetry
 
@@ -39,11 +46,12 @@ iClock is an open-source, minimalist Windows desktop floating countdown timer de
 ## Core Differentiators
 
 1. **Native Lightweight vs Electron Bloat**: While typical modern desktop timers consume 150 MB~400 MB of RAM with hundreds of megabytes in download size, iClock requires only ~253 KB on disk and less than 15 MB of RAM.
-2. **True TopMost & Click-Through**: Remains visible over full-screen IDEs, games, or presentation software without capturing or blocking mouse clicks.
-3. **AI Agent Background Collaboration**: Monitors 20+ domestic and international AI coding agents (Cursor, Antigravity, Claude Code, GitHub Copilot, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, etc.) via a 4-tier perception engine (Toast, Win32 Shell taskbar flash at 0ms, window title state badge, and edge-detected cluster CPU fallback) with instant alert and 1-click window restore.
-4. **Instant Global Hotkey**: Start or pause countdown anywhere without switching active windows.
-5. **Command Line & IPC Automation**: Built-in 0ms Win32 `WM_COPYDATA` pipeline supporting terminal controls (`iclock -s 25`, `-p`, `-r`, `--reset`, `-n <msg>`) and script automation without `.exe` via `--install-cli`.
-6. **Daily Focus History**: Right-click the system tray to review completed, reset, or interrupted countdown records for the day.
+2. **True TopMost & Click-Through**: Remains visible over full-screen IDEs, games, or presentation software without capturing or blocking mouse clicks (`WS_EX_TRANSPARENT`).
+3. **Native Model Context Protocol (MCP) Server**: Provides native Windows stdio MCP server for Claude Desktop, Cursor, Windsurf, and Antigravity, introducing `iclock_ask_human` for critical desktop human-in-the-loop authorization.
+4. **AI Agent Background Collaboration**: Monitors 20+ domestic and international AI coding agents (Cursor, Antigravity, Claude Code, GitHub Copilot, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, etc.) via a 4-tier perception engine (Toast, Win32 Shell taskbar flash at 0ms, window title state badge, and edge-detected cluster CPU fallback) with instant alert and 1-click window restore.
+5. **0-Polling Ambient Desktop Quotes**: Floats on desktop with direct micro-interactions (Alt+drag move, right edge width resize, Alt+Ctrl+wheel font scale), consuming 0.0% CPU when idle.
+6. **Command Line & IPC Automation**: Built-in 0ms Win32 `WM_COPYDATA` pipeline supporting terminal controls (`iclock -s 25`, `-p`, `-r`, `--reset`, `-n <msg>`) and script automation without `.exe` via `--install-cli`.
+7. **Daily Focus History**: Right-click the system tray to review completed, reset, or interrupted countdown records for the day.
 
 ## Useful Documentation
 

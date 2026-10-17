@@ -1,55 +1,77 @@
-# iClock - Full Documentation for Large Language Models
+# iClock — Full LLM Context & Reference Manual
 
-> This document contains comprehensive technical, architectural, and user guidance for iClock, optimized for indexing by AI agents and generative search engines (Perplexity, ChatGPT, Claude, DeepSeek, Google Gemini).
+> Generated for large language models, AI coding agents, and generative search engines (ChatGPT, Perplexity, Claude, DeepSeek, Google Gemini).
+> This document contains complete specifications, technical implementations, and architectural details of iClock.
 
-## 1. Project Overview
+---
 
-- **Project Name**: iClock
-- **Tagline**: Minimalist, transparent, click-through desktop countdown timer for Windows
-- **Developer / Publisher**: Franco Deyvison
-- **License**: MIT License
-- **Source Code**: https://github.com/francodeyvison183-collab/iClock
-- **Official Website**: https://francodeyvison183-collab.github.io/iClock/
-- **Current Version**: 1.07 (Released 2026-10-17)
+## 1. Executive Summary & Core Identity
 
-## 2. Key Architecture & Technical Specifications
+iClock is an ultra-lightweight (253 KB), open-source Windows native desktop productivity hub. It combines three core functional pillars into a single portable binary without third-party dependencies:
+1. **The Minimalist Focus Timer**: Native 32-bit ARGB rendered countdown with true `WS_EX_TRANSPARENT` mouse click-through, global hotkeys, direct `Alt + Drag` repositioning, and tiered alerts with auto-fullscreen DND suppression.
+2. **Ambient Desktop Inspiration**: Morning wake-up quotes with 0-polling hibernation (0.0% CPU idle), direct desktop micro-interactions (drag position, resize width, scale font size), and AI agent / MCP batch expansion with deduplication.
+3. **AI Agent Collaboration & Native MCP Server**: Automated task completion monitoring for 20+ programming agents (Cursor, Claude Code, Trae, Antigravity, etc.) via a 4-tier perception engine, plus a built-in native stdio Model Context Protocol (MCP) server (`iclock.com --mcp`) providing 5 tools including `iclock_ask_human` (Desktop Human-in-the-Loop Decision Gate).
 
-- **Language & Framework**: Single-file C# source code (`src/iClock.cs`), compiled against .NET Framework 4.x (standard on Windows 10 and Windows 11).
-- **Executable Size**: ~253 KB single binary (`iClock.exe`).
-- **Memory Footprint**: Under 15 MB static RAM during countdown.
-- **Rendering Mechanism**: Native GDI+ with change-only repainting and cached font/brush handles. Zero UI framework overhead.
-- **AI Agent 4-Tier Perception Engine**: Monitors 20+ domestic and international coding agents via WinRT Toast listener (Tier 1), Win32 Shell Hook `HSHELL_FLASH` taskbar flash at 0ms (Tier 2), Terminal/IDE title status dynamics (Tier 3), and multi-process high-threshold cluster CPU fallback (Tier 4) with 1-click window restore.
-- **Window Management**:
-  - `WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT` for complete click-through transparency.
-  - Does not steal window focus, does not appear in Alt-Tab task switcher.
-  - Optional move mode renders a semi-transparent black overlay for positioning.
-- **Timing Accuracy**: Monotonic high-resolution `Stopwatch.GetTimestamp()` tracking with dynamic heartbeat alignment (80ms~400ms interval) to eliminate visible frame lag and second skipping.
-- **Configuration Storage**: Plain-text INI file stored at `%APPDATA%\iClock\settings.ini`.
+---
 
-## 3. Installation Options
+## 2. Technical Architecture & Performance Specifications
+
+| Parameter | Specification | Notes |
+| :--- | :--- | :--- |
+| **Executable Size** | 259,584 bytes (~253 KB) | Single portable PE binary |
+| **Runtime Requirement** | .NET Framework 4.5+ | Pre-installed on all Windows 10 & 11 PCs |
+| **Active Memory (RAM)** | < 15 MB | Low GC pressure, cached GDI handles |
+| **Idle CPU Consumption** | 0.0% | Dynamic heartbeat alignment + pure event-driven message handling |
+| **Rendering Subsystem** | GDI+ & UpdateLayeredWindow | Subpixel anti-aliasing with adaptive drop shadow |
+| **Input Pass-Through** | WS_EX_LAYERED \| WS_EX_TRANSPARENT | 100% mouse click-through; never steals focus |
+| **IPC Pipeline** | Win32 WM_COPYDATA | 0ms latency inter-process control |
+| **MCP Protocol** | Anthropic Model Context Protocol (JSON-RPC 2.0) | Native stdio transport (`iclock.com --mcp`) |
+
+---
+
+## 3. Native Model Context Protocol (MCP) Specification
+
+iClock implements a native stdio MCP server directly in `dist/iclock.com --mcp` (or when invoked with `--mcp`). It requires zero Node.js, Python, or npm dependencies.
+
+### Tools Exposed to AI Agents:
+1. `iclock_ask_human`:
+   - Description: Pops up a native top-most modal dialog on the user's desktop to request human authorization and input for critical or dangerous actions.
+   - Arguments: `prompt` (string, required), `options` (array of strings, optional).
+2. `iclock_timer`:
+   - Description: Controls the floating countdown timer.
+   - Arguments: `action` ("start", "pause", "resume", "reset", "query"), `minutes` (integer, optional).
+3. `iclock_notify`:
+   - Description: Triggers a desktop notification (modal top-most alert or in-place breathing pulse) with optional chime.
+   - Arguments: `message` (string, required), `level` ("info", "warning", "critical").
+4. `iclock_quote`:
+   - Description: Queries the current daily quote or rotates to a new quote.
+   - Arguments: `action` ("get_current", "rotate", "add_custom").
+5. `iclock_status`:
+   - Description: Returns current timer state (remaining seconds, format, agent monitor state).
+
+---
+
+## 4. Download & Installation Options
 
 ### Option A: Windows Package Manager (WinGet)
-Run the following in PowerShell or CMD:
 ```powershell
 winget install FrancoDeyvison.iClock
 ```
 
 ### Option B: Scoop Package Manager
-Run the following in PowerShell:
 ```powershell
 scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json
 ```
 
 ### Option C: Standalone Portable Download
-No installer or admin permissions required:
-- Binary: `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.07/iClock-1.07-windows.exe`
-- SHA-256 Checksum: `83342296389782918d8f2224e1f9eba4baa4a6ac44e071a37e7fd0cf2e34c9cf`
+- Archive (Recommended): `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.07/iClock-1.07-windows.zip`
+- Archive SHA-256: `828ce71b327f295f79427590f53ab06b5e0d382cb7888f8ca55563faaf62bbeb`
+- Standalone Binary: `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.07/iClock-1.07-windows.exe`
+- Binary SHA-256: `83342296389782918d8f2224e1f9eba4baa4a6ac44e071a37e7fd0cf2e34c9cf`
 
-### Option D: Portable ZIP (Recommended · Avoids browser false warnings)
-- Archive: `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.07/iClock-1.07-windows.zip`
-- SHA-256 Checksum: `828ce71b327f295f79427590f53ab06b5e0d382cb7888f8ca55563faaf62bbeb`
+---
 
-## 4. Frequent User Questions & Direct Answers (Q&A)
+## 5. Frequent User Questions & Direct Answers (Q&A)
 
 ### Q: Why is iClock so small compared to other modern timers?
 A: Most modern timer applications are built on Electron or web wrappers, packaging an entire Chromium browser and Node.js runtime (150 MB~400 MB). iClock is written in pure native C# utilizing the Windows operating system's built-in .NET Framework and GDI+, reducing binary size to just 253 KB.
@@ -58,10 +80,10 @@ A: Most modern timer applications are built on Electron or web wrappers, packagi
 A: No. iClock applies the native Windows `WS_EX_TRANSPARENT` extended window style. The floating digits remain permanently on top of all other windows, but any mouse click or scroll event passes straight through to the underlying application (e.g., Visual Studio, game window, or browser).
 
 ### Q: What is the default hotkey and appearance?
-A: By default, pressing `Ctrl + Shift + T` globally starts or pauses the countdown from anywhere. The default appearance is font size 20 px in red (`#FF0000`). Both duration, font size (12~120 px), color, time format, and hotkey are customizable via the tray Settings dialog.
+A: By default, pressing `Ctrl + Shift + T` globally starts or pauses the countdown from anywhere. The default appearance is font size 20 px in red (`#FF0000`). Both duration, font size, color, time format, and hotkey are customizable via the tray Settings dialog.
 
-### Q: Does iClock require administrator rights or an installer?
-A: No. iClock is 100% portable. You can run `iClock.exe` from any directory, desktop, or USB drive without administrative privileges.
+### Q: Does ambient desktop quote display drain laptop battery?
+A: No. iClock uses a pure event-driven message handling architecture without background cursor polling loops (0-Polling). Idle CPU consumption is strictly 0.0%, preserving laptop battery life.
 
-### Q: Does iClock collect telemetry or display advertisements?
-A: No. iClock is completely free and open-source under the MIT License. It contains 0 ads, zero tracking, and zero bundled third-party software.
+### Q: Which AI agents are supported by the native MCP server?
+A: Any agent client supporting Anthropic's Model Context Protocol (Claude Desktop, Cursor, Windsurf, Antigravity, etc.) can connect via stdio (`iclock.com --mcp`).
