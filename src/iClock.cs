@@ -1060,31 +1060,6 @@ internal sealed class StyledTipLabel : Label
                 Font f = tok.IsCode ? codeFont : Font;
                 SolidBrush b = tok.IsCode ? codeBrush : regBrush;
 
-                // Clause-level lookahead wrap at punctuation boundary
-                if (i > 0 && x > ClientRectangle.Left)
-                {
-                    string prev = tokens[i - 1].Text;
-                    if (prev == "，" || prev == "；" || prev.EndsWith(",") || prev.EndsWith(";"))
-                    {
-                        float clauseWidth = 0f;
-                        for (int k = i; k < tokens.Count; k++)
-                        {
-                            Font kf = tokens[k].IsCode ? codeFont : Font;
-                            clauseWidth += g.MeasureString(tokens[k].Text, kf, PointF.Empty, sf).Width;
-                            if (tokens[k].IsCode && !tokens[k].Text.EndsWith(" ")) clauseWidth += 2.5f;
-                            string kt = tokens[k].Text;
-                            if (kt == "，" || kt == "。" || kt == "；" || kt.EndsWith(",") || kt.EndsWith(";") || kt.EndsWith("."))
-                                break;
-                        }
-
-                        if (x + clauseWidth > maxX && clauseWidth <= (maxX - ClientRectangle.Left))
-                        {
-                            x = ClientRectangle.Left;
-                            y += lineHeight;
-                        }
-                    }
-                }
-
                 SizeF sz = g.MeasureString(tok.Text, f, PointF.Empty, sf);
                 float neededWidth = sz.Width;
                 if (i + 1 < tokens.Count)
@@ -1573,16 +1548,16 @@ internal sealed class SettingsDialog : Form
             : new string[] { "Alt + Ctrl + 滚轮", "Alt + 拖拽" });
         lblQuoteTip.UseMnemonic = false;
         lblQuoteTip.Text = en
-            ? "Tip: Hold Alt + drag on quote text to move, drag right edge to resize, Alt + Ctrl + wheel to scale font."
-            : "提示：在桌面格言文字上按住 Alt + 拖拽调整位置，拖动右边缘调节宽度，Alt + Ctrl + 滚轮缩放字号。";
+            ? "Tip: Hold Alt + drag to move quote, Alt + Ctrl + wheel to scale font."
+            : "提示：在桌面格言文字上按住 Alt + 拖拽，Alt + Ctrl + 滚轮缩放字号。";
         lblQuoteTip.ForeColor = AppContext.Win11TextSecondary;
-        lblQuoteTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        lblQuoteTip.SetBounds(18, 412, 344, 40);
+        lblQuoteTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblQuoteTip.SetBounds(16, 416, 348, 22);
         Controls.Add(lblQuoteTip);
         if (toolTip == null) toolTip = new ToolTip();
         toolTip.SetToolTip(quoteDesktopVisible, en
-            ? "Display quote permanently on desktop; hold Alt + drag to reposition"
-            : "在桌面上常驻显示格言；在桌面格言文字上按住 Alt + 拖拽调整位置");
+            ? "Display quote permanently on desktop; hold Alt + drag to move, drag edge to resize"
+            : "在桌面上常驻显示格言；在桌面格言文字上按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
 
 
         agentNotice = new CheckBox();
@@ -1742,11 +1717,11 @@ internal sealed class SettingsDialog : Form
         lblAgentCliTip = new StyledTipLabel("iclock --install-cli", "iclock -h");
         lblAgentCliTip.UseMnemonic = false;
         lblAgentCliTip.Text = en
-            ? "Tip: Run iclock -h in terminal for CLI & script automation, or run iclock --install-cli to add iClock to User PATH."
-            : "提示：支持在终端直接运行 iclock -h 查看脚本控制指令，或执行 iclock --install-cli 写入 PATH 环境变量。";
+            ? "Tip: Run iclock -h for commands, iclock --install-cli to add to PATH."
+            : "提示：终端运行 iclock -h 查看指令，iclock --install-cli 写入 PATH。";
         lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
-        lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        lblAgentCliTip.SetBounds(18, 412, 344, 40);
+        lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblAgentCliTip.SetBounds(16, 416, 348, 22);
         Controls.Add(lblAgentCliTip);
 
         saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存";
@@ -2630,17 +2605,17 @@ internal sealed class SettingsDialog : Form
             lblQuoteTip.HighlightWords = toEnglish
                 ? new string[] { "Alt + Ctrl + wheel", "Alt + drag" }
                 : new string[] { "Alt + Ctrl + 滚轮", "Alt + 拖拽" };
-            lblQuoteTip.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.5f);
+            lblQuoteTip.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
             lblQuoteTip.Text = toEnglish
-                ? "Tip: Hold Alt + drag on quote text to move, drag right edge to resize, Alt + Ctrl + wheel to scale font."
-                : "提示：在桌面格言文字上按住 Alt + 拖拽调整位置，拖动右边缘调节宽度，Alt + Ctrl + 滚轮缩放字号。";
+                ? "Tip: Hold Alt + drag to move quote, Alt + Ctrl + wheel to scale font."
+                : "提示：在桌面格言文字上按住 Alt + 拖拽，Alt + Ctrl + 滚轮缩放字号。";
         }
         if (toolTip != null)
         {
             if (btnNextQuote != null) toolTip.SetToolTip(btnNextQuote, toEnglish ? "Next quote (↻)" : "换一句 (↻)");
             toolTip.SetToolTip(btnEditQuotes, toEnglish ? "Open and edit quotes.txt in notepad" : "在记事本中自定义编辑名言 (quotes.txt)");
             if (btnAiQuotes != null) toolTip.SetToolTip(btnAiQuotes, toEnglish ? "Generate quotes with AI Agent / MCP" : "通过 AI 智能体 / MCP 批量创作并扩充词库");
-            if (quoteDesktopVisible != null) toolTip.SetToolTip(quoteDesktopVisible, toEnglish ? "Display quote permanently on desktop; hold Alt + drag to reposition" : "在桌面上常驻显示格言；在桌面格言文字上按住 Alt + 拖拽调整位置");
+            if (quoteDesktopVisible != null) toolTip.SetToolTip(quoteDesktopVisible, toEnglish ? "Display quote permanently on desktop; hold Alt + drag to move, drag edge to resize" : "在桌面上常驻显示格言；在桌面格言文字上按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
         }
         if (lblCardQuoteText != null)
         {
@@ -2667,10 +2642,10 @@ internal sealed class SettingsDialog : Form
         if (lblAgentCliTip != null)
         {
             lblAgentCliTip.HighlightWords = new string[] { "iclock --install-cli", "iclock -h" };
-            lblAgentCliTip.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.5f);
+            lblAgentCliTip.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
             lblAgentCliTip.Text = toEnglish
-                ? "Tip: Run iclock -h in terminal for CLI & script automation, or run iclock --install-cli to add iClock to User PATH."
-                : "提示：支持在终端直接运行 iclock -h 查看脚本控制指令，或执行 iclock --install-cli 写入 PATH 环境变量。";
+                ? "Tip: Run iclock -h for commands, iclock --install-cli to add to PATH."
+                : "提示：终端运行 iclock -h 查看指令，iclock --install-cli 写入 PATH。";
         }
         if (panelQuoteCard != null) panelQuoteCard.Invalidate();
 
