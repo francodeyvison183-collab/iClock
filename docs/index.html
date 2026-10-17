@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title data-i18n="page_title">iClock — 专为开发者与效率玩家打造的 Windows 原生极简效率中枢 (253 KB)</title>
-  <meta name="description" data-i18n-meta="description" content="专为开发者与效率玩家打造的 Windows 原生效率中枢（仅 253 KB）。支持点击穿透悬浮倒计时、零轮询桌面每日格言、20+ 款 AI 智能体长任务协同与内置原生 MCP 服务器（含桌面请示门禁）。单文件、纯本地、解压即用。">
+  <title data-i18n="page_title">iClock — Windows 原生极简效率中枢</title>
+  <meta name="description" data-i18n-meta="description" content="Windows 原生极简效率中枢：悬浮穿透倒计时 · 零轮询桌面金句 · AI 智能体协同与原生 MCP。原生单文件免安装、0.0% 待机 CPU、内存小于 15MB、纯本地零网络。">
   <meta name="keywords" content="iClock, 倒计时, 桌面倒计时, 悬浮倒计时, 番茄钟, 每日格言, MCP, Model Context Protocol, Windows 效率工具, 极简倒计时, countdown timer, desktop timer">
   <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="icon-64.png">
@@ -16,14 +16,14 @@
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://francodeyvison183-collab.github.io/iClock/">
-  <meta property="og:title" content="iClock — 专为开发者与效率玩家打造的 Windows 原生极简效率中枢 (253 KB)">
-  <meta property="og:description" content="专为开发者与效率玩家打造的 Windows 原生效率中枢（仅 253 KB）。支持点击穿透悬浮倒计时、零轮询桌面每日格言、20+ 款 AI 智能体长任务协同与内置原生 MCP 服务器。">
+  <meta property="og:title" content="iClock — Windows 原生极简效率中枢">
+  <meta property="og:description" content="Windows 原生极简效率中枢：悬浮穿透倒计时 · 零轮询桌面金句 · AI 智能体协同与原生 MCP。原生单文件免安装、0.0% 待机 CPU、内存小于 15MB、纯本地零网络。">
   <meta property="og:image" content="https://francodeyvison183-collab.github.io/iClock/preview.png">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="iClock — 专为开发者与效率玩家打造的 Windows 原生极简效率中枢 (253 KB)">
-  <meta name="twitter:description" content="专为开发者与效率玩家打造的 Windows 原生效率中枢（仅 253 KB）。支持点击穿透悬浮倒计时、零轮询桌面每日格言、20+ 款 AI 智能体长任务协同与内置原生 MCP 服务器。">
+  <meta name="twitter:title" content="iClock — Windows 原生极简效率中枢">
+  <meta name="twitter:description" content="Windows 原生极简效率中枢：悬浮穿透倒计时 · 零轮询桌面金句 · AI 智能体协同与原生 MCP。原生单文件免安装、0.0% 待机 CPU、内存小于 15MB、纯本地零网络。">
   <meta name="twitter:image" content="https://francodeyvison183-collab.github.io/iClock/preview.png">
 
   <!-- Schema.org 结构化数据 (GEO & SEO 语义增强) -->
@@ -385,13 +385,13 @@
     }
 
     .hero-title {
-      font-size: clamp(26px, 4vw, 44px);
+      font-size: clamp(30px, 4.8vw, 50px);
       font-weight: 800;
       line-height: 1.25;
       letter-spacing: -0.02em;
       color: var(--text-main);
       max-width: 1080px;
-      margin: 0 auto 18px;
+      margin: 0 auto 16px;
     }
 
     @media (min-width: 768px) {
@@ -406,12 +406,44 @@
       -webkit-text-fill-color: transparent;
     }
 
-    .hero-desc {
-      font-size: 16.5px;
-      color: var(--text-muted);
-      max-width: 820px;
+    .hero-subtitle {
+      font-size: clamp(16px, 2.2vw, 20px);
+      font-weight: 600;
+      color: var(--text-main);
+      max-width: 900px;
+      margin: 0 auto 18px;
+      line-height: 1.6;
+      letter-spacing: 0.01em;
+    }
+
+    .hero-specs-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      max-width: 960px;
       margin: 0 auto 28px;
-      line-height: 1.7;
+    }
+
+    .hero-spec-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+    }
+
+    .hero-spec-tag:hover {
+      border-color: var(--brand-blue);
+      color: var(--brand-blue);
+      background: var(--brand-blue-light);
     }
 
     .hero-buttons {
@@ -419,18 +451,7 @@
       align-items: center;
       justify-content: center;
       gap: 16px;
-      margin-bottom: 24px;
-      flex-wrap: wrap;
-    }
-
-    .hero-caption {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      font-size: 13px;
-      color: var(--text-light);
-      margin-bottom: 40px;
+      margin-bottom: 36px;
       flex-wrap: wrap;
     }
 
@@ -1460,14 +1481,24 @@
   <section class="hero">
     <div class="container">
       <div class="badge-pill">
-        <span data-i18n="hero_pill">✨ 开源纯净 · 零第三方依赖 · 253 KB 原生单文件</span>
+        <span data-i18n="hero_pill">✨ 专为开发者与效率玩家打造</span>
       </div>
+      <!-- 第 1 行：主标题 -->
       <h1 class="hero-title" data-i18n="hero_title">
-        专为开发者与效率玩家打造的 <span>Windows 原生极简效率中枢</span>
+        <span>Windows 原生</span>极简效率中枢
       </h1>
-      <p class="hero-desc" data-i18n="hero_desc">
-        单文件仅 253 KB，运行内存稳定 &lt; 15 MB。集极简悬浮倒计时、零轮询桌面每日格言与原生 MCP 智能体长任务协同于一体。
+      <!-- 第 2 行：副标题（三大功能） -->
+      <p class="hero-subtitle" data-i18n="hero_subtitle">
+        悬浮穿透倒计时 · 零轮询桌面金句 · AI 智能体协同与原生 MCP
       </p>
+      <!-- 第 3 行：极客参数硬核背书 -->
+      <div class="hero-specs-row">
+        <span class="hero-spec-tag" data-i18n="hero_spec_1">📦 原生单文件免安装</span>
+        <span class="hero-spec-tag" data-i18n="hero_spec_2">⚡ 0.0% 待机 CPU (0-Polling)</span>
+        <span class="hero-spec-tag" data-i18n="hero_spec_3">💾 内存占用 &lt; 15 MB</span>
+        <span class="hero-spec-tag" data-i18n="hero_spec_4">🔒 100% 离线纯本地</span>
+        <span class="hero-spec-tag" data-i18n="hero_spec_5">🛡️ 纯原生零第三方依赖</span>
+      </div>
       <div class="hero-buttons">
         <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.07/iClock-1.07-windows.zip" class="btn-primary btn-large" id="heroDownloadBtn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1483,12 +1514,6 @@
           </svg>
           <span data-i18n="hero_btn_gh">GitHub 开源主页</span>
         </a>
-      </div>
-      <div class="hero-caption">
-        <span data-i18n="hero_cap_portable">🟢 纯绿色免安装</span>
-        <span data-i18n="hero_cap_fast">⚡ 极速冷启动</span>
-        <span data-i18n="hero_cap_privacy">🛡️ 零遥测隐私侵扰</span>
-        <span data-i18n="hero_cap_compat">💻 适配 Win 7 / 8 / 10 / 11</span>
       </div>
 
       <!-- 仿真交互演示面板 -->
@@ -2107,8 +2132,8 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
     // 国际化文案字典
     const i18n = {
       zh: {
-        page_title: "iClock — 专为开发者与效率玩家打造的 Windows 原生极简效率中枢 (253 KB)",
-        page_desc: "专为开发者与效率玩家打造的 Windows 原生效率中枢（仅 253 KB）。支持点击穿透悬浮倒计时、零轮询桌面每日格言、20+ 款 AI 智能体长任务协同与内置原生 MCP 服务器（含桌面请示门禁）。单文件、纯本地、解压即用。",
+        page_title: "iClock — Windows 原生极简效率中枢",
+        page_desc: "Windows 原生极简效率中枢：支持点击穿透悬浮倒计时、零轮询桌面每日金句、20+ 款 AI 智能体长任务协同与内置原生 MCP 服务器（含桌面请示门禁）。单文件、纯本地、解压即用。",
         nav_why: "设计初衷",
         nav_features: "功能特性",
         nav_comparison: "硬核对比",
@@ -2120,15 +2145,16 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         nav_sponsor: "赞赏致谢",
         nav_btn_download: "下载",
 
-        hero_pill: "✨ 开源纯净 · 零第三方依赖 · 253 KB 原生单文件",
-        hero_title: "专为开发者与效率玩家打造的 <span>Windows 原生极简效率中枢</span>",
-        hero_desc: "单文件仅 253 KB，运行内存稳定 < 15 MB。集极简悬浮倒计时、零轮询桌面每日格言与原生 MCP 智能体长任务协同于一体。",
+        hero_pill: "✨ 专为开发者与效率玩家打造",
+        hero_title: "<span>Windows 原生</span>极简效率中枢",
+        hero_subtitle: "悬浮穿透倒计时 · 零轮询桌面金句 · AI 智能体协同与原生 MCP",
+        hero_spec_1: "📦 原生单文件免安装",
+        hero_spec_2: "⚡ 0.0% 待机 CPU (0-Polling)",
+        hero_spec_3: "💾 内存占用 &lt; 15 MB",
+        hero_spec_4: "🔒 100% 离线纯本地",
+        hero_spec_5: "🛡️ 纯原生零第三方依赖",
         hero_btn_dl: "下载便携压缩包 (ZIP · 推荐)",
         hero_btn_gh: "GitHub 开源主页",
-        hero_cap_portable: "🟢 纯绿色免安装",
-        hero_cap_fast: "⚡ 极速冷启动",
-        hero_cap_privacy: "🛡️ 零遥测隐私侵扰",
-        hero_cap_compat: "💻 适配 Win 7 / 8 / 10 / 11",
 
         sandbox_title: "iClock 交互体验沙盒",
         sandbox_tab_demo: "倒计时沙盒",
@@ -2304,8 +2330,8 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         sim_alert_end: "iClock 提醒：倒计时已结束！"
       },
       en: {
-        page_title: "iClock — Native Ultra-Lightweight Productivity Hub for Windows (253 KB)",
-        page_desc: "Ultra-lightweight 253 KB native productivity hub for Windows: click-through transparent timer, 0-polling ambient quotes, 20+ AI agents monitor & native stdio MCP server.",
+        page_title: "iClock — Native Minimalist Productivity Hub for Windows",
+        page_desc: "Native Minimalist Productivity Hub for Windows: click-through transparent timer, 0-polling ambient quotes, 20+ AI agents monitor & native stdio MCP server.",
         nav_why: "Philosophy",
         nav_features: "Features",
         nav_comparison: "Benchmarks",
@@ -2317,15 +2343,16 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         nav_sponsor: "Sponsor",
         nav_btn_download: "Download",
 
-        hero_pill: "✨ OPEN SOURCE · ZERO DEPENDENCIES · 253 KB NATIVE C#",
-        hero_title: "Native Ultra-Lightweight Productivity Hub for <span>Developers & Power Users</span>",
-        hero_desc: "Single portable binary only 253 KB, active RAM footprint < 15 MB. Minimalist click-through countdown timer, 0-polling ambient quotes, and native MCP agent collaboration.",
+        hero_pill: "✨ CRAFTED FOR DEVELOPERS & POWER USERS",
+        hero_title: "<span>Native Minimalist</span> Productivity Hub for Windows",
+        hero_subtitle: "Click-Through Transparent Timer · 0-Polling Ambient Quotes · AI Agent Collaboration & Native MCP",
+        hero_spec_1: "📦 Single Portable Binary",
+        hero_spec_2: "⚡ 0.0% Idle CPU (0-Polling)",
+        hero_spec_3: "💾 Active RAM &lt; 15 MB",
+        hero_spec_4: "🔒 100% Offline (Zero Network)",
+        hero_spec_5: "🛡️ Pure Win32/GDI+ Zero Dependencies",
         hero_btn_dl: "Download Portable (.zip · Recommended)",
         hero_btn_gh: "GitHub Repository",
-        hero_cap_portable: "🟢 100% Portable",
-        hero_cap_fast: "⚡ Instant Startup",
-        hero_cap_privacy: "🛡️ Zero Telemetry",
-        hero_cap_compat: "💻 Win 7 / 8 / 10 / 11",
 
         sandbox_title: "iClock Interactive Sandbox",
         sandbox_tab_demo: "Timer Sandbox",
