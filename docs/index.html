@@ -406,14 +406,102 @@
       -webkit-text-fill-color: transparent;
     }
 
-    .hero-subtitle {
-      font-size: clamp(16px, 2.2vw, 20px);
-      font-weight: 600;
-      color: var(--text-main);
-      max-width: 900px;
-      margin: 0 auto 18px;
-      line-height: 1.6;
-      letter-spacing: 0.01em;
+    .hero-feature-pills {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      max-width: 980px;
+      margin: 0 auto 22px;
+    }
+
+    .hero-feature-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 20px;
+      border-radius: var(--radius-full);
+      font-size: clamp(14.5px, 1.8vw, 17px);
+      font-weight: 700;
+      white-space: nowrap;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .hero-feature-pill .pill-icon {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    /* 1. 倒计时：暖珊瑚橙 */
+    .hero-feature-pill.pill-timer {
+      background: rgba(234, 88, 12, 0.08);
+      color: #C2410C;
+      border: 1.5px solid rgba(234, 88, 12, 0.25);
+    }
+    .hero-feature-pill.pill-timer:hover {
+      background: rgba(234, 88, 12, 0.15);
+      border-color: #EA580C;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px -3px rgba(234, 88, 12, 0.25);
+    }
+    [data-theme="dark"] .hero-feature-pill.pill-timer {
+      background: rgba(249, 115, 22, 0.15);
+      color: #FB923C;
+      border-color: rgba(249, 115, 22, 0.35);
+    }
+    [data-theme="dark"] .hero-feature-pill.pill-timer:hover {
+      background: rgba(249, 115, 22, 0.25);
+      border-color: #FB923C;
+      box-shadow: 0 8px 20px -3px rgba(249, 115, 22, 0.35);
+    }
+
+    /* 2. 桌面金句：沉静青翠绿 */
+    .hero-feature-pill.pill-quotes {
+      background: rgba(16, 185, 129, 0.08);
+      color: #047857;
+      border: 1.5px solid rgba(16, 185, 129, 0.25);
+    }
+    .hero-feature-pill.pill-quotes:hover {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: #10B981;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px -3px rgba(16, 185, 129, 0.25);
+    }
+    [data-theme="dark"] .hero-feature-pill.pill-quotes {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34D399;
+      border-color: rgba(16, 185, 129, 0.35);
+    }
+    [data-theme="dark"] .hero-feature-pill.pill-quotes:hover {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: #34D399;
+      box-shadow: 0 8px 20px -3px rgba(16, 185, 129, 0.35);
+    }
+
+    /* 3. AI 智能体 & MCP：极客极光紫 */
+    .hero-feature-pill.pill-mcp {
+      background: rgba(124, 58, 237, 0.08);
+      color: #6D28D9;
+      border: 1.5px solid rgba(124, 58, 237, 0.25);
+    }
+    .hero-feature-pill.pill-mcp:hover {
+      background: rgba(124, 58, 237, 0.15);
+      border-color: #7C3AED;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px -3px rgba(124, 58, 237, 0.25);
+    }
+    [data-theme="dark"] .hero-feature-pill.pill-mcp {
+      background: rgba(124, 58, 237, 0.15);
+      color: #A78BFA;
+      border-color: rgba(124, 58, 237, 0.35);
+    }
+    [data-theme="dark"] .hero-feature-pill.pill-mcp:hover {
+      background: rgba(124, 58, 237, 0.25);
+      border-color: #A78BFA;
+      box-shadow: 0 8px 20px -3px rgba(124, 58, 237, 0.35);
     }
 
     .hero-specs-row {
@@ -1487,10 +1575,21 @@
       <h1 class="hero-title" data-i18n="hero_title">
         <span>Windows 原生</span>极简效率中枢
       </h1>
-      <!-- 第 2 行：副标题（三大功能） -->
-      <p class="hero-subtitle" data-i18n="hero_subtitle">
-        悬浮穿透倒计时 · 零轮询桌面金句 · AI 智能体协同与原生 MCP
-      </p>
+      <!-- 第 2 行：副标题（三大功能微光交互胶囊） -->
+      <div class="hero-feature-pills">
+        <a href="#features" class="hero-feature-pill pill-timer" title="跳转至专注倒计时">
+          <span class="pill-icon">⏱️</span>
+          <span data-i18n="hero_pill_timer">悬浮穿透倒计时</span>
+        </a>
+        <a href="#features" class="hero-feature-pill pill-quotes" title="跳转至桌面金句">
+          <span class="pill-icon">💬</span>
+          <span data-i18n="hero_pill_quotes">零轮询桌面金句</span>
+        </a>
+        <a href="#mcp" class="hero-feature-pill pill-mcp" title="跳转至原生 MCP 协议">
+          <span class="pill-icon">🤖</span>
+          <span data-i18n="hero_pill_mcp">AI 智能体协同与原生 MCP</span>
+        </a>
+      </div>
       <!-- 第 3 行：极客参数硬核背书 -->
       <div class="hero-specs-row">
         <span class="hero-spec-tag" data-i18n="hero_spec_1">📦 原生单文件免安装</span>
@@ -2147,7 +2246,9 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
 
         hero_pill: "✨ 专为开发者与效率玩家打造",
         hero_title: "<span>Windows 原生</span>极简效率中枢",
-        hero_subtitle: "悬浮穿透倒计时 · 零轮询桌面金句 · AI 智能体协同与原生 MCP",
+        hero_pill_timer: "悬浮穿透倒计时",
+        hero_pill_quotes: "零轮询桌面金句",
+        hero_pill_mcp: "AI 智能体协同与原生 MCP",
         hero_spec_1: "📦 原生单文件免安装",
         hero_spec_2: "⚡ 0.0% 待机 CPU (0-Polling)",
         hero_spec_3: "💾 内存占用 &lt; 15 MB",
@@ -2345,7 +2446,9 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
 
         hero_pill: "✨ CRAFTED FOR DEVELOPERS & POWER USERS",
         hero_title: "<span>Native Minimalist</span> Productivity Hub for Windows",
-        hero_subtitle: "Click-Through Transparent Timer · 0-Polling Ambient Quotes · AI Agent Collaboration & Native MCP",
+        hero_pill_timer: "Click-Through Transparent Timer",
+        hero_pill_quotes: "0-Polling Ambient Quotes",
+        hero_pill_mcp: "AI Agent Collaboration & Native MCP",
         hero_spec_1: "📦 Single Portable Binary",
         hero_spec_2: "⚡ 0.0% Idle CPU (0-Polling)",
         hero_spec_3: "💾 Active RAM &lt; 15 MB",
