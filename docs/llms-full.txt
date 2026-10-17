@@ -7,7 +7,7 @@
 
 ## 1. Executive Summary & Core Identity
 
-iClock is an ultra-lightweight (253 KB), open-source Windows native desktop productivity hub. It combines three core functional pillars into a single portable binary without third-party dependencies:
+iClock is an ultra-lightweight (253 KB), open-source Windows native desktop productivity hub. It combines three core features into a single portable binary without third-party dependencies:
 1. **The Minimalist Focus Timer**: Native 32-bit ARGB rendered countdown with true `WS_EX_TRANSPARENT` mouse click-through, global hotkeys, direct `Alt + Drag` repositioning, and tiered alerts with auto-fullscreen DND suppression.
 2. **Ambient Desktop Inspiration**: Morning wake-up quotes with 0-polling hibernation (0.0% CPU idle), direct desktop micro-interactions (drag position, resize width, scale font size), and AI agent / MCP batch expansion with deduplication.
 3. **AI Agent Collaboration & Native MCP Server**: Automated task completion monitoring for 20+ programming agents (Cursor, Claude Code, Trae, Antigravity, etc.) via a 4-tier perception engine, plus a built-in native stdio Model Context Protocol (MCP) server (`iclock.com --mcp`) providing 5 tools including `iclock_ask_human` (Desktop Human-in-the-Loop Decision Gate).

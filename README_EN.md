@@ -39,7 +39,7 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 
 ---
 
-## 🌟 Three Core Pillars
+## 🌟 Three Core Features
 
 ### 1. ⏱ The Minimalist Focus Timer
 * 🪟 **Native 32-bit ARGB & Full Click-Through**: Powered by Windows native `UpdateLayeredWindow`, delivering pristine subpixel anti-aliasing without jagged monochrome edges; adaptive soft drop shadows ensure crystal-clear contrast across light, dark, or busy backgrounds; default `WS_EX_TRANSPARENT` click-through never steals focus from your IDE, terminal, or full-screen games.
