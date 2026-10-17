@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -109,7 +109,34 @@
       --oc-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       --oc-font-serif: Georgia, Cambria, "Times New Roman", Times, serif;
 
-      /* Dark Theme (Default) */
+      /* Light Theme (Default) */
+      --bg-app: #F8FAFC;
+      --bg-surface: #FFFFFF;
+      --bg-surface-elevated: #F1F5F9;
+      --bg-tertiary: #E2E8F0;
+      --border-subtle: rgba(15, 23, 42, 0.08);
+      --border-hover: rgba(15, 23, 42, 0.18);
+      --border-active: rgba(15, 23, 42, 0.3);
+      --text-primary: #0F172A;
+      --text-secondary: #475569;
+      --text-muted: #64748B;
+      --text-accent: #0284C7;
+      --accent-primary: #0284C7;
+      --accent-glow: rgba(2, 132, 199, 0.1);
+      --accent-hover: #0369A1;
+      --accent-coral: #EF4444;
+      --accent-green: #10B981;
+      --accent-purple: #A855F7;
+      --card-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+      --code-bg: #0F172A;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+      --container-width: 1120px;
+    }
+
+    [data-theme="dark"] {
       --bg-app: #0A0A0C;
       --bg-surface: #121316;
       --bg-surface-elevated: #18191E;
@@ -124,16 +151,8 @@
       --accent-primary: #38BDF8;
       --accent-glow: rgba(56, 189, 248, 0.15);
       --accent-hover: #0284C7;
-      --accent-coral: #EF4444;
-      --accent-green: #10B981;
-      --accent-purple: #A855F7;
       --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
       --code-bg: #050507;
-      --radius-sm: 6px;
-      --radius-md: 10px;
-      --radius-lg: 16px;
-      --radius-full: 9999px;
-      --container-width: 1120px;
     }
 
     [data-theme="light"] {
@@ -191,13 +210,13 @@
       position: sticky;
       top: 0;
       z-index: 1000;
-      background: rgba(10, 10, 12, 0.85);
+      background: rgba(248, 250, 252, 0.88);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border-subtle);
     }
-    [data-theme="light"] .site-topbar {
-      background: rgba(248, 250, 252, 0.88);
+    [data-theme="dark"] .site-topbar {
+      background: rgba(10, 10, 12, 0.85);
     }
 
     .topbar-inner {
@@ -670,13 +689,16 @@
 
     .sandbox-screen {
       height: 300px;
-      background: linear-gradient(135deg, #0D0E12 0%, #050507 100%);
+      background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
       position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
       user-select: none;
+    }
+    [data-theme="dark"] .sandbox-screen {
+      background: linear-gradient(135deg, #0D0E12 0%, #050507 100%);
     }
 
     /* Tab 1 仿真时钟 */
@@ -694,9 +716,12 @@
       font-size: 56px;
       font-weight: 700;
       color: var(--accent-coral);
-      text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+      text-shadow: 0 1px 4px rgba(15, 23, 42, 0.15);
       letter-spacing: 2px;
       line-height: 1;
+    }
+    [data-theme="dark"] .sim-digits {
+      text-shadow: 0 2px 10px rgba(0,0,0,0.8);
     }
 
     .sim-status {
@@ -711,20 +736,24 @@
       position: absolute;
       width: 82%;
       max-width: 540px;
-      background: rgba(24, 25, 30, 0.95);
+      background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(8px);
       border: 1px solid var(--border-hover);
       border-radius: var(--radius-md);
       padding: 22px 26px;
       text-align: center;
       display: none;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+    }
+    [data-theme="dark"] .sim-quote {
+      background: rgba(24, 25, 30, 0.95);
       box-shadow: 0 12px 30px rgba(0,0,0,0.5);
     }
 
     .sim-quote-text {
       font-size: 17px;
       font-weight: 600;
-      color: #F8FAFC;
+      color: var(--text-primary);
       line-height: 1.5;
       margin-bottom: 8px;
     }
@@ -740,11 +769,16 @@
       position: absolute;
       width: 84%;
       max-width: 500px;
-      background: #121316;
-      border: 1px solid #334155;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
       padding: 18px 20px;
       display: none;
+      box-shadow: 0 12px 35px rgba(15, 23, 42, 0.08);
+    }
+    [data-theme="dark"] .sim-agent {
+      background: #121316;
+      border: 1px solid #334155;
       box-shadow: 0 12px 35px rgba(0,0,0,0.6);
     }
 
@@ -766,7 +800,7 @@
 
     .sim-agent-body {
       font-size: 12.5px;
-      color: #E2E8F0;
+      color: var(--text-primary);
       line-height: 1.5;
       margin-bottom: 14px;
     }
@@ -964,8 +998,8 @@
           <button class="lang-btn" id="btnLangEn" onclick="switchLanguage('en')">EN</button>
         </div>
 
-        <button class="btn-icon" id="themeToggle" onclick="toggleTheme()" title="切换亮暗主题" aria-label="Toggle Theme">
-          <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        <button class="btn-icon" id="themeToggle" onclick="toggleTheme()" title="切换暗色主题" aria-label="Toggle Theme">
+          <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
         </button>
 
         <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank" class="btn-github">
@@ -1616,24 +1650,37 @@
       }
 
       updateSandboxControls();
+      updateThemeIcon(document.documentElement.dataset.theme);
+    }
+
+    function updateThemeIcon(theme) {
+      const icon = document.getElementById('themeIcon');
+      const btn = document.getElementById('themeToggle');
+      if (!icon) return;
+      if (theme === 'dark') {
+        icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+        if (btn) btn.title = currentLang === 'zh' ? '切换亮色主题' : 'Switch to Light Theme';
+      } else {
+        icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+        if (btn) btn.title = currentLang === 'zh' ? '切换暗色主题' : 'Switch to Dark Theme';
+      }
     }
 
     // 主题切换 (Dark / Light)
     function toggleTheme() {
       const html = document.documentElement;
-      const next = html.dataset.theme === 'light' ? 'dark' : 'light';
+      const next = html.dataset.theme === 'dark' ? 'light' : 'dark';
       html.dataset.theme = next;
       localStorage.setItem('iclock_theme', next);
+      updateThemeIcon(next);
     }
 
-    // 初始化主题
+    // 初始化主题（默认浅色）
     (() => {
       const saved = localStorage.getItem('iclock_theme');
-      if (saved) {
-        document.documentElement.dataset.theme = saved;
-      } else {
-        document.documentElement.dataset.theme = 'dark';
-      }
+      const theme = (saved === 'dark' || saved === 'light') ? saved : 'light';
+      document.documentElement.dataset.theme = theme;
+      updateThemeIcon(theme);
     })();
 
     // 快速开始选项卡
