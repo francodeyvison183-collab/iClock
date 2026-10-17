@@ -185,16 +185,28 @@
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(255, 255, 255, 0.92);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border-bottom: 1px solid var(--border-color);
-      transition: background 0.2s ease, border-color 0.2s ease;
+      background: rgba(255, 255, 255, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid transparent;
+      transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    header.navbar.scrolled {
+      background: rgba(255, 255, 255, 0.94);
+      border-bottom-color: var(--border-color);
+      box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
     }
 
     [data-theme="dark"] header.navbar {
-      background: rgba(11, 17, 32, 0.92);
-      border-bottom: 1px solid #1E293B;
+      background: rgba(11, 17, 32, 0.75);
+      border-bottom-color: transparent;
+    }
+
+    [data-theme="dark"] header.navbar.scrolled {
+      background: rgba(11, 17, 32, 0.94);
+      border-bottom-color: #1E293B;
+      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
     }
 
     .nav-inner {
@@ -567,19 +579,16 @@
       justify-content: space-between;
     }
 
-    .board-dots {
+    .board-brand-left {
       display: flex;
-      gap: 7px;
+      align-items: center;
+      gap: 8px;
     }
 
-    .board-dot {
-      width: 11px;
-      height: 11px;
-      border-radius: 50%;
+    .win-logo {
+      color: var(--brand-blue);
+      flex-shrink: 0;
     }
-    .board-dot.red { background: #FF5F56; }
-    .board-dot.yellow { background: #FFBD2E; }
-    .board-dot.green { background: #27C93F; }
 
     .board-title {
       font-size: 12.5px;
@@ -638,6 +647,22 @@
       cursor: grabbing;
       transform: scale(0.98);
       box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
+    }
+
+    .sim-drag-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-light);
+      margin-bottom: 2px;
+      letter-spacing: 0.02em;
+      transition: color 0.15s ease;
+    }
+
+    .simulated-floating-clock:hover .sim-drag-hint {
+      color: var(--brand-blue);
     }
 
     .simulated-digits {
@@ -767,8 +792,8 @@
 
     /* 章节 1：为什么选择 iClock (Why iClock) */
     .section-why {
-      padding: 70px 0;
-      background: var(--bg-secondary);
+      padding: 85px 0;
+      background: radial-gradient(circle at 50% 0%, rgba(28, 114, 190, 0.035) 0%, transparent 70%), var(--bg-secondary);
       border-top: 1px solid var(--border-color);
       border-bottom: 1px solid var(--border-color);
     }
@@ -863,22 +888,80 @@
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
     }
 
-    .feature-pillar-card:hover {
+    .feature-pillar-card.feat-card-timer {
+      border-top: 3.5px solid #EA580C;
+    }
+    .feature-pillar-card.feat-card-timer:hover {
       transform: translateY(-4px);
-      box-shadow: var(--card-shadow-hover);
-      border-color: #CBD5E1;
+      box-shadow: 0 18px 36px -8px rgba(234, 88, 12, 0.14);
+      border-color: rgba(234, 88, 12, 0.4);
     }
 
-    .pillar-num {
-      font-size: 12px;
+    .feature-pillar-card.feat-card-quotes {
+      border-top: 3.5px solid #10B981;
+    }
+    .feature-pillar-card.feat-card-quotes:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 18px 36px -8px rgba(16, 185, 129, 0.14);
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    .feature-pillar-card.feat-card-mcp {
+      border-top: 3.5px solid #7C3AED;
+    }
+    .feature-pillar-card.feat-card-mcp:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 18px 36px -8px rgba(124, 58, 237, 0.14);
+      border-color: rgba(124, 58, 237, 0.4);
+    }
+
+    .pillar-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
       font-weight: 700;
-      color: var(--brand-blue);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-bottom: 12px;
+      letter-spacing: 0.06em;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      margin-bottom: 14px;
+    }
+
+    .pillar-badge.badge-timer {
+      background: rgba(234, 88, 12, 0.08);
+      color: #C2410C;
+      border: 1px solid rgba(234, 88, 12, 0.2);
+    }
+    [data-theme="dark"] .pillar-badge.badge-timer {
+      background: rgba(249, 115, 22, 0.15);
+      color: #FB923C;
+      border-color: rgba(249, 115, 22, 0.3);
+    }
+
+    .pillar-badge.badge-quotes {
+      background: rgba(16, 185, 129, 0.08);
+      color: #047857;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+    [data-theme="dark"] .pillar-badge.badge-quotes {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34D399;
+      border-color: rgba(16, 185, 129, 0.3);
+    }
+
+    .pillar-badge.badge-mcp {
+      background: rgba(124, 58, 237, 0.08);
+      color: #6D28D9;
+      border: 1px solid rgba(124, 58, 237, 0.2);
+    }
+    [data-theme="dark"] .pillar-badge.badge-mcp {
+      background: rgba(124, 58, 237, 0.15);
+      color: #A78BFA;
+      border-color: rgba(124, 58, 237, 0.3);
     }
 
     .pillar-title {
@@ -916,8 +999,8 @@
 
     /* 章节 3：横向对比 (Comparison Table) */
     .section-comparison {
-      padding: 70px 0;
-      background: var(--bg-secondary);
+      padding: 85px 0;
+      background: radial-gradient(circle at 50% 0%, rgba(28, 114, 190, 0.035) 0%, transparent 70%), var(--bg-secondary);
       border-top: 1px solid var(--border-color);
       border-bottom: 1px solid var(--border-color);
     }
@@ -951,17 +1034,47 @@
       color: var(--text-main);
     }
 
-    .comparison-table th.highlight,
+    .comparison-table th.highlight {
+      background: var(--brand-blue-light);
+      font-weight: 700;
+      color: var(--brand-blue);
+      border-left: 2px solid var(--brand-blue);
+      border-right: 2px solid var(--brand-blue);
+      border-top: 3px solid var(--brand-blue);
+      position: relative;
+    }
+
     .comparison-table td.highlight {
       background: var(--brand-blue-light);
       font-weight: 600;
       color: var(--brand-blue);
+      border-left: 2px solid var(--brand-blue);
+      border-right: 2px solid var(--brand-blue);
+    }
+
+    .comparison-table tr:last-child td.highlight {
+      border-bottom: 2px solid var(--brand-blue);
     }
 
     [data-theme="dark"] .comparison-table th.highlight,
     [data-theme="dark"] .comparison-table td.highlight {
-      background: rgba(28, 114, 190, 0.15);
+      background: rgba(28, 114, 190, 0.18);
       color: #38BDF8;
+    }
+
+    .th-winner-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #FFFFFF;
+      background: linear-gradient(135deg, var(--brand-blue) 0%, #3B82F6 100%);
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      margin-bottom: 6px;
+      box-shadow: 0 2px 6px rgba(28, 114, 190, 0.3);
+      letter-spacing: 0.02em;
     }
 
     .comparison-table tr:last-child td {
@@ -1211,23 +1324,43 @@
 
     .code-block-wrapper {
       position: relative;
-      background: #0F172A;
+      background: #0B1120;
+      border: 1px solid #1E293B;
       border-radius: var(--radius-sm);
-      padding: 16px 20px;
-      overflow-x: auto;
+      overflow: hidden;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+
+    .code-file-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 16px;
+      background: #0F172A;
+      border-bottom: 1px solid #1E293B;
+      font-size: 12px;
+      font-family: Consolas, monospace;
+      color: #94A3B8;
+    }
+
+    .code-file-name {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      color: #CBD5E1;
     }
 
     .code-block-wrapper pre {
       font-family: Consolas, "Fira Code", monospace;
       font-size: 13px;
       color: #E2E8F0;
-      line-height: 1.5;
+      line-height: 1.6;
+      padding: 16px 20px;
+      overflow-x: auto;
     }
 
     .code-copy-btn {
-      position: absolute;
-      top: 10px;
-      right: 12px;
       background: rgba(255, 255, 255, 0.12);
       color: #E2E8F0;
       padding: 4px 10px;
@@ -1235,11 +1368,19 @@
       font-size: 11px;
       font-weight: 600;
       transition: background 0.15s ease;
+      cursor: pointer;
     }
 
     .code-copy-btn:hover {
       background: rgba(255, 255, 255, 0.25);
     }
+
+    /* 语法着色 (Syntax Highlighting) */
+    .syn-key { color: #38BDF8; font-weight: 600; }
+    .syn-str { color: #34D399; }
+    .syn-punc { color: #94A3B8; }
+    .syn-arr { color: #FBBF24; }
+    .syn-com { color: #64748B; font-style: italic; }
 
     /* 章节 6：命令行与脚本自动化 (CLI) */
     .section-cli {
@@ -1287,8 +1428,8 @@
 
     /* 章节 7：快捷键与随心微交互 (Hotkeys) */
     .section-shortcuts {
-      padding: 70px 0;
-      background: var(--bg-secondary);
+      padding: 85px 0;
+      background: radial-gradient(circle at 50% 0%, rgba(28, 114, 190, 0.035) 0%, transparent 70%), var(--bg-secondary);
       border-top: 1px solid var(--border-color);
       border-bottom: 1px solid var(--border-color);
     }
@@ -1330,6 +1471,20 @@
       border: 1px solid #CBD5E1;
       border-radius: 6px;
       box-shadow: 0 2px 0 #94A3B8;
+      transition: all 0.1s ease;
+      user-select: none;
+      cursor: default;
+    }
+
+    kbd:hover {
+      background: var(--bg-primary);
+      border-color: var(--brand-blue);
+      color: var(--brand-blue);
+    }
+
+    kbd:active {
+      transform: translateY(2px);
+      box-shadow: 0 0 0 #94A3B8;
     }
 
     .shortcut-title {
@@ -1400,8 +1555,8 @@
 
     /* 章节 9：赞赏与作者 (Sponsor) */
     .section-sponsor {
-      padding: 70px 0;
-      background: var(--bg-secondary);
+      padding: 85px 0;
+      background: radial-gradient(circle at 50% 0%, rgba(28, 114, 190, 0.035) 0%, transparent 70%), var(--bg-secondary);
       border-top: 1px solid var(--border-color);
       border-bottom: 1px solid var(--border-color);
       text-align: center;
@@ -1619,12 +1774,12 @@
       <div class="hero-preview" id="demo">
         <div class="interactive-board">
           <div class="board-header">
-            <div class="board-dots">
-              <span class="board-dot red"></span>
-              <span class="board-dot yellow"></span>
-              <span class="board-dot green"></span>
+            <div class="board-brand-left">
+              <svg class="win-logo" width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M0 2.257l6.502-.89v6.188H0V2.257zm6.502 6.843v6.177L0 14.391V9.1H6.502zM7.55 1.196L16 0v7.555H7.55V1.196zm8.45 7.904V16l-8.45-1.18V9.1H16z"/>
+              </svg>
+              <span class="board-title" data-i18n="sandbox_title">iClock 交互体验沙盒</span>
             </div>
-            <div class="board-title" data-i18n="sandbox_title">iClock 交互体验沙盒</div>
             <div class="board-view-switch">
               <button class="board-tab active" id="tabInteractive" data-i18n="sandbox_tab_demo">倒计时沙盒</button>
               <button class="board-tab" id="tabQuote" data-i18n="sandbox_tab_quote">每日格言</button>
@@ -1634,6 +1789,10 @@
           <div class="board-screen" id="boardScreen">
             <!-- 动态仿真时钟 -->
             <div class="simulated-floating-clock" id="simClock">
+              <div class="sim-drag-hint">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>
+                <span data-i18n="sandbox_drag_hint">按住自由拖动</span>
+              </div>
               <div class="simulated-digits" id="simDigits">25:00</div>
               <div class="simulated-status" id="simStatus">按 Ctrl+Shift+T 或下方按钮启停</div>
             </div>
@@ -1710,9 +1869,9 @@
 
       <div class="features-three-grid">
         <!-- 功能 1 -->
-        <div class="feature-pillar-card">
+        <div class="feature-pillar-card feat-card-timer">
           <div>
-            <div class="pillar-num" data-i18n="p1_num">01 / FOCUS TIMER</div>
+            <div class="pillar-badge badge-timer"><span>⏱️</span> <span data-i18n="p1_num">01 / FOCUS TIMER</span></div>
             <h3 class="pillar-title" data-i18n="p1_title">极简悬浮倒计时</h3>
             <p class="pillar-desc" data-i18n="p1_desc">
               基于 Windows 原生 32 位 ARGB 渲染，消除毛刺平滑细腻，自适应微投影。默认鼠标完全点击穿透，不抢焦点不挡代码；按住 Alt 鼠标左键拖拽瞬时定位，托盘滚轮微调时长，智能识别全屏游戏与 PPT 降级原位呼吸免打扰，多维统计本地 TSV 自动归档。
@@ -1728,9 +1887,9 @@
         </div>
 
         <!-- 功能 2 -->
-        <div class="feature-pillar-card">
+        <div class="feature-pillar-card feat-card-quotes">
           <div>
-            <div class="pillar-num" data-i18n="p2_num">02 / DAILY QUOTES</div>
+            <div class="pillar-badge badge-quotes"><span>💬</span> <span data-i18n="p2_num">02 / DAILY QUOTES</span></div>
             <h3 class="pillar-title" data-i18n="p2_title">桌面每日格言与灵感常驻</h3>
             <p class="pillar-desc" data-i18n="p2_desc">
               开机/解锁晨间唤醒优雅浮现，支持一键钉在桌面背景常驻。纯事件消息驱动架构，彻底剔除死循环轮询，常驻 0 唤醒、0.0% CPU 占用！支持 Alt+拖拽位置、边缘调节折行、Alt+Ctrl+滚轮缩放字号；内置 300+ 双语精选词库，支持本地 AI / MCP 批量扩充 30 条格言并自动去重备份。
@@ -1745,9 +1904,9 @@
         </div>
 
         <!-- 功能 3 -->
-        <div class="feature-pillar-card">
+        <div class="feature-pillar-card feat-card-mcp">
           <div>
-            <div class="pillar-num" data-i18n="p3_num">03 / AI AGENTS & MCP</div>
+            <div class="pillar-badge badge-mcp"><span>🤖</span> <span data-i18n="p3_num">03 / AI AGENTS & MCP</span></div>
             <h3 class="pillar-title" data-i18n="p3_title">AI 智能体协同 & 原生 MCP</h3>
             <p class="pillar-desc" data-i18n="p3_desc">
               自动感知国内外 20+ 款主流编程智能体（Cursor、Antigravity、Claude Code、GitHub Copilot、Trae 等）长任务完成，四级感知矩阵 0ms 零误报即时提醒；内置原生 stdio MCP Server (iclock.com --mcp)，向智能体开放 5 大工具，包含独创的 iclock_ask_human 桌面决策请示门禁。
@@ -1778,7 +1937,10 @@
           <thead>
             <tr>
               <th data-i18n="comp_col_metric">核心维度</th>
-              <th class="highlight" data-i18n="comp_col_iclock">⚡ iClock (本项目)</th>
+              <th class="highlight">
+                <div class="th-winner-badge">🏆 官方推荐 · 极简原生</div>
+                <div data-i18n="comp_col_iclock">⚡ iClock (本项目)</div>
+              </th>
               <th data-i18n="comp_col_electron">常见 Electron 计时器</th>
               <th data-i18n="comp_col_win">Windows 自带闹钟</th>
               <th data-i18n="comp_col_web">网页在线番茄钟</th>
@@ -1943,37 +2105,55 @@
           <div id="mcpViewClaude">
             <p class="mcp-desc" data-i18n="mcp_claude_desc">编辑 %APPDATA%\Claude\claude_desktop_config.json，在 mcpServers 中填入：</p>
             <div class="code-block-wrapper">
-              <button class="code-copy-btn" onclick="copyMcpCode('codeClaude')" data-i18n="btn_copy">复制</button>
-              <pre><code id="codeClaude">{
-  "mcpServers": {
-    "iclock": {
-      "command": "C:\\Path\\To\\iClock\\iclock.com",
-      "args": ["--mcp"]
-    }
-  }
-}</code></pre>
+              <div class="code-file-bar">
+                <span class="code-file-name">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  claude_desktop_config.json
+                </span>
+                <button class="code-copy-btn" onclick="copyMcpCode('codeClaude')" data-i18n="btn_copy">复制</button>
+              </div>
+              <pre><code id="codeClaude"><span class="syn-punc">{</span>
+  <span class="syn-key">"mcpServers"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
+    <span class="syn-key">"iclock"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
+      <span class="syn-key">"command"</span><span class="syn-punc">:</span> <span class="syn-str">"C:\\Path\\To\\iClock\\iclock.com"</span><span class="syn-punc">,</span>
+      <span class="syn-key">"args"</span><span class="syn-punc">:</span> <span class="syn-punc">[</span><span class="syn-arr">"--mcp"</span><span class="syn-punc">]</span>
+    <span class="syn-punc">}</span>
+  <span class="syn-punc">}</span>
+<span class="syn-punc">}</span></code></pre>
             </div>
           </div>
 
           <div id="mcpViewCursor" style="display: none;">
             <p class="mcp-desc" data-i18n="mcp_cursor_desc">在项目根目录 .cursor/mcp.json 或编辑器 MCP 设置面板中填入：</p>
             <div class="code-block-wrapper">
-              <button class="code-copy-btn" onclick="copyMcpCode('codeCursor')" data-i18n="btn_copy">复制</button>
-              <pre><code id="codeCursor">{
-  "mcpServers": {
-    "iclock": {
-      "command": "C:/Path/To/iClock/iclock.com",
-      "args": ["--mcp"]
-    }
-  }
-}</code></pre>
+              <div class="code-file-bar">
+                <span class="code-file-name">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  .cursor/mcp.json
+                </span>
+                <button class="code-copy-btn" onclick="copyMcpCode('codeCursor')" data-i18n="btn_copy">复制</button>
+              </div>
+              <pre><code id="codeCursor"><span class="syn-punc">{</span>
+  <span class="syn-key">"mcpServers"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
+    <span class="syn-key">"iclock"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
+      <span class="syn-key">"command"</span><span class="syn-punc">:</span> <span class="syn-str">"C:/Path/To/iClock/iclock.com"</span><span class="syn-punc">,</span>
+      <span class="syn-key">"args"</span><span class="syn-punc">:</span> <span class="syn-punc">[</span><span class="syn-arr">"--mcp"</span><span class="syn-punc">]</span>
+    <span class="syn-punc">}</span>
+  <span class="syn-punc">}</span>
+<span class="syn-punc">}</span></code></pre>
             </div>
           </div>
 
           <div id="mcpViewPrompt" style="display: none;">
             <p class="mcp-desc" data-i18n="mcp_prompt_desc">把以下提示词直接发给任意支持 MCP 的智能体（Cursor / Antigravity / Claude），它将自主配置并完成连接：</p>
             <div class="code-block-wrapper">
-              <button class="code-copy-btn" onclick="copyMcpCode('codePrompt')" data-i18n="btn_copy">复制</button>
+              <div class="code-file-bar">
+                <span class="code-file-name">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  system_prompt.txt
+                </span>
+                <button class="code-copy-btn" onclick="copyMcpCode('codePrompt')" data-i18n="btn_copy">复制</button>
+              </div>
               <pre><code id="codePrompt">请帮我将本地桌面效率工具 iClock 接入当前环境的 MCP Server 列表。
 iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，启动参数为 ["--mcp"]。
 服务原生提供 5 大工具：iclock_ask_human（桌面置顶决策请示门禁）、iclock_timer（倒计时设定与查询）、iclock_notify（任务里程碑桌面提醒与铃声）、iclock_quote（桌面格言轮换与扩充）以及 iclock_status（系统运行状态）。
@@ -2258,6 +2438,7 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         hero_btn_gh: "GitHub 开源主页",
 
         sandbox_title: "iClock 交互体验沙盒",
+        sandbox_drag_hint: "按住自由拖动",
         sandbox_tab_demo: "倒计时沙盒",
         sandbox_tab_quote: "每日格言",
         sandbox_tab_shot: "软件实图",
@@ -2458,6 +2639,7 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         hero_btn_gh: "GitHub Repository",
 
         sandbox_title: "iClock Interactive Sandbox",
+        sandbox_drag_hint: "Drag to Reposition",
         sandbox_tab_demo: "Timer Sandbox",
         sandbox_tab_quote: "Daily Quotes",
         sandbox_tab_shot: "Screenshots",
@@ -2935,6 +3117,14 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
       }, 2000);
     }
 
+    // 导航栏滚动模糊与阴影过渡
+    function handleNavbarScroll() {
+      const nav = document.querySelector('header.navbar');
+      if (!nav) return;
+      nav.classList.toggle('scrolled', window.scrollY > 15);
+    }
+    window.addEventListener('scroll', handleNavbarScroll, { passive: true });
+
     // 初始化
     window.addEventListener('DOMContentLoaded', () => {
       const initTheme = getInitialTheme();
@@ -2942,6 +3132,7 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
       updateThemeIcon(initTheme);
       const initLang = getInitialLang();
       switchLanguage(initLang);
+      handleNavbarScroll();
     });
   </script>
 </body>
