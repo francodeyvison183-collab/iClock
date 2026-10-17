@@ -44,6 +44,15 @@ def main():
         with urllib.request.urlopen(check_req) as resp:
             rel = json.loads(resp.read().decode())
             print(f"Found existing release v1.07 (id: {rel['id']})")
+            update_req = urllib.request.Request(
+                f"https://api.github.com/repos/francodeyvison183-collab/iClock/releases/{rel['id']}",
+                data=json.dumps(payload).encode('utf-8'),
+                headers=dict(headers, **{'Content-Type': 'application/json'}),
+                method='PATCH'
+            )
+            with urllib.request.urlopen(update_req) as uresp:
+                rel = json.loads(uresp.read().decode())
+                print("Updated release notes body successfully.")
     except urllib.error.HTTPError as e:
         if e.code == 404:
             print("Release v1.07 does not exist yet. Creating...")
@@ -58,8 +67,18 @@ def main():
         else:
             raise
 
+    import time
+
+    # Refresh release info to get updated assets list
+    refresh_req = urllib.request.Request(
+        f"https://api.github.com/repos/francodeyvison183-collab/iClock/releases/{rel['id']}",
+        headers=headers
+    )
+    with urllib.request.urlopen(refresh_req) as resp:
+        rel = json.loads(resp.read().decode())
+        existing_assets = {a['name']: a['id'] for a in rel.get('assets', [])}
+
     upload_url = rel['upload_url'].split('{')[0]
-    existing_assets = {a['name']: a['id'] for a in rel.get('assets', [])}
 
     assets_dir = os.path.join(os.path.dirname(__file__), '..', 'release-assets')
     assets = [
@@ -76,27 +95,48 @@ def main():
 
         if file_name in existing_assets:
             print(f"Asset {file_name} already exists (id: {existing_assets[file_name]}). Deleting old asset...")
-            del_req = urllib.request.Request(
-                f"https://api.github.com/repos/francodeyvison183-collab/iClock/releases/assets/{existing_assets[file_name]}",
-                headers=headers,
-                method='DELETE'
-            )
-            with urllib.request.urlopen(del_req) as resp:
-                print(f"Deleted old asset {file_name}")
+            for del_attempt in range(1, 4):
+                try:
+                    del_req = urllib.request.Request(
+                        f"https://api.github.com/repos/francodeyvison183-collab/iClock/releases/assets/{existing_assets[file_name]}",
+                        headers=headers,
+                        method='DELETE'
+                    )
+                    with urllib.request.urlopen(del_req, timeout=30) as resp:
+                        print(f"Deleted old asset {file_name}")
+                        break
+                except Exception as e:
+                    print(f"Delete attempt {del_attempt} failed ({e}), retrying...")
+                    time.sleep(2)
 
         file_size = os.path.getsize(file_path)
-        print(f"Uploading {file_name} ({file_size} bytes)...")
         with open(file_path, 'rb') as f:
             data = f.read()
 
-        up_req = urllib.request.Request(
-            f"{upload_url}?name={file_name}",
-            data=data,
-            headers=dict(headers, **{'Content-Type': content_type})
-        )
-        with urllib.request.urlopen(up_req) as resp:
-            asset_info = json.loads(resp.read().decode())
-            print(f"Successfully uploaded {file_name} -> {asset_info.get('browser_download_url')}")
+        upload_success = False
+        for attempt in range(1, 6):
+            print(f"Uploading {file_name} ({file_size} bytes, attempt {attempt}/5)...")
+            try:
+                up_req = urllib.request.Request(
+                    f"{upload_url}?name={file_name}",
+                    data=data,
+                    headers=dict(headers, **{
+                        'Content-Type': content_type,
+                        'Content-Length': str(file_size)
+                    })
+                )
+                with urllib.request.urlopen(up_req, timeout=90) as resp:
+                    asset_info = json.loads(resp.read().decode())
+                    print(f"Successfully uploaded {file_name} -> {asset_info.get('browser_download_url')}")
+                    upload_success = True
+                    break
+            except Exception as e:
+                print(f"Upload failed: {e}. Retrying in {attempt * 3}s...")
+                time.sleep(attempt * 3)
+
+        if not upload_success:
+            print(f"Failed to upload {file_name} after 5 attempts.")
+            sys.exit(1)
 
     print("\nAll release assets uploaded successfully for v1.07!")
     print(f"Release URL: {rel.get('html_url')}")
