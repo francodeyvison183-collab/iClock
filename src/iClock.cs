@@ -1273,7 +1273,9 @@ internal sealed class SettingsDialog : Form
     private List<QuoteItem> dialogQuoteList;
     private int dialogQuoteIndex;
     private ToolTip toolTip;
-    private static readonly string[] quoteFontFamilies = { "", "Microsoft YaHei", "KaiTi", "SimSun", "Segoe UI" };
+    private static readonly string[] quoteFontFamilies = {
+        "", "Microsoft YaHei", "KaiTi", "FangSong", "SimSun", "LiSu", "YouYuan", "Georgia", "Constantia", "Segoe UI"
+    };
     private static readonly string[] TimerPresetColors = { "#FF0000", "#FFFFFF", "#FFD166", "#06D6A0", "#4CC9F0", "#F72585", "#52B788", "#7209B7", "#F77F00", "custom" };
     private static readonly string[] QuotePresetColors = { "", "#FFFFFF", "#FFD166", "#06D6A0", "#4CC9F0", "#F72585", "#52B788", "#7209B7", "#F77F00", "custom" };
     private static readonly string[] sharedColorNamesZh = { "柔白", "暖金", "薄荷", "淡青", "樱粉", "竹青", "暮紫", "暖橙", "自选…" };
@@ -1615,9 +1617,11 @@ internal sealed class SettingsDialog : Form
         // Row 2: Font Style (Y = 242)
         lblQuoteFont = AddLabel(en ? "Font style" : "字体样式", 18, 246);
         quoteFontCombo = AddCombo(242);
+        quoteFontCombo.DropDownWidth = 220;
+        quoteFontCombo.MaxDropDownItems = 10;
         quoteFontCombo.Items.AddRange(en
-            ? new object[] { "Follow Timer (Default)", "Microsoft YaHei", "KaiTi", "SimSun", "Segoe UI" }
-            : new object[] { "跟随倒计时 (默认)", "微软雅黑", "楷体", "宋体", "Segoe UI" });
+            ? new object[] { "Follow Timer (Default)", "Microsoft YaHei (Modern Sans)", "KaiTi (Calligraphy)", "FangSong (Poetic Serif)", "SimSun (Classic Song)", "LiSu (Clerical Script)", "YouYuan (Soft Round)", "Georgia (Classic Serif)", "Constantia (Literary Book)", "Segoe UI (Clean Sans)" }
+            : new object[] { "跟随倒计时 (默认)", "微软雅黑 (现代简约)", "楷体 (文雅墨韵)", "仿宋 (典雅诗意)", "宋体 (传统印刷)", "隶书 (汉风古韵)", "幼圆 (温和圆融)", "Georgia (经典衬线)", "Constantia (优雅书卷)", "Segoe UI (清爽利落)" });
         quoteFontCombo.SelectedIndex = GetQuoteFontIndex(selectedQuoteFont);
         quoteFontCombo.DrawItem += OnDrawQuoteFontItem;
         quoteFontCombo.SelectedIndexChanged += OnQuoteFontChanged;
@@ -2817,8 +2821,8 @@ internal sealed class SettingsDialog : Form
         int qfSel = quoteFontCombo.SelectedIndex;
         quoteFontCombo.Items.Clear();
         quoteFontCombo.Items.AddRange(toEnglish
-            ? new object[] { "Follow Timer (Default)", "Microsoft YaHei", "KaiTi", "SimSun", "Segoe UI" }
-            : new object[] { "跟随倒计时 (默认)", "微软雅黑", "楷体", "宋体", "Segoe UI" });
+            ? new object[] { "Follow Timer (Default)", "Microsoft YaHei (Modern Sans)", "KaiTi (Calligraphy)", "FangSong (Poetic Serif)", "SimSun (Classic Song)", "LiSu (Clerical Script)", "YouYuan (Soft Round)", "Georgia (Classic Serif)", "Constantia (Literary Book)", "Segoe UI (Clean Sans)" }
+            : new object[] { "跟随倒计时 (默认)", "微软雅黑 (现代简约)", "楷体 (文雅墨韵)", "仿宋 (典雅诗意)", "宋体 (传统印刷)", "隶书 (汉风古韵)", "幼圆 (温和圆融)", "Georgia (经典衬线)", "Constantia (优雅书卷)", "Segoe UI (清爽利落)" });
         quoteFontCombo.SelectedIndex = qfSel >= 0 ? qfSel : 0;
 
         int ssSel = soundStyle.SelectedIndex;

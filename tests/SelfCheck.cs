@@ -2048,6 +2048,21 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: quoteLayerCombo default selected index should be 0 (Desktop Layer)");
                 return 53;
             }
+            if (fontComboQ.Items.Count != 10)
+            {
+                Console.WriteLine("FAIL: quoteFontCombo should have exactly 10 font choices, got: " + fontComboQ.Items.Count);
+                return 53;
+            }
+            FieldInfo fQuoteFonts = setDlgType.GetField("quoteFontFamilies", BindingFlags.NonPublic | BindingFlags.Static);
+            if (fQuoteFonts != null)
+            {
+                string[] fams = (string[])fQuoteFonts.GetValue(null);
+                if (fams == null || fams.Length != 10)
+                {
+                    Console.WriteLine("FAIL: quoteFontFamilies should contain 10 fonts");
+                    return 53;
+                }
+            }
             if (btnNextQ.FlatStyle != FlatStyle.Flat || btnNextQ.FlatAppearance.BorderSize != 0 || btnNextQ.Left != 12)
             {
                 Console.WriteLine("FAIL: btnNextQuote should be flat borderless button at bottom-left corner (Left = 12)");
