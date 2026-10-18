@@ -6,6 +6,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
+using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
 internal static class CliShim
@@ -802,11 +803,46 @@ internal static class CliShim
                     {
                         string dir = Path.GetDirectoryName(quotesPath);
                         if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                        int nextIdx = 1;
                         if (File.Exists(quotesPath))
                         {
                             try { File.Copy(quotesPath, quotesPath + ".bak", true); } catch { }
+                            string[] existingLines = File.ReadAllLines(quotesPath, Encoding.UTF8);
+                            int maxNum = 0, quoteCnt = 0;
+                            foreach (string line in existingLines)
+                            {
+                                string trim = line.Trim();
+                                if (string.IsNullOrEmpty(trim) || trim.StartsWith("#") || trim.StartsWith("//")) continue;
+                                quoteCnt++;
+                                Match m = Regex.Match(trim, @"^(?:(?:No\.?|#)\s*|[\(\[\（\【])?(\d{1,6})");
+                                if (m.Success)
+                                {
+                                    int n;
+                                    if (int.TryParse(m.Groups[1].Value, out n)) maxNum = Math.Max(maxNum, n);
+                                }
+                            }
+                            nextIdx = Math.Max(maxNum, quoteCnt) + 1;
                         }
-                        File.AppendAllLines(quotesPath, quotesToAdd.ToArray(), Encoding.UTF8);
+                        List<string> formattedLines = new List<string>();
+                        foreach (string q in quotesToAdd)
+                        {
+                            string cleanQ = Regex.Replace(q.Trim(), @"^(?:(?:No\.?|#)\s*\d+[:：\.、\-—]?|\d+[\.、](?!\d)|\d+[：:、\)）]|\(\d+\)|\[\d+\])\s*", "");
+                            string[] qParts = cleanQ.Split(new string[] { " | ", "|", " —— ", "——" }, StringSplitOptions.RemoveEmptyEntries);
+                            string textPart = qParts.Length > 0 ? qParts[0].Trim() : cleanQ;
+                            string authPart = qParts.Length > 1 ? qParts[1].Trim() : "";
+                            string finalLine = nextIdx + ". " + textPart + (string.IsNullOrEmpty(authPart) ? "" : " —— " + authPart);
+                            formattedLines.Add(finalLine);
+                            nextIdx++;
+                        }
+                        if (File.Exists(quotesPath))
+                        {
+                            string curText = File.ReadAllText(quotesPath, Encoding.UTF8);
+                            if (!string.IsNullOrEmpty(curText) && !curText.EndsWith("\n") && !curText.EndsWith("\r"))
+                            {
+                                File.AppendAllText(quotesPath, Environment.NewLine, Encoding.UTF8);
+                            }
+                        }
+                        File.AppendAllLines(quotesPath, formattedLines.ToArray(), Encoding.UTF8);
                     }
                     catch { }
                 }

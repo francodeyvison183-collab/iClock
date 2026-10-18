@@ -3192,10 +3192,32 @@ internal static class TestCheck
                     Console.WriteLine("FAIL: AppendQuotesToFile failed or added count wrong. Expected 2 (1 duplicate skipped), got: " + addedCount + ", ok=" + appendRes);
                     return 61;
                 }
+                // Check sequential numbering on appended lines
+                string[] linesAfterAppend = System.IO.File.ReadAllLines(actualQuotesFile, System.Text.Encoding.UTF8);
+                if (linesAfterAppend.Length < 3 || !linesAfterAppend[1].StartsWith("2. ") || !linesAfterAppend[2].StartsWith("3. "))
+                {
+                    Console.WriteLine("FAIL: Appended quotes missing sequential numbering prefix '2. ' and '3. '");
+                    return 61;
+                }
+
                 // Check .bak file exists
                 if (!System.IO.File.Exists(actualQuotesFile + ".bak"))
                 {
                     Console.WriteLine("FAIL: AppendQuotesToFile did not create .bak backup file");
+                    return 61;
+                }
+
+                // Verify continuation from existing numbered file (e.g. 10 -> 11)
+                System.IO.File.WriteAllText(actualQuotesFile, "1. 一\r\n2. 二\r\n10. 十\r\n", System.Text.Encoding.UTF8);
+                object qMore = Activator.CreateInstance(qiType, new object[] { "海纳百川，有容乃大。", "林则徐" });
+                IList moreList = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(qiType));
+                moreList.Add(qMore);
+                object[] moreArgs = new object[] { moreList, 0, null };
+                mAppendQuotes.Invoke(null, moreArgs);
+                string[] linesCont = System.IO.File.ReadAllLines(actualQuotesFile, System.Text.Encoding.UTF8);
+                if (linesCont.Length < 4 || !linesCont[3].StartsWith("11. "))
+                {
+                    Console.WriteLine("FAIL: Appended quote should continue sequence to '11. ', got: " + (linesCont.Length > 3 ? linesCont[3] : "null"));
                     return 61;
                 }
             }

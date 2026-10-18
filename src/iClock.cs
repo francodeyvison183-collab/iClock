@@ -5385,17 +5385,35 @@ internal static class AiAgentQuoteHelper
         string filePath = Settings.QuotesFilePath;
         try
         {
-            string dir = Path.GetDirectoryName(filePath);
-            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            AppContext.EnsureQuotesFileExists();
 
             HashSet<string> existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int maxNumber = 0;
+            int validQuoteCount = 0;
+
             if (File.Exists(filePath))
             {
-                foreach (string line in File.ReadAllLines(filePath, Encoding.UTF8))
+                foreach (string rawLine in File.ReadAllLines(filePath, Encoding.UTF8))
                 {
-                    string t = QuoteItem.StripLeadingNumber(line).Trim();
-                    int p = t.IndexOf('|');
-                    string text = (p >= 0 ? t.Substring(0, p) : t).Trim();
+                    string trimmed = rawLine.Trim();
+                    if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#") || trimmed.StartsWith("//")) continue;
+
+                    validQuoteCount++;
+
+                    // Extract sequence number if present (e.g., "1. ", "02、", "No.3: ", "[4] ")
+                    Match m = Regex.Match(trimmed, @"^(?:(?:No\.?|#)\s*|[\(\[\（\【])?(\d{1,6})");
+                    if (m.Success)
+                    {
+                        int n;
+                        if (int.TryParse(m.Groups[1].Value, out n))
+                        {
+                            if (n > maxNumber) maxNumber = n;
+                        }
+                    }
+
+                    string t = QuoteItem.StripLeadingNumber(trimmed).Trim();
+                    string[] parts = t.Split(new string[] { " | ", "|", " —— ", "——", " — ", "—", " -- " }, StringSplitOptions.RemoveEmptyEntries);
+                    string text = parts.Length > 0 ? parts[0].Trim() : t;
                     if (!string.IsNullOrEmpty(text)) existing.Add(text);
                 }
 
@@ -5407,6 +5425,7 @@ internal static class AiAgentQuoteHelper
                 catch { }
             }
 
+            int nextIndex = Math.Max(maxNumber, validQuoteCount) + 1;
             List<string> linesToAppend = new List<string>();
             foreach (QuoteItem qi in newQuotes)
             {
@@ -5414,11 +5433,13 @@ internal static class AiAgentQuoteHelper
                 if (qi.Text.IndexOf("error", StringComparison.OrdinalIgnoreCase) >= 0 && qi.Text.IndexOfAny(new char[] { '"', ':', '{', '}' }) >= 0) continue;
                 if (existing.Contains(qi.Text)) continue;
 
+                string prefix = nextIndex + ". ";
                 string line = string.IsNullOrEmpty(qi.Author)
-                    ? qi.Text
-                    : qi.Text + " | " + qi.Author;
+                    ? prefix + qi.Text
+                    : prefix + qi.Text + " —— " + qi.Author;
                 linesToAppend.Add(line);
                 existing.Add(qi.Text);
+                nextIndex++;
             }
 
             if (linesToAppend.Count == 0)
@@ -5429,6 +5450,11 @@ internal static class AiAgentQuoteHelper
 
             if (File.Exists(filePath))
             {
+                string curText = File.ReadAllText(filePath, Encoding.UTF8);
+                if (!string.IsNullOrEmpty(curText) && !curText.EndsWith("\n") && !curText.EndsWith("\r"))
+                {
+                    File.AppendAllText(filePath, Environment.NewLine, Encoding.UTF8);
+                }
                 File.AppendAllLines(filePath, linesToAppend, Encoding.UTF8);
             }
             else
@@ -10083,7 +10109,7 @@ internal sealed class AppContext : ApplicationContext
         ActivateWindow(d);
     }
 
-    internal static void OpenQuotesFile()
+    internal static void EnsureQuotesFileExists()
     {
         try
         {
@@ -10114,7 +10140,16 @@ internal sealed class AppContext : ApplicationContext
                 }
                 File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
             }
-            Process.Start("notepad.exe", path);
+        }
+        catch { }
+    }
+
+    internal static void OpenQuotesFile()
+    {
+        try
+        {
+            EnsureQuotesFileExists();
+            Process.Start("notepad.exe", Settings.QuotesFilePath);
         }
         catch (Exception ex)
         {
