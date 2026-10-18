@@ -1759,7 +1759,7 @@ internal sealed class SettingsDialog : Form
         panelAgentBox.MouseWheel += OnAgentCardMouseWheel;
 
         lblMcpTitle = new Label();
-        lblMcpTitle.Text = en ? "MCP Direct Connection (3 Tools)" : "MCP 协议直连 (3项核心能力)";
+        lblMcpTitle.Text = en ? "MCP Direct Connection (4 Tools)" : "MCP 协议直连 (4项核心能力)";
         lblMcpTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblMcpTitle.ForeColor = AppContext.Win11TextPrimary;
         lblMcpTitle.TextAlign = ContentAlignment.MiddleLeft;
@@ -2770,7 +2770,7 @@ internal sealed class SettingsDialog : Form
 
         UpdateAgentNoticeToggleState(toEnglish);
         if (btnRefreshAgents != null) btnRefreshAgents.Text = toEnglish ? "Re-scan" : "重新检测";
-        if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "MCP Direct Connection (3 Tools)" : "MCP 协议直连 (3项核心能力)";
+        if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "MCP Direct Connection (4 Tools)" : "MCP 协议直连 (4项核心能力)";
         if (btnMcpCopyJson != null) btnMcpCopyJson.Text = toEnglish ? "Copy Prompt" : "复制接入提示词";
         if (btnMcpDemo != null) btnMcpDemo.Text = toEnglish ? "Demo" : "演示";
         if (btnMcpDemoNotify != null) btnMcpDemoNotify.Text = toEnglish ? "Demo" : "演示";
@@ -3463,12 +3463,14 @@ internal static class McpConfigHelper
                 + "[Core Capabilities]\r\n"
                 + "Once connected, you will have access to iClock desktop tools:\r\n"
                 + "1. iclock_ask_human: Trigger a top-most modal gate for human-in-the-loop approvals on critical decisions;\r\n"
-                + "2. iclock_notify: Pop up a desktop alert and sound notification when background tasks complete;\r\n"
-                + "3. iclock_quote: Project your current progress, task goal, or status sticky note directly onto my desktop.\r\n\r\n"
+                + "2. iclock_progress: Proactively report step progress (e.g. '3/5', '60%') and task descriptions to the user's floating clock HUD during long tasks; call with 'clear' when finished;\r\n"
+                + "3. iclock_notify: Pop up a desktop alert and sound notification when background tasks complete;\r\n"
+                + "4. iclock_quote: Project your current progress, task goal, or status sticky note directly onto my desktop.\r\n\r\n"
                 + "[Instructions]\r\n"
                 + "1. Check current environment's MCP config file (e.g. Cursor's mcp.json, Claude Desktop config, or current workspace MCP config) and merge this server (preserve existing servers).\r\n"
-                + "2. Once saved, prompt me to reload the window (e.g. 'Developer: Reload Window' in Cursor) so the MCP server takes effect.\r\n"
-                + "3. After reload, immediately call the iclock_notify tool to send a desktop greeting (e.g. 'iClock MCP connected successfully!') to verify connectivity.";
+                + "2. Proactive Habit: Whenever executing multi-step tasks (testing, multi-file refactoring, batch build), call iclock_progress at key milestones so I can see progress on my clock HUD without switching back to your window. Call iclock_progress(progress='clear') upon completion.\r\n"
+                + "3. Once saved, prompt me to reload the window (e.g. 'Developer: Reload Window' in Cursor) so the MCP server takes effect.\r\n"
+                + "4. After reload, immediately call the iclock_notify tool to send a desktop greeting (e.g. 'iClock MCP connected successfully!') to verify connectivity.";
         }
         else
         {
@@ -3480,12 +3482,14 @@ internal static class McpConfigHelper
                 + "【能力说明】\r\n"
                 + "接入后你将拥有 iClock 提供的桌面协作工具：\r\n"
                 + "1. iclock_ask_human: 遇到关键决策、高危操作或多选方案时，呼出桌面置顶阻断式人工审批卡片；\r\n"
-                + "2. iclock_notify: 耗时或后台任务完成时，呼出桌面模态弹窗与提示音唤醒我；\r\n"
-                + "3. iclock_quote: 在我的桌面实时投射你当前的任务进展、思考要点或状态便签。\r\n\r\n"
+                + "2. iclock_progress: 执行多步骤耗时任务（如测试、重构、构建、代码审查）时，主动汇报步骤与进度（如 '3/5'、'60%'），在悬浮时钟底部投射发丝进度条；任务全部完成时调用 'clear' 清理；\r\n"
+                + "3. iclock_notify: 耗时或后台任务完成时，呼出桌面模态弹窗与提示音唤醒我；\r\n"
+                + "4. iclock_quote: 在我的桌面实时投射你当前的任务进展、思考要点或状态便签。\r\n\r\n"
                 + "【操作步骤】\r\n"
                 + "1. 请检查当前环境的 MCP 配置文件（例如 Claude Desktop 的 claude_desktop_config.json、Cursor 的 mcp.json 或当前项目/全局 MCP 配置），将上述 iclock 服务合并进去（保留我已有的其他服务）。\r\n"
-                + "2. 写入配置后，请提醒我重载窗口生效（如 Cursor 执行 Reload Window 或重启客户端）。\r\n"
-                + "3. 重载后，请立即调用 iclock_notify 工具向我发送一条测试通知（例如：'iClock MCP 协同接入成功！'），以验证桌面联通性。";
+                + "2. 行为准则：在执行多步骤耗时任务时，请主动调用 iclock_progress 汇报节点进度，以便我在屏幕悬浮时钟上实时感知你的进展，任务完毕后清空进度条。\r\n"
+                + "3. 写入配置后，请提醒我重载窗口生效（如 Cursor 执行 Reload Window 或重启客户端）。\r\n"
+                + "4. 重载后，请立即调用 iclock_notify 工具向我发送一条测试通知（例如：'iClock MCP 协同接入成功！'），以验证桌面联通性。";
         }
     }
 
