@@ -1084,6 +1084,140 @@ internal sealed class SlimScrollBar : Control
     }
 }
 
+internal sealed class Win11ToggleSwitch : Button
+{
+    private bool isChecked = false;
+    private bool isHovered = false;
+    private bool isPressed = false;
+    private string onText = "开";
+    private string offText = "关";
+
+    public bool Checked
+    {
+        get { return isChecked; }
+        set { if (isChecked != value) { isChecked = value; Invalidate(); OnCheckedChanged(); } }
+    }
+
+    public string OnText
+    {
+        get { return onText; }
+        set { onText = value; Invalidate(); }
+    }
+
+    public string OffText
+    {
+        get { return offText; }
+        set { offText = value; Invalidate(); }
+    }
+
+    public event EventHandler CheckedChanged;
+
+    private void OnCheckedChanged()
+    {
+        if (CheckedChanged != null) CheckedChanged(this, EventArgs.Empty);
+    }
+
+    public Win11ToggleSwitch()
+    {
+        SetStyle(ControlStyles.SupportsTransparentBackColor |
+                 ControlStyles.AllPaintingInWmPaint |
+                 ControlStyles.UserPaint |
+                 ControlStyles.OptimizedDoubleBuffer, true);
+        FlatStyle = FlatStyle.Flat;
+        FlatAppearance.BorderSize = 0;
+        BackColor = Color.Transparent;
+        Cursor = Cursors.Hand;
+        Size = new Size(72, 26);
+    }
+
+    protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); isHovered = true; Invalidate(); }
+    protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); isHovered = false; isPressed = false; Invalidate(); }
+    protected override void OnMouseDown(MouseEventArgs mevent) { base.OnMouseDown(mevent); if (mevent.Button == MouseButtons.Left) { isPressed = true; Invalidate(); } }
+    protected override void OnMouseUp(MouseEventArgs mevent) { base.OnMouseUp(mevent); isPressed = false; Invalidate(); }
+
+    protected override void OnClick(EventArgs e)
+    {
+        Checked = !Checked;
+        base.OnClick(e);
+    }
+
+    protected override bool ProcessDialogKey(Keys keyData)
+    {
+        if (keyData == Keys.Space || keyData == Keys.Enter)
+        {
+            Checked = !Checked;
+            base.OnClick(EventArgs.Empty);
+            return true;
+        }
+        return base.ProcessDialogKey(keyData);
+    }
+
+    protected override void OnPaint(PaintEventArgs pe)
+    {
+        Graphics g = pe.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
+        using (SolidBrush bg = new SolidBrush(Parent != null ? Parent.BackColor : Color.White))
+        {
+            g.FillRectangle(bg, ClientRectangle);
+        }
+
+        int trackH = 20;
+        int trackW = 40;
+        int trackY = (Height - trackH) / 2;
+        int trackX = 0;
+        Rectangle track = new Rectangle(trackX, trackY, trackW, trackH);
+
+        Color accent = AppContext.Win11Accent;
+        if (isChecked)
+        {
+            Color trackColor = isPressed ? Color.FromArgb(0, 90, 158) : (isHovered ? Color.FromArgb(25, 114, 196) : accent);
+            using (GraphicsPath p = AppContext.GetRoundedRectPath(track, 10))
+            using (SolidBrush b = new SolidBrush(trackColor))
+            {
+                g.FillPath(b, p);
+            }
+            int thumbD = 14;
+            Rectangle thumb = new Rectangle(track.Right - thumbD - 3, track.Y + 3, thumbD, thumbD);
+            using (SolidBrush tb = new SolidBrush(Color.White))
+            {
+                g.FillEllipse(tb, thumb);
+            }
+        }
+        else
+        {
+            Color trackBg = isPressed ? Color.FromArgb(235, 235, 235) : (isHovered ? Color.FromArgb(242, 242, 242) : Color.FromArgb(250, 250, 250));
+            Color borderCol = isPressed ? Color.FromArgb(60, 60, 60) : (isHovered ? Color.FromArgb(90, 90, 90) : Color.FromArgb(120, 120, 120));
+            using (GraphicsPath p = AppContext.GetRoundedRectPath(track, 10))
+            using (SolidBrush b = new SolidBrush(trackBg))
+            using (Pen pen = new Pen(borderCol, 1.2f))
+            {
+                g.FillPath(b, p);
+                g.DrawPath(pen, p);
+            }
+            int thumbD = 12;
+            Rectangle thumb = new Rectangle(track.X + 4, track.Y + 4, thumbD, thumbD);
+            Color thumbColor = isPressed ? Color.FromArgb(40, 40, 40) : (isHovered ? Color.FromArgb(60, 60, 60) : Color.FromArgb(92, 92, 92));
+            using (SolidBrush tb = new SolidBrush(thumbColor))
+            {
+                g.FillEllipse(tb, thumb);
+            }
+        }
+
+        string dispText = isChecked ? onText : offText;
+        if (!string.IsNullOrEmpty(dispText))
+        {
+            using (SolidBrush tb = new SolidBrush(AppContext.Win11TextPrimary))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap })
+            {
+                Rectangle textRect = new Rectangle(track.Right + 8, 0, Width - track.Right - 8, Height);
+                g.DrawString(dispText, Font, tb, textRect, sf);
+            }
+        }
+    }
+}
+
 internal sealed class StyledTipLabel : Label
 {
     private string[] highlightWords;
@@ -1704,13 +1838,18 @@ internal sealed class SettingsDialog : Form
         lblAgentDesc.SetBounds(18, 76, 250, 18);
         Controls.Add(lblAgentDesc);
 
-        btnAgentNoticeToggle = new Button();
-        btnAgentNoticeToggle.SetBounds(274, 63, 88, 26);
-        btnAgentNoticeToggle.FlatStyle = FlatStyle.Flat;
-        btnAgentNoticeToggle.FlatAppearance.BorderSize = 1;
-        btnAgentNoticeToggle.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f, FontStyle.Regular);
-        btnAgentNoticeToggle.Cursor = Cursors.Hand;
-        btnAgentNoticeToggle.Click += OnAgentNoticeToggleClick;
+        Win11ToggleSwitch swNotice = new Win11ToggleSwitch();
+        swNotice.SetBounds(290, 63, 72, 26);
+        swNotice.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
+        swNotice.Checked = agentNotice.Checked;
+        swNotice.OnText = en ? "On" : "开";
+        swNotice.OffText = en ? "Off" : "关";
+        swNotice.CheckedChanged += delegate
+        {
+            if (agentNotice.Checked != swNotice.Checked)
+                agentNotice.Checked = swNotice.Checked;
+        };
+        btnAgentNoticeToggle = swNotice;
         Controls.Add(btnAgentNoticeToggle);
 
         agentNotice.CheckedChanged += OnAgentNoticeCheckedChanged;
@@ -2295,31 +2434,22 @@ internal sealed class SettingsDialog : Form
     {
         if (btnAgentNoticeToggle == null) return;
         bool enabled = (agentNotice != null && agentNotice.Checked);
-        if (enabled)
+        Win11ToggleSwitch sw = btnAgentNoticeToggle as Win11ToggleSwitch;
+        if (sw != null)
         {
-            btnAgentNoticeToggle.Text = en ? "Enabled" : "已开启";
-            btnAgentNoticeToggle.BackColor = Color.FromArgb(232, 245, 233);
-            btnAgentNoticeToggle.FlatAppearance.BorderColor = Color.FromArgb(165, 214, 167);
-            btnAgentNoticeToggle.ForeColor = Color.FromArgb(27, 94, 32);
-            if (lblDetectedHeader != null) lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
-            if (lblAgentDesc != null)
-            {
-                lblAgentDesc.Text = en ? "Auto-alert when background task finishes" : "智能体后台任务完成时自动弹窗提醒";
-                lblAgentDesc.ForeColor = AppContext.Win11TextSecondary;
-            }
+            if (sw.Checked != enabled) sw.Checked = enabled;
+            sw.OnText = en ? "On" : "开";
+            sw.OffText = en ? "Off" : "关";
         }
         else
         {
-            btnAgentNoticeToggle.Text = en ? "Disabled" : "已停用";
-            btnAgentNoticeToggle.BackColor = Color.FromArgb(245, 245, 245);
-            btnAgentNoticeToggle.FlatAppearance.BorderColor = Color.FromArgb(217, 217, 217);
-            btnAgentNoticeToggle.ForeColor = Color.FromArgb(115, 115, 115);
-            if (lblDetectedHeader != null) lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
-            if (lblAgentDesc != null)
-            {
-                lblAgentDesc.Text = en ? "Auto-alert when background task finishes" : "智能体后台任务完成时自动弹窗提醒";
-                lblAgentDesc.ForeColor = AppContext.Win11TextSecondary;
-            }
+            btnAgentNoticeToggle.Text = enabled ? (en ? "On" : "开") : (en ? "Off" : "关");
+        }
+        if (lblDetectedHeader != null) lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
+        if (lblAgentDesc != null)
+        {
+            lblAgentDesc.Text = en ? "Auto-alert when background task finishes" : "智能体后台任务完成时自动弹窗提醒";
+            lblAgentDesc.ForeColor = AppContext.Win11TextSecondary;
         }
     }
 
@@ -2587,7 +2717,12 @@ internal sealed class SettingsDialog : Form
         }
     }
     private void OnCancelClick(object sender, EventArgs e) { DialogResult = DialogResult.Cancel; Close(); }
-    private void OnAgentNoticeToggleClick(object sender, EventArgs e) { if (agentNotice != null) agentNotice.Checked = !agentNotice.Checked; }
+    private void OnAgentNoticeToggleClick(object sender, EventArgs e)
+    {
+        Win11ToggleSwitch sw = btnAgentNoticeToggle as Win11ToggleSwitch;
+        if (sw != null) sw.Checked = !sw.Checked;
+        else if (agentNotice != null) agentNotice.Checked = !agentNotice.Checked;
+    }
     private void OnAgentNoticeCheckedChanged(object sender, EventArgs e)
     {
         UpdateAgentNoticeToggleState(language != null && language.SelectedIndex == 1);

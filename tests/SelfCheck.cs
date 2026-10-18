@@ -1287,6 +1287,32 @@ internal static class TestCheck
                 return 33;
             }
 
+            // Verify Win11ToggleSwitch control and two-way binding
+            if (btnToggle.GetType().Name != "Win11ToggleSwitch")
+            {
+                Console.WriteLine("FAIL: btnAgentNoticeToggle should be a Win11ToggleSwitch");
+                return 33;
+            }
+            PropertyInfo propChecked = btnToggle.GetType().GetProperty("Checked");
+            if (propChecked == null)
+            {
+                Console.WriteLine("FAIL: btnAgentNoticeToggle should have Checked property");
+                return 33;
+            }
+            bool initialChecked = (bool)propChecked.GetValue(btnToggle, null);
+            btnToggle.PerformClick();
+            if ((bool)propChecked.GetValue(btnToggle, null) == initialChecked || agNoticeBox.Checked == initialChecked)
+            {
+                Console.WriteLine("FAIL: Performing click on Win11ToggleSwitch did not toggle state");
+                return 33;
+            }
+            btnToggle.PerformClick();
+            if ((bool)propChecked.GetValue(btnToggle, null) != initialChecked || agNoticeBox.Checked != initialChecked)
+            {
+                Console.WriteLine("FAIL: Performing second click on Win11ToggleSwitch did not restore state");
+                return 33;
+            }
+
             // Switch back to Tab 1
             btnTabTimer.PerformClick();
             if (!minCtrl.Visible || agNoticeBox.Visible)
