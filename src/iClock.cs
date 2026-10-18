@@ -2832,13 +2832,18 @@ internal sealed class SettingsDialog : Form
     private void OnMcpDemoQuoteClick(object sender, EventArgs e)
     {
         bool en = Value != null && Value.Language == "en";
-        DailyQuoteDialog quoteDemo = new DailyQuoteDialog(
-            Value,
-            en ? "Refactoring modules & running test suite, progress 85%..." : "正在执行代码重构与模块自检，当前进度 85%...",
-            "Cursor Agent"
-        );
-        quoteDemo.Show();
-        AppContext.ForceTopMost(quoteDemo);
+        string text = en ? "Refactoring modules & running test suite, progress 85%..." : "正在执行代码重构与模块自检，当前进度 85%...";
+        string author = "Cursor Agent";
+        if (AppContext.Current != null)
+        {
+            AppContext.Current.ShowCustomQuote(text, author, "Cursor");
+        }
+        else
+        {
+            DailyQuoteDialog quoteDemo = new DailyQuoteDialog(Value, text, author, isProjected: true);
+            quoteDemo.Show();
+            AppContext.ForceTopMost(quoteDemo);
+        }
     }
     private static void OnMcpBoxPaint(object sender, PaintEventArgs pe)
     {
@@ -4050,6 +4055,9 @@ internal sealed class DailyQuoteDialog : Form
     private int dragStartX;
     private int resizeStartWidth;
     private int customWidth = -1;
+    private bool isProjectedNote;
+    public bool IsProjectedNote { get { return isProjectedNote; } }
+    private Timer autoDismissTimer;
 
     private Timer fadeTimer;
     private float currentFontSize = 18.0f;
@@ -4073,7 +4081,7 @@ internal sealed class DailyQuoteDialog : Form
             if (isPinned != value)
             {
                 isPinned = value;
-                if (settings != null)
+                if (!isProjectedNote && settings != null)
                 {
                     settings.QuotePinTopMost = isPinned;
                     settings.Save();
@@ -4136,7 +4144,7 @@ internal sealed class DailyQuoteDialog : Form
         if (IsDisposed) return;
         try
         {
-            bool wantTopMost = isPinned || isPreviewMode || (settings != null && settings.QuotePinTopMost);
+            bool wantTopMost = isProjectedNote || isPinned || isPreviewMode || (settings != null && settings.QuotePinTopMost);
             TopMost = wantTopMost;
             if (IsHandleCreated)
             {
@@ -4170,13 +4178,17 @@ internal sealed class DailyQuoteDialog : Form
     private Rectangle btnCloseRect;
     private int hoveredBtn = 0;
 
-    public DailyQuoteDialog(Settings s) : this(s, null, null) { }
+    public DailyQuoteDialog(Settings s) : this(s, null, null, false) { }
 
     public DailyQuoteDialog(Settings s, string customText, string customAuthor)
+        : this(s, customText, customAuthor, !string.IsNullOrEmpty(customText)) { }
+
+    public DailyQuoteDialog(Settings s, string customText, string customAuthor, bool isProjected)
     {
         settings = s;
+        isProjectedNote = isProjected;
         customWidth = (settings != null && settings.QuoteWidth > 0) ? settings.QuoteWidth : -1;
-        isPinned = (settings != null && settings.QuotePinTopMost);
+        isPinned = isProjectedNote || (settings != null && settings.QuotePinTopMost);
         if (settings != null && settings.QuoteFontSize >= 8.0f && settings.QuoteFontSize <= 24.0f)
         {
             currentFontSize = settings.QuoteFontSize;
@@ -4210,6 +4222,31 @@ internal sealed class DailyQuoteDialog : Form
             int seed = DateTime.Today.Year * 366 + DateTime.Today.DayOfYear;
             currentQuoteIndex = Math.Abs(seed) % quoteList.Count;
         }
+
+        if (isProjectedNote)
+        {
+            autoDismissTimer = new Timer();
+            autoDismissTimer.Interval = 60000; // 1 minute auto-dismiss
+            autoDismissTimer.Tick += delegate
+            {
+                if (autoDismissTimer != null)
+                {
+                    try { autoDismissTimer.Stop(); autoDismissTimer.Dispose(); } catch { }
+                    autoDismissTimer = null;
+                }
+                Dismiss();
+            };
+            autoDismissTimer.Start();
+        }
+
+        FormClosed += delegate
+        {
+            if (autoDismissTimer != null)
+            {
+                try { autoDismissTimer.Stop(); autoDismissTimer.Dispose(); } catch { }
+                autoDismissTimer = null;
+            }
+        };
 
         UpdateCardLayout(keepLeft: false);
     }
@@ -4347,9 +4384,18 @@ internal sealed class DailyQuoteDialog : Form
 
             int btnY = 6;
             int btnSz = 18;
-            btnCloseRect = new Rectangle(cardW - 24, btnY, btnSz, btnSz);
-            btnPinRect = new Rectangle(cardW - 46, btnY, btnSz, btnSz);
-            btnRefreshRect = new Rectangle(cardW - 68, btnY, btnSz, btnSz);
+            if (isProjectedNote)
+            {
+                btnCloseRect = new Rectangle(cardW - 24, btnY, btnSz, btnSz);
+                btnPinRect = Rectangle.Empty;
+                btnRefreshRect = Rectangle.Empty;
+            }
+            else
+            {
+                btnCloseRect = new Rectangle(cardW - 24, btnY, btnSz, btnSz);
+                btnPinRect = new Rectangle(cardW - 46, btnY, btnSz, btnSz);
+                btnRefreshRect = new Rectangle(cardW - 68, btnY, btnSz, btnSz);
+            }
         }
 
         if (!keepLeft || settings == null || settings.QuoteX < 0)
@@ -4638,8 +4684,11 @@ internal sealed class DailyQuoteDialog : Form
 
     private void DrawActionButtons(Graphics g, Color accentColor)
     {
-        DrawMicroButton(g, btnRefreshRect, 1, accentColor);
-        DrawMicroButton(g, btnPinRect, 2, accentColor);
+        if (!isProjectedNote)
+        {
+            DrawMicroButton(g, btnRefreshRect, 1, accentColor);
+            DrawMicroButton(g, btnPinRect, 2, accentColor);
+        }
         DrawMicroButton(g, btnCloseRect, 3, accentColor);
     }
 
@@ -6740,6 +6789,11 @@ internal sealed class AppContext : ApplicationContext
     private Form activeNotice;
     private Form activeDialog;
     private DailyQuoteDialog activeQuoteDialog;
+    private DailyQuoteDialog activeProjectedNote;
+    private bool dailyQuoteSuspendedForProjection;
+    private Timer projectedAgentMonitorTimer;
+    private string projectedAgentName;
+    private int projectedAgentPid;
     private long lastSeconds = -1;
     private MessageWindow messageWindow;
     internal uint shellHookMsg;
@@ -7317,10 +7371,15 @@ internal sealed class AppContext : ApplicationContext
         else if (action == "quote" || action == "-q" || action == "--quote" || action.StartsWith("quote:"))
         {
             string raw = action.StartsWith("quote:") ? cmd.Substring("quote:".Length).Trim() : (arg ?? "");
-            if (!string.IsNullOrEmpty(raw) && raw.Contains("|"))
+            if (!string.IsNullOrEmpty(raw))
             {
-                string[] qp = raw.Split(new char[] { '|' }, 2);
-                ShowCustomQuote(qp[0], qp[1]);
+                string[] qp = raw.Split(new char[] { '|' }, 4);
+                string text = qp[0];
+                string author = qp.Length > 1 ? qp[1] : "";
+                string agentName = qp.Length > 2 && !string.IsNullOrEmpty(qp[2]) ? qp[2] : null;
+                int agentPid = 0;
+                if (qp.Length > 3) int.TryParse(qp[3], out agentPid);
+                ShowCustomQuote(text, author, agentName, agentPid);
             }
             else
             {
@@ -7520,18 +7579,146 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
-    internal void ShowCustomQuote(string text, string author)
+    internal void ShowCustomQuote(string text, string author, string agentName = null, int agentPid = 0)
     {
-        if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
+        // 1. Temporarily hide daily quote if active
+        if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed && activeQuoteDialog.Visible)
         {
-            activeQuoteDialog.Close();
-            activeQuoteDialog = null;
+            dailyQuoteSuspendedForProjection = true;
+            activeQuoteDialog.Hide();
         }
-        DailyQuoteDialog dlg = new DailyQuoteDialog(settings, text, author);
-        activeQuoteDialog = dlg;
-        dlg.FormClosed += delegate { if (activeQuoteDialog == dlg) activeQuoteDialog = null; };
+
+        // 2. Mutual exclusion: at any time, only ONE desktop note projection is allowed
+        if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
+        {
+            DailyQuoteDialog oldNote = activeProjectedNote;
+            activeProjectedNote = null;
+            try { oldNote.Close(); oldNote.Dispose(); } catch { }
+        }
+        StopProjectedAgentMonitor();
+
+        // 3. Resolve agent info
+        if (string.IsNullOrEmpty(agentName))
+        {
+            List<string> detected = DetectAgents();
+            if (detected != null && detected.Count > 0) agentName = detected[0];
+        }
+        projectedAgentName = agentName;
+        projectedAgentPid = agentPid;
+
+        // 4. Create single projected note
+        DailyQuoteDialog dlg = new DailyQuoteDialog(settings, text, author, isProjected: true);
+        activeProjectedNote = dlg;
+
+        dlg.FormClosed += delegate
+        {
+            if (activeProjectedNote == dlg)
+            {
+                activeProjectedNote = null;
+                StopProjectedAgentMonitor();
+
+                // Restore daily quote if it was suspended for projection
+                if (dailyQuoteSuspendedForProjection)
+                {
+                    dailyQuoteSuspendedForProjection = false;
+                    try
+                    {
+                        if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
+                        {
+                            activeQuoteDialog.Show();
+                            activeQuoteDialog.EnsureVisible();
+                            activeQuoteDialog.UpdateTopMostState();
+                        }
+                        else if (settings != null && settings.DailyQuote)
+                        {
+                            CheckDailyQuote(forceShow: false);
+                        }
+                    }
+                    catch { }
+                }
+            }
+        };
+
         dlg.Show();
         ForceTopMost(dlg);
+        StartProjectedAgentMonitor();
+    }
+
+    private void StartProjectedAgentMonitor()
+    {
+        StopProjectedAgentMonitor();
+        bool hasPid = projectedAgentPid > 0;
+        bool hasAgent = !string.IsNullOrEmpty(projectedAgentName);
+        if (!hasPid && !hasAgent) return;
+
+        bool agentWasRunning = false;
+        if (hasAgent)
+        {
+            try
+            {
+                HashSet<string> currentRunning = GetRunningAgents();
+                agentWasRunning = currentRunning.Contains(projectedAgentName);
+            }
+            catch { }
+        }
+
+        projectedAgentMonitorTimer = new Timer();
+        projectedAgentMonitorTimer.Interval = 1000;
+        projectedAgentMonitorTimer.Tick += delegate
+        {
+            if (activeProjectedNote == null || activeProjectedNote.IsDisposed)
+            {
+                StopProjectedAgentMonitor();
+                return;
+            }
+
+            bool agentExited = false;
+            if (hasPid)
+            {
+                try
+                {
+                    using (Process p = Process.GetProcessById(projectedAgentPid))
+                    {
+                        if (p.HasExited) agentExited = true;
+                    }
+                }
+                catch
+                {
+                    agentExited = true;
+                }
+            }
+            else if (hasAgent && agentWasRunning)
+            {
+                try
+                {
+                    HashSet<string> running = GetRunningAgents();
+                    if (!running.Contains(projectedAgentName))
+                    {
+                        agentExited = true;
+                    }
+                }
+                catch { }
+            }
+
+            if (agentExited)
+            {
+                StopProjectedAgentMonitor();
+                if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
+                {
+                    activeProjectedNote.Dismiss();
+                }
+            }
+        };
+        projectedAgentMonitorTimer.Start();
+    }
+
+    private void StopProjectedAgentMonitor()
+    {
+        if (projectedAgentMonitorTimer != null)
+        {
+            try { projectedAgentMonitorTimer.Stop(); projectedAgentMonitorTimer.Dispose(); } catch { }
+            projectedAgentMonitorTimer = null;
+        }
     }
 
     private TimeSpan ReadRemaining()
@@ -9795,6 +9982,16 @@ internal sealed class AppContext : ApplicationContext
     {
         try
         {
+            if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
+            {
+                dailyQuoteSuspendedForProjection = true;
+                if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
+                {
+                    activeQuoteDialog.Hide();
+                }
+                return;
+            }
+
             if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
             {
                 if (!forceShow) return;
@@ -9873,6 +10070,8 @@ internal sealed class AppContext : ApplicationContext
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
         if (activeDialog != null && !activeDialog.IsDisposed) { activeDialog.Close(); activeDialog = null; }
         if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed) { activeQuoteDialog.Close(); activeQuoteDialog = null; }
+        if (activeProjectedNote != null && !activeProjectedNote.IsDisposed) { activeProjectedNote.Close(); activeProjectedNote = null; }
+        StopProjectedAgentMonitor();
         if (running) remaining = ReadRemaining();
         if (sessionActive) { LogSession("Interrupted"); sessionActive = false; }
         timer.Stop(); tray.Visible = false; if (hotkeyRegistered) NativeMethods.UnregisterHotKey(messageWindow.Handle, HOTKEY_ID);

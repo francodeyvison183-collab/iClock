@@ -560,6 +560,7 @@ internal static class CliShim
                             { "action", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "show", "add", "next" } }, { "description", "Action to perform: 'show' (default) displays on desktop card; 'add' adds quote(s) permanently into the user's quotes library; 'next' cycles to next quote." } } },
                             { "text", new Dictionary<string, object> { { "type", "string" }, { "description", "Quote text or sticky note content" } } },
                             { "author", new Dictionary<string, object> { { "type", "string" }, { "description", "Author or attribution (e.g. 'Steve Jobs')" } } },
+                            { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional agent name projecting this sticky note (e.g. 'Cursor', 'Antigravity')" } } },
                             { "quotes", new Dictionary<string, object> { { "type", "array" }, { "items", new Dictionary<string, object> { { "type", "string" } } }, { "description", "Optional list of multiple quotes in 'Quote text | Author' format to add in batch (when action is 'add')." } } }
                         }
                     }
@@ -820,8 +821,19 @@ internal static class CliShim
                 string author = args.ContainsKey("author") ? args["author"] as string : null;
                 if (!string.IsNullOrEmpty(text))
                 {
-                    SendIpc("quote:" + text + "|" + (author ?? ""));
-                    return "已在桌面展示自定义格言/寄语卡片：" + text;
+                    string agentName = null;
+                    if (args.ContainsKey("agent_name") && args["agent_name"] != null) agentName = args["agent_name"].ToString();
+                    else if (args.ContainsKey("agent") && args["agent"] != null) agentName = args["agent"].ToString();
+                    else if (!string.IsNullOrEmpty(mcpClientName)) agentName = mcpClientName;
+
+                    int pid = 0;
+                    if (!string.IsNullOrEmpty(mcpClientName))
+                    {
+                        try { pid = Process.GetCurrentProcess().Id; } catch { }
+                    }
+
+                    SendIpc("quote:" + text + "|" + (author ?? "") + "|" + (agentName ?? "") + "|" + pid);
+                    return "已在桌面置顶投射便签：" + text;
                 }
                 else
                 {

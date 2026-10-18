@@ -2620,16 +2620,78 @@ internal static class TestCheck
                 return 59;
             }
 
-            // Test IPC custom quote command
+            // Test IPC custom quote command (desktop note projection)
+            FieldInfo fActiveProjected = appType.GetField("activeProjectedNote", bf);
+            FieldInfo fDailySuspended = appType.GetField("dailyQuoteSuspendedForProjection", bf);
             handleIpc.Invoke(app, new object[] { "quote:AI Test Quote|Test Author" });
-            fActiveQuote = appType.GetField("activeQuoteDialog", bf);
-            Form activeQuoteDlg = (Form)fActiveQuote.GetValue(app);
-            if (activeQuoteDlg == null)
+            Form projectedDlg = (Form)fActiveProjected.GetValue(app);
+            if (projectedDlg == null)
             {
-                Console.WriteLine("FAIL: IPC quote command did not create DailyQuoteDialog");
+                Console.WriteLine("FAIL: IPC quote command did not create projected DailyQuoteDialog");
                 return 59;
             }
-            activeQuoteDlg.Close();
+            PropertyInfo pIsProjected = projectedDlg.GetType().GetProperty("IsProjectedNote", BindingFlags.Public | BindingFlags.Instance);
+            if (pIsProjected == null || !(bool)pIsProjected.GetValue(projectedDlg, null))
+            {
+                Console.WriteLine("FAIL: Projected note IsProjectedNote is not true");
+                return 59;
+            }
+            if (!projectedDlg.TopMost)
+            {
+                Console.WriteLine("FAIL: Projected note TopMost is not true");
+                return 59;
+            }
+
+            // Test mutual exclusion: new projection invalidates old projection
+            handleIpc.Invoke(app, new object[] { "quote:Second Note|New Author" });
+            Form secondProjected = (Form)fActiveProjected.GetValue(app);
+            if (secondProjected == null || secondProjected == projectedDlg)
+            {
+                Console.WriteLine("FAIL: Mutual exclusion failed, second projection did not replace first");
+                return 59;
+            }
+            if (!projectedDlg.IsDisposed)
+            {
+                Console.WriteLine("FAIL: Mutual exclusion failed, first projection was not closed");
+                return 59;
+            }
+            secondProjected.Close();
+            Application.DoEvents();
+
+            // Test daily quote suspension and restoration during projection
+            MethodInfo checkDailyQuote = appType.GetMethod("CheckDailyQuote", bf);
+            checkDailyQuote.Invoke(app, new object[] { true, settings });
+            fActiveQuote = appType.GetField("activeQuoteDialog", bf);
+            Form dailyQuoteDlg = (Form)fActiveQuote.GetValue(app);
+            if (dailyQuoteDlg == null)
+            {
+                Console.WriteLine("FAIL: CheckDailyQuote did not create dailyQuoteDlg");
+                return 59;
+            }
+            // Project note -> daily quote should be hidden
+            handleIpc.Invoke(app, new object[] { "quote:Third Note|Agent" });
+            if (dailyQuoteDlg.Visible)
+            {
+                Console.WriteLine("FAIL: Daily quote was not hidden during note projection");
+                return 59;
+            }
+            bool suspended = (bool)fDailySuspended.GetValue(app);
+            if (!suspended)
+            {
+                Console.WriteLine("FAIL: dailyQuoteSuspendedForProjection was not set to true");
+                return 59;
+            }
+            // Close projected note -> daily quote should be restored and visible
+            Form thirdProjected = (Form)fActiveProjected.GetValue(app);
+            thirdProjected.Close();
+            Application.DoEvents();
+            if (!dailyQuoteDlg.Visible)
+            {
+                Console.WriteLine("FAIL: Daily quote was not restored after projection closed");
+                return 59;
+            }
+            dailyQuoteDlg.Close();
+            Application.DoEvents();
 
             // Test IPC progress command
             handleIpc.Invoke(app, new object[] { "progress:60|Compiling test" });
