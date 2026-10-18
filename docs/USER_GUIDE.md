@@ -193,6 +193,7 @@ iClock 采用 **单页直达·零弹窗·即改即存** 的一体化设计，所
 | Tool Name / 工具名 | Parameters / 参数 | Description / 核心价值 |
 | :--- | :--- | :--- |
 | **`iclock_ask_human`** *(Killer Feature)* | `question` (string, required)<br>`options` (string[], optional)<br>`timeout_seconds` (int, default: 0)<br>`background_only` (bool, default: false) | **决策请示门禁 (Human-in-the-Loop)**：在用户屏幕中央唤起高优先级 Fluent 交互卡片，等待用户按键选择或输入。适合智能体在执行高风险命令（部署、删除库表、付费 API、冲突合并）前获取人类审批。默认永不超时、无倒计时催促，直到用户主动确认或按 Esc 取消。 |
+| **`iclock_progress`** | `progress` (string, required, e.g. "45" or "clear")<br>`message` (string, optional) | **态势感知发丝进度条 (Ghost Progress Meter)**：在桌面悬浮时钟底部投射 2px 极细发丝进度条，支持实时步骤文本悬停查看。任务完成一键 clear 清除。 |
 | **`iclock_timer`** | `action` ("start"\|"pause"\|"resume"\|"reset")<br>`minutes` (int, default: 25)<br>`message` (string, optional) | **倒计时协同 (Timer Sync)**：智能体联动番茄钟，根据工作节奏自动启停倒计时或推送休息提示。 |
 | **`iclock_notify`** | `message` (string, required)<br>`sound` (bool, default: true) | **任务完成强提醒 (Task Notification)**：智能体长任务完成时在屏幕弹出置顶提醒卡片，播放提示音，将注意力拉回工作台。 |
 | **`iclock_quote`** | `text` (string, required)<br>`author` (string, optional) | **桌面状态投射 (Desktop Status HUD)**：智能体在用户桌面上投射当前任务、阶段进展、思考摘要或工作便签。 |
@@ -206,6 +207,34 @@ iClock 采用 **单页直达·零弹窗·即改即存** 的一体化设计，所
 5. **文本自由输入**：当 `options` 为空时自动切换为输入框模式，按 `Enter` 快速提交；
 6. **全屏穿透强提醒**：无论用户正在全屏打代码、看文档还是播放视频，卡片均以置顶层级醒目呈现；
 7. **可选无人值守超时**：仅在无人值守自动化脚本或 CI 流水线中明确传入 `timeout_seconds > 0` 时才激活超时保护。
+
+### 🛡️ Agent Runtime Harness 伴生实践 (DeepSeek / Pi / Python Agent)
+
+将 iClock 用作智能体执行框架的伴生外骨骼（Ambient Harness）：
+
+```python
+import subprocess
+
+class iClockHarness:
+    @staticmethod
+    def set_progress(pct: int, task: str = ""):
+        subprocess.run(["iclock", "-pr", str(pct), task], check=False)
+
+    @staticmethod
+    def request_approval(action: str, options: str = "批准,取消") -> str:
+        res = subprocess.run(
+            ["iclock", "-a", action, "--options", options],
+            capture_output=True, text=True, check=False
+        )
+        return res.stdout.strip()
+
+    @staticmethod
+    def notify_done(summary: str):
+        subprocess.run(["iclock", "-n", summary], check=False)
+```
+- **DeepSeek `<think>` 阶段**：调用 `set_progress(20, "DeepSeek 推理分析中...")`，屏幕边缘直观感知，无需死盯终端；
+- **安全审计门禁**：调用 `request_approval("是否推送代码到主分支？")`，桌面置顶展示且不抢焦点，支持按键秒级放行；
+- **任务交付提醒**：调用 `notify_done("自动化构建完成")`，音画同步唤回人类注意力。
 
 ---
 

@@ -1943,6 +1943,7 @@ internal sealed class SettingsDialog : Form
         {
             RefreshAgentCards();
         }
+        Update();
     }
 
     private void UpdateTabButtons()
@@ -2296,7 +2297,7 @@ internal sealed class SettingsDialog : Form
         bool enabled = (agentNotice != null && agentNotice.Checked);
         if (enabled)
         {
-            btnAgentNoticeToggle.Text = en ? "● Enabled" : "● 已开启";
+            btnAgentNoticeToggle.Text = en ? "Enabled" : "已开启";
             btnAgentNoticeToggle.BackColor = Color.FromArgb(232, 245, 233);
             btnAgentNoticeToggle.FlatAppearance.BorderColor = Color.FromArgb(165, 214, 167);
             btnAgentNoticeToggle.ForeColor = Color.FromArgb(27, 94, 32);
@@ -2309,7 +2310,7 @@ internal sealed class SettingsDialog : Form
         }
         else
         {
-            btnAgentNoticeToggle.Text = en ? "○ Disabled" : "○ 已停用";
+            btnAgentNoticeToggle.Text = en ? "Disabled" : "已停用";
             btnAgentNoticeToggle.BackColor = Color.FromArgb(245, 245, 245);
             btnAgentNoticeToggle.FlatAppearance.BorderColor = Color.FromArgb(217, 217, 217);
             btnAgentNoticeToggle.ForeColor = Color.FromArgb(115, 115, 115);
@@ -2322,17 +2323,58 @@ internal sealed class SettingsDialog : Form
         }
     }
 
+    private void UpdateAgentBadges()
+    {
+        if (panelAgentCards == null) return;
+        bool en = language != null && language.SelectedIndex == 1;
+        bool alertEnabled = agentNotice != null && agentNotice.Checked;
+        HashSet<string> running = AppContext.GetRunningAgents();
+        foreach (Control c in panelAgentCards.Controls)
+        {
+            Panel card = c as Panel;
+            if (card == null) continue;
+            string name = card.Tag as string;
+            if (string.IsNullOrEmpty(name)) continue;
+            bool isRunning = running.Contains(name);
+            foreach (Control child in card.Controls)
+            {
+                if (child.Name == "lblBadge")
+                {
+                    string badgeText;
+                    Color bBg, bFg;
+                    if (!alertEnabled)
+                    {
+                        badgeText = en ? "Paused" : "未监听";
+                        bFg = Color.FromArgb(140, 140, 140);
+                        bBg = Color.FromArgb(242, 242, 242);
+                    }
+                    else if (isRunning)
+                    {
+                        badgeText = en ? "Running" : "运行中";
+                        bFg = Color.FromArgb(27, 94, 32);
+                        bBg = Color.FromArgb(232, 245, 233);
+                    }
+                    else
+                    {
+                        badgeText = en ? "Ready" : "已就绪";
+                        bFg = Color.FromArgb(90, 90, 90);
+                        bBg = Color.FromArgb(243, 244, 246);
+                    }
+                    child.Text = badgeText;
+                    child.Tag = new object[] { bBg, bFg, badgeText };
+                    child.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
+                    child.Size = new Size(en ? 66 : 56, 22);
+                    child.Location = new Point(card.Width - child.Width - 12, 6);
+                    child.Invalidate();
+                    break;
+                }
+            }
+        }
+    }
+
     internal void RefreshAgentCards()
     {
         if (panelAgentCards == null) return;
-        panelAgentCards.SuspendLayout();
-        while (panelAgentCards.Controls.Count > 0)
-        {
-            Control c = panelAgentCards.Controls[0];
-            panelAgentCards.Controls.RemoveAt(0);
-            c.Dispose();
-        }
-
         bool en = language.SelectedIndex == 1;
         bool alertEnabled = agentNotice != null && agentNotice.Checked;
         List<string> agents = AppContext.DetectAgents();
@@ -2349,6 +2391,35 @@ internal sealed class SettingsDialog : Form
         {
             lblDetectedHeader.Text = en ? "AI Agent Alerts" : "智能体后台任务提醒";
             lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
+        }
+
+        // If controls already exist and match agent list, update badge states in-place without rebuilding
+        bool matches = (panelAgentCards.Controls.Count == agents.Count && agents.Count > 0);
+        if (matches)
+        {
+            for (int i = 0; i < agents.Count; i++)
+            {
+                Panel card = panelAgentCards.Controls[i] as Panel;
+                if (card == null || (card.Tag as string) != agents[i])
+                {
+                    matches = false;
+                    break;
+                }
+            }
+        }
+
+        if (matches)
+        {
+            UpdateAgentBadges();
+            return;
+        }
+
+        panelAgentCards.SuspendLayout();
+        while (panelAgentCards.Controls.Count > 0)
+        {
+            Control c = panelAgentCards.Controls[0];
+            panelAgentCards.Controls.RemoveAt(0);
+            c.Dispose();
         }
 
         if (agents.Count == 0)
@@ -2622,6 +2693,7 @@ internal sealed class SettingsDialog : Form
         Panel card = new Panel();
         card.Size = new Size(width, 34);
         card.BackColor = Color.White;
+        card.Tag = name;
         card.Paint += (s, pe) =>
         {
             Panel p = (Panel)s;
@@ -2632,6 +2704,7 @@ internal sealed class SettingsDialog : Form
         };
 
         Label lblBadge = new Label();
+        lblBadge.Name = "lblBadge";
         string badgeText;
         Color bBg, bFg;
         if (!alertEnabled)
@@ -3445,10 +3518,21 @@ internal static class McpConfigHelper
         return null;
     }
 
+    private static readonly Dictionary<string, bool> mcpConfigCache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+    private static DateTime lastMcpCacheTime = DateTime.MinValue;
+
     public static bool IsAgentMcpConfigured(string agentName)
     {
+        if (string.IsNullOrEmpty(agentName)) return false;
+        if ((DateTime.Now - lastMcpCacheTime).TotalSeconds < 30 && mcpConfigCache.ContainsKey(agentName))
+        {
+            return mcpConfigCache[agentName];
+        }
         string path = GetConfigPathForAgent(agentName);
-        return IsConfigured(path);
+        bool cfg = IsConfigured(path);
+        mcpConfigCache[agentName] = cfg;
+        lastMcpCacheTime = DateTime.Now;
+        return cfg;
     }
 
     public static bool IsConfigured(string configFile)
@@ -7760,8 +7844,15 @@ internal sealed class AppContext : ApplicationContext
         return false;
     }
 
+    private static HashSet<string> cachedRunningAgents = null;
+    private static DateTime lastRunningAgentsTime = DateTime.MinValue;
+
     internal static HashSet<string> GetRunningAgents()
     {
+        if (cachedRunningAgents != null && (DateTime.Now - lastRunningAgentsTime).TotalSeconds < 2)
+        {
+            return new HashSet<string>(cachedRunningAgents, StringComparer.OrdinalIgnoreCase);
+        }
         HashSet<string> running = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
@@ -7773,10 +7864,15 @@ internal sealed class AppContext : ApplicationContext
                     if (name != null) running.Add(name);
                 }
             }
+            cachedRunningAgents = running;
+            lastRunningAgentsTime = DateTime.Now;
         }
         catch { }
         return running;
     }
+
+    private static List<string> cachedDiskAgents = null;
+    private static DateTime lastDiskAgentsTime = DateTime.MinValue;
 
     internal static List<string> DetectAgents()
     {
@@ -7784,21 +7880,31 @@ internal sealed class AppContext : ApplicationContext
         HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            foreach (Process p in Process.GetProcesses())
+            foreach (string name in GetRunningAgents())
             {
-                using (p)
+                if (!seen.Contains(name))
                 {
-                    string name = MatchAgent(p.ProcessName);
-                    if (name != null && !seen.Contains(name))
-                    {
-                        seen.Add(name);
-                        result.Add(name);
-                    }
+                    seen.Add(name);
+                    result.Add(name);
                 }
             }
         }
         catch { }
 
+        if (cachedDiskAgents != null && (DateTime.Now - lastDiskAgentsTime).TotalSeconds < 30)
+        {
+            foreach (string name in cachedDiskAgents)
+            {
+                if (!seen.Contains(name))
+                {
+                    seen.Add(name);
+                    result.Add(name);
+                }
+            }
+            return result;
+        }
+
+        List<string> diskFound = new List<string>();
         List<string> dirsToCheck = new List<string>();
         try
         {
@@ -7856,12 +7962,15 @@ internal sealed class AppContext : ApplicationContext
                     {
                         seen.Add(name);
                         result.Add(name);
+                        diskFound.Add(name);
                     }
                 }
             }
             catch { }
         }
 
+        cachedDiskAgents = diskFound;
+        lastDiskAgentsTime = DateTime.Now;
         return result;
     }
 

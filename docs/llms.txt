@@ -17,6 +17,7 @@ iClock is an open-source, minimalist Windows desktop productivity hub designed f
 - **Supported Formats**: `HH:MM:SS`, `MM:SS`, and localized time units (`00时25分00秒` / `00h 25m 00s`)
 - **Built-in Native MCP Server**: `iclock.com --mcp` stdio JSON-RPC 2.0 (Zero Node.js/Python dependencies)
   - `iclock_ask_human`: Desktop Decision Gate (Human-in-the-Loop popup for agent safety authorization)
+  - `iclock_progress`: Ghost Progress Meter (2px hairline capsule on bottom of floating clock)
   - `iclock_timer`: Agent sets, queries, and controls countdown timers
   - `iclock_notify`: Agent triggers desktop top-most popups and chimes upon task milestones
   - `iclock_quote`: Agent reads or rotates desktop motivational quotes

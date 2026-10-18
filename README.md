@@ -191,6 +191,66 @@ iclock -s 50
 
 ---
 
+## 🛡️ 智能体 Harness 伴生扩展 (Agent Runtime Harness)
+
+当运行 **DeepSeek、Pi、Aider、AutoGPT** 等自主智能体或长推理模型时，传统的执行外壳（Harness）往往局限在终端字符流或重型 Web 容器中，带来**严重的注意力脱节与窗口打断感**。
+
+iClock 单文件仅 253 KB、内存 < 15 MB、0.0% CPU 占用且原生全鼠标穿透，是极具辨识度的 **Windows 桌面原生伴生外骨骼（Ambient Desktop Harness）**：
+
+### 1. 为什么用 iClock 作为智能体 Harness 扩展？
+
+* 👻 **幽灵态态势感知 (Ambient HUD)**：长任务（如 DeepSeek `<think>` 深度推理、全量自动化测试、大型重构）中，通过屏幕底部 2px 发丝进度条与微呼吸律动投射进度，余光即可掌握状态，彻底告别盯着终端日志刷屏的焦虑。
+* 🚦 **零焦点破坏的门禁授权 (HITL Gatekeeper)**：遇到危险操作（删除数据、`git push --force`）时唤起置顶半透明卡片，**绝不抢占前台键盘输入焦点**；支持 `1-9` 或 `Enter/Esc` 盲打秒级决断，无需频繁 Alt+Tab 切屏。
+* ⏳ **硬性时间预算锚点 (Budget-Anchored Guardrail)**：自主 Agent 启动时绑定 iClock 倒计时（如 `iclock -s 15`），提供物理时限约束与超时熔断，防止 Agent 陷入逻辑死循环消耗过多 Token。
+* 💬 **桌面灵感轻语 (Ambient Whispers)**：类似 Pi 伴生助手的温感关怀，或 DeepSeek 得出的阶段性关键结论，可无感投射在桌面壁纸背景，不遮挡任何前台工作心流。
+
+### 2. 极简 Python Harness 范例 (30 秒即插即用)
+
+任何 Python 智能体脚本或框架（LangGraph、Aider、自定义 LLM Loop）无需任何重型依赖，仅需调用底层 IPC 即可快速接入：
+
+```python
+import subprocess
+
+class iClockHarness:
+    """iClock 极简桌面伴生外骨骼"""
+    @staticmethod
+    def progress(percent: int, label: str = ""):
+        """投射屏幕底部发丝进度条 (如 45 'DeepSeek 推理中...')"""
+        subprocess.run(["iclock", "-pr", str(percent), label], check=False)
+
+    @staticmethod
+    def ask_human(prompt: str, options: str = "批准执行,取消") -> str:
+        """非侵入式桌面授权门禁 (返回用户选择，支持盲打快速确认)"""
+        res = subprocess.run(
+            ["iclock", "-a", prompt, "--options", options],
+            capture_output=True, text=True, check=False
+        )
+        return res.stdout.strip()
+
+    @staticmethod
+    def notify(message: str):
+        """里程碑强置顶通知与提示音"""
+        subprocess.run(["iclock", "-n", message], check=False)
+
+# ── 典型自主 Agent 循环中使用 ──
+harness = iClockHarness()
+
+# 1. 投射任务阶段
+harness.progress(35, "DeepSeek 正在分析代码依赖与思维链...")
+
+# 2. 遇到高风险工具调用时请求人类决策门禁
+if tool_call.is_sensitive:
+    choice = harness.ask_human(f"即将执行: {tool_call.name}，是否允许？")
+    if choice != "批准执行":
+        raise PermissionError("人类拒绝了该操作")
+
+# 3. 任务圆满交付
+harness.progress(100, "重构完成")
+harness.notify("✨ 自动化测试全部通过，耗时 3 分 20 秒！")
+```
+
+---
+
 ## 🎯 常用快捷键与交互指南
 
 * **启动 / 暂停**：按下全局快捷键 `Ctrl + Shift + T`，或直接鼠标左键单击托盘图标。
