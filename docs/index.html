@@ -107,38 +107,45 @@
   <style>
     :root {
       --bg-primary: #FFFFFF;
-      --bg-secondary: #F8FAFC;
-      --bg-tertiary: #F1F5F9;
-      --text-main: #0F172A;
-      --text-muted: #475569;
-      --text-light: #94A3B8;
-      --brand-blue: #1C72BE;
-      --brand-blue-hover: #155A96;
-      --brand-blue-light: #EBF4FC;
-      --brand-blue-glow: rgba(28, 114, 190, 0.15);
-      --accent-coral: #EF4444;
-      --accent-green: #10B981;
-      --border-color: #E2E8F0;
-      --card-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
-      --card-shadow-hover: 0 20px 30px -8px rgba(15, 23, 42, 0.08), 0 8px 12px -3px rgba(15, 23, 42, 0.04);
+      --bg-secondary: #F5F5F7;
+      --bg-tertiary: #E8E8ED;
+      --card-bg: #FFFFFF;
+      --text-main: #1D1D1F;
+      --text-muted: #6E6E73;
+      --text-light: #86868B;
+      --brand-blue: #0071E3;
+      --brand-blue-hover: #0077ED;
+      --brand-blue-light: rgba(0, 113, 227, 0.08);
+      --brand-blue-glow: rgba(0, 113, 227, 0.2);
+      --accent-coral: #E30000;
+      --accent-green: #34C759;
+      --border-color: rgba(0, 0, 0, 0.08);
+      --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      --card-shadow-hover: 0 14px 34px rgba(0, 0, 0, 0.08);
       --radius-sm: 8px;
-      --radius-md: 12px;
-      --radius-lg: 18px;
-      --radius-full: 9999px;
-      --container-max: 1160px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-full: 980px;
+      --container-max: 1120px;
     }
 
     [data-theme="dark"] {
-      --bg-primary: #0B1120;
-      --bg-secondary: #0F172A;
-      --bg-tertiary: #1E293B;
-      --text-main: #F8FAFC;
-      --text-muted: #94A3B8;
-      --text-light: #64748B;
-      --border-color: #1E293B;
-      --card-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4), 0 2px 6px -1px rgba(0, 0, 0, 0.3);
-      --card-shadow-hover: 0 20px 30px -8px rgba(0, 0, 0, 0.6), 0 8px 12px -3px rgba(0, 0, 0, 0.4);
-      --brand-blue-light: rgba(28, 114, 190, 0.2);
+      --bg-primary: #000000;
+      --bg-secondary: #161617;
+      --bg-tertiary: #2C2C2E;
+      --card-bg: #1C1C1E;
+      --text-main: #F5F5F7;
+      --text-muted: #86868B;
+      --text-light: #6E6E73;
+      --brand-blue: #2997FF;
+      --brand-blue-hover: #47A6FF;
+      --brand-blue-light: rgba(41, 151, 255, 0.15);
+      --brand-blue-glow: rgba(41, 151, 255, 0.3);
+      --accent-coral: #FF453A;
+      --accent-green: #30D158;
+      --border-color: rgba(255, 255, 255, 0.12);
+      --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+      --card-shadow-hover: 0 14px 34px rgba(0, 0, 0, 0.7);
     }
 
     * {
@@ -153,7 +160,7 @@
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
       background-color: var(--bg-primary);
       color: var(--text-main);
       line-height: 1.6;
@@ -180,68 +187,64 @@
       padding: 0 24px;
     }
 
-    /* 顶部导航 */
+    /* 顶部导航 (Apple Minimalist Frosted Glass) */
     header.navbar {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(255, 255, 255, 0.75);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border-bottom: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--border-color);
       transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
     }
 
-    header.navbar.scrolled {
-      background: rgba(255, 255, 255, 0.94);
-      border-bottom-color: var(--border-color);
-      box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.05);
+    [data-theme="dark"] header.navbar {
+      background: rgba(0, 0, 0, 0.82);
     }
 
-    [data-theme="dark"] header.navbar {
-      background: rgba(11, 17, 32, 0.75);
-      border-bottom-color: transparent;
+    header.navbar.scrolled {
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.05);
     }
 
     [data-theme="dark"] header.navbar.scrolled {
-      background: rgba(11, 17, 32, 0.94);
-      border-bottom-color: #1E293B;
-      box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+      background: rgba(22, 22, 23, 0.92);
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.4);
     }
 
     .nav-inner {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 68px;
+      height: 52px;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 20px;
-      font-weight: 700;
+      gap: 9px;
+      font-size: 17px;
+      font-weight: 600;
       color: var(--text-main);
       letter-spacing: -0.02em;
     }
 
     .brand-icon {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
+      width: 24px;
+      height: 24px;
+      border-radius: 5px;
       object-fit: contain;
-      box-shadow: 0 2px 6px rgba(19, 28, 67, 0.15);
     }
 
     .version-tag {
       font-size: 11px;
       font-weight: 600;
-      background: var(--brand-blue-light);
-      color: var(--brand-blue);
-      padding: 2px 8px;
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      padding: 1px 7px;
       border-radius: var(--radius-full);
-      border: 1px solid rgba(28, 114, 190, 0.2);
+      border: 1px solid var(--border-color);
     }
 
     .nav-links {
@@ -252,15 +255,15 @@
     }
 
     .nav-links a {
-      font-size: 14.5px;
-      font-weight: 500;
+      font-size: 13.5px;
+      font-weight: 400;
       color: var(--text-muted);
       white-space: nowrap;
       transition: color 0.15s ease;
     }
 
     .nav-links a:hover {
-      color: var(--brand-blue);
+      color: var(--text-main);
     }
 
     .nav-actions {
@@ -272,16 +275,16 @@
     .lang-switch-pill {
       display: flex;
       align-items: center;
-      background: var(--bg-tertiary);
-      padding: 3px;
+      background: var(--bg-secondary);
+      padding: 2px;
       border-radius: var(--radius-full);
       border: 1px solid var(--border-color);
     }
 
     .lang-pill-item {
-      padding: 4px 10px;
-      font-size: 12px;
-      font-weight: 600;
+      padding: 3px 9px;
+      font-size: 11.5px;
+      font-weight: 500;
       border-radius: var(--radius-full);
       color: var(--text-muted);
       transition: all 0.15s ease;
@@ -289,18 +292,19 @@
 
     .lang-pill-item.active {
       background: var(--bg-primary);
-      color: var(--brand-blue);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+      color: var(--text-main);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      font-weight: 600;
     }
 
     .theme-toggle-btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 36px;
-      height: 36px;
-      border-radius: var(--radius-sm);
-      background: var(--bg-tertiary);
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-full);
+      background: var(--bg-secondary);
       color: var(--text-muted);
       border: 1px solid var(--border-color);
       transition: all 0.2s ease;
@@ -308,26 +312,25 @@
 
     .theme-toggle-btn:hover {
       color: var(--text-main);
-      background: var(--border-color);
+      background: var(--bg-tertiary);
     }
 
     .btn-github {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 7px 12px;
-      border-radius: var(--radius-sm);
+      gap: 5px;
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
       border: 1px solid var(--border-color);
       background: var(--bg-primary);
       color: var(--text-main);
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 12.5px;
+      font-weight: 500;
       transition: all 0.15s ease;
     }
 
     .btn-github:hover {
       background: var(--bg-secondary);
-      border-color: #CBD5E1;
     }
 
     .btn-primary {
@@ -336,236 +339,155 @@
       gap: 6px;
       background: var(--brand-blue);
       color: #FFFFFF;
-      padding: 8px 16px;
-      border-radius: var(--radius-sm);
-      font-size: 13.5px;
-      font-weight: 600;
-      box-shadow: 0 2px 8px var(--brand-blue-glow);
+      padding: 7px 15px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 500;
       transition: all 0.15s ease;
     }
 
     .btn-primary:hover {
       background: var(--brand-blue-hover);
-      box-shadow: 0 4px 14px var(--brand-blue-glow);
-      transform: translateY(-1px);
+      transform: scale(1.01);
     }
 
     .btn-secondary {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: var(--bg-primary);
+      background: var(--bg-secondary);
       color: var(--text-main);
-      padding: 8px 16px;
-      border-radius: var(--radius-sm);
-      font-size: 13.5px;
-      font-weight: 600;
+      padding: 7px 15px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 500;
       border: 1px solid var(--border-color);
       transition: all 0.15s ease;
     }
 
     .btn-secondary:hover {
-      background: var(--bg-secondary);
-      border-color: #CBD5E1;
+      background: var(--bg-tertiary);
     }
 
     .btn-large {
-      padding: 12px 24px;
+      padding: 12px 26px;
       font-size: 15px;
-      border-radius: var(--radius-md);
+      font-weight: 500;
+      border-radius: var(--radius-full);
     }
 
-    /* 首屏 Hero */
+    /* 首屏 Hero (Apple Atmospheric Elegance) */
     .hero {
-      padding: 60px 0 50px;
+      padding: 72px 0 56px;
       text-align: center;
-      background: radial-gradient(circle at 50% 10%, rgba(28, 114, 190, 0.05) 0%, transparent 60%);
+      position: relative;
     }
 
-    .badge-pill {
+    .hero-eyebrow {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 16px;
-      background: var(--brand-blue-light);
-      border: 1px solid rgba(28, 114, 190, 0.2);
-      border-radius: var(--radius-full);
       font-size: 13px;
       font-weight: 600;
+      letter-spacing: -0.01em;
       color: var(--brand-blue);
-      margin-bottom: 24px;
+      margin-bottom: 16px;
     }
 
     .hero-title {
-      font-size: clamp(30px, 4.8vw, 50px);
-      font-weight: 800;
-      line-height: 1.25;
-      letter-spacing: -0.02em;
+      font-size: clamp(34px, 5.6vw, 58px);
+      font-weight: 700;
+      line-height: 1.12;
+      letter-spacing: -0.035em;
       color: var(--text-main);
-      max-width: 1080px;
+      max-width: 900px;
       margin: 0 auto 16px;
     }
 
-    @media (min-width: 768px) {
-      .hero-title {
-        white-space: nowrap;
-      }
-    }
-
-    .hero-title span {
-      background: linear-gradient(135deg, var(--brand-blue) 0%, #3B82F6 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .hero-feature-pills {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      flex-wrap: wrap;
-      max-width: 980px;
-      margin: 0 auto 22px;
-    }
-
-    .hero-feature-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 9px 20px;
-      border-radius: var(--radius-full);
-      font-size: clamp(14.5px, 1.8vw, 17px);
-      font-weight: 700;
-      white-space: nowrap;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      cursor: pointer;
-      text-decoration: none;
-    }
-
-    .hero-feature-pill .pill-icon {
-      font-size: 16px;
-      line-height: 1;
-    }
-
-    /* 1. 倒计时：暖珊瑚橙 */
-    .hero-feature-pill.pill-timer {
-      background: rgba(234, 88, 12, 0.08);
-      color: #C2410C;
-      border: 1.5px solid rgba(234, 88, 12, 0.25);
-    }
-    .hero-feature-pill.pill-timer:hover {
-      background: rgba(234, 88, 12, 0.15);
-      border-color: #EA580C;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px -3px rgba(234, 88, 12, 0.25);
-    }
-    [data-theme="dark"] .hero-feature-pill.pill-timer {
-      background: rgba(249, 115, 22, 0.15);
-      color: #FB923C;
-      border-color: rgba(249, 115, 22, 0.35);
-    }
-    [data-theme="dark"] .hero-feature-pill.pill-timer:hover {
-      background: rgba(249, 115, 22, 0.25);
-      border-color: #FB923C;
-      box-shadow: 0 8px 20px -3px rgba(249, 115, 22, 0.35);
-    }
-
-    /* 2. 桌面金句：沉静青翠绿 */
-    .hero-feature-pill.pill-quotes {
-      background: rgba(16, 185, 129, 0.08);
-      color: #047857;
-      border: 1.5px solid rgba(16, 185, 129, 0.25);
-    }
-    .hero-feature-pill.pill-quotes:hover {
-      background: rgba(16, 185, 129, 0.15);
-      border-color: #10B981;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px -3px rgba(16, 185, 129, 0.25);
-    }
-    [data-theme="dark"] .hero-feature-pill.pill-quotes {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34D399;
-      border-color: rgba(16, 185, 129, 0.35);
-    }
-    [data-theme="dark"] .hero-feature-pill.pill-quotes:hover {
-      background: rgba(16, 185, 129, 0.25);
-      border-color: #34D399;
-      box-shadow: 0 8px 20px -3px rgba(16, 185, 129, 0.35);
-    }
-
-    /* 3. AI 智能体 & MCP：极客极光紫 */
-    .hero-feature-pill.pill-mcp {
-      background: rgba(124, 58, 237, 0.08);
-      color: #6D28D9;
-      border: 1.5px solid rgba(124, 58, 237, 0.25);
-    }
-    .hero-feature-pill.pill-mcp:hover {
-      background: rgba(124, 58, 237, 0.15);
-      border-color: #7C3AED;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px -3px rgba(124, 58, 237, 0.25);
-    }
-    [data-theme="dark"] .hero-feature-pill.pill-mcp {
-      background: rgba(124, 58, 237, 0.15);
-      color: #A78BFA;
-      border-color: rgba(124, 58, 237, 0.35);
-    }
-    [data-theme="dark"] .hero-feature-pill.pill-mcp:hover {
-      background: rgba(124, 58, 237, 0.25);
-      border-color: #A78BFA;
-      box-shadow: 0 8px 20px -3px rgba(124, 58, 237, 0.35);
-    }
-
-    .hero-specs-row {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      max-width: 960px;
-      margin: 0 auto 28px;
-    }
-
-    .hero-spec-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-full);
-      font-size: 13px;
-      font-weight: 600;
+    .hero-subtitle {
+      font-size: clamp(16px, 2vw, 20px);
+      font-weight: 400;
+      line-height: 1.5;
+      letter-spacing: -0.015em;
       color: var(--text-muted);
-      transition: all 0.15s ease;
-    }
-
-    .hero-spec-tag:hover {
-      border-color: var(--brand-blue);
-      color: var(--brand-blue);
-      background: var(--brand-blue-light);
+      max-width: 760px;
+      margin: 0 auto 30px;
     }
 
     .hero-buttons {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 16px;
-      margin-bottom: 36px;
+      gap: 14px;
+      margin-bottom: 38px;
       flex-wrap: wrap;
     }
 
-    /* 交互沙盒 (Live Sandbox) */
+    /* Apple 签名式 4 核心指标条 (Metric Strip) */
+    .hero-key-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      max-width: 860px;
+      margin: 0 auto 40px;
+      padding: 22px 28px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      gap: 16px;
+    }
+
+    .metric-item {
+      text-align: center;
+      position: relative;
+    }
+
+    .metric-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      right: -8px;
+      top: 15%;
+      height: 70%;
+      width: 1px;
+      background: var(--border-color);
+    }
+
+    .metric-val {
+      font-size: clamp(24px, 3.2vw, 34px);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: var(--text-main);
+      line-height: 1.15;
+    }
+
+    .metric-label {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-top: 4px;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 640px) {
+      .hero-key-metrics {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px 16px;
+      }
+      .metric-item:not(:last-child)::after {
+        display: none;
+      }
+    }
+
+    /* 交互沙盒 (Apple Clean Preview Window) */
     .hero-preview {
       max-width: 860px;
       margin: 0 auto;
     }
 
     .interactive-board {
-      background: var(--bg-primary);
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-lg);
-      box-shadow: 0 12px 40px -10px rgba(15, 23, 42, 0.1);
+      box-shadow: var(--card-shadow);
       overflow: hidden;
       transition: all 0.2s ease;
     }
@@ -573,7 +495,7 @@
     .board-header {
       background: var(--bg-secondary);
       border-bottom: 1px solid var(--border-color);
-      padding: 12px 18px;
+      padding: 10px 18px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -586,43 +508,44 @@
     }
 
     .win-logo {
-      color: var(--brand-blue);
+      color: var(--text-muted);
       flex-shrink: 0;
     }
 
     .board-title {
       font-size: 12.5px;
-      font-weight: 600;
+      font-weight: 500;
       color: var(--text-muted);
     }
 
     .board-view-switch {
       display: flex;
-      gap: 4px;
+      gap: 2px;
       background: var(--bg-primary);
-      padding: 3px;
-      border-radius: var(--radius-sm);
+      padding: 2px;
+      border-radius: var(--radius-full);
       border: 1px solid var(--border-color);
     }
 
     .board-tab {
-      padding: 4px 10px;
-      font-size: 12px;
-      font-weight: 600;
+      padding: 4px 11px;
+      font-size: 11.5px;
+      font-weight: 500;
       color: var(--text-muted);
-      border-radius: 4px;
+      border-radius: var(--radius-full);
       transition: all 0.15s ease;
     }
 
     .board-tab.active {
-      background: var(--brand-blue-light);
+      background: var(--bg-secondary);
       color: var(--brand-blue);
+      font-weight: 600;
     }
 
     .board-screen {
       position: relative;
       height: 290px;
-      background: linear-gradient(135deg, rgba(28, 114, 190, 0.03) 0%, rgba(248, 250, 252, 0.8) 100%);
+      background: var(--bg-primary);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -635,10 +558,9 @@
       user-select: none;
       padding: 14px 28px;
       border-radius: var(--radius-md);
-      background: rgba(255, 255, 255, 0.85);
-      backdrop-filter: blur(8px);
-      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.6);
+      background: var(--bg-secondary);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+      border: 1px solid var(--border-color);
       text-align: center;
       transition: transform 0.1s ease, box-shadow 0.1s ease;
     }
@@ -646,7 +568,7 @@
     .simulated-floating-clock:active {
       cursor: grabbing;
       transform: scale(0.98);
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.09);
     }
 
     .sim-drag-hint {
@@ -654,7 +576,7 @@
       align-items: center;
       gap: 5px;
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 500;
       color: var(--text-light);
       margin-bottom: 2px;
       letter-spacing: 0.02em;
@@ -666,12 +588,11 @@
     }
 
     .simulated-digits {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
       font-size: 46px;
-      font-weight: 800;
-      letter-spacing: 0.04em;
+      font-weight: 700;
+      letter-spacing: 0.02em;
       color: var(--accent-coral);
-      text-shadow: 0 2px 8px rgba(239, 68, 68, 0.2);
     }
 
     .simulated-status {
@@ -682,25 +603,24 @@
 
     .simulated-controls {
       display: flex;
-      gap: 10px;
+      gap: 8px;
       margin-top: 20px;
       z-index: 2;
     }
 
     .sim-btn {
       padding: 6px 14px;
-      font-size: 13px;
-      font-weight: 600;
-      border-radius: var(--radius-sm);
+      font-size: 12.5px;
+      font-weight: 500;
+      border-radius: var(--radius-full);
       border: 1px solid var(--border-color);
-      background: var(--bg-primary);
+      background: var(--bg-secondary);
       color: var(--text-main);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
       transition: all 0.15s ease;
     }
 
     .sim-btn:hover {
-      background: var(--bg-secondary);
+      background: var(--bg-tertiary);
     }
 
     .sim-btn.primary {
@@ -734,18 +654,17 @@
 
     .sim-quote-text {
       font-size: 20px;
-      font-weight: 600;
+      font-weight: 500;
       line-height: 1.6;
       color: var(--text-main);
       max-width: 640px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       letter-spacing: -0.01em;
     }
 
     .sim-quote-author {
-      font-size: 14px;
+      font-size: 13.5px;
       color: var(--text-muted);
-      font-style: italic;
     }
 
     .real-screenshot-view {
@@ -755,7 +674,7 @@
       object-fit: cover;
     }
 
-    /* 通用章节标题 */
+    /* 通用章节标题 (Apple Confident Typography) */
     .section-header {
       text-align: center;
       margin-bottom: 48px;
@@ -763,37 +682,34 @@
 
     .section-tag {
       display: inline-block;
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
       color: var(--brand-blue);
-      background: var(--brand-blue-light);
-      padding: 4px 12px;
-      border-radius: var(--radius-full);
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
 
     .section-title {
-      font-size: clamp(24px, 3.5vw, 36px);
-      font-weight: 800;
-      letter-spacing: -0.02em;
+      font-size: clamp(26px, 3.8vw, 40px);
+      font-weight: 700;
+      letter-spacing: -0.025em;
       color: var(--text-main);
-      margin-bottom: 14px;
+      margin-bottom: 12px;
+      line-height: 1.2;
     }
 
     .section-subtitle {
       font-size: 16px;
       color: var(--text-muted);
-      max-width: 680px;
+      max-width: 660px;
       margin: 0 auto;
       line-height: 1.6;
     }
 
-    /* 章节 1：为什么选择 iClock (Why iClock) */
+    /* 章节 1：为什么选择 iClock (Apple Bento Grid) */
     .section-why {
-      padding: 85px 0;
-      background: radial-gradient(circle at 50% 0%, rgba(28, 114, 190, 0.035) 0%, transparent 70%), var(--bg-secondary);
+      padding: 88px 0;
+      background: var(--bg-secondary);
       border-top: 1px solid var(--border-color);
       border-bottom: 1px solid var(--border-color);
     }
@@ -807,43 +723,37 @@
     }
 
     .why-card {
-      background: var(--bg-primary);
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-lg);
-      padding: 32px;
+      padding: 36px 32px;
       box-shadow: var(--card-shadow);
       transition: all 0.2s ease;
-    }
-
-    .why-card.pain {
-      border-top: 4px solid #EF4444;
-    }
-
-    .why-card.solution {
-      border-top: 4px solid var(--brand-blue);
     }
 
     .why-card-badge {
       display: inline-block;
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 600;
       padding: 3px 10px;
       border-radius: var(--radius-full);
       margin-bottom: 16px;
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
     }
-    .why-card.pain .why-card-badge {
-      background: #FEE2E2;
-      color: #DC2626;
-    }
+
     .why-card.solution .why-card-badge {
       background: var(--brand-blue-light);
       color: var(--brand-blue);
+      border-color: transparent;
     }
 
     .why-card-title {
-      font-size: 20px;
+      font-size: 21px;
       font-weight: 700;
-      margin-bottom: 14px;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
       color: var(--text-main);
     }
 
@@ -854,7 +764,7 @@
     }
 
     .why-card-list {
-      margin-top: 16px;
+      margin-top: 18px;
       list-style: none;
       display: flex;
       flex-direction: column;
@@ -862,28 +772,28 @@
     }
 
     .why-card-list li {
-      font-size: 14px;
+      font-size: 13.5px;
       display: flex;
       align-items: flex-start;
       gap: 8px;
     }
 
-    /* 章节 2：三大核心功能 (Three Core Features) */
+    /* 章节 2：三大核心功能 (Apple Bento Pillars) */
     .section-features {
-      padding: 80px 0;
+      padding: 88px 0;
     }
 
     .features-three-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
+      gap: 22px;
     }
 
     .feature-pillar-card {
-      background: var(--bg-primary);
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-lg);
-      padding: 32px 28px;
+      padding: 34px 28px;
       box-shadow: var(--card-shadow);
       display: flex;
       flex-direction: column;
@@ -892,31 +802,10 @@
       position: relative;
     }
 
-    .feature-pillar-card.feat-card-timer {
-      border-top: 3.5px solid #EA580C;
-    }
-    .feature-pillar-card.feat-card-timer:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 18px 36px -8px rgba(234, 88, 12, 0.14);
-      border-color: rgba(234, 88, 12, 0.4);
-    }
-
-    .feature-pillar-card.feat-card-quotes {
-      border-top: 3.5px solid #10B981;
-    }
-    .feature-pillar-card.feat-card-quotes:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 18px 36px -8px rgba(16, 185, 129, 0.14);
-      border-color: rgba(16, 185, 129, 0.4);
-    }
-
-    .feature-pillar-card.feat-card-mcp {
-      border-top: 3.5px solid #7C3AED;
-    }
-    .feature-pillar-card.feat-card-mcp:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 18px 36px -8px rgba(124, 58, 237, 0.14);
-      border-color: rgba(124, 58, 237, 0.4);
+    .feature-pillar-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--card-shadow-hover);
+      border-color: rgba(0, 113, 227, 0.3);
     }
 
     .pillar-badge {
@@ -924,56 +813,25 @@
       align-items: center;
       gap: 6px;
       font-size: 11.5px;
-      font-weight: 700;
-      letter-spacing: 0.06em;
+      font-weight: 600;
+      letter-spacing: 0.04em;
       padding: 3px 10px;
       border-radius: var(--radius-full);
       margin-bottom: 14px;
-    }
-
-    .pillar-badge.badge-timer {
-      background: rgba(234, 88, 12, 0.08);
-      color: #C2410C;
-      border: 1px solid rgba(234, 88, 12, 0.2);
-    }
-    [data-theme="dark"] .pillar-badge.badge-timer {
-      background: rgba(249, 115, 22, 0.15);
-      color: #FB923C;
-      border-color: rgba(249, 115, 22, 0.3);
-    }
-
-    .pillar-badge.badge-quotes {
-      background: rgba(16, 185, 129, 0.08);
-      color: #047857;
-      border: 1px solid rgba(16, 185, 129, 0.2);
-    }
-    [data-theme="dark"] .pillar-badge.badge-quotes {
-      background: rgba(16, 185, 129, 0.15);
-      color: #34D399;
-      border-color: rgba(16, 185, 129, 0.3);
-    }
-
-    .pillar-badge.badge-mcp {
-      background: rgba(124, 58, 237, 0.08);
-      color: #6D28D9;
-      border: 1px solid rgba(124, 58, 237, 0.2);
-    }
-    [data-theme="dark"] .pillar-badge.badge-mcp {
-      background: rgba(124, 58, 237, 0.15);
-      color: #A78BFA;
-      border-color: rgba(124, 58, 237, 0.3);
+      background: var(--brand-blue-light);
+      color: var(--brand-blue);
     }
 
     .pillar-title {
       font-size: 21px;
-      font-weight: 800;
+      font-weight: 700;
       color: var(--text-main);
-      margin-bottom: 14px;
-      letter-spacing: -0.01em;
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
     }
 
     .pillar-desc {
-      font-size: 14.5px;
+      font-size: 14px;
       color: var(--text-muted);
       line-height: 1.7;
       margin-bottom: 24px;
@@ -982,25 +840,25 @@
     .pillar-tags {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 7px;
       border-top: 1px solid var(--border-color);
-      padding-top: 20px;
+      padding-top: 18px;
     }
 
     .feature-tag-pill {
       font-size: 11.5px;
-      font-weight: 600;
+      font-weight: 500;
       padding: 3px 9px;
       border-radius: var(--radius-full);
-      background: var(--bg-tertiary);
+      background: var(--bg-secondary);
       color: var(--text-muted);
       border: 1px solid var(--border-color);
     }
 
-    /* 章节 3：横向对比 (Comparison Table) */
+    /* 章节 3：横向对比 (Apple Comparison Spec Sheet) */
     .section-comparison {
-      padding: 85px 0;
-      background: radial-gradient(circle at 50% 0%, rgba(28, 114, 190, 0.035) 0%, transparent 70%), var(--bg-secondary);
+      padding: 88px 0;
+      background: var(--bg-secondary);
       border-top: 1px solid var(--border-color);
       border-bottom: 1px solid var(--border-color);
     }
@@ -1009,7 +867,7 @@
       max-width: 1040px;
       margin: 0 auto;
       overflow-x: auto;
-      background: var(--bg-primary);
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-lg);
       box-shadow: var(--card-shadow);
@@ -1019,7 +877,7 @@
       width: 100%;
       border-collapse: collapse;
       text-align: left;
-      font-size: 14px;
+      font-size: 13.5px;
     }
 
     .comparison-table th,
@@ -1029,8 +887,8 @@
     }
 
     .comparison-table th {
-      background: var(--bg-tertiary);
-      font-weight: 700;
+      background: var(--bg-secondary);
+      font-weight: 600;
       color: var(--text-main);
     }
 
@@ -1038,9 +896,6 @@
       background: var(--brand-blue-light);
       font-weight: 700;
       color: var(--brand-blue);
-      border-left: 2px solid var(--brand-blue);
-      border-right: 2px solid var(--brand-blue);
-      border-top: 3px solid var(--brand-blue);
       position: relative;
     }
 
@@ -1048,18 +903,6 @@
       background: var(--brand-blue-light);
       font-weight: 600;
       color: var(--brand-blue);
-      border-left: 2px solid var(--brand-blue);
-      border-right: 2px solid var(--brand-blue);
-    }
-
-    .comparison-table tr:last-child td.highlight {
-      border-bottom: 2px solid var(--brand-blue);
-    }
-
-    [data-theme="dark"] .comparison-table th.highlight,
-    [data-theme="dark"] .comparison-table td.highlight {
-      background: rgba(28, 114, 190, 0.18);
-      color: #38BDF8;
     }
 
     .th-winner-badge {
@@ -1067,13 +910,12 @@
       align-items: center;
       gap: 4px;
       font-size: 10.5px;
-      font-weight: 700;
+      font-weight: 600;
       color: #FFFFFF;
-      background: linear-gradient(135deg, var(--brand-blue) 0%, #3B82F6 100%);
+      background: var(--brand-blue);
       padding: 2px 8px;
       border-radius: var(--radius-full);
       margin-bottom: 6px;
-      box-shadow: 0 2px 6px rgba(28, 114, 190, 0.3);
       letter-spacing: 0.02em;
     }
 
@@ -1082,35 +924,35 @@
     }
 
     .badge-check {
-      color: #10B981;
+      color: var(--accent-green);
       font-weight: 700;
       margin-right: 4px;
     }
 
     .badge-cross {
-      color: #EF4444;
+      color: var(--text-light);
       font-weight: 700;
       margin-right: 4px;
     }
 
-    /* 章节 4：快速上手与下载 (Download) */
+    /* 章节 4：快速上手与下载 (Download Cards) */
     .section-download {
-      padding: 80px 0;
+      padding: 88px 0;
     }
 
     .download-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
+      gap: 22px;
       max-width: 860px;
       margin: 0 auto 36px;
     }
 
     .download-card {
-      background: var(--bg-primary);
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-lg);
-      padding: 32px 28px;
+      padding: 34px 28px;
       text-align: center;
       box-shadow: var(--card-shadow);
       position: relative;
@@ -1118,22 +960,22 @@
     }
 
     .download-card.primary-card {
-      border: 2px solid var(--brand-blue);
-      box-shadow: 0 10px 30px -5px rgba(28, 114, 190, 0.15);
+      border-color: var(--brand-blue);
+      box-shadow: 0 8px 28px var(--brand-blue-glow);
     }
 
     .card-recommend-badge {
       position: absolute;
-      top: -12px;
+      top: -11px;
       left: 50%;
       transform: translateX(-50%);
       background: var(--brand-blue);
       color: #FFFFFF;
       font-size: 11px;
-      font-weight: 700;
-      padding: 3px 12px;
+      font-weight: 600;
+      padding: 2px 12px;
       border-radius: var(--radius-full);
-      letter-spacing: 0.05em;
+      letter-spacing: 0.03em;
     }
 
     .dl-icon {
@@ -1145,6 +987,7 @@
       font-size: 20px;
       font-weight: 700;
       margin-bottom: 8px;
+      letter-spacing: -0.01em;
     }
 
     .dl-meta {
@@ -1160,9 +1003,9 @@
       gap: 8px;
       width: 100%;
       padding: 11px 18px;
-      border-radius: var(--radius-sm);
-      font-size: 14px;
-      font-weight: 600;
+      border-radius: var(--radius-full);
+      font-size: 13.5px;
+      font-weight: 500;
       transition: all 0.15s ease;
     }
 
@@ -1172,6 +1015,7 @@
     }
     .dl-btn.btn-solid:hover {
       background: var(--brand-blue-hover);
+      transform: scale(1.01);
     }
 
     .dl-btn.btn-outline {
@@ -1180,19 +1024,19 @@
       background: var(--bg-secondary);
     }
     .dl-btn.btn-outline:hover {
-      background: var(--border-color);
+      background: var(--bg-tertiary);
     }
 
     .pkg-install-box {
       max-width: 860px;
-      margin: 0 auto 30px;
+      margin: 0 auto 28px;
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
     }
 
     .pkg-card {
-      background: var(--bg-secondary);
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-md);
       padding: 16px 20px;
@@ -1209,16 +1053,16 @@
     }
 
     .pkg-title {
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 11.5px;
+      font-weight: 600;
       color: var(--text-light);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.04em;
     }
 
     .pkg-cmd {
       font-family: Consolas, monospace;
-      font-size: 13px;
+      font-size: 12.5px;
       color: var(--text-main);
       white-space: nowrap;
       overflow: hidden;
@@ -1227,10 +1071,10 @@
 
     .copy-btn {
       padding: 5px 12px;
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 600;
-      border-radius: 6px;
-      background: var(--bg-primary);
+      border-radius: var(--radius-full);
+      background: var(--bg-secondary);
       border: 1px solid var(--border-color);
       color: var(--text-muted);
       cursor: pointer;
@@ -1246,7 +1090,7 @@
     .checksum-box {
       max-width: 860px;
       margin: 0 auto;
-      background: var(--bg-secondary);
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-md);
       padding: 18px 24px;
@@ -1275,7 +1119,7 @@
 
     /* 章节 5：原生 MCP 服务配置 (MCP) */
     .section-mcp {
-      padding: 70px 0;
+      padding: 88px 0;
       background: var(--bg-secondary);
       border-top: 1px solid var(--border-color);
       border-bottom: 1px solid var(--border-color);
@@ -1284,7 +1128,7 @@
     .mcp-container {
       max-width: 860px;
       margin: 0 auto;
-      background: var(--bg-primary);
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-lg);
       box-shadow: var(--card-shadow);
@@ -1293,14 +1137,14 @@
 
     .mcp-tabs {
       display: flex;
-      background: var(--bg-tertiary);
+      background: var(--bg-secondary);
       border-bottom: 1px solid var(--border-color);
     }
 
     .mcp-tab-btn {
-      padding: 14px 22px;
-      font-size: 13.5px;
-      font-weight: 600;
+      padding: 13px 22px;
+      font-size: 13px;
+      font-weight: 500;
       color: var(--text-muted);
       border-bottom: 2px solid transparent;
       transition: all 0.15s ease;
@@ -1308,8 +1152,9 @@
 
     .mcp-tab-btn.active {
       color: var(--brand-blue);
-      background: var(--bg-primary);
+      background: var(--card-bg);
       border-bottom-color: var(--brand-blue);
+      font-weight: 600;
     }
 
     .mcp-body {
@@ -1317,7 +1162,7 @@
     }
 
     .mcp-desc {
-      font-size: 14px;
+      font-size: 13.5px;
       color: var(--text-muted);
       margin-bottom: 14px;
     }
@@ -1326,9 +1171,8 @@
       position: relative;
       background: #0B1120;
       border: 1px solid #1E293B;
-      border-radius: var(--radius-sm);
+      border-radius: var(--radius-md);
       overflow: hidden;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
     }
 
     .code-file-bar {
@@ -1347,13 +1191,13 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-weight: 600;
+      font-weight: 500;
       color: #CBD5E1;
     }
 
     .code-block-wrapper pre {
-      font-family: Consolas, "Fira Code", monospace;
-      font-size: 13px;
+      font-family: Consolas, "SF Mono", monospace;
+      font-size: 12.5px;
       color: #E2E8F0;
       line-height: 1.6;
       padding: 16px 20px;
@@ -1363,10 +1207,10 @@
     .code-copy-btn {
       background: rgba(255, 255, 255, 0.12);
       color: #E2E8F0;
-      padding: 4px 10px;
-      border-radius: 4px;
+      padding: 3px 9px;
+      border-radius: var(--radius-full);
       font-size: 11px;
-      font-weight: 600;
+      font-weight: 500;
       transition: background 0.15s ease;
       cursor: pointer;
     }
@@ -1375,8 +1219,8 @@
       background: rgba(255, 255, 255, 0.25);
     }
 
-    /* 语法着色 (Syntax Highlighting) */
-    .syn-key { color: #38BDF8; font-weight: 600; }
+    /* 语法着色 */
+    .syn-key { color: #38BDF8; font-weight: 500; }
     .syn-str { color: #34D399; }
     .syn-punc { color: #94A3B8; }
     .syn-arr { color: #FBBF24; }
@@ -1384,7 +1228,7 @@
 
     /* 章节 6：命令行与脚本自动化 (CLI) */
     .section-cli {
-      padding: 80px 0;
+      padding: 88px 0;
     }
 
     .cli-container {
@@ -1395,8 +1239,8 @@
     .cli-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 13.5px;
-      background: var(--bg-primary);
+      font-size: 13px;
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-md);
       box-shadow: var(--card-shadow);
@@ -1412,24 +1256,24 @@
     }
 
     .cli-table th {
-      background: var(--bg-tertiary);
-      font-weight: 700;
+      background: var(--bg-secondary);
+      font-weight: 600;
       color: var(--text-main);
     }
 
     .cli-table code {
       font-family: Consolas, monospace;
-      background: var(--bg-tertiary);
+      background: var(--bg-secondary);
       padding: 2px 6px;
       border-radius: 4px;
       color: var(--brand-blue);
-      font-size: 12.5px;
+      font-size: 12px;
     }
 
     /* 章节 7：快捷键与随心微交互 (Hotkeys) */
     .section-shortcuts {
-      padding: 85px 0;
-      background: radial-gradient(circle at 50% 0%, rgba(28, 114, 190, 0.035) 0%, transparent 70%), var(--bg-secondary);
+      padding: 88px 0;
+      background: var(--bg-secondary);
       border-top: 1px solid var(--border-color);
       border-bottom: 1px solid var(--border-color);
     }
@@ -1437,15 +1281,15 @@
     .shortcuts-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
-      gap: 20px;
+      gap: 18px;
       max-width: 1040px;
       margin: 0 auto;
     }
 
     .shortcut-card {
-      background: var(--bg-primary);
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
-      border-radius: var(--radius-md);
+      border-radius: var(--radius-lg);
       padding: 24px 20px;
       text-align: center;
       box-shadow: var(--card-shadow);
@@ -1462,62 +1306,50 @@
 
     kbd {
       display: inline-block;
-      padding: 4px 8px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 12px;
-      font-weight: 700;
+      padding: 3px 8px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      font-size: 11.5px;
+      font-weight: 600;
       color: var(--text-main);
-      background: var(--bg-tertiary);
-      border: 1px solid #CBD5E1;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
-      box-shadow: 0 2px 0 #94A3B8;
-      transition: all 0.1s ease;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
       user-select: none;
-      cursor: default;
-    }
-
-    kbd:hover {
-      background: var(--bg-primary);
-      border-color: var(--brand-blue);
-      color: var(--brand-blue);
-    }
-
-    kbd:active {
-      transform: translateY(2px);
-      box-shadow: 0 0 0 #94A3B8;
     }
 
     .shortcut-title {
       font-size: 15px;
-      font-weight: 700;
+      font-weight: 600;
+      letter-spacing: -0.01em;
       margin-bottom: 8px;
       color: var(--text-main);
     }
 
     .shortcut-desc {
-      font-size: 13px;
+      font-size: 12.5px;
       color: var(--text-muted);
       line-height: 1.5;
     }
 
     /* 章节 8：常见问答 (FAQ) */
     .section-faq {
-      padding: 80px 0;
+      padding: 88px 0;
     }
 
     .faq-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
+      gap: 22px;
       max-width: 960px;
       margin: 0 auto;
     }
 
     .faq-card {
-      background: var(--bg-primary);
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
-      border-radius: var(--radius-md);
-      padding: 26px;
+      border-radius: var(--radius-lg);
+      padding: 26px 28px;
       box-shadow: var(--card-shadow);
     }
 
@@ -1525,10 +1357,11 @@
       display: flex;
       align-items: flex-start;
       gap: 10px;
-      font-size: 16px;
-      font-weight: 700;
+      font-size: 15.5px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
       color: var(--text-main);
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       line-height: 1.4;
     }
 
@@ -1536,36 +1369,36 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
       background: var(--brand-blue-light);
       color: var(--brand-blue);
-      font-size: 13px;
-      font-weight: 800;
+      font-size: 12px;
+      font-weight: 700;
       flex-shrink: 0;
     }
 
     .faq-answer {
-      font-size: 14px;
+      font-size: 13.5px;
       color: var(--text-muted);
       line-height: 1.7;
-      padding-left: 34px;
+      padding-left: 32px;
     }
 
     /* 章节 9：赞赏与作者 (Sponsor) */
     .section-sponsor {
-      padding: 85px 0;
-      background: radial-gradient(circle at 50% 0%, rgba(28, 114, 190, 0.035) 0%, transparent 70%), var(--bg-secondary);
+      padding: 88px 0;
+      background: var(--bg-secondary);
       border-top: 1px solid var(--border-color);
       border-bottom: 1px solid var(--border-color);
       text-align: center;
     }
 
     .sponsor-card {
-      max-width: 480px;
+      max-width: 460px;
       margin: 0 auto;
-      background: var(--bg-primary);
+      background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: var(--radius-lg);
       padding: 36px 30px;
@@ -1573,13 +1406,13 @@
     }
 
     .sponsor-qr-img {
-      width: 200px;
-      height: 200px;
+      width: 190px;
+      height: 190px;
       object-fit: cover;
       border-radius: var(--radius-md);
       margin: 18px auto;
       display: block;
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
     }
 
     .sponsor-caption {
@@ -1591,14 +1424,14 @@
     .sponsor-author-box {
       border-top: 1px dashed var(--border-color);
       padding-top: 18px;
-      font-size: 13.5px;
+      font-size: 13px;
       color: var(--text-muted);
       line-height: 1.6;
     }
 
     .sponsor-email-link {
       color: var(--brand-blue);
-      font-weight: 600;
+      font-weight: 500;
       text-decoration: none;
     }
     .sponsor-email-link:hover {
@@ -1609,7 +1442,7 @@
     .footer {
       padding: 36px 0;
       background: var(--bg-primary);
-      font-size: 13.5px;
+      font-size: 13px;
       color: var(--text-muted);
     }
 
@@ -1623,11 +1456,11 @@
 
     .footer-links {
       display: flex;
-      gap: 20px;
+      gap: 18px;
     }
 
     .footer-links a:hover {
-      color: var(--brand-blue);
+      color: var(--text-main);
     }
 
     /* Toast 通知 */
@@ -1636,13 +1469,13 @@
       bottom: 30px;
       left: 50%;
       transform: translateX(-50%) translateY(100px);
-      background: rgba(15, 23, 42, 0.9);
+      background: rgba(29, 29, 31, 0.92);
       color: #FFFFFF;
-      padding: 10px 20px;
+      padding: 9px 18px;
       border-radius: var(--radius-full);
-      font-size: 13.5px;
+      font-size: 13px;
       font-weight: 500;
-      backdrop-filter: blur(8px);
+      backdrop-filter: blur(12px);
       box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
       transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
       opacity: 0;
@@ -1720,54 +1553,56 @@
     </div>
   </header>
 
-  <!-- 首屏 Hero 区域 -->
+  <!-- 首屏 Hero 区域 (Apple Minimalist Aesthetic) -->
   <section class="hero">
     <div class="container">
-      <div class="badge-pill">
-        <span data-i18n="hero_pill">✨ 专为开发者与效率玩家打造</span>
+      <div class="hero-eyebrow">
+        <span data-i18n="hero_eyebrow">iClock 1.08 · Windows 原生极简效率中枢</span>
       </div>
-      <!-- 第 1 行：主标题 -->
       <h1 class="hero-title" data-i18n="hero_title">
-        <span>Windows 原生</span>极简效率中枢
+        极简悬浮。纯粹专注。
       </h1>
-      <!-- 第 2 行：副标题（三大功能微光交互胶囊） -->
-      <div class="hero-feature-pills">
-        <a href="#features" class="hero-feature-pill pill-timer" title="跳转至专注倒计时">
-          <span class="pill-icon">⏱️</span>
-          <span data-i18n="hero_pill_timer">悬浮穿透倒计时</span>
-        </a>
-        <a href="#features" class="hero-feature-pill pill-quotes" title="跳转至桌面金句">
-          <span class="pill-icon">💬</span>
-          <span data-i18n="hero_pill_quotes">零轮询桌面金句</span>
-        </a>
-        <a href="#mcp" class="hero-feature-pill pill-mcp" title="跳转至原生 MCP 协议">
-          <span class="pill-icon">🤖</span>
-          <span data-i18n="hero_pill_mcp">AI 智能体协同与原生 MCP</span>
-        </a>
-      </div>
-      <!-- 第 3 行：极客参数硬核背书 -->
-      <div class="hero-specs-row">
-        <span class="hero-spec-tag" data-i18n="hero_spec_1">📦 原生单文件免安装</span>
-        <span class="hero-spec-tag" data-i18n="hero_spec_2">⚡ 0.0% 待机 CPU (0-Polling)</span>
-        <span class="hero-spec-tag" data-i18n="hero_spec_3">💾 内存占用 &lt; 15 MB</span>
-        <span class="hero-spec-tag" data-i18n="hero_spec_4">🔒 100% 离线纯本地</span>
-        <span class="hero-spec-tag" data-i18n="hero_spec_5">🛡️ 纯原生零第三方依赖</span>
-      </div>
+      <p class="hero-subtitle" data-i18n="hero_subtitle">
+        单文件仅 273 KB，内存稳定小于 15 MB。完全鼠标穿透悬浮倒计时，零轮询桌面每日金句，与原生 MCP 智能体深度协同。
+      </p>
       <div class="hero-buttons">
         <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.08/iClock-1.08-windows.zip" class="btn-primary btn-large" id="heroDownloadBtn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
           <span data-i18n="hero_btn_dl">下载便携压缩包 (ZIP · 推荐)</span>
         </a>
-        <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank" class="btn-secondary">
-          <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor">
+        <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.08/iClock-1.08-windows.exe" class="btn-secondary btn-large">
+          <span data-i18n="hero_btn_exe">独立 .exe 版</span>
+        </a>
+        <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank" class="btn-secondary btn-large" style="display:inline-flex;align-items:center;gap:6px;">
+          <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
             <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
           </svg>
           <span data-i18n="hero_btn_gh">GitHub 开源主页</span>
         </a>
+      </div>
+
+      <!-- Apple 签名式 4 核心指标条 -->
+      <div class="hero-key-metrics">
+        <div class="metric-item">
+          <div class="metric-val">273 KB</div>
+          <div class="metric-label" data-i18n="metric_size">原生单文件免安装</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-val">&lt; 15 MB</div>
+          <div class="metric-label" data-i18n="metric_ram">常驻物理内存</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-val">0.0%</div>
+          <div class="metric-label" data-i18n="metric_cpu">0-Polling 待机 CPU</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-val">100%</div>
+          <div class="metric-label" data-i18n="metric_offline">离线纯本地隐私</div>
+        </div>
       </div>
 
       <!-- 仿真交互演示面板 -->
@@ -2424,8 +2259,16 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         nav_sponsor: "赞赏致谢",
         nav_btn_download: "下载",
 
-        hero_pill: "✨ 专为开发者与效率玩家打造",
-        hero_title: "<span>Windows 原生</span>极简效率中枢",
+        hero_eyebrow: "iClock 1.08 · Windows 原生极简效率中枢",
+        hero_title: "极简悬浮。纯粹专注。",
+        hero_subtitle: "单文件仅 273 KB，内存稳定小于 15 MB。完全鼠标穿透悬浮倒计时，零轮询桌面每日金句，与原生 MCP 智能体深度协同。",
+        hero_btn_dl: "下载便携压缩包 (ZIP · 推荐)",
+        hero_btn_exe: "独立 .exe 版",
+        hero_btn_gh: "GitHub 开源主页",
+        metric_size: "原生单文件免安装",
+        metric_ram: "常驻物理内存",
+        metric_cpu: "0-Polling 待机 CPU",
+        metric_offline: "离线纯本地隐私",
         hero_pill_timer: "悬浮穿透倒计时",
         hero_pill_quotes: "零轮询桌面金句",
         hero_pill_mcp: "AI 智能体协同与原生 MCP",
@@ -2434,8 +2277,6 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         hero_spec_3: "💾 内存占用 &lt; 15 MB",
         hero_spec_4: "🔒 100% 离线纯本地",
         hero_spec_5: "🛡️ 纯原生零第三方依赖",
-        hero_btn_dl: "下载便携压缩包 (ZIP · 推荐)",
-        hero_btn_gh: "GitHub 开源主页",
 
         sandbox_title: "iClock 交互体验沙盒",
         sandbox_drag_hint: "按住自由拖动",
@@ -2625,8 +2466,16 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         nav_sponsor: "Sponsor",
         nav_btn_download: "Download",
 
-        hero_pill: "✨ CRAFTED FOR DEVELOPERS & POWER USERS",
-        hero_title: "<span>Native Minimalist</span> Productivity Hub for Windows",
+        hero_eyebrow: "iClock 1.08 · Native Minimalist Productivity Hub",
+        hero_title: "Minimalist Floating. Pure Focus.",
+        hero_subtitle: "Single 273 KB binary, RAM strictly &lt; 15 MB. True click-through countdown timer, 0-polling ambient quotes, and native MCP agent collaboration.",
+        hero_btn_dl: "Download Portable (.zip · Recommended)",
+        hero_btn_exe: "Standalone .exe",
+        hero_btn_gh: "GitHub Repository",
+        metric_size: "Portable Single Binary",
+        metric_ram: "Physical Active RAM",
+        metric_cpu: "0-Polling Idle CPU",
+        metric_offline: "100% Offline & Private",
         hero_pill_timer: "Click-Through Transparent Timer",
         hero_pill_quotes: "0-Polling Ambient Quotes",
         hero_pill_mcp: "AI Agent Collaboration & Native MCP",
@@ -2635,8 +2484,6 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         hero_spec_3: "💾 Active RAM &lt; 15 MB",
         hero_spec_4: "🔒 100% Offline (Zero Network)",
         hero_spec_5: "🛡️ Pure Win32/GDI+ Zero Dependencies",
-        hero_btn_dl: "Download Portable (.zip · Recommended)",
-        hero_btn_gh: "GitHub Repository",
 
         sandbox_title: "iClock Interactive Sandbox",
         sandbox_drag_hint: "Drag to Reposition",
