@@ -2631,16 +2631,6 @@ internal sealed class SettingsDialog : Form
             }
         };
 
-        Label lblDot = new Label();
-        lblDot.Text = "●";
-        lblDot.Font = new Font("Segoe UI", 8.5f, FontStyle.Regular);
-        lblDot.ForeColor = !alertEnabled
-            ? Color.FromArgb(180, 180, 180)
-            : (isRunning ? Color.FromArgb(16, 124, 65) : Color.FromArgb(140, 145, 155));
-        lblDot.Location = new Point(14, 8);
-        lblDot.Size = new Size(14, 18);
-        card.Controls.Add(lblDot);
-
         Label lblBadge = new Label();
         string badgeText;
         Color bBg, bFg;
@@ -2689,10 +2679,10 @@ internal sealed class SettingsDialog : Form
         Label lblName = new Label();
         lblName.Text = name;
         lblName.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
-        lblName.ForeColor = alertEnabled ? AppContext.Win11TextPrimary : AppContext.Win11TextSecondary;
-        lblName.Location = new Point(32, 7);
+        lblName.ForeColor = AppContext.Win11TextPrimary;
+        lblName.Location = new Point(14, 7);
         lblName.AutoEllipsis = true;
-        lblName.MaximumSize = new Size(Math.Max(50, leftLimit - 32 - 6), 20);
+        lblName.MaximumSize = new Size(Math.Max(50, leftLimit - 14 - 6), 20);
         lblName.AutoSize = true;
         card.Controls.Add(lblName);
 
