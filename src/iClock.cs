@@ -1718,19 +1718,19 @@ internal sealed class SettingsDialog : Form
 
         panelAgentBox = new Panel();
         panelAgentBox.SetBounds(18, 96, 344, 114);
-        panelAgentBox.BackColor = Color.FromArgb(246, 248, 250);
+        panelAgentBox.BackColor = Color.White;
         panelAgentBox.Paint += OnCardPaint;
         Controls.Add(panelAgentBox);
 
         panelAgentCards = new DoubleBufferedPanel();
-        panelAgentCards.SetBounds(1, 1, 333, 112);
+        panelAgentCards.SetBounds(1, 1, 335, 112);
         panelAgentCards.AutoScroll = false;
-        panelAgentCards.BackColor = Color.FromArgb(246, 248, 250);
+        panelAgentCards.BackColor = Color.White;
         panelAgentCards.BorderStyle = BorderStyle.None;
         panelAgentBox.Controls.Add(panelAgentCards);
 
         agentScrollBar = new SlimScrollBar();
-        agentScrollBar.SetBounds(334, 3, 7, 108);
+        agentScrollBar.SetBounds(336, 4, 6, 106);
         agentScrollBar.Visible = false;
         agentScrollBar.ValueChanged += OnAgentScrollBarValueChanged;
         panelAgentBox.Controls.Add(agentScrollBar);
@@ -2303,7 +2303,7 @@ internal sealed class SettingsDialog : Form
             if (lblDetectedHeader != null) lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
             if (lblAgentDesc != null)
             {
-                lblAgentDesc.Text = en ? "Alerts on background task done; click to switch back." : "智能体后台任务完成时自动弹窗提醒";
+                lblAgentDesc.Text = en ? "Auto-alert when background task finishes" : "智能体后台任务完成时自动弹窗提醒";
                 lblAgentDesc.ForeColor = AppContext.Win11TextSecondary;
             }
         }
@@ -2316,7 +2316,7 @@ internal sealed class SettingsDialog : Form
             if (lblDetectedHeader != null) lblDetectedHeader.ForeColor = Color.FromArgb(120, 120, 120);
             if (lblAgentDesc != null)
             {
-                lblAgentDesc.Text = en ? "Alerts on background task done; click to switch back." : "智能体后台任务完成时自动弹窗提醒";
+                lblAgentDesc.Text = en ? "Auto-alert when background task finishes" : "智能体后台任务完成时自动弹窗提醒";
                 lblAgentDesc.ForeColor = Color.FromArgb(145, 145, 145);
             }
         }
@@ -2366,9 +2366,9 @@ internal sealed class SettingsDialog : Form
         }
         else
         {
-            int cardY = 4;
-            int cardPad = 7;
-            int cardW = panelAgentCards.Width - (cardPad * 2);
+            int cardY = 0;
+            int cardPad = 0;
+            int cardW = panelAgentCards.Width;
             for (int i = 0; i < agents.Count; i++)
             {
                 string name = agents[i];
@@ -2377,7 +2377,7 @@ internal sealed class SettingsDialog : Form
                 card.Location = new Point(cardPad, cardY);
                 AttachAgentWheel(card);
                 panelAgentCards.Controls.Add(card);
-                cardY += card.Height + 4;
+                cardY += card.Height;
             }
 
             int totalH = cardY;
@@ -2406,7 +2406,7 @@ internal sealed class SettingsDialog : Form
     {
         if (agentScrollBar != null && agentScrollBar.Visible)
         {
-            agentScrollBar.Value += (e.Delta < 0 ? 36 : -36);
+            agentScrollBar.Value += (e.Delta < 0 ? 34 : -34);
         }
     }
 
@@ -2424,14 +2424,14 @@ internal sealed class SettingsDialog : Form
         if (panelAgentCards == null) return;
         int scrollOffset = agentScrollBar != null ? agentScrollBar.Value : 0;
         panelAgentCards.SuspendLayout();
-        int y = 4 - scrollOffset;
+        int y = -scrollOffset;
         for (int i = 0; i < panelAgentCards.Controls.Count; i++)
         {
             Control c = panelAgentCards.Controls[i];
             if (c is Panel)
             {
                 c.Top = y;
-                y += c.Height + 4;
+                y += c.Height;
             }
         }
         panelAgentCards.ResumeLayout(true);
@@ -2620,9 +2620,16 @@ internal sealed class SettingsDialog : Form
     private Panel CreateAgentCard(string name, bool isRunning, bool alertEnabled, int width, bool en)
     {
         Panel card = new Panel();
-        card.Size = new Size(width, 32);
+        card.Size = new Size(width, 34);
         card.BackColor = Color.White;
-        card.Paint += OnCardPaint;
+        card.Paint += (s, pe) =>
+        {
+            Panel p = (Panel)s;
+            using (Pen divPen = new Pen(Color.FromArgb(238, 240, 244), 1f))
+            {
+                pe.Graphics.DrawLine(divPen, 10, p.Height - 1, p.Width - 10, p.Height - 1);
+            }
+        };
 
         Label lblDot = new Label();
         lblDot.Text = "●";
@@ -2630,8 +2637,8 @@ internal sealed class SettingsDialog : Form
         lblDot.ForeColor = !alertEnabled
             ? Color.FromArgb(180, 180, 180)
             : (isRunning ? Color.FromArgb(16, 124, 65) : Color.FromArgb(140, 145, 155));
-        lblDot.Location = new Point(8, 7);
-        lblDot.Size = new Size(16, 18);
+        lblDot.Location = new Point(14, 8);
+        lblDot.Size = new Size(14, 18);
         card.Controls.Add(lblDot);
 
         Label lblBadge = new Label();
@@ -2658,8 +2665,8 @@ internal sealed class SettingsDialog : Form
         lblBadge.Text = badgeText;
         lblBadge.Tag = new object[] { bBg, bFg, badgeText };
         lblBadge.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        lblBadge.Size = new Size(en ? 66 : 56, 20);
-        lblBadge.Location = new Point(card.Width - lblBadge.Width - 8, 6);
+        lblBadge.Size = new Size(en ? 66 : 56, 22);
+        lblBadge.Location = new Point(card.Width - lblBadge.Width - 12, 6);
         lblBadge.Paint += OnBadgePaint;
         card.Controls.Add(lblBadge);
 
@@ -2670,8 +2677,8 @@ internal sealed class SettingsDialog : Form
             Label lblMcp = new Label();
             lblMcp.Text = "⚡ MCP";
             lblMcp.Font = new Font("Segoe UI", 8f, FontStyle.Bold);
-            lblMcp.Size = new Size(54, 20);
-            lblMcp.Location = new Point(lblBadge.Left - lblMcp.Width - 6, 6);
+            lblMcp.Size = new Size(54, 22);
+            lblMcp.Location = new Point(lblBadge.Left - lblMcp.Width - 8, 6);
             lblMcp.Paint += OnMcpBadgePaint;
             if (toolTip == null) toolTip = new ToolTip();
             toolTip.SetToolTip(lblMcp, en ? "MCP connected: Agent can call desktop decisions & timers" : "已接入 iClock MCP 协议，支持桌面决策门禁与状态投射");
@@ -2683,9 +2690,9 @@ internal sealed class SettingsDialog : Form
         lblName.Text = name;
         lblName.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblName.ForeColor = alertEnabled ? AppContext.Win11TextPrimary : AppContext.Win11TextSecondary;
-        lblName.Location = new Point(26, 6);
+        lblName.Location = new Point(32, 7);
         lblName.AutoEllipsis = true;
-        lblName.MaximumSize = new Size(Math.Max(50, leftLimit - 26 - 6), 20);
+        lblName.MaximumSize = new Size(Math.Max(50, leftLimit - 32 - 6), 20);
         lblName.AutoSize = true;
         card.Controls.Add(lblName);
 
