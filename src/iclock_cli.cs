@@ -539,7 +539,7 @@ internal static class CliShim
                     { "properties", new Dictionary<string, object>
                         {
                             { "message", new Dictionary<string, object> { { "type", "string" }, { "description", "Notification message content" } } },
-                            { "sound", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "telephone", "qq", "alarm", "none" } }, { "description", "Chime sound style (default: telephone)" } } }
+                            { "sound", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "doorbell", "telephone", "qq", "knock", "alarm", "none" } }, { "description", "Chime sound style: doorbell (default), telephone, qq, knock, alarm, or none" } } }
                         }
                     },
                     { "required", new string[] { "message" } }

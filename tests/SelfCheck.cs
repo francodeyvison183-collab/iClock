@@ -1940,12 +1940,22 @@ internal static class TestCheck
                 return 52;
             }
 
+            playSound.Invoke(null, new object[] { "Knock" });
+            stopSound.Invoke(null, null);
+            FieldInfo knockWavField = appType.GetField("knockWavData", BindingFlags.NonPublic | BindingFlags.Static);
+            byte[] generatedKnockWav = (byte[])knockWavField.GetValue(null);
+            if (generatedKnockWav == null || generatedKnockWav.Length < 1000)
+            {
+                Console.WriteLine("FAIL: Knock WAV synthesis failed or data too small");
+                return 52;
+            }
+
             Type setDlgType = asm.GetType("SettingsDialog");
             Form setDlg = (Form)Activator.CreateInstance(setDlgType, new object[] { settings });
             ComboBox sndStyleCombo = (ComboBox)setDlgType.GetField("soundStyle", bf).GetValue(setDlg);
-            if (sndStyleCombo == null || sndStyleCombo.Items.Count < 4)
+            if (sndStyleCombo == null || sndStyleCombo.Items.Count < 5)
             {
-                Console.WriteLine("FAIL: soundStyle combo not found or incomplete in SettingsDialog");
+                Console.WriteLine("FAIL: soundStyle combo not found or incomplete in SettingsDialog (expected at least 5 items)");
                 return 52;
             }
             string item0 = sndStyleCombo.Items[0].ToString();
@@ -1966,13 +1976,37 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: soundStyle Item[2] should be classic telephone ring, got: " + item2);
                 return 52;
             }
+            string item3 = sndStyleCombo.Items[3].ToString();
+            if (!item3.Contains("敲门声") && !item3.Contains("Knock"))
+            {
+                Console.WriteLine("FAIL: soundStyle Item[3] should be door knock, got: " + item3);
+                return 52;
+            }
+            string item4 = sndStyleCombo.Items[4].ToString();
+            if (!item4.Contains("闹铃") && !item4.Contains("Alarm"))
+            {
+                Console.WriteLine("FAIL: soundStyle Item[4] should be alarm ring, got: " + item4);
+                return 52;
+            }
             if (sndStyleCombo.SelectedIndex != 0)
             {
                 Console.WriteLine("FAIL: soundStyle default SelectedIndex should be 0 (Doorbell), got: " + sndStyleCombo.SelectedIndex);
                 return 52;
             }
             setDlg.Close();
-            Console.WriteLine("PASS: Doorbell chime (Ding-dong x3) & classic telephone mechanical ring tone synthesis and SettingsDialog integration verified.");
+
+            // Verify Settings with Knock style maps to SelectedIndex 3
+            object knockSettings = Activator.CreateInstance(settingsType);
+            settingsType.GetField("EndSoundStyle").SetValue(knockSettings, "Knock");
+            Form setDlgKnock = (Form)Activator.CreateInstance(setDlgType, new object[] { knockSettings });
+            ComboBox sndComboKnock = (ComboBox)setDlgType.GetField("soundStyle", bf).GetValue(setDlgKnock);
+            if (sndComboKnock == null || sndComboKnock.SelectedIndex != 3)
+            {
+                Console.WriteLine("FAIL: soundStyle SelectedIndex for Knock should be 3, got: " + (sndComboKnock != null ? sndComboKnock.SelectedIndex.ToString() : "null"));
+                return 52;
+            }
+            setDlgKnock.Close();
+            Console.WriteLine("PASS: Doorbell chime, QQ, Telephone ring, Door knock (咚咚咚 x3) & Alarm ring sound synthesis and SettingsDialog integration verified.");
 
             // 35. Verify Daily Quote (每日格言) feature, Settings serialization, Quotes file reading, and Dialog UI
             Type quoteDlgType = asm.GetType("DailyQuoteDialog");
