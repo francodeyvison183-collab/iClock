@@ -1748,7 +1748,7 @@ internal sealed class SettingsDialog : Form
         panelAgentBox.MouseWheel += OnAgentCardMouseWheel;
 
         lblMcpTitle = new Label();
-        lblMcpTitle.Text = en ? "MCP Direct Connection (4 Tools)" : "MCP 协议直连 (4项核心能力)";
+        lblMcpTitle.Text = en ? "Agent MCP Integration" : "智能体 MCP 接入";
         lblMcpTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblMcpTitle.ForeColor = AppContext.Win11TextPrimary;
         lblMcpTitle.TextAlign = ContentAlignment.MiddleLeft;
@@ -2780,7 +2780,7 @@ internal sealed class SettingsDialog : Form
 
         UpdateAgentNoticeToggleState(toEnglish);
         if (btnRefreshAgents != null && toolTip != null) toolTip.SetToolTip(btnRefreshAgents, toEnglish ? "Re-scan installed AI agents" : "重新检测已安装的智能体");
-        if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "MCP Direct Connection (4 Tools)" : "MCP 协议直连 (4项核心能力)";
+        if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "Agent MCP Integration" : "智能体 MCP 接入";
         if (lblMcpDesc != null)
         {
             lblMcpDesc.Text = toEnglish
