@@ -2727,6 +2727,26 @@ internal static class TestCheck
             dailyQuoteDlg.Close();
             Application.DoEvents();
 
+            // Verify switching to Daily Quotes tab in Settings while projected note is active does NOT show duplicate quote
+            handleIpc.Invoke(app, new object[] { "quote:Projected Note Test|Agent" });
+            Form projectedNoteInstance = (Form)fActiveProjected.GetValue(app);
+            MethodInfo mSetQuotePreview = appType.GetMethod("SetQuotePreview", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (mSetQuotePreview != null)
+            {
+                mSetQuotePreview.Invoke(app, new object[] { settings, true });
+                Form curActiveQuote = (Form)fActiveQuote.GetValue(app);
+                if (curActiveQuote != null && curActiveQuote.Visible)
+                {
+                    Console.WriteLine("FAIL: Daily quote preview should remain hidden when projected note is active");
+                    return 59;
+                }
+            }
+            if (projectedNoteInstance != null && !projectedNoteInstance.IsDisposed)
+            {
+                projectedNoteInstance.Close();
+                Application.DoEvents();
+            }
+
             // Test IPC progress command
             handleIpc.Invoke(app, new object[] { "progress:60|Compiling test" });
             handleIpc.Invoke(app, new object[] { "progress:clear" });

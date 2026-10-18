@@ -7686,10 +7686,14 @@ internal sealed class AppContext : ApplicationContext
     internal void ShowCustomQuote(string text, string author, string agentName = null, int agentPid = 0)
     {
         // 1. Temporarily hide daily quote if active
-        if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed && activeQuoteDialog.Visible)
+        if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
         {
             dailyQuoteSuspendedForProjection = true;
             activeQuoteDialog.Hide();
+        }
+        else if (settings != null && settings.DailyQuote)
+        {
+            dailyQuoteSuspendedForProjection = true;
         }
 
         // 2. Mutual exclusion: at any time, only ONE desktop note projection is allowed
@@ -9306,6 +9310,17 @@ internal sealed class AppContext : ApplicationContext
 
     private void SetQuotePreview(Settings draft, bool visible)
     {
+        if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
+        {
+            dailyQuoteSuspendedForProjection = true;
+            if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
+            {
+                if (draft != null) activeQuoteDialog.ApplyDraftSettings(draft);
+                activeQuoteDialog.Hide();
+            }
+            return;
+        }
+
         if (!visible)
         {
             if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
@@ -9470,10 +9485,22 @@ internal sealed class AppContext : ApplicationContext
             ApplySavedSettings(draft);
             if (draft.DailyQuote)
             {
-                if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
+                if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
+                {
+                    dailyQuoteSuspendedForProjection = true;
+                    if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
+                    {
+                        activeQuoteDialog.IsPreviewMode = false;
+                        activeQuoteDialog.ApplyDraftSettings(draft);
+                        activeQuoteDialog.Hide();
+                    }
+                }
+                else if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
                 {
                     activeQuoteDialog.IsPreviewMode = false;
                     activeQuoteDialog.ApplyDraftSettings(draft);
+                    activeQuoteDialog.Show();
+                    activeQuoteDialog.EnsureVisible();
                 }
                 else
                 {
