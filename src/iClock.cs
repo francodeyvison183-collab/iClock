@@ -42,16 +42,14 @@ internal sealed class Settings
     public bool AgentNotice;
     public bool AgentProgress;
     public bool DailyQuote = true;
-    public int QuoteDuration = 10;
+    public bool QuoteDesktopVisible { get { return DailyQuote; } set { DailyQuote = value; } }
     public int QuoteX = -99999;
     public int QuoteY = -99999;
     public int QuoteWidth = -1;
     public float QuoteFontSize = 18.0f;
     public string QuoteColor = "";
     public string QuoteFont = "";
-    public bool QuoteDesktopVisible = true;
     public bool QuotePinTopMost;
-    public string LastQuoteDate = "";
     public string AiAgentType = "Auto";
     public string AiAgentCustomCmd = "";
     public string AiQuoteKeywords = "";
@@ -65,11 +63,10 @@ internal sealed class Settings
         EndMessage = src.EndMessage; Language = src.Language; AutoStart = src.AutoStart;
         EndSound = src.EndSound; EndSoundStyle = src.EndSoundStyle; EndNotice = src.EndNotice;
         FirstRun = src.FirstRun; NoticeStyle = src.NoticeStyle; FullscreenDnd = src.FullscreenDnd;
-        AgentNotice = src.AgentNotice; AgentProgress = src.AgentProgress; DailyQuote = src.DailyQuote; QuoteDuration = src.QuoteDuration;
+        AgentNotice = src.AgentNotice; AgentProgress = src.AgentProgress; DailyQuote = src.DailyQuote;
         QuoteX = src.QuoteX; QuoteY = src.QuoteY; QuoteWidth = src.QuoteWidth;
         QuoteFontSize = src.QuoteFontSize; QuoteColor = src.QuoteColor; QuoteFont = src.QuoteFont;
-        QuoteDesktopVisible = src.QuoteDesktopVisible; QuotePinTopMost = src.QuotePinTopMost;
-        LastQuoteDate = src.LastQuoteDate;
+        QuotePinTopMost = src.QuotePinTopMost;
         AiAgentType = src.AiAgentType; AiAgentCustomCmd = src.AiAgentCustomCmd;
         AiQuoteKeywords = src.AiQuoteKeywords;
     }
@@ -138,16 +135,13 @@ internal sealed class Settings
                 else if (k == "AgentNotice" && bool.TryParse(v, out b)) s.AgentNotice = b;
                 else if (k == "AgentProgress" && bool.TryParse(v, out b)) s.AgentProgress = b;
                 else if (k == "DailyQuote" && bool.TryParse(v, out b)) s.DailyQuote = b;
-                else if (k == "QuoteDuration" && int.TryParse(v, out n)) s.QuoteDuration = Math.Max(3, Math.Min(60, n));
                 else if (k == "QuoteX" && int.TryParse(v, out n)) s.QuoteX = n;
                 else if (k == "QuoteY" && int.TryParse(v, out n)) s.QuoteY = n;
                 else if (k == "QuoteWidth" && int.TryParse(v, out n)) s.QuoteWidth = n;
                 else if (k == "QuoteFontSize" && float.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out f)) s.QuoteFontSize = f > 0 ? Math.Max(8.0f, Math.Min(24.0f, f)) : 18.0f;
                 else if (k == "QuoteColor") s.QuoteColor = v;
                 else if (k == "QuoteFont") s.QuoteFont = v;
-                else if (k == "QuoteDesktopVisible" && bool.TryParse(v, out b)) s.QuoteDesktopVisible = b;
                 else if (k == "QuotePinTopMost" && bool.TryParse(v, out b)) s.QuotePinTopMost = b;
-                else if (k == "LastQuoteDate") s.LastQuoteDate = v;
                 else if (k == "AiAgentType") s.AiAgentType = v;
                 else if (k == "AiAgentCustomCmd") s.AiAgentCustomCmd = v;
                 else if (k == "AiQuoteKeywords") s.AiQuoteKeywords = v;
@@ -168,8 +162,8 @@ internal sealed class Settings
             "Color=" + Color, "FontFamily=" + FontFamily, "Format=" + Format, "EndMessage=" + EndMessage, "Language=" + Language, "AutoStart=" + AutoStart,
             "EndSound=" + EndSound, "EndSoundStyle=" + EndSoundStyle, "EndNotice=" + EndNotice, "FirstRun=" + FirstRun, "NoticeStyle=" + NoticeStyle, "FullscreenDnd=" + FullscreenDnd, "AgentNotice=" + AgentNotice,
             "AgentProgress=" + AgentProgress,
-            "DailyQuote=" + DailyQuote, "QuoteDuration=" + QuoteDuration, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
-            "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuoteDesktopVisible=" + QuoteDesktopVisible, "QuotePinTopMost=" + QuotePinTopMost, "LastQuoteDate=" + LastQuoteDate,
+            "DailyQuote=" + DailyQuote, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
+            "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuotePinTopMost=" + QuotePinTopMost,
             "AiAgentType=" + AiAgentType,
             "AiAgentCustomCmd=" + AiAgentCustomCmd,
             "AiQuoteKeywords=" + AiQuoteKeywords
@@ -1234,7 +1228,7 @@ internal sealed class SettingsDialog : Form
     private string selectedColor;
     private TextBox endMessage;
     private ComboBox format, language, fontCombo;
-    private CheckBox startup, sound, notice, agentNotice, chkAgentProgress, dailyQuote, quoteDesktopVisible;
+    private CheckBox startup, sound, notice, agentNotice, chkAgentProgress, dailyQuote;
     private Button btnEditQuotes, btnAiQuotes;
     private ComboBox soundStyle, noticeStyle;
     private TextBox hotkeyBox;
@@ -1246,7 +1240,8 @@ internal sealed class SettingsDialog : Form
     public event Action<Settings> PreviewRequested;
     public event Action<Settings, bool> QuotePreviewRequested;
     public event Action QuoteNextRequested;
-    public bool IsQuoteDesktopVisible { get { return quoteDesktopVisible != null && quoteDesktopVisible.Checked; } }
+    public bool IsDailyQuoteChecked { get { return dailyQuote != null && dailyQuote.Checked; } }
+    public bool IsQuoteDesktopVisible { get { return IsDailyQuoteChecked; } }
     public int DialogQuoteIndex { get { return dialogQuoteIndex; } }
     public int ActiveTab { get { return activeTab; } }
     private static readonly string[] fontFamilies = { "Segoe UI", "Consolas", "Arial", "Impact", "Microsoft YaHei" };
@@ -1264,9 +1259,9 @@ internal sealed class SettingsDialog : Form
     private Label lblTool1Name, lblTool1Desc, lblTool2Name, lblTool2Desc, lblTool3Name, lblTool3Desc;
     private StyledTipLabel lblAgentCliTip;
 
-    private NumericUpDown quoteDuration, quoteFontSize;
+    private NumericUpDown quoteFontSize;
     private bool isSyncingQuoteFontSize;
-    private Label lblQuoteDuration, lblQuoteSize, lblQuoteFont, lblQuoteColor, lblQuoteLayer, lblQuoteQuotes;
+    private Label lblQuoteSize, lblQuoteFont, lblQuoteColor, lblQuoteLayer, lblQuoteQuotes;
     private StyledTipLabel lblQuoteTip;
     private ComboBox quoteFontCombo, quoteColorCombo, quoteLayerCombo;
     private bool updatingQuoteColorCombo;
@@ -1370,8 +1365,8 @@ internal sealed class SettingsDialog : Form
         Value.Language = s.Language;
         Value.AutoStart = s.AutoStart; Value.EndSound = s.EndSound; Value.EndSoundStyle = s.EndSoundStyle; Value.EndNotice = s.EndNotice;
         Value.NoticeStyle = s.NoticeStyle; Value.FullscreenDnd = s.FullscreenDnd; Value.AgentNotice = s.AgentNotice; Value.AgentProgress = s.AgentProgress;
-        Value.DailyQuote = s.DailyQuote; Value.QuoteDuration = s.QuoteDuration; Value.QuoteX = s.QuoteX; Value.QuoteY = s.QuoteY; Value.QuoteWidth = s.QuoteWidth; Value.QuoteFontSize = s.QuoteFontSize;
-        Value.QuoteColor = s.QuoteColor ?? ""; Value.QuoteFont = s.QuoteFont ?? ""; Value.QuoteDesktopVisible = s.QuoteDesktopVisible; Value.QuotePinTopMost = s.QuotePinTopMost; Value.LastQuoteDate = s.LastQuoteDate;
+        Value.DailyQuote = s.DailyQuote; Value.QuoteX = s.QuoteX; Value.QuoteY = s.QuoteY; Value.QuoteWidth = s.QuoteWidth; Value.QuoteFontSize = s.QuoteFontSize;
+        Value.QuoteColor = s.QuoteColor ?? ""; Value.QuoteFont = s.QuoteFont ?? ""; Value.QuotePinTopMost = s.QuotePinTopMost;
         selectedQuoteColor = Value.QuoteColor;
         selectedQuoteFont = Value.QuoteFont;
         bool en = Value.Language == "en";
@@ -1597,25 +1592,14 @@ internal sealed class SettingsDialog : Form
         panelQuoteCard.Controls.Add(lblCardQuoteAuthor);
         UpdateDialogQuoteCard();
 
-        // Section 2: Dual Switches Row (Y = 172)
-        dailyQuote = AddCheck(en ? "Enable daily quotes" : "开启每日格言", Value.DailyQuote, 18, 172);
-        dailyQuote.SetBounds(18, 172, 180, 24);
+        // Section 2: Daily Quote Switch (Y = 172)
+        dailyQuote = AddCheck(en ? "Enable desktop quote note" : "在桌面常驻显示每日格言便签", Value.DailyQuote, 18, 172);
+        dailyQuote.SetBounds(18, 172, 344, 24);
         dailyQuote.CheckedChanged += OnDailyQuoteCheckChanged;
 
-        quoteDesktopVisible = AddCheck(en ? "Show on desktop" : "桌面悬浮显示", Value.QuoteDesktopVisible, 210, 172);
-        int chkW = Math.Min(152, TextRenderer.MeasureText(quoteDesktopVisible.Text, quoteDesktopVisible.Font).Width + 28);
-        quoteDesktopVisible.SetBounds(362 - chkW, 172, chkW, 24);
-        quoteDesktopVisible.Enabled = dailyQuote.Checked;
-        quoteDesktopVisible.CheckedChanged += OnQuoteDurationChanged;
-
-        // Section 3: Unified 2-column key-value grid (Y = 204, 238, 272, 306, 340, 374)
-        // Row 1: Duration
-        lblQuoteDuration = AddLabel(en ? "Duration (seconds)" : "显示时长（秒）", 18, 208);
-        quoteDuration = AddNumber(Value.QuoteDuration, 3, 60, 172, 204);
-        quoteDuration.ValueChanged += OnQuoteDurationChanged;
-
-        // Row 2: Font Size
-        lblQuoteSize = AddLabel(en ? "Text size" : "文字大小", 18, 242);
+        // Section 3: Unified 2-column key-value grid (Y = 204, 242, 280, 318, 356)
+        // Row 1: Font Size (Y = 204)
+        lblQuoteSize = AddLabel(en ? "Text size" : "文字大小", 18, 208);
         quoteFontSize = new NumericUpDown();
         quoteFontSize.DecimalPlaces = 1;
         quoteFontSize.Increment = 0.5M;
@@ -1623,14 +1607,14 @@ internal sealed class SettingsDialog : Form
         quoteFontSize.Maximum = 24.0M;
         float initQuoteSize = (Value.QuoteFontSize >= 8.0f && Value.QuoteFontSize <= 24.0f) ? Value.QuoteFontSize : 18.0f;
         quoteFontSize.Value = (decimal)initQuoteSize;
-        quoteFontSize.SetBounds(172, 238, 188, 28);
+        quoteFontSize.SetBounds(172, 204, 188, 28);
         ApplyInputPadding(quoteFontSize);
         quoteFontSize.ValueChanged += OnQuoteFontSizeChanged;
         Controls.Add(quoteFontSize);
 
-        // Row 3: Font Style
-        lblQuoteFont = AddLabel(en ? "Font style" : "字体样式", 18, 276);
-        quoteFontCombo = AddCombo(272);
+        // Row 2: Font Style (Y = 242)
+        lblQuoteFont = AddLabel(en ? "Font style" : "字体样式", 18, 246);
+        quoteFontCombo = AddCombo(242);
         quoteFontCombo.Items.AddRange(en
             ? new object[] { "Follow Timer (Default)", "Microsoft YaHei", "KaiTi", "SimSun", "Segoe UI" }
             : new object[] { "跟随倒计时 (默认)", "微软雅黑", "楷体", "宋体", "Segoe UI" });
@@ -1638,17 +1622,17 @@ internal sealed class SettingsDialog : Form
         quoteFontCombo.DrawItem += OnDrawQuoteFontItem;
         quoteFontCombo.SelectedIndexChanged += OnQuoteFontChanged;
 
-        // Row 4: Color (Full width 188px, self-contained color chips)
-        lblQuoteColor = AddLabel(en ? "Text color" : "文字颜色", 18, 310);
-        quoteColorCombo = AddCombo(306);
+        // Row 3: Color (Full width 188px, self-contained color chips, Y = 280)
+        lblQuoteColor = AddLabel(en ? "Text color" : "文字颜色", 18, 284);
+        quoteColorCombo = AddCombo(280);
         PopulateQuoteColorCombo(en);
         quoteColorCombo.SelectedIndex = GetQuoteColorIndex(selectedQuoteColor);
         quoteColorCombo.DrawItem += OnDrawQuoteColorItem;
         quoteColorCombo.SelectedIndexChanged += OnQuoteColorComboChanged;
 
-        // Row 5: Window Layer (常驻层级)
-        lblQuoteLayer = AddLabel(en ? "Window level" : "常驻层级", 18, 344);
-        quoteLayerCombo = AddCombo(340);
+        // Row 4: Window Layer (常驻层级, Y = 318)
+        lblQuoteLayer = AddLabel(en ? "Window level" : "常驻层级", 18, 322);
+        quoteLayerCombo = AddCombo(318);
         quoteLayerCombo.Items.AddRange(en
             ? new object[] { "Desktop Layer (Default)", "Always on Top" }
             : new object[] { "桌面背景置底 (默认)", "始终置顶显示" });
@@ -1656,12 +1640,12 @@ internal sealed class SettingsDialog : Form
         quoteLayerCombo.DrawItem += OnDrawComboItem;
         quoteLayerCombo.SelectedIndexChanged += OnQuoteLayerChanged;
 
-        // Row 6: Quote Library
-        lblQuoteQuotes = AddLabel(en ? "Quote library" : "名言词库", 18, 378);
+        // Row 5: Quote Library (Y = 356)
+        lblQuoteQuotes = AddLabel(en ? "Quote library" : "名言词库", 18, 360);
         btnEditQuotes = new Button();
         btnEditQuotes.Text = en ? "Edit Quotes" : "自定义…";
         btnEditQuotes.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
-        btnEditQuotes.SetBounds(172, 374, 90, 28);
+        btnEditQuotes.SetBounds(172, 356, 90, 28);
         AppContext.StyleSecondaryButton(btnEditQuotes);
         btnEditQuotes.Click += OnEditQuotesClick;
         if (toolTip == null) toolTip = new ToolTip();
@@ -1671,13 +1655,13 @@ internal sealed class SettingsDialog : Form
         btnAiQuotes = new Button();
         btnAiQuotes.Text = en ? "✨ AI Quotes" : "✨ AI 扩充";
         btnAiQuotes.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
-        btnAiQuotes.SetBounds(270, 374, 90, 28);
+        btnAiQuotes.SetBounds(270, 356, 90, 28);
         AppContext.StyleSecondaryButton(btnAiQuotes);
         btnAiQuotes.Click += OnAiQuotesClick;
         toolTip.SetToolTip(btnAiQuotes, en ? "Generate quotes with AI Agent / MCP" : "通过 AI 智能体 / MCP 批量创作并扩充词库");
         Controls.Add(btnAiQuotes);
 
-        // Section 4: Tip
+        // Section 4: Tip (Y = 416)
         lblQuoteTip = new StyledTipLabel(en
             ? new string[] { "Alt + Ctrl + wheel", "Alt + drag" }
             : new string[] { "Alt + Ctrl + 滚轮", "Alt + 拖拽" });
@@ -1690,9 +1674,9 @@ internal sealed class SettingsDialog : Form
         lblQuoteTip.SetBounds(16, 416, 348, 22);
         Controls.Add(lblQuoteTip);
         if (toolTip == null) toolTip = new ToolTip();
-        toolTip.SetToolTip(quoteDesktopVisible, en
-            ? "Display quote permanently on desktop; hold Alt + drag to move, drag edge to resize"
-            : "在桌面上常驻显示格言；在桌面格言文字上按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
+        toolTip.SetToolTip(dailyQuote, en
+            ? "Display ambient quote note on desktop; hold Alt + drag to move, drag edge to resize"
+            : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
 
 
         agentNotice = new CheckBox();
@@ -1914,10 +1898,7 @@ internal sealed class SettingsDialog : Form
         startup.Visible = isTimer;
 
         dailyQuote.Visible = isQuote;
-        quoteDesktopVisible.Visible = isQuote;
         panelQuoteCard.Visible = isQuote;
-        lblQuoteDuration.Visible = isQuote;
-        quoteDuration.Visible = isQuote;
         lblQuoteSize.Visible = isQuote;
         quoteFontSize.Visible = isQuote;
         lblQuoteFont.Visible = isQuote;
@@ -2503,14 +2484,8 @@ internal sealed class SettingsDialog : Form
     }
     private void OnDailyQuoteCheckChanged(object sender, EventArgs e)
     {
-        quoteDesktopVisible.Enabled = dailyQuote.Checked;
-        if (!dailyQuote.Checked && quoteDesktopVisible.Checked)
-        {
-            quoteDesktopVisible.Checked = false;
-        }
         TriggerQuotePreview();
     }
-    private void OnQuoteDurationChanged(object sender, EventArgs e) { TriggerQuotePreview(); }
     private void OnQuoteFontSizeChanged(object sender, EventArgs e) { if (!isSyncingQuoteFontSize) TriggerQuotePreview(); }
     private void OnQuoteFontChanged(object sender, EventArgs e)
     {
@@ -2716,11 +2691,7 @@ internal sealed class SettingsDialog : Form
         sound.Text = toEnglish ? "Play sound at end" : "结束时声音提醒";
         notice.Text = toEnglish ? "End notification" : "结束时系统通知";
 
-        dailyQuote.Text = toEnglish ? "Enable daily quotes" : "开启每日格言";
-        quoteDesktopVisible.Text = toEnglish ? "Show on desktop" : "桌面悬浮显示";
-        int quoteChkW = Math.Min(152, TextRenderer.MeasureText(quoteDesktopVisible.Text, quoteDesktopVisible.Font).Width + 28);
-        quoteDesktopVisible.SetBounds(362 - quoteChkW, 172, quoteChkW, 24);
-        lblQuoteDuration.Text = toEnglish ? "Duration (seconds)" : "显示时长（秒）";
+        dailyQuote.Text = toEnglish ? "Enable desktop quote note" : "在桌面常驻显示每日格言便签";
         lblQuoteSize.Text = toEnglish ? "Text size" : "文字大小";
         lblQuoteFont.Text = toEnglish ? "Font style" : "字体样式";
         lblQuoteColor.Text = toEnglish ? "Text color" : "文字颜色";
@@ -2757,7 +2728,7 @@ internal sealed class SettingsDialog : Form
             if (btnNextQuote != null) toolTip.SetToolTip(btnNextQuote, toEnglish ? "Next quote (↻)" : "换一句 (↻)");
             toolTip.SetToolTip(btnEditQuotes, toEnglish ? "Open and edit quotes.txt in notepad" : "在记事本中自定义编辑名言 (quotes.txt)");
             if (btnAiQuotes != null) toolTip.SetToolTip(btnAiQuotes, toEnglish ? "Generate quotes with AI Agent / MCP" : "通过 AI 智能体 / MCP 批量创作并扩充词库");
-            if (quoteDesktopVisible != null) toolTip.SetToolTip(quoteDesktopVisible, toEnglish ? "Display quote permanently on desktop; hold Alt + drag to move, drag edge to resize" : "在桌面上常驻显示格言；在桌面格言文字上按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
+            if (dailyQuote != null) toolTip.SetToolTip(dailyQuote, toEnglish ? "Display ambient quote note on desktop; hold Alt + drag to move, drag edge to resize" : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
         }
         if (lblCardQuoteText != null)
         {
@@ -2881,7 +2852,6 @@ internal sealed class SettingsDialog : Form
 
         UpdateInputPadding(minutes);
         UpdateInputPadding(size);
-        UpdateInputPadding(quoteDuration);
         UpdateInputPadding(quoteFontSize);
         UpdateInputPadding(endMessage);
         UpdateInputPadding(hotkeyBox);
@@ -2911,16 +2881,13 @@ internal sealed class SettingsDialog : Form
         draft.AgentNotice = agentNotice != null ? agentNotice.Checked : Value.AgentNotice;
         draft.AgentProgress = chkAgentProgress != null ? chkAgentProgress.Checked : Value.AgentProgress;
         draft.DailyQuote = dailyQuote != null ? dailyQuote.Checked : Value.DailyQuote;
-        draft.QuoteDuration = quoteDuration != null ? (int)quoteDuration.Value : Value.QuoteDuration;
         draft.QuoteColor = selectedQuoteColor;
         draft.QuoteFont = selectedQuoteFont;
         draft.QuoteX = Value.QuoteX;
         draft.QuoteY = Value.QuoteY;
         draft.QuoteWidth = Value.QuoteWidth;
         draft.QuoteFontSize = quoteFontSize != null ? (float)quoteFontSize.Value : Value.QuoteFontSize;
-        draft.QuoteDesktopVisible = quoteDesktopVisible != null ? quoteDesktopVisible.Checked : Value.QuoteDesktopVisible;
         draft.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
-        draft.LastQuoteDate = Value.LastQuoteDate;
         draft.X = Value.X;
         draft.Y = Value.Y;
         return draft;
@@ -2936,9 +2903,9 @@ internal sealed class SettingsDialog : Form
 
     private void TriggerQuotePreview()
     {
-        if (QuotePreviewRequested != null && quoteDesktopVisible != null)
+        if (QuotePreviewRequested != null && dailyQuote != null)
         {
-            QuotePreviewRequested(GetCurrentDraftSettings(), activeTab == 1 && quoteDesktopVisible.Checked);
+            QuotePreviewRequested(GetCurrentDraftSettings(), activeTab == 1 && dailyQuote.Checked);
         }
     }
 
@@ -3044,11 +3011,28 @@ internal sealed class SettingsDialog : Form
         DialogResult = DialogResult.OK; Close();
     }
 
+    public void SetDailyQuoteChecked(bool chk)
+    {
+        if (dailyQuote != null && dailyQuote.Checked != chk)
+        {
+            dailyQuote.Checked = chk;
+        }
+    }
+
     public void SetDesktopQuoteChecked(bool chk)
     {
-        if (quoteDesktopVisible != null && quoteDesktopVisible.Checked != chk)
+        SetDailyQuoteChecked(chk);
+    }
+
+    public void SyncQuotePin(bool pinned)
+    {
+        if (quoteLayerCombo != null)
         {
-            quoteDesktopVisible.Checked = chk;
+            int target = pinned ? 1 : 0;
+            if (quoteLayerCombo.SelectedIndex != target)
+            {
+                quoteLayerCombo.SelectedIndex = target;
+            }
         }
     }
 
@@ -3832,16 +3816,14 @@ internal sealed class DailyQuoteDialog : Form
     private int resizeStartWidth;
     private int customWidth = -1;
 
-    private Timer countdownTimer;
     private Timer fadeTimer;
-    private int totalDurationMs = 10000;
-    private int elapsedMs = 0;
     private float currentFontSize = 18.0f;
     public float CurrentFontSize { get { return currentFontSize; } }
     public event Action<float> FontSizeChanged;
     public event Action QuoteChanged;
     public event Action<bool> PinChanged;
     public bool MoveMode { get; private set; }
+    public bool WasDismissedByUser { get; private set; }
     public void SetMoveMode(bool enabled)
     {
         MoveMode = enabled;
@@ -3856,13 +3838,10 @@ internal sealed class DailyQuoteDialog : Form
             if (isPinned != value)
             {
                 isPinned = value;
-                if (isPinned)
+                if (settings != null)
                 {
-                    if (countdownTimer != null) countdownTimer.Stop();
-                }
-                else if (!isPreviewMode && countdownTimer != null)
-                {
-                    countdownTimer.Start();
+                    settings.QuotePinTopMost = isPinned;
+                    settings.Save();
                 }
                 if (PinChanged != null) PinChanged(isPinned);
                 UpdateTopMostState();
@@ -3877,14 +3856,6 @@ internal sealed class DailyQuoteDialog : Form
         set
         {
             isPreviewMode = value;
-            if (isPreviewMode)
-            {
-                if (countdownTimer != null) countdownTimer.Stop();
-            }
-            else if (!isPinned && countdownTimer != null)
-            {
-                countdownTimer.Start();
-            }
             UpdateTopMostState();
         }
     }
@@ -3900,7 +3871,6 @@ internal sealed class DailyQuoteDialog : Form
         if (quoteList != null && quoteList.Count > 0)
         {
             currentQuoteIndex = Math.Abs(idx) % quoteList.Count;
-            elapsedMs = 0;
             UpdateCardLayout(keepLeft: true);
         }
     }
@@ -3910,7 +3880,6 @@ internal sealed class DailyQuoteDialog : Form
         if (quoteList != null && quoteList.Count > 0)
         {
             currentQuoteIndex = (currentQuoteIndex + 1) % quoteList.Count;
-            elapsedMs = 0;
             UpdateCardLayout(keepLeft: true);
             if (QuoteChanged != null) QuoteChanged();
         }
@@ -3922,7 +3891,6 @@ internal sealed class DailyQuoteDialog : Form
         if (quoteList != null && quoteList.Count > 0)
         {
             currentQuoteIndex = quoteList.Count - 1;
-            elapsedMs = 0;
             UpdateCardLayout(keepLeft: false);
             if (QuoteChanged != null) QuoteChanged();
         }
@@ -3933,7 +3901,7 @@ internal sealed class DailyQuoteDialog : Form
         if (IsDisposed) return;
         try
         {
-            bool wantTopMost = !isPinned || isPreviewMode || (settings != null && settings.QuotePinTopMost);
+            bool wantTopMost = isPinned || isPreviewMode || (settings != null && settings.QuotePinTopMost);
             TopMost = wantTopMost;
             if (IsHandleCreated)
             {
@@ -3948,11 +3916,11 @@ internal sealed class DailyQuoteDialog : Form
     {
         if (draft == null) return;
         settings = draft;
-        totalDurationMs = Math.Max(3, settings.QuoteDuration) * 1000;
         if (draft.QuoteFontSize >= 8.0f && draft.QuoteFontSize <= 24.0f)
         {
             currentFontSize = draft.QuoteFontSize;
         }
+        isPinned = draft.QuotePinTopMost;
         UpdateTopMostState();
         UpdateCardLayout(keepLeft: true);
     }
@@ -3972,8 +3940,8 @@ internal sealed class DailyQuoteDialog : Form
     public DailyQuoteDialog(Settings s, string customText, string customAuthor)
     {
         settings = s;
-        totalDurationMs = Math.Max(3, (settings != null ? settings.QuoteDuration : 10)) * 1000;
         customWidth = (settings != null && settings.QuoteWidth > 0) ? settings.QuoteWidth : -1;
+        isPinned = (settings != null && settings.QuotePinTopMost);
         if (settings != null && settings.QuoteFontSize >= 8.0f && settings.QuoteFontSize <= 24.0f)
         {
             currentFontSize = settings.QuoteFontSize;
@@ -3987,7 +3955,7 @@ internal sealed class DailyQuoteDialog : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         DoubleBuffered = true;
-        TopMost = true;
+        TopMost = isPinned;
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.Opaque, true);
         KeyPreview = true;
         KeyDown += delegate(object sender, KeyEventArgs e)
@@ -4009,14 +3977,6 @@ internal sealed class DailyQuoteDialog : Form
         }
 
         UpdateCardLayout(keepLeft: false);
-
-        countdownTimer = new Timer();
-        countdownTimer.Interval = 500;
-        countdownTimer.Tick += OnCountdownTick;
-        if (!isPinned && !isPreviewMode)
-        {
-            countdownTimer.Start();
-        }
     }
 
     protected override bool ShowWithoutActivation
@@ -4223,26 +4183,9 @@ internal sealed class DailyQuoteDialog : Form
         }
     }
 
-    private void OnCountdownTick(object sender, EventArgs e)
-    {
-        if (isPinned || isPreviewMode || isDragging || isResizingWidth || isHovered)
-        {
-            if (countdownTimer != null) countdownTimer.Stop();
-            return;
-        }
-
-        elapsedMs += countdownTimer.Interval;
-        if (elapsedMs >= totalDurationMs)
-        {
-            countdownTimer.Stop();
-            StartFadeOut();
-        }
-    }
-
     private void EnterHoverState()
     {
         isHovered = true;
-        if (countdownTimer != null) countdownTimer.Stop();
         RenderLayeredQuoteWindow();
     }
 
@@ -4253,11 +4196,6 @@ internal sealed class DailyQuoteDialog : Form
         isResizingWidth = false;
         RenderLayeredQuoteWindow();
         UpdateTopMostState();
-        if (!isPinned && !isPreviewMode && countdownTimer != null)
-        {
-            countdownTimer.Interval = 500;
-            countdownTimer.Start();
-        }
     }
 
     private void OnMouseLeaveNative()
@@ -4296,7 +4234,7 @@ internal sealed class DailyQuoteDialog : Form
 
     public void Dismiss()
     {
-        if (countdownTimer != null) countdownTimer.Stop();
+        WasDismissedByUser = true;
         StartFadeOut();
     }
 
@@ -4351,21 +4289,6 @@ internal sealed class DailyQuoteDialog : Form
             }
 
             DrawActionButtons(renderGraphics, mainColor);
-
-            if (!isPinned)
-            {
-                float ratio = Math.Max(0f, Math.Min(1f, 1f - (float)elapsedMs / totalDurationMs));
-                int barW = (int)((Width - 36) * ratio);
-                if (barW > 0)
-                {
-                    using (Pen barPen = new Pen(mainColor, 1.8f))
-                    {
-                        barPen.StartCap = LineCap.Round;
-                        barPen.EndCap = LineCap.Round;
-                        renderGraphics.DrawLine(barPen, 18, Height - 4, 18 + barW, Height - 4);
-                    }
-                }
-            }
         }
 
         renderGraphics.TextRenderingHint = TextRenderingHint.AntiAlias;
@@ -4555,8 +4478,8 @@ internal sealed class DailyQuoteDialog : Form
         else if (hoveredBtn == 2)
         {
             tipText = isPinned
-                ? ((lang == "en") ? "Unpin" : "取消固定")
-                : ((lang == "en") ? "Pin to desktop" : "钉在桌面");
+                ? ((lang == "en") ? "Unpin from top" : "取消置顶")
+                : ((lang == "en") ? "Pin on top" : "始终置顶");
         }
         else if (hoveredBtn == 3)
         {
@@ -4811,7 +4734,6 @@ internal sealed class DailyQuoteDialog : Form
     {
         if (disposing)
         {
-            if (countdownTimer != null) { countdownTimer.Stop(); countdownTimer.Dispose(); countdownTimer = null; }
             if (fadeTimer != null) { fadeTimer.Stop(); fadeTimer.Dispose(); fadeTimer = null; }
             if (renderGraphics != null) { renderGraphics.Dispose(); renderGraphics = null; }
             if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
@@ -8634,15 +8556,14 @@ internal sealed class AppContext : ApplicationContext
                 if (activeDialog is SettingsDialog)
                 {
                     SettingsDialog sd = (SettingsDialog)activeDialog;
-                    if (!sd.IsQuoteDesktopVisible)
+                    if (!sd.IsDailyQuoteChecked)
                     {
-                        activeQuoteDialog.IsPinned = false;
                         activeQuoteDialog.Close();
                         activeQuoteDialog = null;
                         return;
                     }
                 }
-                if (activeQuoteDialog.IsPinned || (activeDialog is SettingsDialog && ((SettingsDialog)activeDialog).IsQuoteDesktopVisible))
+                if (settings.DailyQuote || (activeDialog is SettingsDialog && ((SettingsDialog)activeDialog).IsDailyQuoteChecked))
                 {
                     activeQuoteDialog.IsPreviewMode = false;
                     if (draft != null)
@@ -8680,11 +8601,20 @@ internal sealed class AppContext : ApplicationContext
             };
             activeQuoteDialog.PinChanged += delegate(bool pinned)
             {
-                try { if (pinned && activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SetDesktopQuoteChecked(true); } catch { }
+                try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncQuotePin(pinned); } catch { }
             };
             activeQuoteDialog.FormClosed += delegate
             {
-                try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SetDesktopQuoteChecked(false); } catch { }
+                try
+                {
+                    if (activeQuoteDialog != null && activeQuoteDialog.WasDismissedByUser)
+                    {
+                        settings.DailyQuote = false;
+                        settings.Save();
+                    }
+                    if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SetDailyQuoteChecked(settings.DailyQuote);
+                }
+                catch { }
                 activeQuoteDialog = null;
             };
             if (overlay.MoveMode) activeQuoteDialog.SetMoveMode(true);
@@ -8778,34 +8708,24 @@ internal sealed class AppContext : ApplicationContext
                 activeQuoteDialog.QuoteChanged -= quoteChangeSync;
             }
             SetPreviewSettings(null);
-            bool quotePinned = activeQuoteDialog != null && !activeQuoteDialog.IsDisposed && activeQuoteDialog.IsPinned;
             SetQuotePreview(null, false);
             Settings draft = d.GetCurrentDraftSettings();
             ApplySavedSettings(draft);
-            if (draft.DailyQuote && d.IsQuoteDesktopVisible)
+            if (draft.DailyQuote)
             {
                 if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
                 {
-                    activeQuoteDialog.IsPinned = true;
                     activeQuoteDialog.IsPreviewMode = false;
                     activeQuoteDialog.ApplyDraftSettings(draft);
                 }
                 else
                 {
                     CheckDailyQuote(true);
-                    if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
-                    {
-                        activeQuoteDialog.IsPinned = true;
-                    }
                 }
-            }
-            else if (quotePinned && activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
-            {
-                activeQuoteDialog.ApplyDraftSettings(draft);
             }
             else
             {
-                if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed && !quotePinned)
+                if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
                 {
                     activeQuoteDialog.Close();
                     activeQuoteDialog = null;
@@ -9477,7 +9397,7 @@ internal sealed class AppContext : ApplicationContext
         {
             if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
             {
-                if (activeQuoteDialog.IsPinned && !forceShow) return;
+                if (!forceShow) return;
                 activeQuoteDialog.Close();
                 activeQuoteDialog = null;
             }
@@ -9485,14 +9405,7 @@ internal sealed class AppContext : ApplicationContext
             Settings effective = customSettings ?? settings;
             if (!forceShow)
             {
-                if (!effective.DailyQuote || !effective.QuoteDesktopVisible) return;
-                string today = DateTime.Today.ToString("yyyy-MM-dd");
-                if (string.Equals(effective.LastQuoteDate, today, StringComparison.OrdinalIgnoreCase))
-                {
-                    return;
-                }
-                effective.LastQuoteDate = today;
-                effective.Save();
+                if (!effective.DailyQuote) return;
             }
 
             activeQuoteDialog = new DailyQuoteDialog(effective);
@@ -9506,11 +9419,20 @@ internal sealed class AppContext : ApplicationContext
             };
             activeQuoteDialog.PinChanged += delegate(bool pinned)
             {
-                try { if (pinned && activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SetDesktopQuoteChecked(true); } catch { }
+                try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncQuotePin(pinned); } catch { }
             };
             activeQuoteDialog.FormClosed += delegate
             {
-                try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SetDesktopQuoteChecked(false); } catch { }
+                try
+                {
+                    if (activeQuoteDialog != null && activeQuoteDialog.WasDismissedByUser)
+                    {
+                        settings.DailyQuote = false;
+                        settings.Save();
+                    }
+                    if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SetDailyQuoteChecked(settings.DailyQuote);
+                }
+                catch { }
                 activeQuoteDialog = null;
                 if (isOneShot) Exit();
             };

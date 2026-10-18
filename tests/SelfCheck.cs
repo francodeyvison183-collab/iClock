@@ -1733,8 +1733,7 @@ internal static class TestCheck
             setActiveTabMethod.Invoke(dlgInstance, new object[] { 1 });
             int curTab = (int)settingsDlgType.GetField("activeTab", bf).GetValue(dlgInstance);
             CheckBox dqBox = (CheckBox)settingsDlgType.GetField("dailyQuote", bf).GetValue(dlgInstance);
-            CheckBox qdvBox = (CheckBox)settingsDlgType.GetField("quoteDesktopVisible", bf).GetValue(dlgInstance);
-            if (curTab != 1 || dqBox == null || !dqBox.Visible || qdvBox == null || !qdvBox.Visible)
+            if (curTab != 1 || dqBox == null || !dqBox.Visible)
             {
                 Console.WriteLine("FAIL: Switching to tab 1 did not activate daily quote controls");
                 return 47;
@@ -1943,8 +1942,6 @@ internal static class TestCheck
             }
 
             FieldInfo fDailyQuote = settings.GetType().GetField("DailyQuote");
-            FieldInfo fQuoteDesktopVisible = settings.GetType().GetField("QuoteDesktopVisible");
-            FieldInfo fQuoteDuration = settings.GetType().GetField("QuoteDuration");
             FieldInfo fQuoteX = settings.GetType().GetField("QuoteX");
             FieldInfo fQuoteY = settings.GetType().GetField("QuoteY");
             FieldInfo fQuoteWidth = settings.GetType().GetField("QuoteWidth");
@@ -1952,9 +1949,9 @@ internal static class TestCheck
             FieldInfo fQuoteColor = settings.GetType().GetField("QuoteColor");
             FieldInfo fQuoteFont = settings.GetType().GetField("QuoteFont");
             FieldInfo fQuotePinTopMost = settings.GetType().GetField("QuotePinTopMost");
-            if (fDailyQuote == null || fQuoteDesktopVisible == null || fQuoteDuration == null || fQuoteX == null || fQuoteY == null || fQuoteWidth == null || fQuoteFontSize == null || fQuoteColor == null || fQuoteFont == null || fQuotePinTopMost == null)
+            if (fDailyQuote == null || fQuoteX == null || fQuoteY == null || fQuoteWidth == null || fQuoteFontSize == null || fQuoteColor == null || fQuoteFont == null || fQuotePinTopMost == null)
             {
-                Console.WriteLine("FAIL: Settings missing DailyQuote fields (including QuoteDesktopVisible, QuoteColor, QuoteFont and QuotePinTopMost)");
+                Console.WriteLine("FAIL: Settings missing DailyQuote fields (including QuoteColor, QuoteFont and QuotePinTopMost)");
                 return 53;
             }
             if (!(bool)fDailyQuote.GetValue(settings))
@@ -1982,9 +1979,9 @@ internal static class TestCheck
                 return 53;
             }
 
-            if (!quoteDlg.TopMost)
+            if (quoteDlg.TopMost)
             {
-                Console.WriteLine("FAIL: DailyQuoteDialog should be TopMost");
+                Console.WriteLine("FAIL: DailyQuoteDialog default should be Desktop Layer (TopMost = false)");
                 return 53;
             }
 
@@ -2023,30 +2020,27 @@ internal static class TestCheck
 
             Form testSetDlg = (Form)Activator.CreateInstance(setDlgType, new object[] { settings });
             CheckBox dailyQuoteBox = (CheckBox)setDlgType.GetField("dailyQuote", bf).GetValue(testSetDlg);
-            CheckBox quoteDeskVisBox = (CheckBox)setDlgType.GetField("quoteDesktopVisible", bf).GetValue(testSetDlg);
             Button btnEditQ = (Button)setDlgType.GetField("btnEditQuotes", bf).GetValue(testSetDlg);
             ComboBox fontComboQ = (ComboBox)setDlgType.GetField("quoteFontCombo", bf).GetValue(testSetDlg);
             NumericUpDown sizeNudQ = (NumericUpDown)setDlgType.GetField("quoteFontSize", bf).GetValue(testSetDlg);
-            NumericUpDown durNudQ = (NumericUpDown)setDlgType.GetField("quoteDuration", bf).GetValue(testSetDlg);
             ComboBox colorComboQ = (ComboBox)setDlgType.GetField("quoteColorCombo", bf).GetValue(testSetDlg);
             ComboBox layerComboQ = (ComboBox)setDlgType.GetField("quoteLayerCombo", bf).GetValue(testSetDlg);
             Panel panelQuoteCardQ = (Panel)setDlgType.GetField("panelQuoteCard", bf).GetValue(testSetDlg);
             Button btnNextQ = (Button)setDlgType.GetField("btnNextQuote", bf).GetValue(testSetDlg);
-            if (dailyQuoteBox == null || quoteDeskVisBox == null || btnEditQ == null || fontComboQ == null || sizeNudQ == null || durNudQ == null || colorComboQ == null || layerComboQ == null || panelQuoteCardQ == null || btnNextQ == null)
+            if (dailyQuoteBox == null || btnEditQ == null || fontComboQ == null || sizeNudQ == null || colorComboQ == null || layerComboQ == null || panelQuoteCardQ == null || btnNextQ == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing DailyQuote controls (including panelQuoteCard, quoteLayerCombo and btnNextQuote)");
                 return 53;
             }
             if (panelQuoteCardQ.Top != 62 || panelQuoteCardQ.Left != 18 || panelQuoteCardQ.Height != 98 ||
                 dailyQuoteBox.Top != 172 || dailyQuoteBox.Left != 18 ||
-                quoteDeskVisBox.Top != 172 || quoteDeskVisBox.Right != 362 ||
-                durNudQ.Top != 204 || sizeNudQ.Top != 238 || fontComboQ.Top != 272 ||
-                colorComboQ.Top != 306 || colorComboQ.Width != 188 ||
-                layerComboQ.Top != 340 || layerComboQ.Width != 188 ||
-                btnEditQ.Top != 374)
+                sizeNudQ.Top != 204 || fontComboQ.Top != 242 ||
+                colorComboQ.Top != 280 || colorComboQ.Width != 188 ||
+                layerComboQ.Top != 318 || layerComboQ.Width != 188 ||
+                btnEditQ.Top != 356)
             {
-                Console.WriteLine(string.Format("FAIL: SettingsDialog DailyQuote controls layout misaligned: cardT={0}, cardH={1}, dqT={2}, qdvR={3}, dur={4}, size={5}, font={6}, color={7}, layer={8}, edit={9}",
-                    panelQuoteCardQ.Top, panelQuoteCardQ.Height, dailyQuoteBox.Top, quoteDeskVisBox.Right, durNudQ.Top, sizeNudQ.Top, fontComboQ.Top, colorComboQ.Top, layerComboQ.Top, btnEditQ.Top));
+                Console.WriteLine(string.Format("FAIL: SettingsDialog DailyQuote controls layout misaligned: cardT={0}, cardH={1}, dqT={2}, size={3}, font={4}, color={5}, layer={6}, edit={7}",
+                    panelQuoteCardQ.Top, panelQuoteCardQ.Height, dailyQuoteBox.Top, sizeNudQ.Top, fontComboQ.Top, colorComboQ.Top, layerComboQ.Top, btnEditQ.Top));
                 return 53;
             }
             if (layerComboQ.SelectedIndex != 0)
@@ -2059,9 +2053,9 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: btnNextQuote should be flat borderless button at bottom-left corner (Left = 12)");
                 return 53;
             }
-            if (!quoteDeskVisBox.Checked)
+            if (!dailyQuoteBox.Checked)
             {
-                Console.WriteLine("FAIL: quoteDesktopVisible default should be true");
+                Console.WriteLine("FAIL: dailyQuote default should be true");
                 return 53;
             }
             ComboBox timerColorBox = (ComboBox)setDlgType.GetField("timerColorCombo", bf).GetValue(testSetDlg);
@@ -2119,16 +2113,17 @@ internal static class TestCheck
                 return 53;
             }
 
+            // Plan A: Quote is ambient desktop note by default (TopMost = false). Pinning pins to top (TopMost = true).
             pIsPinned.SetValue(quoteDlg, true, null);
-            if (quoteDlg.TopMost)
+            if (!quoteDlg.TopMost)
             {
-                Console.WriteLine("FAIL: Pinned quote with QuotePinTopMost=false should have TopMost = false");
+                Console.WriteLine("FAIL: Pinned quote should have TopMost = true");
                 return 53;
             }
             pIsPinned.SetValue(quoteDlg, false, null);
-            if (!quoteDlg.TopMost)
+            if (quoteDlg.TopMost)
             {
-                Console.WriteLine("FAIL: Unpinned quote popup should have TopMost = true");
+                Console.WriteLine("FAIL: Unpinned desktop quote note should have TopMost = false");
                 return 53;
             }
 
@@ -3159,6 +3154,11 @@ internal static class TestCheck
             PropertyInfo pMoveMode = quoteDlgType.GetProperty("MoveMode", BindingFlags.Public | BindingFlags.Instance);
             MethodInfo mSetMoveMode = quoteDlgType.GetMethod("SetMoveMode", BindingFlags.Public | BindingFlags.Instance);
             FieldInfo fCountdownTimer = quoteDlgType.GetField("countdownTimer", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fCountdownTimer != null)
+            {
+                Console.WriteLine("FAIL: countdownTimer should be completely eliminated in Plan A");
+                return 62;
+            }
             if (pMoveMode == null || mSetMoveMode == null)
             {
                 Console.WriteLine("FAIL: DailyQuoteDialog missing MoveMode or SetMoveMode");
@@ -3179,12 +3179,17 @@ internal static class TestCheck
                 return 62;
             }
 
-            // Verify when IsPinned is true, countdownTimer is completely stopped (zero polling wakeups!)
+            // Verify IsPinned toggles TopMost layer cleanly (True = TopMost, False = Desktop Layer)
             pIsPinned.SetValue(qDlgMoveTest, true, null);
-            Timer timerObj = (Timer)fCountdownTimer.GetValue(qDlgMoveTest);
-            if (timerObj != null && timerObj.Enabled)
+            if (!qDlgMoveTest.TopMost)
             {
-                Console.WriteLine("FAIL: countdownTimer should be stopped when quote is pinned to desktop");
+                Console.WriteLine("FAIL: DailyQuoteDialog TopMost should be true when IsPinned is true");
+                return 62;
+            }
+            pIsPinned.SetValue(qDlgMoveTest, false, null);
+            if (qDlgMoveTest.TopMost)
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog TopMost should be false (Desktop Layer) when IsPinned is false");
                 return 62;
             }
 
