@@ -1694,22 +1694,23 @@ internal sealed class SettingsDialog : Form
         lblDetectedHeader.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
         lblDetectedHeader.TextAlign = ContentAlignment.MiddleLeft;
-        lblDetectedHeader.SetBounds(18, 56, 185, 20);
+        lblDetectedHeader.SetBounds(18, 56, 230, 20);
         Controls.Add(lblDetectedHeader);
 
         lblAgentDesc = new Label();
         lblAgentDesc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblAgentDesc.ForeColor = AppContext.Win11TextSecondary;
         lblAgentDesc.TextAlign = ContentAlignment.MiddleLeft;
-        lblAgentDesc.SetBounds(18, 76, 185, 18);
+        lblAgentDesc.SetBounds(18, 76, 230, 18);
         Controls.Add(lblAgentDesc);
 
         btnRefreshAgents = new Button();
-        btnRefreshAgents.Text = en ? "Re-scan" : "重新检测";
-        btnRefreshAgents.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnRefreshAgents.SetBounds(208, 63, 72, 26);
+        btnRefreshAgents.Text = "\u21BB";
+        btnRefreshAgents.Font = new Font("Segoe UI", 10f, FontStyle.Regular);
+        btnRefreshAgents.SetBounds(254, 63, 26, 26);
         AppContext.StyleSecondaryButton(btnRefreshAgents);
         btnRefreshAgents.Click += OnRefreshAgentsClick;
+        toolTip.SetToolTip(btnRefreshAgents, en ? "Re-scan installed AI agents" : "重新检测已安装的智能体");
         Controls.Add(btnRefreshAgents);
 
         btnAgentNoticeToggle = new Button();
@@ -2778,7 +2779,7 @@ internal sealed class SettingsDialog : Form
         }
 
         UpdateAgentNoticeToggleState(toEnglish);
-        if (btnRefreshAgents != null) btnRefreshAgents.Text = toEnglish ? "Re-scan" : "重新检测";
+        if (btnRefreshAgents != null && toolTip != null) toolTip.SetToolTip(btnRefreshAgents, toEnglish ? "Re-scan installed AI agents" : "重新检测已安装的智能体");
         if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "MCP Direct Connection (4 Tools)" : "MCP 协议直连 (4项核心能力)";
         if (lblMcpDesc != null)
         {
