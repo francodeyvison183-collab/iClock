@@ -6923,6 +6923,8 @@ internal sealed class AppContext : ApplicationContext
     private const int HSHELL_FLASH = 0x8006;
     private string exePath = Application.ExecutablePath;
     private Icon appIcon;
+    private Timer trayClickTimer;
+    private int lastTrayDoubleClickTick;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MSLLHOOKSTRUCT
@@ -7099,8 +7101,39 @@ internal sealed class AppContext : ApplicationContext
         tray = new NotifyIcon(); tray.Icon = appIcon; tray.Text = isOneShot ? (settings.Language == "en" ? "iClock (One-shot mode)" : "iClock (单次运行模式)") : "iClock"; tray.Visible = true; tray.ContextMenuStrip = MakeMenu();
         tray.MouseMove += delegate { if (!running && !sessionActive) { lastTrayMouseMove = Environment.TickCount; EnsureMouseHook(); } };
         tray.BalloonTipClicked += delegate { if (!string.IsNullOrEmpty(updateUrl)) { try { Process.Start(updateUrl); } catch { } } };
-        tray.MouseClick += delegate(object sender, MouseEventArgs e) { UnhookMouse(); if (e.Button == MouseButtons.Left) { Toggle(); } };
-        tray.DoubleClick += delegate { ShowSettings(); };
+        tray.MouseClick += delegate(object sender, MouseEventArgs e)
+        {
+            UnhookMouse();
+            if (e.Button == MouseButtons.Left)
+            {
+                if (e.Clicks > 1 || Math.Abs(Environment.TickCount - lastTrayDoubleClickTick) < 500)
+                {
+                    if (trayClickTimer != null) trayClickTimer.Stop();
+                    return;
+                }
+                if (trayClickTimer == null)
+                {
+                    trayClickTimer = new Timer();
+                    trayClickTimer.Interval = Math.Min(250, Math.Max(150, SystemInformation.DoubleClickTime - 50));
+                    trayClickTimer.Tick += delegate
+                    {
+                        if (trayClickTimer != null) trayClickTimer.Stop();
+                        if (Math.Abs(Environment.TickCount - lastTrayDoubleClickTick) >= 500)
+                        {
+                            Toggle();
+                        }
+                    };
+                }
+                trayClickTimer.Stop();
+                trayClickTimer.Start();
+            }
+        };
+        tray.DoubleClick += delegate
+        {
+            lastTrayDoubleClickTick = Environment.TickCount;
+            if (trayClickTimer != null) trayClickTimer.Stop();
+            ShowSettings();
+        };
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
         Timer startupTrim = new Timer(); startupTrim.Interval = 3500;
         startupTrim.Tick += delegate { startupTrim.Stop(); startupTrim.Dispose(); TrimMemory(); };
@@ -9525,6 +9558,7 @@ internal sealed class AppContext : ApplicationContext
 
     internal void ShowSettingsTab(int initialTab)
     {
+        if (trayClickTimer != null) trayClickTimer.Stop();
         if (activeDialog != null && !activeDialog.IsDisposed)
         {
             if (activeDialog is SettingsDialog)
@@ -10397,6 +10431,7 @@ internal sealed class AppContext : ApplicationContext
         if (displaySettingsHandler != null) { try { SystemEvents.DisplaySettingsChanged -= displaySettingsHandler; } catch { } displaySettingsHandler = null; }
         if (sessionSwitchHandler != null) { try { SystemEvents.SessionSwitch -= sessionSwitchHandler; } catch { } sessionSwitchHandler = null; }
         if (agentTimer != null) { try { agentTimer.Stop(); agentTimer.Dispose(); } catch { } agentTimer = null; }
+        if (trayClickTimer != null) { try { trayClickTimer.Stop(); trayClickTimer.Dispose(); } catch { } trayClickTimer = null; }
         if (shellHookMsg != 0 && messageWindow != null && messageWindow.Handle != IntPtr.Zero) { try { NativeMethods.DeregisterShellHookWindow(messageWindow.Handle); } catch { } }
         overlay.Close(); overlay.Dispose(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); timer.Dispose(); ExitThread();
     }

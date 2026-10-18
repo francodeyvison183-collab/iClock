@@ -909,20 +909,57 @@ internal static class TestCheck
             Console.WriteLine("PASS: Single active dialog mutual exclusion, screen centering, and cancel button verified.");
 
             // 20. Verify Auto-Fallback, Status Transparency, and Tray Left-Click
-            // Test 20a: Tray Left-Click toggles countdown
+            // Test 20a: Tray Left-Click toggles countdown (debounced to avoid triggering on double-click)
             MethodInfo onMouseClick = typeof(NotifyIcon).GetMethod("OnMouseClick", BindingFlags.NonPublic | BindingFlags.Instance);
             if (onMouseClick != null)
             {
                 bool wasRunning = (bool)appType.GetField("running", bf).GetValue(app);
                 onMouseClick.Invoke(tray, new object[] { new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 0) });
+                for (int w = 0; w < 40; w++)
+                {
+                    System.Threading.Thread.Sleep(15);
+                    Application.DoEvents();
+                    if ((bool)appType.GetField("running", bf).GetValue(app) != wasRunning) break;
+                }
                 bool nowRunning = (bool)appType.GetField("running", bf).GetValue(app);
                 if (nowRunning == wasRunning)
                 {
-                    Console.WriteLine("FAIL: Tray left-click should toggle running state");
+                    Console.WriteLine("FAIL: Tray left-click should toggle running state (debounced)");
                     return 28;
                 }
                 // Toggle back
                 onMouseClick.Invoke(tray, new object[] { new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 0) });
+                for (int w = 0; w < 40; w++)
+                {
+                    System.Threading.Thread.Sleep(15);
+                    Application.DoEvents();
+                    if ((bool)appType.GetField("running", bf).GetValue(app) == wasRunning) break;
+                }
+
+                // Test 20a-2: Verify double-click cancels debounced single-click and does NOT toggle running
+                MethodInfo onDoubleClick = typeof(NotifyIcon).GetMethod("OnDoubleClick", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (onDoubleClick != null)
+                {
+                    bool runningBeforeDbl = (bool)appType.GetField("running", bf).GetValue(app);
+                    onMouseClick.Invoke(tray, new object[] { new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 0) });
+                    onDoubleClick.Invoke(tray, new object[] { EventArgs.Empty });
+                    for (int w = 0; w < 25; w++)
+                    {
+                        System.Threading.Thread.Sleep(15);
+                        Application.DoEvents();
+                    }
+                    bool runningAfterDbl = (bool)appType.GetField("running", bf).GetValue(app);
+                    if (runningAfterDbl != runningBeforeDbl)
+                    {
+                        Console.WriteLine("FAIL: Tray double-click must NOT toggle running state");
+                        return 28;
+                    }
+                    Form activeDlg = (Form)appType.GetField("activeDialog", bf).GetValue(app);
+                    if (activeDlg != null && !activeDlg.IsDisposed)
+                    {
+                        activeDlg.Close();
+                    }
+                }
             }
 
             // Test 20b: SettingsDialog with hotkeyActive = false disables save button and flags occupancy
