@@ -22,6 +22,8 @@ internal static class CliShim
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
+    private static string mcpClientName = null;
+
     private static bool IsAgentInForeground()
     {
         try
@@ -355,6 +357,18 @@ internal static class CliShim
 
                 if (method == "initialize")
                 {
+                    if (req.ContainsKey("params"))
+                    {
+                        var prms = req["params"] as Dictionary<string, object>;
+                        if (prms != null && prms.ContainsKey("clientInfo"))
+                        {
+                            var ci = prms["clientInfo"] as Dictionary<string, object>;
+                            if (ci != null && ci.ContainsKey("name") && ci["name"] != null)
+                            {
+                                mcpClientName = NormalizeClientName(ci["name"].ToString());
+                            }
+                        }
+                    }
                     var capabilities = new Dictionary<string, object>
                     {
                         { "tools", new Dictionary<string, object>() }
@@ -628,7 +642,12 @@ internal static class CliShim
             string resFile = Path.Combine(Path.GetTempPath(), "iclock_ask_" + reqId + ".txt");
             string optStr = string.Join("~", optionsList.ToArray());
 
-            string cmd = "ask_human:" + reqId + "|" + timeoutSec + "|" + question + "|" + optStr;
+            string agentName = null;
+            if (args.ContainsKey("agent_name") && args["agent_name"] != null) agentName = args["agent_name"].ToString();
+            else if (args.ContainsKey("agent") && args["agent"] != null) agentName = args["agent"].ToString();
+            else if (!string.IsNullOrEmpty(mcpClientName)) agentName = mcpClientName;
+
+            string cmd = "ask_human:" + reqId + "|" + timeoutSec + "|" + question + "|" + optStr + "|" + (agentName ?? "");
             SendIpc(cmd);
 
             int maxWaitMs = timeoutSec > 0 ? (timeoutSec + 5) * 1000 : int.MaxValue;

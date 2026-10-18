@@ -2650,17 +2650,34 @@ internal static class TestCheck
                 0,
                 testResFile
             });
-            if (askDlg == null || (!askDlg.Text.Contains("AI 智能体请示") && !askDlg.Text.Contains("AI Agent Request")))
+            if (askDlg == null || (!askDlg.Text.Contains("AI 智能体请示") && !askDlg.Text.Contains("AI Agent Request") && !askDlg.Text.Contains("请示") && !askDlg.Text.Contains("Request")))
             {
                 Console.WriteLine("FAIL: AskHumanDialog instantiation failed");
                 return 59;
             }
-            if (!askDlg.Text.Contains("Flash Approval HUD") || askDlg.AcceptButton == null)
+            if (askDlg.AcceptButton == null || askDlg.CancelButton == null)
             {
-                Console.WriteLine("FAIL: Flash Approval HUD title or AcceptButton missing on AskHumanDialog");
+                Console.WriteLine("FAIL: AcceptButton or CancelButton missing on AskHumanDialog");
                 return 59;
             }
             askDlg.Close();
+
+            // Verify AskHumanDialog 7-argument overload with specific agent name
+            Form askDlgWithAgent = (Form)Activator.CreateInstance(askDlgType, new object[] {
+                settings,
+                "是否允许执行测试任务？",
+                new string[] { "确认执行", "取消" },
+                0,
+                testResFile,
+                false,
+                "Antigravity"
+            });
+            if (askDlgWithAgent == null || !askDlgWithAgent.Text.Contains("Antigravity"))
+            {
+                Console.WriteLine("FAIL: AskHumanDialog specific agent title failed");
+                return 59;
+            }
+            askDlgWithAgent.Close();
 
             // Verify AskHumanDialog 6-argument overload for non-intrusive mode
             Form askDlgNonIntrusive = (Form)Activator.CreateInstance(askDlgType, new object[] {

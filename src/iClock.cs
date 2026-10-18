@@ -1946,7 +1946,7 @@ internal sealed class SettingsDialog : Form
 
         // Row 1: Decision Gate (iclock_ask_human)
         lblTool1Name = new Label();
-        lblTool1Name.Text = en ? "Flash Approval HUD (ask_human)" : "极速授权门禁 (ask_human)";
+        lblTool1Name.Text = en ? "Decision Request Gate (ask_human)" : "智能体请示门禁 (ask_human)";
         lblTool1Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool1Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool1Name.TextAlign = ContentAlignment.MiddleLeft;
@@ -2793,11 +2793,13 @@ internal sealed class SettingsDialog : Form
     private void OnMcpDemoClick(object sender, EventArgs e)
     {
         bool en = Value != null && Value.Language == "en";
+        List<string> agents = AppContext.DetectAgents();
+        string agent = (agents != null && agents.Count > 0) ? agents[0] : (en ? "Antigravity" : "Antigravity");
         using (AskHumanDialog demo = new AskHumanDialog(
             Value,
-            en ? "Critical action detected: Allow pushing code and triggering auto-deployment?" : "检测到即将执行关键操作：是否允许覆盖 main 分支并触发部署？",
+            en ? "Allow merging latest code into main branch and trigger deploy?" : "是否允许将最新代码合并至 main 分支并触发发布？",
             en ? new string[] { "Allow & Deploy", "Reject / Cancel" } : new string[] { "允许并部署", "拒绝操作" },
-            0, null))
+            0, null, false, agent))
         {
             demo.ShowDialog(this);
         }
@@ -3018,7 +3020,7 @@ internal sealed class SettingsDialog : Form
         if (btnMcpDemoProgress != null) btnMcpDemoProgress.Text = toEnglish ? "Demo" : "演示";
         if (btnMcpDemoNotify != null) btnMcpDemoNotify.Text = toEnglish ? "Demo" : "演示";
         if (btnMcpDemoQuote != null) btnMcpDemoQuote.Text = toEnglish ? "Demo" : "演示";
-        if (lblTool1Name != null) { lblTool1Name.Text = toEnglish ? "Flash Approval HUD (ask_human)" : "极速授权门禁 (ask_human)"; lblTool1Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
+        if (lblTool1Name != null) { lblTool1Name.Text = toEnglish ? "Decision Request Gate (ask_human)" : "智能体请示门禁 (ask_human)"; lblTool1Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
         if (lblTool2Name != null) { lblTool2Name.Text = toEnglish ? "Clock HUD Progress (progress)" : "悬浮发丝进度 (progress)"; lblTool2Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
         if (lblTool3Name != null) { lblTool3Name.Text = toEnglish ? "Task Notification (notify)" : "任务完成提醒 (notify)"; lblTool3Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
         if (lblTool4Name != null) { lblTool4Name.Text = toEnglish ? "Desktop Status (quote)" : "桌面便签投射 (quote)"; lblTool4Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
@@ -3779,9 +3781,6 @@ internal sealed class AskHumanDialog : Form
 {
     private string resultFilePath;
     private bool resultWritten;
-    private int timeoutRemaining;
-    private System.Windows.Forms.Timer timeoutTimer;
-    private Label lblTimeout;
     private bool nonIntrusive;
 
     protected override bool ShowWithoutActivation
@@ -3790,23 +3789,28 @@ internal sealed class AskHumanDialog : Form
     }
 
     public AskHumanDialog(Settings s, string question, string[] options, int timeoutSeconds, string resultFile)
-        : this(s, question, options, timeoutSeconds, resultFile, false)
+        : this(s, question, options, timeoutSeconds, resultFile, false, null)
     {
     }
 
     public AskHumanDialog(Settings s, string question, string[] options, int timeoutSeconds, string resultFile, bool nonIntrusiveMode)
+        : this(s, question, options, timeoutSeconds, resultFile, nonIntrusiveMode, null)
+    {
+    }
+
+    public AskHumanDialog(Settings s, string question, string[] options, int timeoutSeconds, string resultFile, bool nonIntrusiveMode, string agentName)
     {
         resultFilePath = resultFile;
         nonIntrusive = nonIntrusiveMode;
-        timeoutRemaining = timeoutSeconds > 0 ? timeoutSeconds : 0;
-        bool hasTimeout = timeoutSeconds > 0;
         string lang = s != null ? s.Language : "zh";
         bool en = lang == "en";
 
         Font = AppContext.GetUiFont(lang, 9.5f);
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
-        Text = en ? "Flash Approval HUD (AI Agent Request) - iClock" : "极速桌面授权门禁 (Flash Approval HUD) - AI 智能体请示";
+
+        string agent = !string.IsNullOrEmpty(agentName) ? agentName : (en ? "AI Agent" : "AI 智能体");
+        Text = en ? (agent + " Request") : (agent + " 请示");
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
@@ -3815,39 +3819,31 @@ internal sealed class AskHumanDialog : Form
         TopMost = true;
 
         bool hasOptions = options != null && options.Length > 0;
-        int optCount = hasOptions ? options.Length : 0;
-        int dialogW = 410;
+        int dialogW = 380;
 
-        int qHeight = 44;
+        int qHeight = 36;
         try
         {
-            Size measured = TextRenderer.MeasureText(question ?? "", AppContext.GetUiFont(lang, 9.5f), new Size(dialogW - 40, int.MaxValue), TextFormatFlags.WordBreak);
-            if (measured.Height > 40) qHeight = Math.Min(120, measured.Height + 6);
+            Size measured = TextRenderer.MeasureText(question ?? "", AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular), new Size(dialogW - 44, int.MaxValue), TextFormatFlags.WordBreak);
+            if (measured.Height > 30) qHeight = Math.Min(140, measured.Height + 6);
         }
         catch { }
-
-        Label lblBadge = new Label();
-        lblBadge.Text = en ? "⚡ Flash Approval HUD" : "⚡ 极速桌面授权门禁 (Flash Approval HUD)";
-        lblBadge.Font = AppContext.GetUiFont(lang, 10.5f, FontStyle.Bold);
-        lblBadge.ForeColor = AppContext.Win11Accent;
-        lblBadge.SetBounds(20, 14, dialogW - 40, 22);
-        Controls.Add(lblBadge);
 
         Label lblQuestion = new Label();
         lblQuestion.Text = question ?? "";
         lblQuestion.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular);
         lblQuestion.ForeColor = AppContext.Win11TextPrimary;
-        lblQuestion.SetBounds(20, 38, dialogW - 40, qHeight);
+        lblQuestion.SetBounds(22, 16, dialogW - 44, qHeight);
         Controls.Add(lblQuestion);
 
-        int currentY = 40 + qHeight + 8;
-        Button firstOptionBtn = null;
+        int currentY = 16 + qHeight + 12;
+        List<RadioButton> radioList = new List<RadioButton>();
+        TextBox txtInput = null;
 
         if (hasOptions)
         {
             for (int i = 0; i < options.Length; i++)
             {
-                int optIdx = i;
                 string optText = options[i];
                 string displayOpt = optText;
                 string prefix = (i + 1).ToString();
@@ -3856,145 +3852,96 @@ internal sealed class AskHumanDialog : Form
                     displayOpt = prefix + ". " + displayOpt;
                 }
 
-                Button btn = new Button();
-                btn.Text = displayOpt;
-                btn.Font = AppContext.GetUiFont(lang, 9f);
-                btn.SetBounds(20, currentY, dialogW - 40, 32);
-                if (i == 0)
-                {
-                    AppContext.StylePrimaryButton(btn);
-                    firstOptionBtn = btn;
-                }
-                else
-                {
-                    AppContext.StyleSecondaryButton(btn);
-                }
-                btn.Click += delegate
+                RadioButton rb = new RadioButton();
+                rb.Text = displayOpt;
+                rb.Tag = optText;
+                rb.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular);
+                rb.ForeColor = AppContext.Win11TextPrimary;
+                rb.CheckAlign = ContentAlignment.MiddleRight;
+                rb.TextAlign = ContentAlignment.MiddleLeft;
+                rb.SetBounds(22, currentY, dialogW - 44, 30);
+                if (i == 0) rb.Checked = true;
+                rb.DoubleClick += delegate
                 {
                     WriteResult(optText);
                     Close();
                 };
-                Controls.Add(btn);
-                currentY += 38;
-            }
-
-            if (firstOptionBtn != null)
-            {
-                AcceptButton = firstOptionBtn;
+                Controls.Add(rb);
+                radioList.Add(rb);
+                currentY += 34;
             }
         }
         else
         {
-            TextBox txtInput = new TextBox();
+            txtInput = new TextBox();
             txtInput.Font = AppContext.GetUiFont(lang, 9.5f);
-            txtInput.SetBounds(20, currentY, dialogW - 40, 26);
+            txtInput.SetBounds(22, currentY, dialogW - 44, 26);
             Controls.Add(txtInput);
             currentY += 34;
-
-            Button btnSubmit = new Button();
-            btnSubmit.Text = en ? "Submit (Enter)" : "提交 (Enter)";
-            btnSubmit.SetBounds(dialogW - 130, currentY, 110, 28);
-            AppContext.StylePrimaryButton(btnSubmit);
-            btnSubmit.Click += delegate
-            {
-                WriteResult(txtInput.Text);
-                Close();
-            };
-            Controls.Add(btnSubmit);
-
-            Button btnCancel = new Button();
-            btnCancel.Text = en ? "Cancel (Esc)" : "取消 (Esc)";
-            btnCancel.SetBounds(dialogW - 220, currentY, 80, 28);
-            AppContext.StyleSecondaryButton(btnCancel);
-            btnCancel.Click += delegate
-            {
-                WriteResult("[用户取消 / Cancelled]");
-                Close();
-            };
-            Controls.Add(btnCancel);
-
-            AcceptButton = btnSubmit;
-            CancelButton = btnCancel;
-            currentY += 34;
         }
 
-        Label lblShortcut = new Label();
-        lblShortcut.Text = en 
-            ? (hasOptions ? "Shortcuts: Enter / 1-9 to select, Esc to cancel" : "Shortcuts: Enter to submit, Esc to cancel")
-            : (hasOptions ? "快捷键：Enter / 1-9 极速选择，Esc 取消" : "快捷键：Enter 提交，Esc 取消");
-        lblShortcut.Font = AppContext.GetUiFont(lang, 8f);
-        lblShortcut.ForeColor = AppContext.Win11TextSecondary;
-        lblShortcut.TextAlign = ContentAlignment.MiddleCenter;
-        lblShortcut.SetBounds(20, currentY + 2, dialogW - 40, 18);
-        Controls.Add(lblShortcut);
-        currentY += 22;
+        currentY += 10;
+        int btnW = 76;
+        int btnH = 28;
 
-        if (hasTimeout)
+        Button btnConfirm = new Button();
+        btnConfirm.Text = en ? "OK" : "确定";
+        btnConfirm.Font = AppContext.GetUiFont(lang, 9f);
+        btnConfirm.SetBounds(dialogW - 22 - btnW * 2 - 10, currentY, btnW, btnH);
+        AppContext.StylePrimaryButton(btnConfirm);
+        btnConfirm.Click += delegate
         {
-            lblTimeout = new Label();
-            lblTimeout.Text = en ? "Auto-timeout in " + timeoutRemaining + "s" : "自动超时：" + timeoutRemaining + " 秒";
-            lblTimeout.Font = AppContext.GetUiFont(lang, 8f);
-            lblTimeout.ForeColor = AppContext.Win11TextSecondary;
-            lblTimeout.TextAlign = ContentAlignment.MiddleRight;
-            lblTimeout.SetBounds(20, currentY, dialogW - 40, 18);
-            Controls.Add(lblTimeout);
-            currentY += 20;
-
-            timeoutTimer = new System.Windows.Forms.Timer();
-            timeoutTimer.Interval = 1000;
-            timeoutTimer.Tick += delegate
+            if (hasOptions)
             {
-                timeoutRemaining--;
-                if (lblTimeout != null && !lblTimeout.IsDisposed)
+                string selected = options[0];
+                for (int i = 0; i < radioList.Count; i++)
                 {
-                    lblTimeout.Text = en ? "Auto-timeout in " + timeoutRemaining + "s" : "自动超时：" + timeoutRemaining + " 秒";
+                    if (radioList[i].Checked)
+                    {
+                        selected = radioList[i].Tag != null ? radioList[i].Tag.ToString() : radioList[i].Text;
+                        break;
+                    }
                 }
-                if (timeoutRemaining <= 0)
-                {
-                    timeoutTimer.Stop();
-                    WriteResult("[超时未响应 / Timeout]");
-                    Close();
-                }
-            };
-            timeoutTimer.Start();
-        }
+                WriteResult(selected);
+            }
+            else
+            {
+                WriteResult(txtInput != null ? txtInput.Text : "");
+            }
+            Close();
+        };
+        Controls.Add(btnConfirm);
 
-        if (nonIntrusive)
+        Button btnCancel = new Button();
+        btnCancel.Text = en ? "Cancel" : "取消";
+        btnCancel.Font = AppContext.GetUiFont(lang, 9f);
+        btnCancel.SetBounds(dialogW - 22 - btnW, currentY, btnW, btnH);
+        AppContext.StyleSecondaryButton(btnCancel);
+        btnCancel.Click += delegate
         {
-            Label lblHint = new Label();
-            lblHint.Text = en ? "• Host active: Floating without focus interruption" : "• 宿主前台活跃中：温和置顶呈现，不中断代码输入";
-            lblHint.Font = AppContext.GetUiFont(lang, 8f);
-            lblHint.ForeColor = AppContext.Win11TextSecondary;
-            lblHint.TextAlign = ContentAlignment.MiddleCenter;
-            lblHint.SetBounds(20, currentY, dialogW - 40, 16);
-            Controls.Add(lblHint);
-            currentY += 18;
-        }
+            WriteResult("[用户取消 / Cancelled]");
+            Close();
+        };
+        Controls.Add(btnCancel);
 
-        ClientSize = new Size(dialogW, currentY + 12);
+        AcceptButton = btnConfirm;
+        CancelButton = btnCancel;
+
+        ClientSize = new Size(dialogW, currentY + btnH + 16);
 
         KeyPreview = true;
         KeyDown += delegate(object sender, KeyEventArgs ke)
         {
             if (hasOptions)
             {
-                if (ke.KeyCode == Keys.Enter && options.Length > 0)
-                {
-                    WriteResult(options[0]);
-                    Close();
-                    ke.Handled = true;
-                    return;
-                }
                 if ((ke.KeyCode >= Keys.D1 && ke.KeyCode <= Keys.D9) ||
                     (ke.KeyCode >= Keys.NumPad1 && ke.KeyCode <= Keys.NumPad9))
                 {
-                    int k = (ke.KeyCode >= Keys.NumPad1) 
-                        ? (ke.KeyCode - Keys.NumPad1) 
-                        : (ke.KeyCode - Keys.D1);
-                    if (k >= 0 && k < options.Length)
+                    int k = (ke.KeyCode >= Keys.NumPad1) ? (ke.KeyCode - Keys.NumPad1) : (ke.KeyCode - Keys.D1);
+                    if (k >= 0 && k < radioList.Count)
                     {
-                        WriteResult(options[k]);
-                        Close();
+                        radioList[k].Checked = true;
+                        radioList[k].Focus();
                         ke.Handled = true;
                         return;
                     }
@@ -4011,7 +3958,6 @@ internal sealed class AskHumanDialog : Form
 
         FormClosed += delegate
         {
-            if (timeoutTimer != null) { timeoutTimer.Stop(); timeoutTimer.Dispose(); timeoutTimer = null; }
             if (!resultWritten)
             {
                 WriteResult("[用户取消 / Cancelled]");
@@ -7422,8 +7368,9 @@ internal sealed class AppContext : ApplicationContext
                 string[] options = (p.Length > 3 && !string.IsNullOrEmpty(p[3]))
                     ? p[3].Split(new char[] { '~' }, StringSplitOptions.RemoveEmptyEntries)
                     : new string[0];
+                string agentName = (p.Length > 4 && !string.IsNullOrEmpty(p[4])) ? p[4] : null;
                 string resFile = Path.Combine(Path.GetTempPath(), "iclock_ask_" + reqId + ".txt");
-                ShowAskHumanDialog(question, options, timeoutSec, resFile);
+                ShowAskHumanDialog(question, options, timeoutSec, resFile, agentName);
             }
         }
         else if (action == "status" || action.StartsWith("status:"))
@@ -7547,11 +7494,16 @@ internal sealed class AppContext : ApplicationContext
         ForceTopMost(dlg);
     }
 
-    internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile)
+    internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile, string agentName = null)
     {
         bool isFg = AppContext.IsAgentInForeground();
+        if (string.IsNullOrEmpty(agentName))
+        {
+            List<string> agents = AppContext.DetectAgents();
+            if (agents != null && agents.Count > 0) agentName = agents[0];
+        }
         PlaySoundStyle(settings != null && !string.IsNullOrEmpty(settings.EndSoundStyle) ? settings.EndSoundStyle : "Doorbell");
-        AskHumanDialog dlg = new AskHumanDialog(settings, question, options, timeoutSec, resFile, isFg);
+        AskHumanDialog dlg = new AskHumanDialog(settings, question, options, 0, resFile, isFg, agentName);
         dlg.Show();
         if (isFg)
         {
