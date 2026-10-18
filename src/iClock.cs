@@ -6673,7 +6673,9 @@ internal sealed class AppContext : ApplicationContext
     {
         try
         {
-            GC.Collect(1, GCCollectionMode.Optimized);
+            GC.Collect(2, GCCollectionMode.Forced);
+            GC.WaitForPendingFinalizers();
+            GC.Collect(2, GCCollectionMode.Forced);
             NativeMethods.EmptyWorkingSet(Process.GetCurrentProcess().Handle);
         }
         catch { }
@@ -8096,6 +8098,9 @@ internal sealed class AppContext : ApplicationContext
             catch { return null; }
         }
 
+        private static PropertyInfo propId, propAppInfo, propDisplayInfo, propDisplayName, propNotif, propVisual, propText;
+        private static MethodInfo methodGetBinding, methodGetTextElements;
+
         public static void CheckNewAgentNotifications(Action<string, string> onAgentNotice)
         {
             if (!IsAvailable || onAgentNotice == null) return;
@@ -8108,15 +8113,21 @@ internal sealed class AppContext : ApplicationContext
                 try
                 {
                     Type itemType = item.GetType();
-                    uint id = (uint)itemType.GetProperty("Id").GetValue(item, null);
+                    if (propId == null) propId = itemType.GetProperty("Id");
+                    uint id = (uint)propId.GetValue(item, null);
                     if (id <= lastSeenId) continue;
                     if (id > newMaxId) newMaxId = id;
 
-                    object appInfo = itemType.GetProperty("AppInfo").GetValue(item, null);
+                    if (propAppInfo == null) propAppInfo = itemType.GetProperty("AppInfo");
+                    object appInfo = propAppInfo.GetValue(item, null);
                     if (appInfo == null) continue;
-                    object displayInfo = appInfo.GetType().GetProperty("DisplayInfo").GetValue(appInfo, null);
+
+                    if (propDisplayInfo == null) propDisplayInfo = appInfo.GetType().GetProperty("DisplayInfo");
+                    object displayInfo = propDisplayInfo.GetValue(appInfo, null);
                     if (displayInfo == null) continue;
-                    string appName = (string)displayInfo.GetType().GetProperty("DisplayName").GetValue(displayInfo, null);
+
+                    if (propDisplayName == null) propDisplayName = displayInfo.GetType().GetProperty("DisplayName");
+                    string appName = (string)propDisplayName.GetValue(displayInfo, null);
 
                     string agentName = MatchAgent(appName);
                     if (agentName != null)
@@ -8124,23 +8135,26 @@ internal sealed class AppContext : ApplicationContext
                         string text = "";
                         try
                         {
-                            object notifObj = itemType.GetProperty("Notification").GetValue(item, null);
+                            if (propNotif == null) propNotif = itemType.GetProperty("Notification");
+                            object notifObj = propNotif.GetValue(item, null);
                             if (notifObj != null)
                             {
-                                object visual = notifObj.GetType().GetProperty("Visual").GetValue(notifObj, null);
+                                if (propVisual == null) propVisual = notifObj.GetType().GetProperty("Visual");
+                                object visual = propVisual.GetValue(notifObj, null);
                                 if (visual != null)
                                 {
-                                    MethodInfo getBinding = visual.GetType().GetMethod("GetBinding");
-                                    object binding = getBinding.Invoke(visual, new object[] { "ToastGeneric" });
+                                    if (methodGetBinding == null) methodGetBinding = visual.GetType().GetMethod("GetBinding");
+                                    object binding = methodGetBinding.Invoke(visual, new object[] { "ToastGeneric" });
                                     if (binding != null)
                                     {
-                                        MethodInfo getText = binding.GetType().GetMethod("GetTextElements");
-                                        IEnumerable texts = (IEnumerable)getText.Invoke(binding, null);
+                                        if (methodGetTextElements == null) methodGetTextElements = binding.GetType().GetMethod("GetTextElements");
+                                        IEnumerable texts = (IEnumerable)methodGetTextElements.Invoke(binding, null);
                                         if (texts != null)
                                         {
                                             foreach (object t in texts)
                                             {
-                                                string s = (string)t.GetType().GetProperty("Text").GetValue(t, null);
+                                                if (propText == null) propText = t.GetType().GetProperty("Text");
+                                                string s = (string)propText.GetValue(t, null);
                                                 if (!string.IsNullOrEmpty(s))
                                                 {
                                                     text += (text.Length > 0 ? " • " : "") + s;
@@ -8285,6 +8299,8 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
+    private int idleTrimTicks = 0;
+
     private void AgentTimerTick(object sender, EventArgs e)
     {
         if (!settings.AgentNotice) return;
@@ -8296,16 +8312,30 @@ internal sealed class AppContext : ApplicationContext
         uint fgPid = 0;
         if (fg != IntPtr.Zero) NativeMethods.GetWindowThreadProcessId(fg, out fgPid);
         ProcessAgentTick(DateTime.Now, fg, fgPid);
+
+        if (!running && trackedAgents.Count == 0 && activeDialog == null)
+        {
+            idleTrimTicks++;
+            if (idleTrimTicks >= 180)
+            {
+                idleTrimTicks = 0;
+                TrimMemory();
+            }
+        }
+        else
+        {
+            idleTrimTicks = 0;
+        }
     }
 
     internal void ProcessAgentTick(DateTime now, IntPtr fg, uint fgPid)
     {
-        if (ToastAgentMonitor.IsAvailable)
+        if (ToastAgentMonitor.IsAvailable && trackedAgents.Count > 0)
         {
             toastScanCooldown--;
             if (toastScanCooldown <= 0)
             {
-                toastScanCooldown = (trackedAgents.Count > 0) ? 3 : 10;
+                toastScanCooldown = 3;
                 ToastAgentMonitor.CheckNewAgentNotifications(delegate(string agentName, string detailText)
                 {
                 AgentTrack t = null;
@@ -8364,9 +8394,9 @@ internal sealed class AppContext : ApplicationContext
         }
 
         agentScanCooldown--;
-        if (agentScanCooldown <= 0 || trackedAgents.Count == 0)
+        if (agentScanCooldown <= 0)
         {
-            agentScanCooldown = (trackedAgents.Count > 0) ? 15 : 6;
+            agentScanCooldown = (trackedAgents.Count > 0) ? 15 : 20;
             try
             {
                 Dictionary<string, HashSet<int>> currentAgentPids = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
