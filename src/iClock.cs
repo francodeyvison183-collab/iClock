@@ -271,6 +271,40 @@ internal static class NativeMethods
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)] public static extern int GetWindowTextLength(IntPtr hWnd);
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    public struct PROCESSENTRY32
+    {
+        const int MAX_PATH = 260;
+        public uint dwSize;
+        public uint cntUsage;
+        public uint th32ProcessID;
+        public IntPtr th32DefaultHeapID;
+        public uint th32ModuleID;
+        public uint cntThreads;
+        public uint th32ParentProcessID;
+        public int pcPriClassBase;
+        public uint dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = MAX_PATH)]
+        public string szExeFile;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern bool Process32First(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern bool Process32Next(IntPtr hSnapshot, ref PROCESSENTRY32 lppe);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool CloseHandle(IntPtr hObject);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, int processId);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetProcessTimes(IntPtr hProcess, out long lpCreationTime, out long lpExitTime, out long lpKernelTime, out long lpUserTime);
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern bool QueryFullProcessImageName(IntPtr hProcess, int flags, StringBuilder text, ref int size);
+
+    public delegate void ProcessEnumCallback(int pid, string exeName);
 }
 
 internal sealed class Overlay : Form
@@ -7957,6 +7991,27 @@ internal sealed class AppContext : ApplicationContext
         return null;
     }
 
+    internal static string GetProcessNameByPid(int pid)
+    {
+        IntPtr hProc = NativeMethods.OpenProcess(0x1000, false, pid);
+        if (hProc == IntPtr.Zero) return null;
+        try
+        {
+            StringBuilder sb = new StringBuilder(1024);
+            int size = sb.Capacity;
+            if (NativeMethods.QueryFullProcessImageName(hProc, 0, sb, ref size))
+            {
+                return Path.GetFileName(sb.ToString());
+            }
+        }
+        catch { }
+        finally
+        {
+            NativeMethods.CloseHandle(hProc);
+        }
+        return null;
+    }
+
     internal static bool IsAgentInForeground()
     {
         try
@@ -7966,19 +8021,56 @@ internal sealed class AppContext : ApplicationContext
             uint pid = 0;
             NativeMethods.GetWindowThreadProcessId(fg, out pid);
             if (pid == 0) return false;
-            using (Process p = Process.GetProcessById((int)pid))
-            {
-                string name = MatchAgent(p.ProcessName);
-                if (name != null) return true;
-                if (!string.IsNullOrEmpty(p.MainWindowTitle))
-                {
-                    string titleName = MatchAgent(p.MainWindowTitle);
-                    if (titleName != null) return true;
-                }
-            }
+            string procName = GetProcessNameByPid((int)pid);
+            if (procName != null && MatchAgent(procName) != null) return true;
+            string title = GetAgentWindowTitle(fg);
+            if (!string.IsNullOrEmpty(title) && MatchAgent(title) != null) return true;
         }
         catch { }
         return false;
+    }
+
+    internal static void EnumerateSystemProcesses(NativeMethods.ProcessEnumCallback callback)
+    {
+        IntPtr hSnap = NativeMethods.CreateToolhelp32Snapshot(0x00000002, 0); // TH32CS_SNAPPROCESS
+        if (hSnap == IntPtr.Zero || hSnap == (IntPtr)(-1)) return;
+        try
+        {
+            NativeMethods.PROCESSENTRY32 pe = new NativeMethods.PROCESSENTRY32();
+            pe.dwSize = (uint)Marshal.SizeOf(typeof(NativeMethods.PROCESSENTRY32));
+            if (NativeMethods.Process32First(hSnap, ref pe))
+            {
+                do
+                {
+                    callback((int)pe.th32ProcessID, pe.szExeFile);
+                } while (NativeMethods.Process32Next(hSnap, ref pe));
+            }
+        }
+        catch { }
+        finally
+        {
+            NativeMethods.CloseHandle(hSnap);
+        }
+    }
+
+    internal static TimeSpan GetProcessCpuTime(int pid)
+    {
+        IntPtr hProc = NativeMethods.OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, false, pid);
+        if (hProc == IntPtr.Zero) return TimeSpan.Zero;
+        try
+        {
+            long c, e, k, u;
+            if (NativeMethods.GetProcessTimes(hProc, out c, out e, out k, out u))
+            {
+                return TimeSpan.FromTicks(k + u);
+            }
+        }
+        catch { }
+        finally
+        {
+            NativeMethods.CloseHandle(hProc);
+        }
+        return TimeSpan.Zero;
     }
 
     private static HashSet<string> cachedRunningAgents = null;
@@ -7993,14 +8085,11 @@ internal sealed class AppContext : ApplicationContext
         HashSet<string> running = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         try
         {
-            foreach (Process p in Process.GetProcesses())
+            EnumerateSystemProcesses(delegate(int pid, string exeName)
             {
-                using (p)
-                {
-                    string name = MatchAgent(p.ProcessName);
-                    if (name != null) running.Add(name);
-                }
-            }
+                string name = MatchAgent(exeName);
+                if (name != null) running.Add(name);
+            });
             cachedRunningAgents = running;
             lastRunningAgentsTime = DateTime.Now;
         }
@@ -8116,21 +8205,23 @@ internal sealed class AppContext : ApplicationContext
         if (string.IsNullOrEmpty(agentName)) return false;
         try
         {
-            foreach (Process p in Process.GetProcesses())
+            HashSet<int> pids = new HashSet<int>();
+            EnumerateSystemProcesses(delegate(int pid, string exeName)
             {
-                using (p)
+                string match = MatchAgent(exeName);
+                if (match != null && match.Equals(agentName, StringComparison.OrdinalIgnoreCase))
                 {
-                    string match = MatchAgent(p.ProcessName);
-                    if (match != null && match.Equals(agentName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        IntPtr hwnd = p.MainWindowHandle;
-                        if (hwnd != IntPtr.Zero && NativeMethods.IsWindow(hwnd))
-                        {
-                            NativeMethods.ShowWindow(hwnd, 9); // SW_RESTORE
-                            NativeMethods.SetForegroundWindow(hwnd);
-                            return true;
-                        }
-                    }
+                    pids.Add(pid);
+                }
+            });
+            if (pids.Count > 0)
+            {
+                IntPtr hwnd = FindAgentMainWindow(pids);
+                if (hwnd != IntPtr.Zero && NativeMethods.IsWindow(hwnd))
+                {
+                    NativeMethods.ShowWindow(hwnd, 9); // SW_RESTORE
+                    NativeMethods.SetForegroundWindow(hwnd);
+                    return true;
                 }
             }
         }
@@ -8434,8 +8525,6 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
-    private int idleTrimTicks = 0;
-
     private void AgentTimerTick(object sender, EventArgs e)
     {
         if (!settings.AgentNotice) return;
@@ -8447,20 +8536,6 @@ internal sealed class AppContext : ApplicationContext
         uint fgPid = 0;
         if (fg != IntPtr.Zero) NativeMethods.GetWindowThreadProcessId(fg, out fgPid);
         ProcessAgentTick(DateTime.Now, fg, fgPid);
-
-        if (!running && trackedAgents.Count == 0 && activeDialog == null)
-        {
-            idleTrimTicks++;
-            if (idleTrimTicks >= 180)
-            {
-                idleTrimTicks = 0;
-                TrimMemory();
-            }
-        }
-        else
-        {
-            idleTrimTicks = 0;
-        }
     }
 
     internal void ProcessAgentTick(DateTime now, IntPtr fg, uint fgPid)
@@ -8492,19 +8567,16 @@ internal sealed class AppContext : ApplicationContext
                 {
                     try
                     {
-                        foreach (Process p in Process.GetProcesses())
+                        EnumerateSystemProcesses(delegate(int pid, string exeName)
                         {
-                            using (p)
+                            if (targetHwnd != IntPtr.Zero) return;
+                            if (string.Equals(MatchAgent(exeName), agentName, StringComparison.OrdinalIgnoreCase))
                             {
-                                if (string.Equals(MatchAgent(p.ProcessName), agentName, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    HashSet<int> pids = new HashSet<int>();
-                                    pids.Add(p.Id);
-                                    targetHwnd = FindAgentMainWindow(pids);
-                                    break;
-                                }
+                                HashSet<int> pids = new HashSet<int>();
+                                pids.Add(pid);
+                                targetHwnd = FindAgentMainWindow(pids);
                             }
-                        }
+                        });
                     }
                     catch { }
                 }
@@ -8535,23 +8607,20 @@ internal sealed class AppContext : ApplicationContext
             try
             {
                 Dictionary<string, HashSet<int>> currentAgentPids = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
-                foreach (Process p in Process.GetProcesses())
+                EnumerateSystemProcesses(delegate(int pid, string exeName)
                 {
-                    using (p)
+                    string displayName = MatchAgent(exeName);
+                    if (displayName != null)
                     {
-                        string displayName = MatchAgent(p.ProcessName);
-                        if (displayName != null)
+                        HashSet<int> pids;
+                        if (!currentAgentPids.TryGetValue(displayName, out pids))
                         {
-                            HashSet<int> pids;
-                            if (!currentAgentPids.TryGetValue(displayName, out pids))
-                            {
-                                pids = new HashSet<int>();
-                                currentAgentPids[displayName] = pids;
-                            }
-                            pids.Add(p.Id);
+                            pids = new HashSet<int>();
+                            currentAgentPids[displayName] = pids;
                         }
+                        pids.Add(pid);
                     }
-                }
+                });
 
                 foreach (KeyValuePair<string, HashSet<int>> kvp in currentAgentPids)
                 {
@@ -8563,14 +8632,7 @@ internal sealed class AppContext : ApplicationContext
                         TimeSpan totalCpu = TimeSpan.Zero;
                         foreach (int pid in pids)
                         {
-                            try
-                            {
-                                using (Process p = Process.GetProcessById(pid))
-                                {
-                                    if (!p.HasExited) totalCpu += p.TotalProcessorTime;
-                                }
-                            }
-                            catch { }
+                            totalCpu += GetProcessCpuTime(pid);
                         }
 
                         track = new AgentTrack
@@ -8630,15 +8692,24 @@ internal sealed class AppContext : ApplicationContext
                 List<int> deadPids = null;
                 foreach (int pid in track.Pids)
                 {
-                    try
+                    TimeSpan pt = GetProcessCpuTime(pid);
+                    if (pt > TimeSpan.Zero)
                     {
-                        using (Process p = Process.GetProcessById(pid))
+                        curCpu += pt;
+                    }
+                    else
+                    {
+                        IntPtr hTest = NativeMethods.OpenProcess(0x1000, false, pid);
+                        if (hTest == IntPtr.Zero)
                         {
-                            if (!p.HasExited) curCpu += p.TotalProcessorTime;
-                            else { if (deadPids == null) deadPids = new List<int>(); deadPids.Add(pid); }
+                            if (deadPids == null) deadPids = new List<int>();
+                            deadPids.Add(pid);
+                        }
+                        else
+                        {
+                            NativeMethods.CloseHandle(hTest);
                         }
                     }
-                    catch { if (deadPids == null) deadPids = new List<int>(); deadPids.Add(pid); }
                 }
                 if (deadPids != null)
                 {
@@ -8782,14 +8853,8 @@ internal sealed class AppContext : ApplicationContext
 
             if (agentName == null && pid != 0)
             {
-                try
-                {
-                    using (Process p = Process.GetProcessById((int)pid))
-                    {
-                        agentName = MatchAgent(p.ProcessName);
-                    }
-                }
-                catch { }
+                string procName = GetProcessNameByPid((int)pid);
+                if (procName != null) agentName = MatchAgent(procName);
             }
 
             if (agentName == null)
