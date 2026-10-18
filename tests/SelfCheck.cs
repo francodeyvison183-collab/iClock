@@ -2574,6 +2574,11 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: AskHumanDialog instantiation failed");
                 return 59;
             }
+            if (!askDlg.Text.Contains("Flash Approval HUD") || askDlg.AcceptButton == null)
+            {
+                Console.WriteLine("FAIL: Flash Approval HUD title or AcceptButton missing on AskHumanDialog");
+                return 59;
+            }
             askDlg.Close();
 
             // Verify AskHumanDialog 6-argument overload for non-intrusive mode
@@ -2749,7 +2754,28 @@ internal static class TestCheck
                 }
             }
 
-            Console.WriteLine("PASS: Native MCP Server (iclock.com --mcp), stdio JSON-RPC 2.0 protocol, Unified Tab 2 MCP Integration, McpConfigHelper (detection & prompt generation), --mcp-config, --mcp-prompt, and 5 tools (including iclock_ask_human) verified.");
+            // Verify iclock.com --ask CLI dispatch
+            ProcessStartInfo askPsi = new ProcessStartInfo
+            {
+                FileName = comBinary,
+                Arguments = "--ask",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            using (Process askProc = Process.Start(askPsi))
+            {
+                string askErr = askProc.StandardError.ReadToEnd();
+                askProc.WaitForExit(1500);
+                if (askProc.ExitCode != 1 || !askErr.Contains("Usage: iclock --ask"))
+                {
+                    Console.WriteLine("FAIL: iclock.com --ask CLI usage output invalid (ExitCode=" + askProc.ExitCode + ", Err=" + askErr + ")");
+                    return 59;
+                }
+            }
+
+            Console.WriteLine("PASS: Native MCP Server (iclock.com --mcp), stdio JSON-RPC 2.0 protocol, Unified Tab 2 MCP Integration, McpConfigHelper (detection & prompt generation), --mcp-config, --mcp-prompt, Flash Approval HUD (--ask CLI), and 5 tools (including iclock_ask_human) verified.");
 
             // 42. Verify MCP Silent Connection Handshake and Prompt-Driven iclock_notify Verification
             MethodInfo handleIpcMethod = appType.GetMethod("HandleIpcCommand", bf);

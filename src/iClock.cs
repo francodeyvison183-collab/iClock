@@ -1647,14 +1647,14 @@ internal sealed class SettingsDialog : Form
 
         // Row 1: Decision Gate (iclock_ask_human)
         lblTool1Name = new Label();
-        lblTool1Name.Text = en ? "Decision Gate (ask_human)" : "决策请示门禁";
+        lblTool1Name.Text = en ? "Flash Approval HUD (ask_human)" : "极速桌面授权门禁 (Flash Approval HUD)";
         lblTool1Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool1Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool1Name.SetBounds(12, 7, 240, 18);
         panelMcpBox.Controls.Add(lblTool1Name);
 
         lblTool1Desc = new Label();
-        lblTool1Desc.Text = en ? "Human-in-the-loop approval before critical actions" : "关键高危操作置顶阻断式人工审批";
+        lblTool1Desc.Text = en ? "Human-in-the-loop approval HUD for critical actions" : "关键高危操作置顶人机决策门禁 (支持 1/2/Enter/Esc 盲打)";
         lblTool1Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.2f);
         lblTool1Desc.ForeColor = AppContext.Win11TextSecondary;
         lblTool1Desc.SetBounds(12, 26, 246, 16);
@@ -2633,8 +2633,8 @@ internal sealed class SettingsDialog : Form
         if (btnMcpDemo != null) btnMcpDemo.Text = toEnglish ? "Demo" : "演示";
         if (btnMcpDemoNotify != null) btnMcpDemoNotify.Text = toEnglish ? "Demo" : "演示";
         if (btnMcpDemoQuote != null) btnMcpDemoQuote.Text = toEnglish ? "Demo" : "演示";
-        if (lblTool1Name != null) { lblTool1Name.Text = toEnglish ? "Decision Gate (ask_human)" : "决策请示门禁"; lblTool1Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
-        if (lblTool1Desc != null) { lblTool1Desc.Text = toEnglish ? "Human-in-the-loop approval before critical actions" : "关键高危操作置顶阻断式人工审批"; lblTool1Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.2f); }
+        if (lblTool1Name != null) { lblTool1Name.Text = toEnglish ? "Flash Approval HUD (ask_human)" : "极速桌面授权门禁 (Flash Approval HUD)"; lblTool1Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
+        if (lblTool1Desc != null) { lblTool1Desc.Text = toEnglish ? "Human-in-the-loop approval HUD for critical actions" : "关键高危操作置顶人机决策门禁 (支持 1/2/Enter/Esc 盲打)"; lblTool1Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.2f); }
         if (lblTool2Name != null) { lblTool2Name.Text = toEnglish ? "Task Notification (notify)" : "任务完成提醒"; lblTool2Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
         if (lblTool2Desc != null) { lblTool2Desc.Text = toEnglish ? "TopMost modal alert & sound on background task done" : "后台耗时任务完成时全向弹窗与声音唤醒"; lblTool2Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.2f); }
         if (lblTool3Name != null) { lblTool3Name.Text = toEnglish ? "Desktop Status (quote)" : "桌面状态投射"; lblTool3Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
@@ -3379,7 +3379,7 @@ internal sealed class AskHumanDialog : Form
         Font = AppContext.GetUiFont(lang, 9.5f);
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
-        Text = en ? "AI Agent Request (Decision)" : "AI 智能体请示 (Human-in-the-Loop)";
+        Text = en ? "Flash Approval HUD (AI Agent Request) - iClock" : "极速桌面授权门禁 (Flash Approval HUD) - AI 智能体请示";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
@@ -3389,28 +3389,32 @@ internal sealed class AskHumanDialog : Form
 
         bool hasOptions = options != null && options.Length > 0;
         int optCount = hasOptions ? options.Length : 0;
-        int dialogW = 390;
-        int extraBottom = nonIntrusive ? 18 : 0;
-        int dialogH = (hasOptions 
-            ? Math.Max(hasTimeout ? 205 : 185, (hasTimeout ? 125 : 108) + optCount * 38) 
-            : (hasTimeout ? 205 : 175)) + extraBottom;
-        ClientSize = new Size(dialogW, dialogH);
+        int dialogW = 410;
+
+        int qHeight = 44;
+        try
+        {
+            Size measured = TextRenderer.MeasureText(question ?? "", AppContext.GetUiFont(lang, 9.5f), new Size(dialogW - 40, int.MaxValue), TextFormatFlags.WordBreak);
+            if (measured.Height > 40) qHeight = Math.Min(120, measured.Height + 6);
+        }
+        catch { }
 
         Label lblBadge = new Label();
-        lblBadge.Text = en ? "AI Agent Decision Request" : "AI 智能体决策请示";
-        lblBadge.Font = AppContext.GetUiFont(lang, 11f, FontStyle.Bold);
+        lblBadge.Text = en ? "⚡ Flash Approval HUD" : "⚡ 极速桌面授权门禁 (Flash Approval HUD)";
+        lblBadge.Font = AppContext.GetUiFont(lang, 10.5f, FontStyle.Bold);
         lblBadge.ForeColor = AppContext.Win11Accent;
-        lblBadge.SetBounds(20, 16, dialogW - 40, 24);
+        lblBadge.SetBounds(20, 14, dialogW - 40, 22);
         Controls.Add(lblBadge);
 
         Label lblQuestion = new Label();
         lblQuestion.Text = question ?? "";
         lblQuestion.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular);
         lblQuestion.ForeColor = AppContext.Win11TextPrimary;
-        lblQuestion.SetBounds(20, 44, dialogW - 40, 48);
+        lblQuestion.SetBounds(20, 38, dialogW - 40, qHeight);
         Controls.Add(lblQuestion);
 
-        int currentY = 96;
+        int currentY = 40 + qHeight + 8;
+        Button firstOptionBtn = null;
 
         if (hasOptions)
         {
@@ -3418,12 +3422,26 @@ internal sealed class AskHumanDialog : Form
             {
                 int optIdx = i;
                 string optText = options[i];
+                string displayOpt = optText;
+                string prefix = (i + 1).ToString();
+                if (!displayOpt.StartsWith(prefix + ".") && !displayOpt.StartsWith(prefix + "、") && !displayOpt.StartsWith(prefix + " "))
+                {
+                    displayOpt = prefix + ". " + displayOpt;
+                }
+
                 Button btn = new Button();
-                btn.Text = (i + 1) + ". " + optText;
+                btn.Text = displayOpt;
                 btn.Font = AppContext.GetUiFont(lang, 9f);
                 btn.SetBounds(20, currentY, dialogW - 40, 32);
-                if (i == 0) AppContext.StylePrimaryButton(btn);
-                else AppContext.StyleSecondaryButton(btn);
+                if (i == 0)
+                {
+                    AppContext.StylePrimaryButton(btn);
+                    firstOptionBtn = btn;
+                }
+                else
+                {
+                    AppContext.StyleSecondaryButton(btn);
+                }
                 btn.Click += delegate
                 {
                     WriteResult(optText);
@@ -3431,6 +3449,11 @@ internal sealed class AskHumanDialog : Form
                 };
                 Controls.Add(btn);
                 currentY += 38;
+            }
+
+            if (firstOptionBtn != null)
+            {
+                AcceptButton = firstOptionBtn;
             }
         }
         else
@@ -3453,7 +3476,7 @@ internal sealed class AskHumanDialog : Form
             Controls.Add(btnSubmit);
 
             Button btnCancel = new Button();
-            btnCancel.Text = en ? "Cancel" : "取消";
+            btnCancel.Text = en ? "Cancel (Esc)" : "取消 (Esc)";
             btnCancel.SetBounds(dialogW - 220, currentY, 80, 28);
             AppContext.StyleSecondaryButton(btnCancel);
             btnCancel.Click += delegate
@@ -3465,7 +3488,19 @@ internal sealed class AskHumanDialog : Form
 
             AcceptButton = btnSubmit;
             CancelButton = btnCancel;
+            currentY += 34;
         }
+
+        Label lblShortcut = new Label();
+        lblShortcut.Text = en 
+            ? (hasOptions ? "Shortcuts: Enter / 1-9 to select, Esc to cancel" : "Shortcuts: Enter to submit, Esc to cancel")
+            : (hasOptions ? "快捷键：Enter / 1-9 极速选择，Esc 取消" : "快捷键：Enter 提交，Esc 取消");
+        lblShortcut.Font = AppContext.GetUiFont(lang, 8f);
+        lblShortcut.ForeColor = AppContext.Win11TextSecondary;
+        lblShortcut.TextAlign = ContentAlignment.MiddleCenter;
+        lblShortcut.SetBounds(20, currentY + 2, dialogW - 40, 18);
+        Controls.Add(lblShortcut);
+        currentY += 22;
 
         if (hasTimeout)
         {
@@ -3474,8 +3509,9 @@ internal sealed class AskHumanDialog : Form
             lblTimeout.Font = AppContext.GetUiFont(lang, 8f);
             lblTimeout.ForeColor = AppContext.Win11TextSecondary;
             lblTimeout.TextAlign = ContentAlignment.MiddleRight;
-            lblTimeout.SetBounds(20, dialogH - 24, dialogW - 40, 18);
+            lblTimeout.SetBounds(20, currentY, dialogW - 40, 18);
             Controls.Add(lblTimeout);
+            currentY += 20;
 
             timeoutTimer = new System.Windows.Forms.Timer();
             timeoutTimer.Interval = 1000;
@@ -3502,22 +3538,38 @@ internal sealed class AskHumanDialog : Form
             lblHint.Text = en ? "• Host active: Floating without focus interruption" : "• 宿主前台活跃中：温和置顶呈现，不中断代码输入";
             lblHint.Font = AppContext.GetUiFont(lang, 8f);
             lblHint.ForeColor = AppContext.Win11TextSecondary;
-            lblHint.SetBounds(20, dialogH - (hasTimeout ? 36 : 20), dialogW - 40, 16);
+            lblHint.TextAlign = ContentAlignment.MiddleCenter;
+            lblHint.SetBounds(20, currentY, dialogW - 40, 16);
             Controls.Add(lblHint);
+            currentY += 18;
         }
+
+        ClientSize = new Size(dialogW, currentY + 12);
 
         KeyPreview = true;
         KeyDown += delegate(object sender, KeyEventArgs ke)
         {
             if (hasOptions)
             {
-                if (ke.KeyCode >= Keys.D1 && ke.KeyCode <= Keys.D9)
+                if (ke.KeyCode == Keys.Enter && options.Length > 0)
                 {
-                    int k = ke.KeyCode - Keys.D1;
+                    WriteResult(options[0]);
+                    Close();
+                    ke.Handled = true;
+                    return;
+                }
+                if ((ke.KeyCode >= Keys.D1 && ke.KeyCode <= Keys.D9) ||
+                    (ke.KeyCode >= Keys.NumPad1 && ke.KeyCode <= Keys.NumPad9))
+                {
+                    int k = (ke.KeyCode >= Keys.NumPad1) 
+                        ? (ke.KeyCode - Keys.NumPad1) 
+                        : (ke.KeyCode - Keys.D1);
                     if (k >= 0 && k < options.Length)
                     {
                         WriteResult(options[k]);
                         Close();
+                        ke.Handled = true;
+                        return;
                     }
                 }
             }
@@ -3525,6 +3577,8 @@ internal sealed class AskHumanDialog : Form
             {
                 WriteResult("[用户取消 / Cancelled]");
                 Close();
+                ke.Handled = true;
+                return;
             }
         };
 
@@ -6993,8 +7047,9 @@ internal sealed class AppContext : ApplicationContext
             if (p.Length >= 3)
             {
                 string reqId = p[0];
-                int timeoutSec = 60;
-                int.TryParse(p[1], out timeoutSec);
+                int timeoutSec = 0;
+                if (p.Length > 1 && !string.IsNullOrEmpty(p[1])) int.TryParse(p[1], out timeoutSec);
+                if (timeoutSec < 0) timeoutSec = 0;
                 string question = p[2];
                 string[] options = (p.Length > 3 && !string.IsNullOrEmpty(p[3]))
                     ? p[3].Split(new char[] { '~' }, StringSplitOptions.RemoveEmptyEntries)
@@ -7047,10 +7102,7 @@ internal sealed class AppContext : ApplicationContext
     internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile)
     {
         bool isFg = AppContext.IsAgentInForeground();
-        if (!isFg)
-        {
-            PlaySoundStyle("Telephone");
-        }
+        PlaySoundStyle(settings != null && !string.IsNullOrEmpty(settings.EndSoundStyle) ? settings.EndSoundStyle : "Phone");
         AskHumanDialog dlg = new AskHumanDialog(settings, question, options, timeoutSec, resFile, isFg);
         dlg.Show();
         if (isFg)
@@ -9976,6 +10028,8 @@ Options:
   --reset                         Reset countdown timer to idle
   --rest [mins]                   Start break timer (default: 5 minutes)
   -n, --notice <message>          Display popup notification and sound
+  -a, --ask <question>            Flash Approval HUD: request human decision
+                                  (options: --options ""A,B"", timeout: -t <sec>)
   -q, --quote                     Show daily quote popup
   --once                          Single-run mode: exit automatically after completion
                                   (ignored if desktop instance is already running)
@@ -9989,6 +10043,7 @@ Options:
 Examples:
   iclock --start 25               Start a 25-minute Pomodoro timer
   iclock -s 25 --once             Run a 25-minute timer and exit upon completion
+  iclock -a ""Deploy to prod?"" --options ""Approve,Reject""
   iclock -n ""Build finished!""     Trigger completion notice from script
   iclock --mcp-prompt             Print setup prompt for AI agents
   iclock --mcp-config             Output MCP JSON configuration snippet

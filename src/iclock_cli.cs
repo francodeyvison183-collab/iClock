@@ -88,6 +88,10 @@ internal static class CliShim
             Console.WriteLine(cfg);
             return 0;
         }
+        if (args != null && args.Length > 0 && (args[0] == "--ask" || args[0] == "-a" || args[0] == "ask"))
+        {
+            return RunAskCommand(args);
+        }
 
         string dir = AppDomain.CurrentDomain.BaseDirectory;
         string exe = Path.Combine(dir, "iClock.exe");
@@ -130,6 +134,106 @@ internal static class CliShim
             if (!string.IsNullOrEmpty(stderr)) Console.Error.Write(stderr);
             return p.ExitCode;
         }
+    }
+
+    private static int RunAskCommand(string[] args)
+    {
+        string question = null;
+        List<string> options = new List<string>();
+        int timeoutSec = 0;
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            string a = args[i];
+            if (a == "--ask" || a == "-a" || a == "ask")
+            {
+                if (i + 1 < args.Length && !args[i + 1].StartsWith("-"))
+                {
+                    question = args[++i];
+                }
+            }
+            else if (a == "--options" || a == "-o" || a == "--option")
+            {
+                if (i + 1 < args.Length)
+                {
+                    string rawOpts = args[++i];
+                    string[] parts = rawOpts.Split(new char[] { ',', '，', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (string p in parts)
+                    {
+                        string trimmed = p.Trim();
+                        if (!string.IsNullOrEmpty(trimmed)) options.Add(trimmed);
+                    }
+                }
+            }
+            else if (a == "--timeout" || a == "-t")
+            {
+                if (i + 1 < args.Length)
+                {
+                    int t;
+                    if (int.TryParse(args[++i], out t) && t > 0) timeoutSec = t;
+                }
+            }
+            else if (question == null && !a.StartsWith("-"))
+            {
+                question = a;
+            }
+        }
+
+        if (string.IsNullOrEmpty(question))
+        {
+            Console.Error.WriteLine("[iClock] Usage: iclock --ask <question> [--options <opt1,opt2>] [--timeout <sec>]");
+            return 1;
+        }
+
+        IntPtr hWnd = EnsureIClockRunning();
+        if (hWnd == IntPtr.Zero)
+        {
+            Console.Error.WriteLine("[iClock] Error: Failed to connect to iClock desktop instance.");
+            return 1;
+        }
+
+        string reqId = Guid.NewGuid().ToString("N").Substring(0, 8);
+        string resFile = Path.Combine(Path.GetTempPath(), "iclock_ask_" + reqId + ".txt");
+        string optStr = string.Join("~", options.ToArray());
+
+        string cmd = "ask_human:" + reqId + "|" + timeoutSec + "|" + question + "|" + optStr;
+        if (!SendIpc(cmd))
+        {
+            Console.Error.WriteLine("[iClock] Error: Failed to send decision request to iClock.");
+            return 1;
+        }
+
+        int maxWaitMs = timeoutSec > 0 ? (timeoutSec + 5) * 1000 : int.MaxValue;
+        int waited = 0;
+        while (waited < maxWaitMs)
+        {
+            Thread.Sleep(100);
+            if (timeoutSec > 0) waited += 100;
+            if (File.Exists(resFile))
+            {
+                try
+                {
+                    string result = File.ReadAllText(resFile, Encoding.UTF8).Trim();
+                    try { File.Delete(resFile); } catch { }
+                    if (result == "[用户取消 / Cancelled]" || result == "Cancelled")
+                    {
+                        Console.Error.WriteLine(result);
+                        return 1;
+                    }
+                    if (result == "[超时未响应 / Timeout]")
+                    {
+                        Console.Error.WriteLine(result);
+                        return 2;
+                    }
+                    Console.WriteLine(result);
+                    return 0;
+                }
+                catch { }
+            }
+        }
+
+        Console.Error.WriteLine("[iClock] Timed out waiting for human decision.");
+        return 2;
     }
 
     private static IntPtr EnsureIClockRunning()
@@ -330,15 +434,15 @@ internal static class CliShim
         list.Add(new Dictionary<string, object>
         {
             { "name", "iclock_ask_human" },
-            { "description", "Pop up an interactive decision card on the user's desktop to ask a question, request approval, or get choice input (Human-in-the-Loop)." },
+            { "description", "Flash Approval HUD: Pop up an interactive desktop authorization gate on the user's screen for critical decision approvals and choices (Human-in-the-Loop, Enter/1-9/Esc shortcuts, infinite wait by default)." },
             { "inputSchema", new Dictionary<string, object>
                 {
                     { "type", "object" },
                     { "properties", new Dictionary<string, object>
                         {
-                            { "question", new Dictionary<string, object> { { "type", "string" }, { "description", "The question, prompt, or approval details to display" } } },
+                            { "question", new Dictionary<string, object> { { "type", "string" }, { "description", "The question, prompt, or approval details to display (e.g. command details, target branch, risk warning)" } } },
                             { "options", new Dictionary<string, object> { { "type", "array" }, { "items", new Dictionary<string, object> { { "type", "string" } } }, { "description", "List of clickable option buttons (e.g. ['Approve', 'Cancel'] or ['Option A', 'Option B']). If omitted, a text input box is presented." } } },
-                            { "timeout_seconds", new Dictionary<string, object> { { "type", "integer" }, { "description", "Optional auto-timeout duration in seconds (default: 0 = infinite wait, never times out). Only set when running in unattended automated scripts." } } },
+                            { "timeout_seconds", new Dictionary<string, object> { { "type", "integer" }, { "description", "Optional auto-timeout duration in seconds (default: 0 = infinite wait, no auto-timeout fallback). Only set when running in unattended automated scripts." } } },
                             { "background_only", new Dictionary<string, object> { { "type", "boolean" }, { "description", "Optional. If true, only pops up desktop card when the agent host window is in the background. If the user is actively focusing the agent window, immediately returns status in_foreground so the agent can ask directly in the chat." } } }
                         }
                     },
