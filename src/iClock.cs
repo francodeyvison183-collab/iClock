@@ -2313,11 +2313,11 @@ internal sealed class SettingsDialog : Form
             btnAgentNoticeToggle.BackColor = Color.FromArgb(245, 245, 245);
             btnAgentNoticeToggle.FlatAppearance.BorderColor = Color.FromArgb(217, 217, 217);
             btnAgentNoticeToggle.ForeColor = Color.FromArgb(115, 115, 115);
-            if (lblDetectedHeader != null) lblDetectedHeader.ForeColor = Color.FromArgb(120, 120, 120);
+            if (lblDetectedHeader != null) lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
             if (lblAgentDesc != null)
             {
                 lblAgentDesc.Text = en ? "Auto-alert when background task finishes" : "智能体后台任务完成时自动弹窗提醒";
-                lblAgentDesc.ForeColor = Color.FromArgb(145, 145, 145);
+                lblAgentDesc.ForeColor = AppContext.Win11TextSecondary;
             }
         }
     }
@@ -2348,7 +2348,7 @@ internal sealed class SettingsDialog : Form
         if (lblDetectedHeader != null)
         {
             lblDetectedHeader.Text = en ? "AI Agent Alerts" : "智能体后台任务提醒";
-            lblDetectedHeader.ForeColor = alertEnabled ? AppContext.Win11TextPrimary : Color.FromArgb(120, 120, 120);
+            lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
         }
 
         if (agents.Count == 0)
