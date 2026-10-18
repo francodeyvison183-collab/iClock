@@ -1916,12 +1916,22 @@ internal static class TestCheck
             setDlgTab2.Close();
             Console.WriteLine("PASS: Streamlined tray menu (menuCli eliminated) and SettingsDialog Tab 2 terminal CLI guidance verified.");
 
-            // 34. Verify Telephone Ring Sound synthesis and SettingsDialog soundStyle items
+            // 34. Verify Doorbell Chime and Telephone Ring Sound synthesis and SettingsDialog soundStyle items
             MethodInfo playSound = appType.GetMethod("PlaySoundStyle", BindingFlags.NonPublic | BindingFlags.Static);
-            playSound.Invoke(null, new object[] { "Phone" });
             MethodInfo stopSound = appType.GetMethod("StopSound", BindingFlags.NonPublic | BindingFlags.Static);
-            stopSound.Invoke(null, null);
 
+            playSound.Invoke(null, new object[] { "Doorbell" });
+            stopSound.Invoke(null, null);
+            FieldInfo doorbellWavField = appType.GetField("doorbellWavData", BindingFlags.NonPublic | BindingFlags.Static);
+            byte[] generatedDoorbellWav = (byte[])doorbellWavField.GetValue(null);
+            if (generatedDoorbellWav == null || generatedDoorbellWav.Length < 1000)
+            {
+                Console.WriteLine("FAIL: Doorbell WAV synthesis failed or data too small");
+                return 52;
+            }
+
+            playSound.Invoke(null, new object[] { "Phone" });
+            stopSound.Invoke(null, null);
             FieldInfo phoneWavField = appType.GetField("phoneWavData", BindingFlags.NonPublic | BindingFlags.Static);
             byte[] generatedPhoneWav = (byte[])phoneWavField.GetValue(null);
             if (generatedPhoneWav == null || generatedPhoneWav.Length < 1000)
@@ -1933,19 +1943,36 @@ internal static class TestCheck
             Type setDlgType = asm.GetType("SettingsDialog");
             Form setDlg = (Form)Activator.CreateInstance(setDlgType, new object[] { settings });
             ComboBox sndStyleCombo = (ComboBox)setDlgType.GetField("soundStyle", bf).GetValue(setDlg);
-            if (sndStyleCombo == null || sndStyleCombo.Items.Count < 3)
+            if (sndStyleCombo == null || sndStyleCombo.Items.Count < 4)
             {
                 Console.WriteLine("FAIL: soundStyle combo not found or incomplete in SettingsDialog");
                 return 52;
             }
-            string item1 = sndStyleCombo.Items[1].ToString();
-            if (!item1.Contains("电话铃") && !item1.Contains("Telephone Ring"))
+            string item0 = sndStyleCombo.Items[0].ToString();
+            if (!item0.Contains("门铃") && !item0.Contains("Doorbell"))
             {
-                Console.WriteLine("FAIL: soundStyle Item[1] should be classic telephone ring, got: " + item1);
+                Console.WriteLine("FAIL: soundStyle Item[0] should be Doorbell chime, got: " + item0);
+                return 52;
+            }
+            string item1 = sndStyleCombo.Items[1].ToString();
+            if (!item1.Contains("QQ"))
+            {
+                Console.WriteLine("FAIL: soundStyle Item[1] should be QQ, got: " + item1);
+                return 52;
+            }
+            string item2 = sndStyleCombo.Items[2].ToString();
+            if (!item2.Contains("电话铃") && !item2.Contains("Telephone Ring"))
+            {
+                Console.WriteLine("FAIL: soundStyle Item[2] should be classic telephone ring, got: " + item2);
+                return 52;
+            }
+            if (sndStyleCombo.SelectedIndex != 0)
+            {
+                Console.WriteLine("FAIL: soundStyle default SelectedIndex should be 0 (Doorbell), got: " + sndStyleCombo.SelectedIndex);
                 return 52;
             }
             setDlg.Close();
-            Console.WriteLine("PASS: Classic telephone mechanical ring tone synthesis and SettingsDialog integration verified.");
+            Console.WriteLine("PASS: Doorbell chime (Ding-dong x3) & classic telephone mechanical ring tone synthesis and SettingsDialog integration verified.");
 
             // 35. Verify Daily Quote (每日格言) feature, Settings serialization, Quotes file reading, and Dialog UI
             Type quoteDlgType = asm.GetType("DailyQuoteDialog");

@@ -34,7 +34,7 @@ internal sealed class Settings
     public string Language = "zh";
     public bool AutoStart;
     public bool EndSound = true;
-    public string EndSoundStyle = "QQ";
+    public string EndSoundStyle = "Doorbell";
     public bool EndNotice = true;
     public bool FirstRun;
     public string NoticeStyle = "Popup";
@@ -127,7 +127,7 @@ internal sealed class Settings
                 else if (k == "Language" && (v == "zh" || v == "en")) s.Language = v;
                 else if (k == "AutoStart" && bool.TryParse(v, out b)) s.AutoStart = b;
                 else if (k == "EndSound" && bool.TryParse(v, out b)) s.EndSound = b;
-                else if (k == "EndSoundStyle" && (v == "QQ" || v == "Phone" || v == "Pager" || v == "Alarm" || v == "Chime" || v == "Classic")) s.EndSoundStyle = (v == "Chime") ? "QQ" : ((v == "Classic" || v == "Pager") ? "Phone" : v);
+                else if (k == "EndSoundStyle" && (v == "Doorbell" || v == "Chime" || v == "QQ" || v == "Phone" || v == "Pager" || v == "Alarm" || v == "Classic")) s.EndSoundStyle = (v == "Chime" || v == "Doorbell") ? "Doorbell" : ((v == "Classic" || v == "Pager") ? "Phone" : v);
                 else if (k == "EndNotice" && bool.TryParse(v, out b)) s.EndNotice = b;
                 else if (k == "FirstRun" && bool.TryParse(v, out b)) s.FirstRun = b;
                 else if (k == "NoticeStyle" && (v == "Popup" || v == "Pulse")) s.NoticeStyle = v;
@@ -1630,9 +1630,9 @@ internal sealed class SettingsDialog : Form
 
         soundStyle = AddCombo(334);
         soundStyle.Items.AddRange(en
-            ? new object[] { "QQ Message (Classic)", "Telephone Ring (Classic)", "Alarm Ring (Strong)" }
-            : new object[] { "QQ 经典提示 (嘀嘀)", "经典电话铃 (叮铃铃)", "醒目闹铃 (强力)" });
-        soundStyle.SelectedIndex = (Value.EndSoundStyle == "Phone" || Value.EndSoundStyle == "Pager" || Value.EndSoundStyle == "Classic") ? 1 : (Value.EndSoundStyle == "Alarm" ? 2 : 0);
+            ? new object[] { "Doorbell Chime (Default)", "QQ Message (Classic)", "Telephone Ring (Classic)", "Alarm Ring (Strong)" }
+            : new object[] { "门铃叮咚 (默认)", "QQ 经典提示 (嘀嘀)", "经典电话铃 (叮铃铃)", "醒目闹铃 (强力)" });
+        soundStyle.SelectedIndex = (Value.EndSoundStyle == "QQ") ? 1 : ((Value.EndSoundStyle == "Phone" || Value.EndSoundStyle == "Pager" || Value.EndSoundStyle == "Classic") ? 2 : (Value.EndSoundStyle == "Alarm" ? 3 : 0));
         soundStyle.Enabled = sound.Checked;
         soundStyle.DrawItem += OnDrawComboItem;
         sound.CheckedChanged += OnSoundCheckChanged;
@@ -2707,7 +2707,7 @@ internal sealed class SettingsDialog : Form
     {
         if (sound.Checked)
         {
-            string st = soundStyle.SelectedIndex == 1 ? "Phone" : (soundStyle.SelectedIndex == 2 ? "Alarm" : "QQ");
+            string st = soundStyle.SelectedIndex == 1 ? "QQ" : (soundStyle.SelectedIndex == 2 ? "Phone" : (soundStyle.SelectedIndex == 3 ? "Alarm" : "Doorbell"));
             AppContext.PlaySoundStyle(st);
         }
     }
@@ -3102,8 +3102,8 @@ internal sealed class SettingsDialog : Form
         int ssSel = soundStyle.SelectedIndex;
         soundStyle.Items.Clear();
         soundStyle.Items.AddRange(toEnglish
-            ? new object[] { "QQ Message (Classic)", "Telephone Ring (Classic)", "Alarm Ring (Strong)" }
-            : new object[] { "QQ 经典提示 (嘀嘀)", "经典电话铃 (叮铃铃)", "醒目闹铃 (强力)" });
+            ? new object[] { "Doorbell Chime (Default)", "QQ Message (Classic)", "Telephone Ring (Classic)", "Alarm Ring (Strong)" }
+            : new object[] { "门铃叮咚 (默认)", "QQ 经典提示 (嘀嘀)", "经典电话铃 (叮铃铃)", "醒目闹铃 (强力)" });
         soundStyle.SelectedIndex = ssSel >= 0 ? ssSel : 0;
 
         int nsSel = noticeStyle.SelectedIndex;
@@ -3151,7 +3151,7 @@ internal sealed class SettingsDialog : Form
         draft.Format = (format != null && format.SelectedIndex == 1) ? "MM:SS" : ((format != null && format.SelectedIndex == 2) ? "Chinese" : "HH:MM:SS");
         draft.Language = (language != null && language.SelectedIndex == 1) ? "en" : "zh";
         draft.EndSound = sound != null ? sound.Checked : Value.EndSound;
-        draft.EndSoundStyle = (soundStyle != null && soundStyle.SelectedIndex == 1) ? "Phone" : ((soundStyle != null && soundStyle.SelectedIndex == 2) ? "Alarm" : "QQ");
+        draft.EndSoundStyle = (soundStyle != null && soundStyle.SelectedIndex == 1) ? "QQ" : ((soundStyle != null && soundStyle.SelectedIndex == 2) ? "Phone" : ((soundStyle != null && soundStyle.SelectedIndex == 3) ? "Alarm" : "Doorbell"));
         draft.EndNotice = notice != null ? notice.Checked : Value.EndNotice;
         draft.NoticeStyle = (noticeStyle != null && noticeStyle.SelectedIndex == 1) ? "Pulse" : "Popup";
         draft.EndMessage = endMessage != null ? endMessage.Text.Trim() : Value.EndMessage;
@@ -7550,7 +7550,7 @@ internal sealed class AppContext : ApplicationContext
     internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile)
     {
         bool isFg = AppContext.IsAgentInForeground();
-        PlaySoundStyle(settings != null && !string.IsNullOrEmpty(settings.EndSoundStyle) ? settings.EndSoundStyle : "Phone");
+        PlaySoundStyle(settings != null && !string.IsNullOrEmpty(settings.EndSoundStyle) ? settings.EndSoundStyle : "Doorbell");
         AskHumanDialog dlg = new AskHumanDialog(settings, question, options, timeoutSec, resFile, isFg);
         dlg.Show();
         if (isFg)
@@ -7776,9 +7776,75 @@ internal sealed class AppContext : ApplicationContext
         catch { return false; }
     }
 
+    private static byte[] doorbellWavData;
     private static byte[] qqWavData;
     private static byte[] phoneWavData;
     private static SoundPlayer activeSoundPlayer;
+
+    private static byte[] GenerateDoorbellWav()
+    {
+        int sampleRate = 22050;
+        List<short> samples = new List<short>();
+        double fDing = 783.99; // G5 (叮)
+        double fDong = 659.25; // E5 (咚)
+
+        for (int cycle = 0; cycle < 3; cycle++)
+        {
+            int pairSamples = (int)(sampleRate * 1.05);
+            int dongOffset = (int)(sampleRate * 0.38);
+
+            for (int i = 0; i < pairSamples; i++)
+            {
+                double t = (double)i / sampleRate;
+                double val = 0;
+
+                // Ding component (叮)
+                if (t < 0.65)
+                {
+                    double attack = i < (sampleRate * 0.003) ? (double)i / (sampleRate * 0.003) : 1.0;
+                    double decay = Math.Exp(-t / 0.22);
+                    double over1 = Math.Exp(-t / 0.06);
+                    double over2 = Math.Exp(-t / 0.025);
+
+                    double s0 = Math.Sin(2.0 * Math.PI * fDing * t);
+                    double s1 = 0.25 * Math.Sin(2.0 * Math.PI * fDing * 2.756 * t) * over1;
+                    double s2 = 0.10 * Math.Sin(2.0 * Math.PI * fDing * 5.404 * t) * over2;
+
+                    val += (s0 + s1 + s2) * decay * attack * 16000.0;
+                }
+
+                // Dong component (咚) - starts at dongOffset (0.38s)
+                if (i >= dongOffset)
+                {
+                    int iDong = i - dongOffset;
+                    double tDong = (double)iDong / sampleRate;
+                    if (tDong < 0.70)
+                    {
+                        double attack = iDong < (sampleRate * 0.003) ? (double)iDong / (sampleRate * 0.003) : 1.0;
+                        double decay = Math.Exp(-tDong / 0.32);
+                        double over1 = Math.Exp(-tDong / 0.08);
+                        double over2 = Math.Exp(-tDong / 0.03);
+
+                        double s0 = Math.Sin(2.0 * Math.PI * fDong * tDong);
+                        double s1 = 0.25 * Math.Sin(2.0 * Math.PI * fDong * 2.756 * tDong) * over1;
+                        double s2 = 0.10 * Math.Sin(2.0 * Math.PI * fDong * 5.404 * tDong) * over2;
+
+                        val += (s0 + s1 + s2) * decay * attack * 16000.0;
+                    }
+                }
+
+                samples.Add((short)Math.Max(-32767, Math.Min(32767, val)));
+            }
+
+            if (cycle < 2)
+            {
+                int pauseSamples = (int)(sampleRate * 0.20);
+                for (int i = 0; i < pauseSamples; i++) samples.Add(0);
+            }
+        }
+
+        return BuildPcmWav(sampleRate, samples);
+    }
 
     private static byte[] GenerateQQWav()
     {
@@ -7941,10 +8007,17 @@ internal sealed class AppContext : ApplicationContext
                 activeSoundPlayer = new SoundPlayer(ms);
                 activeSoundPlayer.Play();
             }
-            else // "QQ" or "Chime"
+            else if (style == "QQ")
             {
                 if (qqWavData == null) qqWavData = GenerateQQWav();
                 MemoryStream ms = new MemoryStream(qqWavData);
+                activeSoundPlayer = new SoundPlayer(ms);
+                activeSoundPlayer.Play();
+            }
+            else // "Doorbell", "Chime", or default
+            {
+                if (doorbellWavData == null) doorbellWavData = GenerateDoorbellWav();
+                MemoryStream ms = new MemoryStream(doorbellWavData);
                 activeSoundPlayer = new SoundPlayer(ms);
                 activeSoundPlayer.Play();
             }
