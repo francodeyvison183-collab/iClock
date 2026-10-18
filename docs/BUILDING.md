@@ -28,6 +28,6 @@ csc.exe /nologo /target:winexe /optimize+ /out:dist\iClock.exe /r:System.Windows
 
 - Build from a clean checkout using `build.ps1`.
 - Confirm the application starts, tray menu opens, and the configured hotkey can start and pause the countdown.
-- Confirm the release executable is below the project's target (currently ~253 KB).
+- Confirm the release executable is below the project's target (currently ~273 KB).
 - Attach `dist/iClock.exe` to a GitHub Release; do not commit generated binaries to the source tree.
 - Update `CHANGELOG.md` and tag the source commit used for the release.

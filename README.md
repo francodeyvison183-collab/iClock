@@ -2,19 +2,19 @@
 
 # <img src="docs/icon-64.png" width="36" height="36" style="vertical-align: -6px;" alt="iClock Logo" /> iClock
 
-### 专为开发者与效率玩家打造的 Windows 原生极简效率中枢 (253 KB)
+### 专为开发者与效率玩家打造的 Windows 原生极简效率中枢 (273 KB)
 **⏱ 极简悬浮倒计时 · 💬 桌面每日格言 · 🤖 AI 智能体协同 & 原生 MCP 服务器**
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-253%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-273%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![MCP Protocol](https://img.shields.io/badge/MCP-Native%20Stdio-8A2BE2)](https://github.com/francodeyvison183-collab/iClock)
 [![Author](https://img.shields.io/badge/Author-gujiangwen-blue.svg)](mailto:francodeyvison183@gmail.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>单文件 253 KB · 运行内存 &lt; 15 MB · 0.0% CPU 占用 · 鼠标点击穿透 · 零轮询桌面格言 · 原生 MCP 智能体协同</b>
+  <b>单文件 273 KB · 运行内存 &lt; 15 MB · 0.0% CPU 占用 · 鼠标点击穿透 · 零轮询桌面格言 · 原生 MCP 智能体协同</b>
 </p>
 
 <p align="center">
@@ -36,7 +36,7 @@
 
 市面上的桌面工具往往走向两个极端：要么功能单一粗糙，要么动辄 **100MB+**（Electron 臃肿应用），常驻后台持续消耗 CPU 与数百兆内存，甚至带有弹窗广告和后台遥测；而传统窗口还会死死遮挡桌面，严重干扰鼠标操作与编辑视线。
 
-**iClock 坚持极致的工程师极简克制哲学**：基于 Windows 原生底层 Win32 与 GDI+ API 构建，不含任何第三方依赖或庞大运行时，单文件仅 **253 KB**，运行内存稳定在 **15 MB** 以内。它不仅是一个支持点击穿透的极简悬浮倒计时，更是融合了**零轮询桌面灵感格言**与**原生 MCP 智能体长任务协同**的桌面效率中枢。
+**iClock 坚持极致的工程师极简克制哲学**：基于 Windows 原生底层 Win32 与 GDI+ API 构建，不含任何第三方依赖或庞大运行时，单文件仅 **273 KB**，运行内存稳定在 **15 MB** 以内。它不仅是一个支持点击穿透的极简悬浮倒计时，更是融合了**零轮询桌面灵感格言**与**原生 MCP 智能体长任务协同**的桌面效率中枢。
 
 ---
 
@@ -71,7 +71,7 @@
 
 | 核心维度 | **iClock (本项目)** | 常见 Electron 计时器 | Windows 自带闹钟 | 网页在线番茄钟 |
 | :--- | :--- | :--- | :--- | :--- |
-| **安装包体积** | ⚡ **253 KB** (单文件免安装) | 120 MB ~ 250 MB | 系统预装应用 | 每次加载数 MB |
+| **安装包体积** | ⚡ **273 KB** (单文件免安装) | 120 MB ~ 250 MB | 系统预装应用 | 每次加载数 MB |
 | **常驻内存** | ⚡ **~15 MB** (物理基线) | 150 MB ~ 300 MB | ~30 MB | 80 MB ~ 200 MB (浏览器标签) |
 | **CPU 占用** | ⚡ **0.0%** (动态心跳对齐) | 0.5% ~ 3.0% (后台轮询) | 0.0% | 0.3% ~ 1.5% |
 | **交互阻碍** | ⚡ **完全点击穿透，不挡鼠标** | 实体窗口遮挡代码与网页 | 最小化或占用全屏 | 必须切出浏览器查看 |
@@ -195,7 +195,7 @@ iclock -s 50
 
 当运行 **DeepSeek、Pi、Aider、AutoGPT** 等自主智能体或长推理模型时，传统的执行外壳（Harness）往往局限在终端字符流或重型 Web 容器中，带来**严重的注意力脱节与窗口打断感**。
 
-iClock 单文件仅 253 KB、内存 < 15 MB、0.0% CPU 占用且原生全鼠标穿透，是极具辨识度的 **Windows 桌面原生伴生外骨骼（Ambient Desktop Harness）**：
+iClock 单文件仅 273 KB、内存 < 15 MB、0.0% CPU 占用且原生全鼠标穿透，是极具辨识度的 **Windows 桌面原生伴生外骨骼（Ambient Desktop Harness）**：
 
 ### 1. 为什么用 iClock 作为智能体 Harness 扩展？
 
@@ -268,7 +268,7 @@ harness.notify("✨ 自动化测试全部通过，耗时 3 分 20 秒！")
 
 * **Q: 为什么打游戏或写代码时不挡鼠标操作？**  
   **A**: iClock 深度利用了 Windows 底层 `WS_EX_TRANSPARENT` 穿透特性。倒计时浮层浮现在所有窗口最顶层，但所有鼠标点击与滚轮事件均直接穿透到底层的编辑器、终端或全屏游戏，绝不抢占焦点。
-* **Q: 为什么软件体积只有 253 KB？**  
+* **Q: 为什么软件体积只有 273 KB？**  
   **A**: 坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 15 MB 以内。
 * **Q: 为什么桌面格言常驻后台不耗电？**  
   **A**: iClock 采用原生 Windows 消息驱动与 0-Polling 架构，没有后台死循环轮询。静止常驻时 CPU 占用为 0.0%，唤醒开销降至极限，笔记本长驻运行零耗电。
@@ -288,7 +288,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> 编译耗时不到 1 秒，产物输出在 `dist/iClock.exe`（单文件约 253 KB）。详见[构建说明](docs/BUILDING.md)。
+> 编译耗时不到 1 秒，产物输出在 `dist/iClock.exe`（单文件约 273 KB）。详见[构建说明](docs/BUILDING.md)。
 
 ---
 

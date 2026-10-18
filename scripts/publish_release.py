@@ -21,29 +21,33 @@ def main():
         'Accept': 'application/vnd.github.v3+json'
     }
 
-    notes_file = os.path.join(os.path.dirname(__file__), '..', 'release-notes', 'v1.07.md')
+    version = sys.argv[1] if len(sys.argv) > 1 else '1.08'
+    tag_name = f'v{version}'
+    release_name = f'iClock {version} for Windows'
+
+    notes_file = os.path.join(os.path.dirname(__file__), '..', 'release-notes', f'{tag_name}.md')
     with open(notes_file, 'r', encoding='utf-8') as f:
         body = f.read()
 
     payload = {
-        'tag_name': 'v1.07',
+        'tag_name': tag_name,
         'target_commitish': 'main',
-        'name': 'iClock 1.07 for Windows',
+        'name': release_name,
         'body': body,
         'draft': False,
         'prerelease': False
     }
 
-    print("Checking if release v1.07 already exists...")
+    print(f"Checking if release {tag_name} already exists...")
     check_req = urllib.request.Request(
-        'https://api.github.com/repos/francodeyvison183-collab/iClock/releases/tags/v1.07',
+        f'https://api.github.com/repos/francodeyvison183-collab/iClock/releases/tags/{tag_name}',
         headers=headers
     )
     rel = None
     try:
         with urllib.request.urlopen(check_req) as resp:
             rel = json.loads(resp.read().decode())
-            print(f"Found existing release v1.07 (id: {rel['id']})")
+            print(f"Found existing release {tag_name} (id: {rel['id']})")
             update_req = urllib.request.Request(
                 f"https://api.github.com/repos/francodeyvison183-collab/iClock/releases/{rel['id']}",
                 data=json.dumps(payload).encode('utf-8'),
@@ -55,7 +59,7 @@ def main():
                 print("Updated release notes body successfully.")
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            print("Release v1.07 does not exist yet. Creating...")
+            print(f"Release {tag_name} does not exist yet. Creating...")
             create_req = urllib.request.Request(
                 'https://api.github.com/repos/francodeyvison183-collab/iClock/releases',
                 data=json.dumps(payload).encode('utf-8'),
@@ -63,7 +67,7 @@ def main():
             )
             with urllib.request.urlopen(create_req) as resp:
                 rel = json.loads(resp.read().decode())
-                print(f"Created release v1.07! (id: {rel['id']}, url: {rel.get('html_url')})")
+                print(f"Created release {tag_name}! (id: {rel['id']}, url: {rel.get('html_url')})")
         else:
             raise
 
@@ -82,9 +86,9 @@ def main():
 
     assets_dir = os.path.join(os.path.dirname(__file__), '..', 'release-assets')
     assets = [
-        ('iClock-1.07-windows.zip', 'application/zip'),
-        ('iClock-1.07-windows.exe', 'application/vnd.microsoft.portable-executable'),
-        ('iClock-1.07-SHA256SUMS.txt', 'text/plain')
+        (f'iClock-{version}-windows.zip', 'application/zip'),
+        (f'iClock-{version}-windows.exe', 'application/vnd.microsoft.portable-executable'),
+        (f'iClock-{version}-SHA256SUMS.txt', 'text/plain')
     ]
 
     for file_name, content_type in assets:
@@ -138,7 +142,7 @@ def main():
             print(f"Failed to upload {file_name} after 5 attempts.")
             sys.exit(1)
 
-    print("\nAll release assets uploaded successfully for v1.07!")
+    print(f"\nAll release assets uploaded successfully for {tag_name}!")
     print(f"Release URL: {rel.get('html_url')}")
 
 if __name__ == '__main__':

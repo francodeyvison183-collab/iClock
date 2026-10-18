@@ -1,14 +1,14 @@
 # iClock
 
-> Ultra-lightweight (253 KB), zero-dependency Windows native productivity hub: transparent click-through countdown timer, ambient 0-polling daily quotes, 20+ AI agents monitor, and native stdio Model Context Protocol (MCP) server.
+> Ultra-lightweight (273 KB), zero-dependency Windows native productivity hub: transparent click-through countdown timer, ambient 0-polling daily quotes, 20+ AI agents monitor, and native stdio Model Context Protocol (MCP) server.
 
-iClock is an open-source, minimalist Windows desktop productivity hub designed for developers and power users. It compiles to a single 253 KB native portable executable with zero runtime dependencies.
+iClock is an open-source, minimalist Windows desktop productivity hub designed for developers and power users. It compiles to a single 273 KB native portable executable with zero runtime dependencies.
 
 ## Key Specifications
 
 - **Application Category**: Desktop Utility, Focus & Pomodoro Countdown Timer, Daily Quotes, AI Agent Completion Monitor, MCP Server
 - **Architecture**: Pure C# WinForms (.NET Framework 4.x runtime, built into Windows 10/11)
-- **Binary Size**: ~253 KB single file, portable (no installation required)
+- **Binary Size**: ~273 KB single file, portable (no installation required)
 - **Memory Footprint**: < 15 MB static RAM
 - **Operating System Compatibility**: Windows 7 SP1, Windows 8, Windows 10, Windows 11
 - **Display Mode**: Floating desktop text with native click-through (`WS_EX_TRANSPARENT`)
@@ -39,15 +39,15 @@ iClock is an open-source, minimalist Windows desktop productivity hub designed f
   ```
 - **Official Website**: https://francodeyvison183-collab.github.io/iClock/
 - **GitHub Repository**: https://github.com/francodeyvison183-collab/iClock
-- **Latest Release (v1.07)**:
-  - Portable ZIP Archive (Recommended · Avoids browser false warnings): https://github.com/francodeyvison183-collab/iClock/releases/download/v1.07/iClock-1.07-windows.zip
-  - Standalone Executable: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.07/iClock-1.07-windows.exe
-  - SHA-256 (ZIP): `828ce71b327f295f79427590f53ab06b5e0d382cb7888f8ca55563faaf62bbeb`
-  - SHA-256 (EXE): `83342296389782918d8f2224e1f9eba4baa4a6ac44e071a37e7fd0cf2e34c9cf`
+- **Latest Release (v1.08)**:
+  - Portable ZIP Archive (Recommended · Avoids browser false warnings): https://github.com/francodeyvison183-collab/iClock/releases/download/v1.08/iClock-1.08-windows.zip
+  - Standalone Executable: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.08/iClock-1.08-windows.exe
+  - SHA-256 (ZIP): `6b3b20c11fe3998a5636a381002aa538736674576682b8021ecd7bc786611fff`
+  - SHA-256 (EXE): `3cd5ad9303afcc40b9f0420b923aeb8b0de098680b09a420d3bb1b17c60e7e06`
 
 ## Core Differentiators
 
-1. **Native Lightweight vs Electron Bloat**: While typical modern desktop timers consume 150 MB~400 MB of RAM with hundreds of megabytes in download size, iClock requires only ~253 KB on disk and less than 15 MB of RAM.
+1. **Native Lightweight vs Electron Bloat**: While typical modern desktop timers consume 150 MB~400 MB of RAM with hundreds of megabytes in download size, iClock requires only ~273 KB on disk and less than 15 MB of RAM.
 2. **True TopMost & Click-Through**: Remains visible over full-screen IDEs, games, or presentation software without capturing or blocking mouse clicks (`WS_EX_TRANSPARENT`).
 3. **Native Model Context Protocol (MCP) Server**: Provides native Windows stdio MCP server for Claude Desktop, Cursor, Windsurf, and Antigravity, introducing `iclock_ask_human` for critical desktop human-in-the-loop authorization.
 4. **AI Agent Background Collaboration**: Monitors 20+ domestic and international AI coding agents (Cursor, Antigravity, Claude Code, GitHub Copilot, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, etc.) via a 4-tier perception engine (Toast, Win32 Shell taskbar flash at 0ms, window title state badge, and edge-detected cluster CPU fallback) with instant alert and 1-click window restore.

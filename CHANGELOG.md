@@ -2,6 +2,32 @@
 
 This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY-MM-DD`).
 
+## [1.08] - 2026-10-18
+
+### Added
+
+- **Tray Double-Click Debouncing & False Trigger Elimination (托盘双击防抖与倒计时零误触)**:
+  - **Debounced Tray Single-Click (单击智能防抖)**: Implemented a 200~250ms dynamic debounce window on tray left clicks. Single-clicking continues to toggle countdown cleanly after the window expires.
+  - **Instant Double-Click Cancellation (双击即时取消切换)**: Double-clicking the tray icon immediately aborts pending countdown toggle and opens the Settings dialog, completely eliminating the WinForms NotifyIcon `MouseClick` vs `DoubleClick` race condition.
+- **Rich Native Synthesized Chimes (多样化原生合成音效)**:
+  - **Door Knock Chime (拟真敲门声)**: Added rhythmic physical resonance door knocking ("咚咚咚, 咚咚咚, 咚咚咚" x3) before alarm ring in end sound styles.
+  - **Dedicated AI Collaboration Chime (AI 协作专属温和提示音)**: Added a gentle rising triad chime specifically for AI agent task completion, with pure Win32 `Speech On.wav` fallback, clearly distinguishing AI alerts from countdown finish alarms.
+  - **Doorbell Chime (叮咚门铃声)**: Three crisp ding-dong chord pairs for comfortable focus completion reminders.
+- **Enhanced Flash Approval HUD (智能体决策请示卡醒目度升级)**:
+  - Enhanced `iclock_ask_human` UI with a 3.5px left accent bar, 10.5pt clear question typography, and radio card rows for prominent human-in-the-loop decision making.
+- **Desktop Note Projection & Quote Stability (桌面便签投射与格言显示保护)**:
+  - Ensured projected desktop notes remain TopMost and mutually exclusive with auto-dismiss on agent exit.
+  - Suppressed daily quote preview in settings while a desktop note projection is active, preventing overlapping text.
+  - Fixed sequential numbering so AI-expanded desktop quotes follow historical serial numbers in order.
+  - Preserved on-screen desktop quote content when switching to the "每日格言" tab in settings.
+
+### Optimized
+
+- **Zero-GC & Memory Sawtooth Elimination (平稳低内存与零分配优化)**:
+  - Eliminated high-frequency `EmptyWorkingSet` periodic sawtooth oscillations and replaced heavy `Process` APIs with zero-alloc Win32 native methods.
+  - Optimized Settings Tab 2 control rendering to eliminate layout thrashing.
+  - Maintained executable binary size at ultra-light **273 KB (279,040 bytes)** with zero external dependencies.
+
 ## [1.07] - 2026-10-17
 
 ### Added
