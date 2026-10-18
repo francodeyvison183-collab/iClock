@@ -3829,19 +3829,25 @@ internal sealed class AskHumanDialog : Form
         int qHeight = 36;
         try
         {
-            Size measured = TextRenderer.MeasureText(question ?? "", AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular), new Size(dialogW - 44, int.MaxValue), TextFormatFlags.WordBreak);
-            if (measured.Height > 30) qHeight = Math.Min(140, measured.Height + 6);
+            Size measured = TextRenderer.MeasureText(question ?? "", AppContext.GetUiFont(lang, 10.5f, FontStyle.Regular), new Size(dialogW - 54, int.MaxValue), TextFormatFlags.WordBreak);
+            if (measured.Height > 24) qHeight = Math.Min(140, measured.Height + 4);
+            else qHeight = Math.Max(26, measured.Height);
         }
         catch { }
 
+        Panel pnlAccentBar = new Panel();
+        pnlAccentBar.BackColor = AppContext.Win11Accent;
+        pnlAccentBar.SetBounds(22, 16 + 2, 3, Math.Max(18, qHeight - 4));
+        Controls.Add(pnlAccentBar);
+
         Label lblQuestion = new Label();
         lblQuestion.Text = question ?? "";
-        lblQuestion.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular);
-        lblQuestion.ForeColor = AppContext.Win11TextPrimary;
-        lblQuestion.SetBounds(22, 16, dialogW - 44, qHeight);
+        lblQuestion.Font = AppContext.GetUiFont(lang, 10.5f, FontStyle.Regular);
+        lblQuestion.ForeColor = Color.FromArgb(18, 18, 18);
+        lblQuestion.SetBounds(32, 16, dialogW - 54, qHeight);
         Controls.Add(lblQuestion);
 
-        int currentY = 16 + qHeight + 12;
+        int currentY = 16 + qHeight + 14;
         List<RadioButton> radioList = new List<RadioButton>();
         TextBox txtInput = null;
 
@@ -3857,13 +3863,11 @@ internal sealed class AskHumanDialog : Form
                     displayOpt = prefix + ". " + displayOpt;
                 }
 
-                RadioButton rb = new RadioButton();
+                OptionRowControl rb = new OptionRowControl();
                 rb.Text = displayOpt;
                 rb.Tag = optText;
                 rb.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular);
                 rb.ForeColor = AppContext.Win11TextPrimary;
-                rb.CheckAlign = ContentAlignment.MiddleRight;
-                rb.TextAlign = ContentAlignment.MiddleLeft;
                 rb.SetBounds(22, currentY, dialogW - 44, 30);
                 if (i == 0) rb.Checked = true;
                 rb.DoubleClick += delegate
@@ -3982,6 +3986,80 @@ internal sealed class AskHumanDialog : Form
             }
         }
         catch { }
+    }
+
+    private sealed class OptionRowControl : RadioButton
+    {
+        private bool isHovered;
+
+        public OptionRowControl()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+            Cursor = Cursors.Hand;
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            base.OnMouseEnter(e);
+            isHovered = true;
+            Invalidate();
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            isHovered = false;
+            Invalidate();
+        }
+
+        protected override void OnCheckedChanged(EventArgs e)
+        {
+            base.OnCheckedChanged(e);
+            Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs pe)
+        {
+            Graphics g = pe.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle r = new Rectangle(0, 0, Width - 1, Height - 1);
+            if (Checked)
+            {
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(243, 246, 252))) g.FillRectangle(b, r);
+                using (Pen p = new Pen(Color.FromArgb(210, 225, 245))) g.DrawRectangle(p, r);
+            }
+            else
+            {
+                using (SolidBrush b = new SolidBrush(isHovered ? Color.FromArgb(248, 250, 253) : Color.White)) g.FillRectangle(b, r);
+                using (Pen p = new Pen(isHovered ? Color.FromArgb(215, 225, 240) : Color.FromArgb(235, 235, 235))) g.DrawRectangle(p, r);
+            }
+
+            using (SolidBrush textBrush = new SolidBrush(Color.FromArgb(32, 32, 32)))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
+            {
+                g.DrawString(Text, Font, textBrush, new Rectangle(10, 0, Width - 40, Height), sf);
+            }
+
+            int circleX = Width - 24;
+            int circleY = (Height - 14) / 2;
+            Rectangle circleRect = new Rectangle(circleX, circleY, 14, 14);
+            if (Checked)
+            {
+                using (Pen radioBorder = new Pen(Color.FromArgb(0, 103, 192), 1.5f))
+                using (SolidBrush radioDot = new SolidBrush(Color.FromArgb(0, 103, 192)))
+                {
+                    g.DrawEllipse(radioBorder, circleRect);
+                    g.FillEllipse(radioDot, new Rectangle(circleX + 4, circleY + 4, 6, 6));
+                }
+            }
+            else
+            {
+                using (Pen grayRadioBorder = new Pen(isHovered ? Color.FromArgb(120, 120, 120) : Color.FromArgb(160, 160, 160), 1.2f))
+                {
+                    g.DrawEllipse(grayRadioBorder, circleRect);
+                }
+            }
+        }
     }
 }
 
