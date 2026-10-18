@@ -2734,7 +2734,7 @@ internal sealed class SettingsDialog : Form
         card.Controls.Add(lblBadge);
 
         int leftLimit = lblBadge.Left;
-        bool isMcp = McpConfigHelper.IsAgentMcpConfigured(name);
+        bool isMcp = isRunning && McpConfigHelper.IsAgentMcpConfigured(name);
         if (isMcp)
         {
             Label lblMcp = new Label();
