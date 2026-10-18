@@ -1195,13 +1195,13 @@ internal static class TestCheck
             Button btnTabAgent = (Button)settingsDialogType.GetField("btnTabAgent", bf).GetValue(tabDlg);
             Control minCtrl = (Control)settingsDialogType.GetField("minutes", bf).GetValue(tabDlg);
             CheckBox agNoticeBox = (CheckBox)settingsDialogType.GetField("agentNotice", bf).GetValue(tabDlg);
-            CheckBox agProgBox = (CheckBox)settingsDialogType.GetField("chkAgentProgress", bf).GetValue(tabDlg);
+            Button btnProgDemo = (Button)settingsDialogType.GetField("btnMcpDemoProgress", bf).GetValue(tabDlg);
             Panel cardPanel = (Panel)settingsDialogType.GetField("panelAgentCards", bf).GetValue(tabDlg);
             Button btnRefresh = (Button)settingsDialogType.GetField("btnRefreshAgents", bf).GetValue(tabDlg);
             CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
             Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
 
-            if (btnTabTimer == null || btnTabAgent == null || cardPanel == null || btnRefresh == null || agProgBox == null)
+            if (btnTabTimer == null || btnTabAgent == null || cardPanel == null || btnRefresh == null || btnProgDemo == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Plan B-1 controls");
                 return 33;
@@ -1210,7 +1210,7 @@ internal static class TestCheck
             tabDlg.Show();
 
             // Initially on Tab 1 (Timer)
-            if (!minCtrl.Visible || agNoticeBox.Visible || agProgBox.Visible || agProgBox.Checked)
+            if (!minCtrl.Visible || agNoticeBox.Visible || btnProgDemo.Visible)
             {
                 Console.WriteLine("FAIL: SettingsDialog default tab should show timer controls and hide agent controls");
                 return 33;
@@ -1225,7 +1225,7 @@ internal static class TestCheck
 
             // Switch to Tab 2 (Agent Collaboration)
             btnTabAgent.PerformClick();
-            if (minCtrl.Visible || !agNoticeBox.Visible || !agProgBox.Visible)
+            if (minCtrl.Visible || !agNoticeBox.Visible || !btnProgDemo.Visible)
             {
                 Console.WriteLine("FAIL: Switching to Agent tab should hide timer controls and show agent controls");
                 return 33;
@@ -2638,18 +2638,19 @@ internal static class TestCheck
             Form mcpSetDlg = (Form)Activator.CreateInstance(setDialogType, new object[] { settings });
             Button btnMcpCopyJson = (Button)setDialogType.GetField("btnMcpCopyJson", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
             Button btnMcpDemo = (Button)setDialogType.GetField("btnMcpDemo", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
+            Button btnMcpDemoProgress = (Button)setDialogType.GetField("btnMcpDemoProgress", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
             Button btnMcpDemoNotify = (Button)setDialogType.GetField("btnMcpDemoNotify", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
             Button btnMcpDemoQuote = (Button)setDialogType.GetField("btnMcpDemoQuote", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
-            if (btnMcpCopyJson == null || btnMcpDemo == null || btnMcpDemoNotify == null || btnMcpDemoQuote == null)
+            if (btnMcpCopyJson == null || btnMcpDemo == null || btnMcpDemoProgress == null || btnMcpDemoNotify == null || btnMcpDemoQuote == null)
             {
-                Console.WriteLine("FAIL: SettingsDialog unified MCP controls missing");
+                Console.WriteLine("FAIL: SettingsDialog unified MCP controls missing (expected 4 demo buttons)");
                 mcpSetDlg.Close();
                 return 59;
             }
             mcpSetDlg.Show();
             MethodInfo setTabMethod = setDialogType.GetMethod("SetActiveTab", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
             if (setTabMethod != null) setTabMethod.Invoke(mcpSetDlg, new object[] { 2 });
-            if (!btnMcpCopyJson.Visible || !btnMcpDemo.Visible || !btnMcpDemoNotify.Visible || !btnMcpDemoQuote.Visible)
+            if (!btnMcpCopyJson.Visible || !btnMcpDemo.Visible || !btnMcpDemoProgress.Visible || !btnMcpDemoNotify.Visible || !btnMcpDemoQuote.Visible)
             {
                 Console.WriteLine("FAIL: SettingsDialog unified MCP controls should be visible on Tab 2");
                 mcpSetDlg.Close();

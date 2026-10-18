@@ -431,7 +431,7 @@ internal sealed class Overlay : Form
             if (MoveMode) { m.Result = (IntPtr)HTCLIENT; return; }
             bool alt = (NativeMethods.GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
             if (alt) { m.Result = (IntPtr)HTCLIENT; return; }
-            if (settings != null && settings.AgentProgress && agentProgressActive && !string.IsNullOrEmpty(agentProgressMessage))
+            if (agentProgressActive && !string.IsNullOrEmpty(agentProgressMessage))
             {
                 Point pt = PointToClient(Cursor.Position);
                 if (pt.Y >= Height - 10 && pt.Y <= Height && pt.X >= 10 && pt.X <= Width - 10)
@@ -674,7 +674,7 @@ internal sealed class Overlay : Form
             }
         }
 
-        if (settings != null && settings.AgentProgress && agentProgressActive)
+        if (agentProgressActive)
         {
             float barH = 2.0f;
             float barY = Height - 5.0f;
@@ -859,7 +859,7 @@ internal sealed class Overlay : Form
 
     private void CheckProgressHover(Point clientPt)
     {
-        if (settings == null || !settings.AgentProgress || !agentProgressActive || string.IsNullOrEmpty(agentProgressMessage))
+        if (!agentProgressActive || string.IsNullOrEmpty(agentProgressMessage))
         {
             if (progressToolTipShown)
             {
@@ -1228,7 +1228,7 @@ internal sealed class SettingsDialog : Form
     private string selectedColor;
     private TextBox endMessage;
     private ComboBox format, language, fontCombo;
-    private CheckBox startup, sound, notice, agentNotice, chkAgentProgress, dailyQuote;
+    private CheckBox startup, sound, notice, agentNotice, dailyQuote;
     private Button btnEditQuotes, btnAiQuotes;
     private ComboBox soundStyle, noticeStyle;
     private TextBox hotkeyBox;
@@ -1252,11 +1252,11 @@ internal sealed class SettingsDialog : Form
     private Label lblAgentDesc;
     private Label lblDetectedHeader;
     private Button btnRefreshAgents, btnAgentNoticeToggle, btnMcpCopyJson, btnMcpDemo;
-    private Button btnMcpDemoNotify, btnMcpDemoQuote;
+    private Button btnMcpDemoProgress, btnMcpDemoNotify, btnMcpDemoQuote;
     private Panel panelAgentBox, panelAgentCards, panelMcpBox;
     private SlimScrollBar agentScrollBar;
     private Label lblMcpTitle;
-    private Label lblTool1Name, lblTool1Desc, lblTool2Name, lblTool2Desc, lblTool3Name, lblTool3Desc;
+    private Label lblTool1Name, lblTool1Desc, lblTool2Name, lblTool2Desc, lblTool3Name, lblTool3Desc, lblTool4Name, lblTool4Desc;
     private StyledTipLabel lblAgentCliTip;
 
     private NumericUpDown quoteFontSize;
@@ -1763,7 +1763,7 @@ internal sealed class SettingsDialog : Form
         Controls.Add(btnMcpCopyJson);
 
         panelMcpBox = new Panel();
-        panelMcpBox.SetBounds(18, 252, 344, 142);
+        panelMcpBox.SetBounds(18, 250, 344, 176);
         panelMcpBox.BackColor = Color.White;
         panelMcpBox.Paint += OnMcpBoxPaint;
         Controls.Add(panelMcpBox);
@@ -1773,75 +1773,92 @@ internal sealed class SettingsDialog : Form
         lblTool1Name.Text = en ? "Flash Approval HUD (ask_human)" : "极速桌面授权门禁 (Flash Approval HUD)";
         lblTool1Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool1Name.ForeColor = AppContext.Win11TextPrimary;
-        lblTool1Name.SetBounds(12, 7, 240, 18);
+        lblTool1Name.SetBounds(12, 6, 258, 18);
         panelMcpBox.Controls.Add(lblTool1Name);
 
         lblTool1Desc = new Label();
-        lblTool1Desc.Text = en ? "Human-in-the-loop approval HUD for critical actions" : "关键高危操作置顶人机决策门禁 (支持 1/2/Enter/Esc 盲打)";
-        lblTool1Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.2f);
+        lblTool1Desc.Text = en ? "Modal decision gate for critical operations" : "关键高危操作置顶人机决策门禁 (支持盲打)";
+        lblTool1Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblTool1Desc.ForeColor = AppContext.Win11TextSecondary;
-        lblTool1Desc.SetBounds(12, 26, 246, 16);
+        lblTool1Desc.SetBounds(12, 25, 258, 16);
         panelMcpBox.Controls.Add(lblTool1Desc);
 
         btnMcpDemo = new Button();
         btnMcpDemo.Text = en ? "Demo" : "演示";
         btnMcpDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpDemo.SetBounds(264, 11, 68, 26);
+        btnMcpDemo.SetBounds(274, 9, 58, 25);
         AppContext.StyleSecondaryButton(btnMcpDemo);
         btnMcpDemo.Click += OnMcpDemoClick;
         panelMcpBox.Controls.Add(btnMcpDemo);
 
-        // Row 2: Task Notification (iclock_notify)
+        // Row 2: Clock HUD Progress (iclock_progress)
         lblTool2Name = new Label();
-        lblTool2Name.Text = en ? "Task Notification (notify)" : "任务完成提醒";
+        lblTool2Name.Text = en ? "Clock HUD Progress (progress)" : "悬浮时钟发丝进度条 (iclock_progress)";
         lblTool2Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool2Name.ForeColor = AppContext.Win11TextPrimary;
-        lblTool2Name.SetBounds(12, 54, 240, 18);
+        lblTool2Name.SetBounds(12, 50, 258, 18);
         panelMcpBox.Controls.Add(lblTool2Name);
 
         lblTool2Desc = new Label();
-        lblTool2Desc.Text = en ? "TopMost modal alert & sound on background task done" : "后台耗时任务完成时全向弹窗与声音唤醒";
-        lblTool2Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.2f);
+        lblTool2Desc.Text = en ? "2px step progress meter with milestone tooltip" : "后台多步任务在悬浮时钟投射 2px 发丝进度";
+        lblTool2Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblTool2Desc.ForeColor = AppContext.Win11TextSecondary;
-        lblTool2Desc.SetBounds(12, 73, 246, 16);
+        lblTool2Desc.SetBounds(12, 69, 258, 16);
         panelMcpBox.Controls.Add(lblTool2Desc);
+
+        btnMcpDemoProgress = new Button();
+        btnMcpDemoProgress.Text = en ? "Demo" : "演示";
+        btnMcpDemoProgress.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
+        btnMcpDemoProgress.SetBounds(274, 53, 58, 25);
+        AppContext.StyleSecondaryButton(btnMcpDemoProgress);
+        btnMcpDemoProgress.Click += OnMcpDemoProgressClick;
+        panelMcpBox.Controls.Add(btnMcpDemoProgress);
+
+        // Row 3: Task Notification (iclock_notify)
+        lblTool3Name = new Label();
+        lblTool3Name.Text = en ? "Task Notification (notify)" : "任务完成提醒 (iclock_notify)";
+        lblTool3Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
+        lblTool3Name.ForeColor = AppContext.Win11TextPrimary;
+        lblTool3Name.SetBounds(12, 94, 258, 18);
+        panelMcpBox.Controls.Add(lblTool3Name);
+
+        lblTool3Desc = new Label();
+        lblTool3Desc.Text = en ? "TopMost alert & sound on task completion" : "后台耗时任务完成时全向弹窗与声音唤醒";
+        lblTool3Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblTool3Desc.ForeColor = AppContext.Win11TextSecondary;
+        lblTool3Desc.SetBounds(12, 113, 258, 16);
+        panelMcpBox.Controls.Add(lblTool3Desc);
 
         btnMcpDemoNotify = new Button();
         btnMcpDemoNotify.Text = en ? "Demo" : "演示";
         btnMcpDemoNotify.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpDemoNotify.SetBounds(264, 58, 68, 26);
+        btnMcpDemoNotify.SetBounds(274, 97, 58, 25);
         AppContext.StyleSecondaryButton(btnMcpDemoNotify);
         btnMcpDemoNotify.Click += OnMcpDemoNotifyClick;
         panelMcpBox.Controls.Add(btnMcpDemoNotify);
 
-        // Row 3: Desktop Status (iclock_quote)
-        lblTool3Name = new Label();
-        lblTool3Name.Text = en ? "Desktop Status (quote)" : "桌面状态投射";
-        lblTool3Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
-        lblTool3Name.ForeColor = AppContext.Win11TextPrimary;
-        lblTool3Name.SetBounds(12, 101, 240, 18);
-        panelMcpBox.Controls.Add(lblTool3Name);
+        // Row 4: Desktop Status (iclock_quote)
+        lblTool4Name = new Label();
+        lblTool4Name.Text = en ? "Desktop Status (quote)" : "桌面状态投射 (iclock_quote)";
+        lblTool4Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
+        lblTool4Name.ForeColor = AppContext.Win11TextPrimary;
+        lblTool4Name.SetBounds(12, 138, 258, 18);
+        panelMcpBox.Controls.Add(lblTool4Name);
 
-        lblTool3Desc = new Label();
-        lblTool3Desc.Text = en ? "Project task goals, thoughts or working status onto desktop" : "智能体在屏幕投射当前进展与工作便签";
-        lblTool3Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.2f);
-        lblTool3Desc.ForeColor = AppContext.Win11TextSecondary;
-        lblTool3Desc.SetBounds(12, 120, 246, 16);
-        panelMcpBox.Controls.Add(lblTool3Desc);
+        lblTool4Desc = new Label();
+        lblTool4Desc.Text = en ? "Project goals, notes & status onto desktop" : "智能体在桌面投射当前任务进展与工作便签";
+        lblTool4Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblTool4Desc.ForeColor = AppContext.Win11TextSecondary;
+        lblTool4Desc.SetBounds(12, 157, 258, 16);
+        panelMcpBox.Controls.Add(lblTool4Desc);
 
         btnMcpDemoQuote = new Button();
         btnMcpDemoQuote.Text = en ? "Demo" : "演示";
         btnMcpDemoQuote.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpDemoQuote.SetBounds(264, 105, 68, 26);
+        btnMcpDemoQuote.SetBounds(274, 141, 58, 25);
         AppContext.StyleSecondaryButton(btnMcpDemoQuote);
         btnMcpDemoQuote.Click += OnMcpDemoQuoteClick;
         panelMcpBox.Controls.Add(btnMcpDemoQuote);
-
-        chkAgentProgress = AddCheck(en ? "Show hairline agent progress meter on clock HUD" : "在悬浮时钟底部显示智能体极细发丝进度条", Value.AgentProgress, 18, 396);
-        chkAgentProgress.SetBounds(18, 396, 344, 22);
-        toolTip.SetToolTip(chkAgentProgress, en
-            ? "When enabled, displays an ultra-thin (2px) progress bar at the bottom of the clock overlay during AI agent background tasks. Hovering displays the current task step."
-            : "开启后，AI 智能体执行后台耗时任务时，将在悬浮时钟底部显示 2px 极细发丝进度条，鼠标悬停可查看当前任务步骤。");
 
         lblAgentCliTip = new StyledTipLabel("iclock --install-cli", "iclock -h");
         lblAgentCliTip.UseMnemonic = false;
@@ -1850,7 +1867,7 @@ internal sealed class SettingsDialog : Form
             : "提示：终端运行 iclock -h 查看指令，iclock --install-cli 写入 PATH。";
         lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
         lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentCliTip.SetBounds(16, 424, 348, 20);
+        lblAgentCliTip.SetBounds(16, 432, 348, 20);
         Controls.Add(lblAgentCliTip);
 
         saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存";
@@ -1926,7 +1943,6 @@ internal sealed class SettingsDialog : Form
         if (lblMcpTitle != null) lblMcpTitle.Visible = isAgent;
         if (btnMcpCopyJson != null) btnMcpCopyJson.Visible = isAgent;
         if (panelMcpBox != null) panelMcpBox.Visible = isAgent;
-        if (chkAgentProgress != null) chkAgentProgress.Visible = isAgent;
         if (lblAgentCliTip != null) lblAgentCliTip.Visible = isAgent;
 
         UpdateTabButtons();
@@ -2557,6 +2573,22 @@ internal sealed class SettingsDialog : Form
             demo.ShowDialog(this);
         }
     }
+    private void OnMcpDemoProgressClick(object sender, EventArgs e)
+    {
+        bool en = Value != null && Value.Language == "en";
+        string msg = en ? "Running SelfCheck test suite (Step 3/5)..." : "正在执行完整自检套件 (步骤 3/5)...";
+        if (AppContext.Current != null)
+        {
+            AppContext.Current.SetAgentProgress(0.65f, msg);
+            Timer t = new Timer { Interval = 4000 };
+            t.Tick += delegate {
+                t.Stop();
+                t.Dispose();
+                if (AppContext.Current != null) AppContext.Current.ClearAgentProgress();
+            };
+            t.Start();
+        }
+    }
     private void OnMcpDemoNotifyClick(object sender, EventArgs e)
     {
         bool en = Value != null && Value.Language == "en";
@@ -2584,8 +2616,9 @@ internal sealed class SettingsDialog : Form
             pe.Graphics.DrawRectangle(p, 0, 0, pnl.Width - 1, pnl.Height - 1);
         using (Pen divPen = new Pen(Color.FromArgb(238, 240, 244), 1f))
         {
-            pe.Graphics.DrawLine(divPen, 10, 47, pnl.Width - 10, 47);
-            pe.Graphics.DrawLine(divPen, 10, 94, pnl.Width - 10, 94);
+            pe.Graphics.DrawLine(divPen, 10, 44, pnl.Width - 10, 44);
+            pe.Graphics.DrawLine(divPen, 10, 88, pnl.Width - 10, 88);
+            pe.Graphics.DrawLine(divPen, 10, 132, pnl.Width - 10, 132);
         }
     }
 
@@ -2748,21 +2781,17 @@ internal sealed class SettingsDialog : Form
         if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "MCP Direct Connection (4 Tools)" : "MCP 协议直连 (4项核心能力)";
         if (btnMcpCopyJson != null) btnMcpCopyJson.Text = toEnglish ? "Copy Prompt" : "复制接入提示词";
         if (btnMcpDemo != null) btnMcpDemo.Text = toEnglish ? "Demo" : "演示";
+        if (btnMcpDemoProgress != null) btnMcpDemoProgress.Text = toEnglish ? "Demo" : "演示";
         if (btnMcpDemoNotify != null) btnMcpDemoNotify.Text = toEnglish ? "Demo" : "演示";
         if (btnMcpDemoQuote != null) btnMcpDemoQuote.Text = toEnglish ? "Demo" : "演示";
         if (lblTool1Name != null) { lblTool1Name.Text = toEnglish ? "Flash Approval HUD (ask_human)" : "极速桌面授权门禁 (Flash Approval HUD)"; lblTool1Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
-        if (lblTool1Desc != null) { lblTool1Desc.Text = toEnglish ? "Human-in-the-loop approval HUD for critical actions" : "关键高危操作置顶人机决策门禁 (支持 1/2/Enter/Esc 盲打)"; lblTool1Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.2f); }
-        if (lblTool2Name != null) { lblTool2Name.Text = toEnglish ? "Task Notification (notify)" : "任务完成提醒"; lblTool2Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
-        if (lblTool2Desc != null) { lblTool2Desc.Text = toEnglish ? "TopMost modal alert & sound on background task done" : "后台耗时任务完成时全向弹窗与声音唤醒"; lblTool2Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.2f); }
-        if (lblTool3Name != null) { lblTool3Name.Text = toEnglish ? "Desktop Status (quote)" : "桌面状态投射"; lblTool3Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
-        if (lblTool3Desc != null) { lblTool3Desc.Text = toEnglish ? "Project task goals, thoughts or working status onto desktop" : "智能体在屏幕投射当前进展与工作便签"; lblTool3Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.2f); }
-        if (chkAgentProgress != null)
-        {
-            chkAgentProgress.Text = toEnglish ? "Show hairline agent progress meter on clock HUD" : "在悬浮时钟底部显示智能体极细发丝进度条";
-            toolTip.SetToolTip(chkAgentProgress, toEnglish
-                ? "When enabled, displays an ultra-thin (2px) progress bar at the bottom of the clock overlay during AI agent background tasks. Hovering displays the current task step."
-                : "开启后，AI 智能体执行后台耗时任务时，将在悬浮时钟底部显示 2px 极细发丝进度条，鼠标悬停可查看当前任务步骤。");
-        }
+        if (lblTool1Desc != null) { lblTool1Desc.Text = toEnglish ? "Modal decision gate for critical operations" : "关键高危操作置顶人机决策门禁 (支持盲打)"; lblTool1Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
+        if (lblTool2Name != null) { lblTool2Name.Text = toEnglish ? "Clock HUD Progress (progress)" : "悬浮时钟发丝进度条 (iclock_progress)"; lblTool2Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
+        if (lblTool2Desc != null) { lblTool2Desc.Text = toEnglish ? "2px step progress meter with milestone tooltip" : "后台多步任务在悬浮时钟投射 2px 发丝进度"; lblTool2Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
+        if (lblTool3Name != null) { lblTool3Name.Text = toEnglish ? "Task Notification (notify)" : "任务完成提醒 (iclock_notify)"; lblTool3Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
+        if (lblTool3Desc != null) { lblTool3Desc.Text = toEnglish ? "TopMost alert & sound on task completion" : "后台耗时任务完成时全向弹窗与声音唤醒"; lblTool3Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
+        if (lblTool4Name != null) { lblTool4Name.Text = toEnglish ? "Desktop Status (quote)" : "桌面状态投射 (iclock_quote)"; lblTool4Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
+        if (lblTool4Desc != null) { lblTool4Desc.Text = toEnglish ? "Project goals, notes & status onto desktop" : "智能体在桌面投射当前任务进展与工作便签"; lblTool4Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
         if (lblAgentCliTip != null)
         {
             lblAgentCliTip.HighlightWords = new string[] { "iclock --install-cli", "iclock -h" };
@@ -2883,7 +2912,7 @@ internal sealed class SettingsDialog : Form
         draft.EndMessage = endMessage != null ? endMessage.Text.Trim() : Value.EndMessage;
         draft.FullscreenDnd = Value.FullscreenDnd;
         draft.AgentNotice = agentNotice != null ? agentNotice.Checked : Value.AgentNotice;
-        draft.AgentProgress = chkAgentProgress != null ? chkAgentProgress.Checked : Value.AgentProgress;
+        draft.AgentProgress = Value.AgentProgress;
         draft.DailyQuote = dailyQuote != null ? dailyQuote.Checked : Value.DailyQuote;
         draft.QuoteColor = selectedQuoteColor;
         draft.QuoteFont = selectedQuoteFont;
@@ -7224,7 +7253,7 @@ internal sealed class AppContext : ApplicationContext
     {
         if (overlay != null)
         {
-            if (settings != null && settings.AgentProgress && !overlay.Visible)
+            if (!overlay.Visible)
             {
                 overlay.Show();
             }
