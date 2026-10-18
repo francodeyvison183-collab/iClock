@@ -2463,6 +2463,15 @@ internal sealed class SettingsDialog : Form
         }
     }
 
+    public void SyncQuoteIndex(int idx)
+    {
+        if (dialogQuoteList != null && dialogQuoteList.Count > 0)
+        {
+            dialogQuoteIndex = Math.Abs(idx) % dialogQuoteList.Count;
+            UpdateDialogQuoteCard();
+        }
+    }
+
 
     private void UpdateAgentNoticeToggleState(bool en)
     {
@@ -9500,9 +9509,9 @@ internal sealed class AppContext : ApplicationContext
             if (activeDialog is SettingsDialog)
             {
                 SettingsDialog sd = (SettingsDialog)activeDialog;
-                if (activeQuoteDialog.CurrentQuoteIndex != sd.DialogQuoteIndex)
+                if (sd.DialogQuoteIndex != activeQuoteDialog.CurrentQuoteIndex)
                 {
-                    activeQuoteDialog.SetQuoteIndex(sd.DialogQuoteIndex);
+                    sd.SyncQuoteIndex(activeQuoteDialog.CurrentQuoteIndex);
                 }
             }
             activeQuoteDialog.ApplyDraftSettings(draft ?? settings);
@@ -9550,6 +9559,7 @@ internal sealed class AppContext : ApplicationContext
         if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
         {
             d.SyncQuoteFontSize(activeQuoteDialog.CurrentFontSize);
+            d.SyncQuoteIndex(activeQuoteDialog.CurrentQuoteIndex);
             activeQuoteDialog.FontSizeChanged += quoteFontSync;
             activeQuoteDialog.QuoteChanged += quoteChangeSync;
         }

@@ -2391,6 +2391,28 @@ internal static class TestCheck
             fActiveDlg.SetValue(app, null);
             desktopQuote.Close();
 
+            // Verify switching to Daily Quotes tab in Settings preserves current desktop quote index
+            handleIpc.Invoke(app, new object[] { "-q" });
+            Form quoteDlgCheck = (Form)fActiveQuote.GetValue(app);
+            PropertyInfo pQuoteIdx = quoteDlgType.GetProperty("CurrentQuoteIndex");
+            pQuoteIdx.SetValue(quoteDlgCheck, 3, null);
+            Form setDlgCheck = (Form)Activator.CreateInstance(setDlgType, new object[] { settings, true });
+            fActiveDlg.SetValue(app, setDlgCheck);
+            MethodInfo mSyncQIdx = setDlgType.GetMethod("SyncQuoteIndex");
+            if (mSyncQIdx != null) mSyncQIdx.Invoke(setDlgCheck, new object[] { 3 });
+
+            // Trigger preview as if switching to Tab 1
+            mSetQuotePrev.Invoke(app, new object[] { settings, true });
+            int idxAfterTabSwitch = (int)pQuoteIdx.GetValue(quoteDlgCheck, null);
+            if (idxAfterTabSwitch != 3)
+            {
+                Console.WriteLine("FAIL: Switching to Daily Quotes tab in Settings changed desktop quote index! Expected 3, got: " + idxAfterTabSwitch);
+                return 54;
+            }
+            setDlgCheck.Close();
+            fActiveDlg.SetValue(app, null);
+            quoteDlgCheck.Close();
+
             Console.WriteLine("PASS: Desktop quote font size sync and Tab 0 countdown color immunity verified.");
 
             // 37. Verify CLI --once running instance immunity and quit lifecycle
