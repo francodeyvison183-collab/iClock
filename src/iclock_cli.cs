@@ -540,7 +540,7 @@ internal static class CliShim
                     { "properties", new Dictionary<string, object>
                         {
                             { "message", new Dictionary<string, object> { { "type", "string" }, { "description", "Notification message content" } } },
-                            { "sound", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "doorbell", "telephone", "qq", "knock", "alarm", "none" } }, { "description", "Chime sound style: doorbell (default), telephone, qq, knock, alarm, or none" } } }
+                            { "sound", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "agent", "doorbell", "telephone", "qq", "knock", "alarm", "none" } }, { "description", "Chime sound style: agent (default, gentle AI chime), doorbell, telephone, qq, knock, alarm, or none" } } }
                         }
                     },
                     { "required", new string[] { "message" } }
@@ -711,7 +711,7 @@ internal static class CliShim
         else if (toolName == "iclock_notify")
         {
             string message = args.ContainsKey("message") ? args["message"] as string : "任务完成";
-            string sound = args.ContainsKey("sound") ? args["sound"] as string : "telephone";
+            string sound = args.ContainsKey("sound") ? args["sound"] as string : "agent";
             SendIpc("notice:" + sound + "|" + message);
             return "已在用户桌面弹出提醒卡片：" + message;
         }

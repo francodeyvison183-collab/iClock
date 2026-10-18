@@ -1950,6 +1950,23 @@ internal static class TestCheck
                 return 52;
             }
 
+            // Test dedicated AI Inspiration Chime synthesis
+            MethodInfo playAiSound = appType.GetMethod("PlayAiSound", BindingFlags.NonPublic | BindingFlags.Static);
+            if (playAiSound == null)
+            {
+                Console.WriteLine("FAIL: AppContext.PlayAiSound method missing");
+                return 52;
+            }
+            playAiSound.Invoke(null, null);
+            stopSound.Invoke(null, null);
+            FieldInfo aiWavField = appType.GetField("aiChimeWavData", BindingFlags.NonPublic | BindingFlags.Static);
+            byte[] generatedAiWav = (byte[])aiWavField.GetValue(null);
+            if (generatedAiWav == null || generatedAiWav.Length < 1000)
+            {
+                Console.WriteLine("FAIL: AI Chime WAV synthesis failed or data too small");
+                return 52;
+            }
+
             Type setDlgType = asm.GetType("SettingsDialog");
             Form setDlg = (Form)Activator.CreateInstance(setDlgType, new object[] { settings });
             ComboBox sndStyleCombo = (ComboBox)setDlgType.GetField("soundStyle", bf).GetValue(setDlg);

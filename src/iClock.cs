@@ -3366,6 +3366,7 @@ internal sealed class NoticeDialog : Form
     private Label finishLabel;
 
     private IntPtr targetHwnd;
+    private bool isAgentNotice;
 
     public NoticeDialog(Settings s, DateTime finishedAt) : this(s, finishedAt, null, IntPtr.Zero, null) { }
 
@@ -3379,6 +3380,7 @@ internal sealed class NoticeDialog : Form
         finishTime = finishedAt;
         targetHwnd = targetWindow;
         bool isAgent = !string.IsNullOrEmpty(agentName);
+        isAgentNotice = isAgent;
         bool en = s.Language == "en";
         Font = AppContext.GetUiFont(s.Language, 9.5f);
         BackColor = AppContext.Win11Bg;
@@ -3519,8 +3521,16 @@ internal sealed class NoticeDialog : Form
 
     private void StartAlarm()
     {
-        if (!settings.EndSound) return;
-        AppContext.PlaySoundStyle(settings.EndSoundStyle);
+        if (isAgentNotice)
+        {
+            if (settings != null && !settings.AgentNotice) return;
+            AppContext.PlayAiSound();
+        }
+        else
+        {
+            if (settings == null || !settings.EndSound) return;
+            AppContext.PlaySoundStyle(settings.EndSoundStyle);
+        }
     }
 
     private void StopAlarm()
@@ -7665,7 +7675,7 @@ internal sealed class AppContext : ApplicationContext
             List<string> agents = AppContext.DetectAgents();
             if (agents != null && agents.Count > 0) agentName = agents[0];
         }
-        PlaySoundStyle(settings != null && !string.IsNullOrEmpty(settings.EndSoundStyle) ? settings.EndSoundStyle : "Doorbell");
+        PlayAiSound();
         AskHumanDialog dlg = new AskHumanDialog(settings, question, options, 0, resFile, isFg, agentName);
         dlg.Show();
         if (isFg)
@@ -8027,6 +8037,7 @@ internal sealed class AppContext : ApplicationContext
     private static byte[] qqWavData;
     private static byte[] phoneWavData;
     private static byte[] knockWavData;
+    private static byte[] aiChimeWavData;
     private static SoundPlayer activeSoundPlayer;
 
     private static byte[] GenerateKnockWav()
@@ -8272,6 +8283,91 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
+    private static byte[] GenerateAiChimeWav()
+    {
+        int sampleRate = 22050;
+        List<short> samples = new List<short>();
+
+        // Option 2: Dedicated "Inspiration Chime" (灵感双音轻升调)
+        // Note 1: C6 (1046.5 Hz, ~110ms)
+        int n1Samples = (int)(sampleRate * 0.110);
+        for (int i = 0; i < n1Samples; i++)
+        {
+            double t = (double)i / sampleRate;
+            double attack = i < (sampleRate * 0.0025) ? (double)i / (sampleRate * 0.0025) : 1.0;
+            double decay = Math.Exp(-t / 0.045);
+            double phase = 2.0 * Math.PI * 1046.5 * t;
+            double s0 = Math.Sin(phase);
+            double s1 = 0.22 * Math.Sin(phase * 2.0);
+            double s2 = 0.08 * Math.Sin(phase * 3.0);
+            double val = (s0 + s1 + s2) * decay * attack * 18000.0;
+            samples.Add((short)Math.Max(-32767, Math.Min(32767, val)));
+        }
+
+        // Note 2: G6 (1567.98 Hz, ~170ms)
+        int n2Samples = (int)(sampleRate * 0.170);
+        for (int i = 0; i < n2Samples; i++)
+        {
+            double t = (double)i / sampleRate;
+            double attack = i < (sampleRate * 0.0025) ? (double)i / (sampleRate * 0.0025) : 1.0;
+            double decay = Math.Exp(-t / 0.065);
+            double phase = 2.0 * Math.PI * 1567.98 * t;
+            double s0 = Math.Sin(phase);
+            double s1 = 0.20 * Math.Sin(phase * 2.0);
+            double s2 = 0.06 * Math.Sin(phase * 3.0);
+            double val = (s0 + s1 + s2) * decay * attack * 19000.0;
+            samples.Add((short)Math.Max(-32767, Math.Min(32767, val)));
+        }
+
+        return BuildPcmWav(sampleRate, samples);
+    }
+
+    internal static void PlayAiSound()
+    {
+        try
+        {
+            StopSound();
+
+            // Priority: Option 2 (Pure Math PCM Synthesized Inspiration Chime)
+            if (aiChimeWavData == null) aiChimeWavData = GenerateAiChimeWav();
+            if (aiChimeWavData != null && aiChimeWavData.Length > 0)
+            {
+                MemoryStream ms = new MemoryStream(aiChimeWavData);
+                activeSoundPlayer = new SoundPlayer(ms);
+                activeSoundPlayer.Play();
+                return;
+            }
+        }
+        catch { }
+
+        // Fallback: Option 3 (Windows Media Speech On.wav / Windows Background.wav / System Sound)
+        try
+        {
+            string winDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            string speechWav = Path.Combine(winDir, "Media", "Speech On.wav");
+            if (File.Exists(speechWav))
+            {
+                activeSoundPlayer = new SoundPlayer(speechWav);
+                activeSoundPlayer.Play();
+                return;
+            }
+            string notifWav = Path.Combine(winDir, "Media", "Windows Background.wav");
+            if (File.Exists(notifWav))
+            {
+                activeSoundPlayer = new SoundPlayer(notifWav);
+                activeSoundPlayer.Play();
+                return;
+            }
+        }
+        catch { }
+
+        try
+        {
+            SystemSounds.Asterisk.Play();
+        }
+        catch { }
+    }
+
     internal static void StopSound()
     {
         try
@@ -8291,6 +8387,12 @@ internal sealed class AppContext : ApplicationContext
         try
         {
             StopSound();
+
+            if (style == "AI" || style == "ai" || style == "Agent" || style == "agent")
+            {
+                PlayAiSound();
+                return;
+            }
 
             if (style == "Alarm")
             {
@@ -9196,9 +9298,9 @@ internal sealed class AppContext : ApplicationContext
                 ResetDisplay();
                 overlay.Hide();
             });
-            if (settings.EndSound)
+            if (settings.AgentNotice)
             {
-                PlaySoundStyle(settings.EndSoundStyle);
+                PlayAiSound();
             }
         }
         else
