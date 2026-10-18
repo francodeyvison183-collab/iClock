@@ -1251,7 +1251,7 @@ internal sealed class SettingsDialog : Form
     private Button btnTabTimer, btnTabQuote, btnTabAgent;
     private Label lblAgentDesc;
     private Label lblDetectedHeader;
-    private Button btnRefreshAgents, btnAgentNoticeToggle, btnMcpCopyJson, btnMcpDemo;
+    private Button btnAgentNoticeToggle, btnMcpCopyJson, btnMcpDemo;
     private Button btnMcpDemoProgress, btnMcpDemoNotify, btnMcpDemoQuote;
     private Panel panelAgentBox, panelAgentCards, panelMcpBox;
     private SlimScrollBar agentScrollBar;
@@ -1694,27 +1694,18 @@ internal sealed class SettingsDialog : Form
         lblDetectedHeader.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
         lblDetectedHeader.TextAlign = ContentAlignment.MiddleLeft;
-        lblDetectedHeader.SetBounds(18, 56, 230, 20);
+        lblDetectedHeader.SetBounds(18, 56, 250, 20);
         Controls.Add(lblDetectedHeader);
 
         lblAgentDesc = new Label();
         lblAgentDesc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblAgentDesc.ForeColor = AppContext.Win11TextSecondary;
         lblAgentDesc.TextAlign = ContentAlignment.MiddleLeft;
-        lblAgentDesc.SetBounds(18, 76, 230, 18);
+        lblAgentDesc.SetBounds(18, 76, 250, 18);
         Controls.Add(lblAgentDesc);
 
-        btnRefreshAgents = new Button();
-        btnRefreshAgents.Text = "\u21BB";
-        btnRefreshAgents.Font = new Font("Segoe UI", 10f, FontStyle.Regular);
-        btnRefreshAgents.SetBounds(254, 63, 26, 26);
-        AppContext.StyleSecondaryButton(btnRefreshAgents);
-        btnRefreshAgents.Click += OnRefreshAgentsClick;
-        toolTip.SetToolTip(btnRefreshAgents, en ? "Re-scan installed AI agents" : "重新检测已安装的智能体");
-        Controls.Add(btnRefreshAgents);
-
         btnAgentNoticeToggle = new Button();
-        btnAgentNoticeToggle.SetBounds(286, 63, 76, 26);
+        btnAgentNoticeToggle.SetBounds(274, 63, 88, 26);
         btnAgentNoticeToggle.FlatStyle = FlatStyle.Flat;
         btnAgentNoticeToggle.FlatAppearance.BorderSize = 1;
         btnAgentNoticeToggle.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f, FontStyle.Regular);
@@ -1937,7 +1928,6 @@ internal sealed class SettingsDialog : Form
         if (agentNotice != null) agentNotice.Visible = isAgent;
         if (lblDetectedHeader != null) lblDetectedHeader.Visible = isAgent;
         if (lblAgentDesc != null) lblAgentDesc.Visible = isAgent;
-        if (btnRefreshAgents != null) btnRefreshAgents.Visible = isAgent;
         if (btnAgentNoticeToggle != null) btnAgentNoticeToggle.Visible = isAgent;
         if (panelAgentBox != null) panelAgentBox.Visible = isAgent;
         if (panelAgentCards != null) panelAgentCards.Visible = isAgent;
@@ -2357,9 +2347,7 @@ internal sealed class SettingsDialog : Form
 
         if (lblDetectedHeader != null)
         {
-            lblDetectedHeader.Text = en
-                ? string.Format("AI Agent Alerts ({0})", agents.Count)
-                : string.Format("智能体后台任务提醒 ({0})", agents.Count);
+            lblDetectedHeader.Text = en ? "AI Agent Alerts" : "智能体后台任务提醒";
             lblDetectedHeader.ForeColor = alertEnabled ? AppContext.Win11TextPrimary : Color.FromArgb(120, 120, 120);
         }
 
@@ -2528,7 +2516,6 @@ internal sealed class SettingsDialog : Form
         }
     }
     private void OnCancelClick(object sender, EventArgs e) { DialogResult = DialogResult.Cancel; Close(); }
-    private void OnRefreshAgentsClick(object sender, EventArgs e) { RefreshAgentCards(); }
     private void OnAgentNoticeToggleClick(object sender, EventArgs e) { if (agentNotice != null) agentNotice.Checked = !agentNotice.Checked; }
     private void OnAgentNoticeCheckedChanged(object sender, EventArgs e)
     {
@@ -2779,7 +2766,6 @@ internal sealed class SettingsDialog : Form
         }
 
         UpdateAgentNoticeToggleState(toEnglish);
-        if (btnRefreshAgents != null && toolTip != null) toolTip.SetToolTip(btnRefreshAgents, toEnglish ? "Re-scan installed AI agents" : "重新检测已安装的智能体");
         if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "Agent MCP Integration" : "智能体 MCP 接入";
         if (lblMcpDesc != null)
         {

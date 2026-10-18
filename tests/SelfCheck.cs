@@ -1197,11 +1197,11 @@ internal static class TestCheck
             CheckBox agNoticeBox = (CheckBox)settingsDialogType.GetField("agentNotice", bf).GetValue(tabDlg);
             Button btnProgDemo = (Button)settingsDialogType.GetField("btnMcpDemoProgress", bf).GetValue(tabDlg);
             Panel cardPanel = (Panel)settingsDialogType.GetField("panelAgentCards", bf).GetValue(tabDlg);
-            Button btnRefresh = (Button)settingsDialogType.GetField("btnRefreshAgents", bf).GetValue(tabDlg);
+            Button btnToggle = (Button)settingsDialogType.GetField("btnAgentNoticeToggle", bf).GetValue(tabDlg);
             CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
             Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
 
-            if (btnTabTimer == null || btnTabAgent == null || cardPanel == null || btnRefresh == null || btnProgDemo == null)
+            if (btnTabTimer == null || btnTabAgent == null || cardPanel == null || btnToggle == null || btnProgDemo == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Plan B-1 controls");
                 return 33;
@@ -1266,8 +1266,9 @@ internal static class TestCheck
                 }
             }
 
-            // Test refresh button
-            btnRefresh.PerformClick();
+            // Test refresh cards
+            MethodInfo refreshMethod = settingsDialogType.GetMethod("RefreshAgentCards", bf);
+            if (refreshMethod != null) refreshMethod.Invoke(tabDlg, null);
             int refreshedCardCount = 0;
             foreach (Control c in cardPanel.Controls)
             {
