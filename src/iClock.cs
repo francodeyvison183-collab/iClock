@@ -1255,7 +1255,7 @@ internal sealed class SettingsDialog : Form
     private Button btnMcpDemoProgress, btnMcpDemoNotify, btnMcpDemoQuote;
     private Panel panelAgentBox, panelAgentCards, panelMcpBox;
     private SlimScrollBar agentScrollBar;
-    private Label lblMcpTitle;
+    private Label lblMcpTitle, lblMcpDesc;
     private Label lblTool1Name, lblTool2Name, lblTool3Name, lblTool4Name;
     private StyledTipLabel lblAgentCliTip;
 
@@ -1751,19 +1751,30 @@ internal sealed class SettingsDialog : Form
         lblMcpTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblMcpTitle.ForeColor = AppContext.Win11TextPrimary;
         lblMcpTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpTitle.SetBounds(18, 224, 226, 24);
+        lblMcpTitle.SetBounds(18, 222, 224, 22);
         Controls.Add(lblMcpTitle);
+
+        lblMcpDesc = new Label();
+        lblMcpDesc.UseMnemonic = false;
+        lblMcpDesc.Text = en
+            ? "Empower agents with HUD progress, alerts & decision gates"
+            : "赋予智能体主动交互、悬浮进度与人机门禁能力";
+        lblMcpDesc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblMcpDesc.ForeColor = AppContext.Win11TextSecondary;
+        lblMcpDesc.TextAlign = ContentAlignment.MiddleLeft;
+        lblMcpDesc.SetBounds(18, 244, 344, 18);
+        Controls.Add(lblMcpDesc);
 
         btnMcpCopyJson = new Button();
         btnMcpCopyJson.Text = en ? "Copy Prompt" : "复制接入提示词";
         btnMcpCopyJson.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpCopyJson.SetBounds(244, 222, 118, 26);
+        btnMcpCopyJson.SetBounds(254, 219, 108, 26);
         AppContext.StyleSecondaryButton(btnMcpCopyJson);
         btnMcpCopyJson.Click += OnMcpCopyPromptClick;
         Controls.Add(btnMcpCopyJson);
 
         panelMcpBox = new Panel();
-        panelMcpBox.SetBounds(18, 252, 344, 136);
+        panelMcpBox.SetBounds(18, 264, 344, 136);
         panelMcpBox.BackColor = Color.White;
         panelMcpBox.Paint += OnMcpBoxPaint;
         Controls.Add(panelMcpBox);
@@ -1856,7 +1867,7 @@ internal sealed class SettingsDialog : Form
             : "提示：终端运行 iclock -h 查看指令，iclock --install-cli 写入 PATH。";
         lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
         lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentCliTip.SetBounds(16, 408, 348, 20);
+        lblAgentCliTip.SetBounds(16, 414, 348, 20);
         Controls.Add(lblAgentCliTip);
 
         saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存";
@@ -1930,6 +1941,7 @@ internal sealed class SettingsDialog : Form
         if (panelAgentBox != null) panelAgentBox.Visible = isAgent;
         if (panelAgentCards != null) panelAgentCards.Visible = isAgent;
         if (lblMcpTitle != null) lblMcpTitle.Visible = isAgent;
+        if (lblMcpDesc != null) lblMcpDesc.Visible = isAgent;
         if (btnMcpCopyJson != null) btnMcpCopyJson.Visible = isAgent;
         if (panelMcpBox != null) panelMcpBox.Visible = isAgent;
         if (lblAgentCliTip != null) lblAgentCliTip.Visible = isAgent;
@@ -2768,6 +2780,13 @@ internal sealed class SettingsDialog : Form
         UpdateAgentNoticeToggleState(toEnglish);
         if (btnRefreshAgents != null) btnRefreshAgents.Text = toEnglish ? "Re-scan" : "重新检测";
         if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "MCP Direct Connection (4 Tools)" : "MCP 协议直连 (4项核心能力)";
+        if (lblMcpDesc != null)
+        {
+            lblMcpDesc.Text = toEnglish
+                ? "Empower agents with HUD progress, alerts & decision gates"
+                : "赋予智能体主动交互、悬浮进度与人机门禁能力";
+            lblMcpDesc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
+        }
         if (btnMcpCopyJson != null) btnMcpCopyJson.Text = toEnglish ? "Copy Prompt" : "复制接入提示词";
         if (btnMcpDemo != null) btnMcpDemo.Text = toEnglish ? "Demo" : "演示";
         if (btnMcpDemoProgress != null) btnMcpDemoProgress.Text = toEnglish ? "Demo" : "演示";
