@@ -92,6 +92,10 @@ internal static class CliShim
         {
             return RunAskCommand(args);
         }
+        if (args != null && args.Length > 0 && (args[0] == "--progress" || args[0] == "-pr" || args[0] == "progress"))
+        {
+            return RunProgressCommand(args);
+        }
 
         string dir = AppDomain.CurrentDomain.BaseDirectory;
         string exe = Path.Combine(dir, "iClock.exe");
@@ -234,6 +238,45 @@ internal static class CliShim
 
         Console.Error.WriteLine("[iClock] Timed out waiting for human decision.");
         return 2;
+    }
+
+    private static int RunProgressCommand(string[] args)
+    {
+        if (args.Length < 2)
+        {
+            Console.Error.WriteLine("[iClock] Usage: iclock --progress <value|clear> [message]");
+            Console.Error.WriteLine("  Examples:");
+            Console.Error.WriteLine("    iclock --progress 60 \"Compiling project...\"");
+            Console.Error.WriteLine("    iclock --progress 3/5 \"Running step 3 of 5\"");
+            Console.Error.WriteLine("    iclock --progress clear");
+            return 1;
+        }
+
+        string val = args[1].Trim();
+        string msg = args.Length > 2 ? string.Join(" ", args, 2, args.Length - 2) : "";
+
+        IntPtr hWnd = EnsureIClockRunning();
+        if (hWnd == IntPtr.Zero)
+        {
+            Console.Error.WriteLine("[iClock] Error: Failed to connect to iClock desktop instance.");
+            return 1;
+        }
+
+        string payload = string.Equals(val, "clear", StringComparison.OrdinalIgnoreCase) || string.Equals(val, "off", StringComparison.OrdinalIgnoreCase)
+            ? "clear"
+            : (!string.IsNullOrEmpty(msg) ? (val + "|" + msg) : val);
+
+        if (SendIpc("progress:" + payload))
+        {
+            if (payload == "clear") Console.WriteLine("[iClock] Agent progress cleared.");
+            else Console.WriteLine("[iClock] Agent progress updated: " + val + (!string.IsNullOrEmpty(msg) ? " (" + msg + ")" : ""));
+            return 0;
+        }
+        else
+        {
+            Console.Error.WriteLine("[iClock] Error: Failed to send progress to iClock.");
+            return 1;
+        }
     }
 
     private static IntPtr EnsureIClockRunning()
@@ -523,6 +566,25 @@ internal static class CliShim
             }
         });
 
+        // 6. iclock_progress
+        list.Add(new Dictionary<string, object>
+        {
+            { "name", "iclock_progress" },
+            { "description", "Report task progress to iClock's desktop HUD (renders an ultra-thin hairline progress bar on the floating clock and shows task steps on hover). Use 'clear' to remove the progress bar." },
+            { "inputSchema", new Dictionary<string, object>
+                {
+                    { "type", "object" },
+                    { "properties", new Dictionary<string, object>
+                        {
+                            { "progress", new Dictionary<string, object> { { "type", "string" }, { "description", "Progress value: percentage (e.g. '60' or '60%'), fraction (e.g. '3/5'), float (e.g. '0.6'), or 'clear' to dismiss." } } },
+                            { "message", new Dictionary<string, object> { { "type", "string" }, { "description", "Brief status description of the current step (displayed on hover)." } } }
+                        }
+                    },
+                    { "required", new string[] { "progress" } }
+                }
+            }
+        });
+
         return list;
     }
 
@@ -774,6 +836,19 @@ internal static class CliShim
             return hWnd != IntPtr.Zero
                 ? "{\"running\":false,\"status\":\"idle\",\"resident\":true}"
                 : "{\"running\":false,\"status\":\"stopped\",\"resident\":false}";
+        }
+        else if (toolName == "iclock_progress")
+        {
+            string progress = args.ContainsKey("progress") ? (args["progress"] != null ? args["progress"].ToString() : "clear") : "clear";
+            string message = args.ContainsKey("message") ? (args["message"] as string ?? "") : "";
+            if (string.Equals(progress, "clear", StringComparison.OrdinalIgnoreCase) || string.Equals(progress, "off", StringComparison.OrdinalIgnoreCase))
+            {
+                SendIpc("progress:clear");
+                return "已清除桌面进度条";
+            }
+            string payload = !string.IsNullOrEmpty(message) ? (progress + "|" + message) : progress;
+            SendIpc("progress:" + payload);
+            return "已更新桌面进度条：" + progress + (!string.IsNullOrEmpty(message) ? " (" + message + ")" : "");
         }
 
         return "Unknown tool: " + toolName;

@@ -56,8 +56,9 @@
 
 ### 3. 🤖 AI 智能体长任务协同 & 原生 MCP 服务器
 * 👁 **20+ 款主流编程智能体任务感知矩阵**：全面覆盖 Cursor、Antigravity、Claude Code、GitHub Copilot、Windsurf、Trae、通义灵码、CodeGeeX、文心快码、MiniMax、CodeBuddy、Aider 等主流智能体。采用四级感知矩阵（Windows Toast 拦截、`HSHELL_FLASH` 窗口闪烁、窗口标题变化、多进程生命周期），智能体跑长任务完毕 **0ms 零误报即时提醒**，支持一键点击还原智能体窗口。
-* 🔌 **内置原生 stdio MCP Server (`iclock.com --mcp`)**：零额外环境依赖，原生支持 Anthropic Model Context Protocol 标准 JSON-RPC 2.0 协议，向智能体开放 5 大核心工具：
+* 🔌 **内置原生 stdio MCP Server (`iclock.com --mcp`)**：零额外环境依赖，原生支持 Anthropic Model Context Protocol 标准 JSON-RPC 2.0 协议，向智能体开放 6 大核心工具：
   - `iclock_ask_human`：**极速桌面授权门禁 (Flash Approval HUD / Human-in-the-Loop)**。智能体执行高危操作（如 `git push --force`、生产发布、删除数据）时，置顶唤醒 HUD 门禁卡片，支持 `Enter`/`1-9` 盲打秒级通过、`Esc` 拒绝，毫秒级回传智能体；默认无超时自动兜底，等待人类明确决断。支持命令行直接调用：`iclock -a "Deploy to prod?" --options "Approve,Reject"`；
+  - `iclock_progress`：**态势感知极细发丝进度条 (Ghost Progress Meter)**。智能体执行后台耗时任务（如跑测试、打包、代码重构）时，在悬浮时钟底部投射 2px 极细发丝胶囊进度条，鼠标悬停可查看当前步骤与说明（支持 60%、3/5 等格式）；任务完毕一键清除；
   - `iclock_timer`：智能体自主为用户设定、控制与查询专注倒计时；
   - `iclock_notify`：智能体长任务完成或阶段汇报时触发桌面强置顶/轻提醒与铃声；
   - `iclock_quote`：智能体查询或为用户切换桌面励志格言；
@@ -74,7 +75,7 @@
 | **常驻内存** | ⚡ **~15 MB** (物理基线) | 150 MB ~ 300 MB | ~30 MB | 80 MB ~ 200 MB (浏览器标签) |
 | **CPU 占用** | ⚡ **0.0%** (动态心跳对齐) | 0.5% ~ 3.0% (后台轮询) | 0.0% | 0.3% ~ 1.5% |
 | **交互阻碍** | ⚡ **完全点击穿透，不挡鼠标** | 实体窗口遮挡代码与网页 | 最小化或占用全屏 | 必须切出浏览器查看 |
-| **原生 MCP 支持** | ⚡ **内置 stdio MCP Server (5工具)** | ❌ 无 | ❌ 无 | ❌ 无 |
+| **原生 MCP 支持** | ⚡ **内置 stdio MCP Server (6工具)** | ❌ 无 | ❌ 无 | ❌ 无 |
 | **AI 任务监听** | ⚡ **20+ 款智能体任务结束感知** | ❌ 无 | ❌ 无 | ❌ 无 |
 | **桌面灵感格言** | ⚡ **0-Polling 悬浮 + AI 扩充** | ❌ 无 | ❌ 无 | ❌ 仅限网页内显示 |
 | **网络行为** | ⚡ **0 联网请求，纯本地隐私** | 多数携带统计与更新上报 | 绑定微软在线账户 | 数据上报云端服务器 |
@@ -165,6 +166,7 @@ iclock --install-cli
 | `iclock --rest [分钟]` | - | 开启休息倒计时（默认 5 分钟） | `iclock --rest 10` |
 | `iclock -n <消息>` | `iclock --notice` | 触发桌面置顶强通知弹窗与提示音 | `iclock -n "生产构建已完成！"` |
 | `iclock -a <问题>` | `iclock --ask` | 极速桌面授权门禁：弹出人机决策门禁卡片 | `iclock -a "发布到生产?" --options "同意,取消"` |
+| `iclock -pr <进度|clear> [说明]` | `iclock --progress` | 态势感知：在悬浮时钟底部投射发丝进度条 | `iclock -pr 60 "编译中..."` 或 `iclock -pr clear` |
 | `iclock -q` | `iclock --quote` | 随机换一句桌面格言 | `iclock -q` |
 | `iclock --install-cli` | - | 自动将当前目录加入用户 PATH 环境变量 | `iclock --install-cli` |
 | `iclock --help` | `iclock -h` | 在终端控制台打印帮助手册 | `iclock -h` |

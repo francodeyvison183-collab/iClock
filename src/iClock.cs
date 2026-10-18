@@ -40,6 +40,7 @@ internal sealed class Settings
     public string NoticeStyle = "Popup";
     public bool FullscreenDnd = true;
     public bool AgentNotice;
+    public bool AgentProgress;
     public bool DailyQuote = true;
     public int QuoteDuration = 10;
     public int QuoteX = -99999;
@@ -64,7 +65,7 @@ internal sealed class Settings
         EndMessage = src.EndMessage; Language = src.Language; AutoStart = src.AutoStart;
         EndSound = src.EndSound; EndSoundStyle = src.EndSoundStyle; EndNotice = src.EndNotice;
         FirstRun = src.FirstRun; NoticeStyle = src.NoticeStyle; FullscreenDnd = src.FullscreenDnd;
-        AgentNotice = src.AgentNotice; DailyQuote = src.DailyQuote; QuoteDuration = src.QuoteDuration;
+        AgentNotice = src.AgentNotice; AgentProgress = src.AgentProgress; DailyQuote = src.DailyQuote; QuoteDuration = src.QuoteDuration;
         QuoteX = src.QuoteX; QuoteY = src.QuoteY; QuoteWidth = src.QuoteWidth;
         QuoteFontSize = src.QuoteFontSize; QuoteColor = src.QuoteColor; QuoteFont = src.QuoteFont;
         QuoteDesktopVisible = src.QuoteDesktopVisible; QuotePinTopMost = src.QuotePinTopMost;
@@ -135,6 +136,7 @@ internal sealed class Settings
                 else if (k == "NoticeStyle" && (v == "Popup" || v == "Pulse")) s.NoticeStyle = v;
                 else if (k == "FullscreenDnd" && bool.TryParse(v, out b)) s.FullscreenDnd = b;
                 else if (k == "AgentNotice" && bool.TryParse(v, out b)) s.AgentNotice = b;
+                else if (k == "AgentProgress" && bool.TryParse(v, out b)) s.AgentProgress = b;
                 else if (k == "DailyQuote" && bool.TryParse(v, out b)) s.DailyQuote = b;
                 else if (k == "QuoteDuration" && int.TryParse(v, out n)) s.QuoteDuration = Math.Max(3, Math.Min(60, n));
                 else if (k == "QuoteX" && int.TryParse(v, out n)) s.QuoteX = n;
@@ -165,6 +167,7 @@ internal sealed class Settings
             "HotkeyModifiers=" + HotkeyModifiers, "HotkeyKey=" + HotkeyKey,
             "Color=" + Color, "FontFamily=" + FontFamily, "Format=" + Format, "EndMessage=" + EndMessage, "Language=" + Language, "AutoStart=" + AutoStart,
             "EndSound=" + EndSound, "EndSoundStyle=" + EndSoundStyle, "EndNotice=" + EndNotice, "FirstRun=" + FirstRun, "NoticeStyle=" + NoticeStyle, "FullscreenDnd=" + FullscreenDnd, "AgentNotice=" + AgentNotice,
+            "AgentProgress=" + AgentProgress,
             "DailyQuote=" + DailyQuote, "QuoteDuration=" + QuoteDuration, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
             "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuoteDesktopVisible=" + QuoteDesktopVisible, "QuotePinTopMost=" + QuotePinTopMost, "LastQuoteDate=" + LastQuoteDate,
             "AiAgentType=" + AiAgentType,
@@ -323,6 +326,12 @@ internal sealed class Overlay : Form
     private Action pulseDismissAction;
     public bool IsPulsing { get; private set; }
 
+    private bool agentProgressActive;
+    private float agentProgressPercent;
+    private string agentProgressMessage;
+    private ToolTip progressToolTip;
+    private bool progressToolTipShown;
+
     public Overlay(Settings s)
     {
         settings = s;
@@ -339,6 +348,7 @@ internal sealed class Overlay : Form
         MouseDown += OnMouseDown;
         MouseMove += OnMouseMove;
         MouseUp += OnMouseUp;
+        MouseLeave += delegate { if (progressToolTipShown) { progressToolTipShown = false; if (progressToolTip != null) progressToolTip.Hide(this); } };
     }
 
     private void UpdateLocation()
@@ -427,6 +437,15 @@ internal sealed class Overlay : Form
             if (MoveMode) { m.Result = (IntPtr)HTCLIENT; return; }
             bool alt = (NativeMethods.GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
             if (alt) { m.Result = (IntPtr)HTCLIENT; return; }
+            if (settings != null && settings.AgentProgress && agentProgressActive && !string.IsNullOrEmpty(agentProgressMessage))
+            {
+                Point pt = PointToClient(Cursor.Position);
+                if (pt.Y >= Height - 10 && pt.Y <= Height && pt.X >= 10 && pt.X <= Width - 10)
+                {
+                    m.Result = (IntPtr)HTCLIENT;
+                    return;
+                }
+            }
             m.Result = (IntPtr)HTTRANSPARENT;
             return;
         }
@@ -530,6 +549,19 @@ internal sealed class Overlay : Form
         {
             path.AddArc(x, y, w, w, 180, 180);
             path.AddArc(x, y + h - w, w, w, 0, 180);
+            path.CloseFigure();
+            g.FillPath(brush, path);
+        }
+    }
+
+    private static void FillHorizontalBar(Graphics g, Brush brush, float x, float y, float w, float h)
+    {
+        if (w <= 0 || h <= 0) return;
+        if (w <= h) { g.FillEllipse(brush, x, y, w, h); return; }
+        using (GraphicsPath path = new GraphicsPath())
+        {
+            path.AddArc(x, y, h, h, 90, 180);
+            path.AddArc(x + w - h, y, h, h, 270, 180);
             path.CloseFigure();
             g.FillPath(brush, path);
         }
@@ -644,6 +676,33 @@ internal sealed class Overlay : Form
                     RectangleF shadowRect = new RectangleF(1.5f, 2.0f, Width, Height);
                     renderGraphics.DrawString(text, cachedFont, shadowBrush, shadowRect, cachedFormat);
                     renderGraphics.DrawString(text, cachedFont, cachedBrush, rect, cachedFormat);
+                }
+            }
+        }
+
+        if (settings != null && settings.AgentProgress && agentProgressActive)
+        {
+            float barH = 2.0f;
+            float barY = Height - 5.0f;
+            float barPad = 12.0f;
+            float barW = Width - barPad * 2.0f;
+            if (barW > 20.0f)
+            {
+                using (SolidBrush shadowTrack = new SolidBrush(Color.FromArgb(60, 0, 0, 0)))
+                {
+                    FillHorizontalBar(renderGraphics, shadowTrack, barPad + 0.5f, barY + 1.2f, barW, barH);
+                }
+
+                using (SolidBrush trackBrush = new SolidBrush(Color.FromArgb(45, 255, 255, 255)))
+                {
+                    FillHorizontalBar(renderGraphics, trackBrush, barPad, barY, barW, barH);
+                }
+
+                float fillW = Math.Max(barH, barW * Math.Max(0.0f, Math.Min(1.0f, agentProgressPercent)));
+                Color accentFill = Color.FromArgb(0, 180, 255);
+                using (SolidBrush fillBrush = new SolidBrush(accentFill))
+                {
+                    FillHorizontalBar(renderGraphics, fillBrush, barPad, barY, fillW, barH);
                 }
             }
         }
@@ -772,6 +831,7 @@ internal sealed class Overlay : Form
             if (cachedBrush != null) { cachedBrush.Dispose(); cachedBrush = null; }
             if (cachedShadowBrush != null) { cachedShadowBrush.Dispose(); cachedShadowBrush = null; }
             if (cachedFormat != null) { cachedFormat.Dispose(); cachedFormat = null; }
+            if (progressToolTip != null) { progressToolTip.Dispose(); progressToolTip = null; }
         }
         base.Dispose(disposing);
     }
@@ -790,6 +850,10 @@ internal sealed class Overlay : Form
         {
             Location = new Point(formStart.X + Cursor.Position.X - dragStart.X, formStart.Y + Cursor.Position.Y - dragStart.Y);
         }
+        else
+        {
+            CheckProgressHover(e.Location);
+        }
     }
     private void OnMouseUp(object sender, MouseEventArgs e)
     {
@@ -797,6 +861,77 @@ internal sealed class Overlay : Form
         moving = false;
         EnsureVisible();
         if (PositionChanged != null) PositionChanged(Location);
+    }
+
+    private void CheckProgressHover(Point clientPt)
+    {
+        if (settings == null || !settings.AgentProgress || !agentProgressActive || string.IsNullOrEmpty(agentProgressMessage))
+        {
+            if (progressToolTipShown)
+            {
+                progressToolTipShown = false;
+                if (progressToolTip != null) progressToolTip.Hide(this);
+            }
+            return;
+        }
+
+        if (clientPt.Y >= Height - 10 && clientPt.Y <= Height && clientPt.X >= 10 && clientPt.X <= Width - 10)
+        {
+            if (!progressToolTipShown)
+            {
+                progressToolTipShown = true;
+                if (progressToolTip == null)
+                {
+                    progressToolTip = new ToolTip();
+                    progressToolTip.InitialDelay = 100;
+                    progressToolTip.ReshowDelay = 100;
+                    progressToolTip.AutoPopDelay = 10000;
+                }
+                string pctStr = ((int)Math.Round(agentProgressPercent * 100)).ToString() + "%";
+                string tip = "[" + pctStr + "] " + agentProgressMessage;
+                progressToolTip.Show(tip, this, clientPt.X, Height + 2, 8000);
+            }
+        }
+        else
+        {
+            if (progressToolTipShown)
+            {
+                progressToolTipShown = false;
+                if (progressToolTip != null) progressToolTip.Hide(this);
+            }
+        }
+    }
+
+    public void UpdateAgentProgress(float percent, string message)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action<float, string>(UpdateAgentProgress), percent, message);
+            return;
+        }
+        agentProgressActive = true;
+        agentProgressPercent = Math.Max(0.0f, Math.Min(1.0f, percent));
+        agentProgressMessage = message;
+        RenderLayeredWindow();
+    }
+
+    public void ClearAgentProgress()
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(new Action(ClearAgentProgress));
+            return;
+        }
+        if (!agentProgressActive) return;
+        agentProgressActive = false;
+        agentProgressPercent = 0.0f;
+        agentProgressMessage = null;
+        if (progressToolTipShown)
+        {
+            progressToolTipShown = false;
+            if (progressToolTip != null) progressToolTip.Hide(this);
+        }
+        RenderLayeredWindow();
     }
 }
 
@@ -1099,7 +1234,7 @@ internal sealed class SettingsDialog : Form
     private string selectedColor;
     private TextBox endMessage;
     private ComboBox format, language, fontCombo;
-    private CheckBox startup, sound, notice, agentNotice, dailyQuote, quoteDesktopVisible;
+    private CheckBox startup, sound, notice, agentNotice, chkAgentProgress, dailyQuote, quoteDesktopVisible;
     private Button btnEditQuotes, btnAiQuotes;
     private ComboBox soundStyle, noticeStyle;
     private TextBox hotkeyBox;
@@ -1234,7 +1369,7 @@ internal sealed class SettingsDialog : Form
         Value.Color = s.Color; Value.FontFamily = s.FontFamily; Value.Format = s.Format; Value.EndMessage = s.EndMessage;
         Value.Language = s.Language;
         Value.AutoStart = s.AutoStart; Value.EndSound = s.EndSound; Value.EndSoundStyle = s.EndSoundStyle; Value.EndNotice = s.EndNotice;
-        Value.NoticeStyle = s.NoticeStyle; Value.FullscreenDnd = s.FullscreenDnd; Value.AgentNotice = s.AgentNotice;
+        Value.NoticeStyle = s.NoticeStyle; Value.FullscreenDnd = s.FullscreenDnd; Value.AgentNotice = s.AgentNotice; Value.AgentProgress = s.AgentProgress;
         Value.DailyQuote = s.DailyQuote; Value.QuoteDuration = s.QuoteDuration; Value.QuoteX = s.QuoteX; Value.QuoteY = s.QuoteY; Value.QuoteWidth = s.QuoteWidth; Value.QuoteFontSize = s.QuoteFontSize;
         Value.QuoteColor = s.QuoteColor ?? ""; Value.QuoteFont = s.QuoteFont ?? ""; Value.QuoteDesktopVisible = s.QuoteDesktopVisible; Value.QuotePinTopMost = s.QuotePinTopMost; Value.LastQuoteDate = s.LastQuoteDate;
         selectedQuoteColor = Value.QuoteColor;
@@ -1714,6 +1849,12 @@ internal sealed class SettingsDialog : Form
         btnMcpDemoQuote.Click += OnMcpDemoQuoteClick;
         panelMcpBox.Controls.Add(btnMcpDemoQuote);
 
+        chkAgentProgress = AddCheck(en ? "Show hairline agent progress meter on clock HUD" : "在悬浮时钟底部显示智能体极细发丝进度条", Value.AgentProgress, 18, 396);
+        chkAgentProgress.SetBounds(18, 396, 344, 22);
+        toolTip.SetToolTip(chkAgentProgress, en
+            ? "When enabled, displays an ultra-thin (2px) progress bar at the bottom of the clock overlay during AI agent background tasks. Hovering displays the current task step."
+            : "开启后，AI 智能体执行后台耗时任务时，将在悬浮时钟底部显示 2px 极细发丝进度条，鼠标悬停可查看当前任务步骤。");
+
         lblAgentCliTip = new StyledTipLabel("iclock --install-cli", "iclock -h");
         lblAgentCliTip.UseMnemonic = false;
         lblAgentCliTip.Text = en
@@ -1721,7 +1862,7 @@ internal sealed class SettingsDialog : Form
             : "提示：终端运行 iclock -h 查看指令，iclock --install-cli 写入 PATH。";
         lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
         lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentCliTip.SetBounds(16, 416, 348, 22);
+        lblAgentCliTip.SetBounds(16, 424, 348, 20);
         Controls.Add(lblAgentCliTip);
 
         saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存";
@@ -1800,6 +1941,7 @@ internal sealed class SettingsDialog : Form
         if (lblMcpTitle != null) lblMcpTitle.Visible = isAgent;
         if (btnMcpCopyJson != null) btnMcpCopyJson.Visible = isAgent;
         if (panelMcpBox != null) panelMcpBox.Visible = isAgent;
+        if (chkAgentProgress != null) chkAgentProgress.Visible = isAgent;
         if (lblAgentCliTip != null) lblAgentCliTip.Visible = isAgent;
 
         UpdateTabButtons();
@@ -2639,6 +2781,13 @@ internal sealed class SettingsDialog : Form
         if (lblTool2Desc != null) { lblTool2Desc.Text = toEnglish ? "TopMost modal alert & sound on background task done" : "后台耗时任务完成时全向弹窗与声音唤醒"; lblTool2Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.2f); }
         if (lblTool3Name != null) { lblTool3Name.Text = toEnglish ? "Desktop Status (quote)" : "桌面状态投射"; lblTool3Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
         if (lblTool3Desc != null) { lblTool3Desc.Text = toEnglish ? "Project task goals, thoughts or working status onto desktop" : "智能体在屏幕投射当前进展与工作便签"; lblTool3Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.2f); }
+        if (chkAgentProgress != null)
+        {
+            chkAgentProgress.Text = toEnglish ? "Show hairline agent progress meter on clock HUD" : "在悬浮时钟底部显示智能体极细发丝进度条";
+            toolTip.SetToolTip(chkAgentProgress, toEnglish
+                ? "When enabled, displays an ultra-thin (2px) progress bar at the bottom of the clock overlay during AI agent background tasks. Hovering displays the current task step."
+                : "开启后，AI 智能体执行后台耗时任务时，将在悬浮时钟底部显示 2px 极细发丝进度条，鼠标悬停可查看当前任务步骤。");
+        }
         if (lblAgentCliTip != null)
         {
             lblAgentCliTip.HighlightWords = new string[] { "iclock --install-cli", "iclock -h" };
@@ -2760,6 +2909,7 @@ internal sealed class SettingsDialog : Form
         draft.EndMessage = endMessage != null ? endMessage.Text.Trim() : Value.EndMessage;
         draft.FullscreenDnd = Value.FullscreenDnd;
         draft.AgentNotice = agentNotice != null ? agentNotice.Checked : Value.AgentNotice;
+        draft.AgentProgress = chkAgentProgress != null ? chkAgentProgress.Checked : Value.AgentProgress;
         draft.DailyQuote = dailyQuote != null ? dailyQuote.Checked : Value.DailyQuote;
         draft.QuoteDuration = quoteDuration != null ? (int)quoteDuration.Value : Value.QuoteDuration;
         draft.QuoteColor = selectedQuoteColor;
@@ -6773,6 +6923,7 @@ internal sealed class AppContext : ApplicationContext
     internal void Reset()
     {
         if (overlay.IsPulsing) overlay.StopBreathingPulse();
+        ClearAgentProgress();
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
         if (running) remaining = ReadRemaining();
         timer.Stop();
@@ -7069,6 +7220,11 @@ internal sealed class AppContext : ApplicationContext
                 try { File.WriteAllText(statFile, json, Encoding.UTF8); } catch { }
             }
         }
+        else if (action == "progress" || action == "-pr" || action == "--progress" || action.StartsWith("progress:"))
+        {
+            string payload = action.StartsWith("progress:") ? cmd.Substring("progress:".Length).Trim() : (arg ?? "");
+            HandleProgressCommand(payload);
+        }
         else if (action == "mcp-connected")
         {
             // Silent handshake compatibility
@@ -7080,6 +7236,81 @@ internal sealed class AppContext : ApplicationContext
         else if (action == "quit" || action == "exit" || action == "--quit" || action == "--exit" || action == "-x")
         {
             Exit();
+        }
+    }
+
+    internal void HandleProgressCommand(string payload)
+    {
+        if (string.IsNullOrEmpty(payload) || payload.Equals("clear", StringComparison.OrdinalIgnoreCase) || payload.Equals("off", StringComparison.OrdinalIgnoreCase) || payload.Equals("reset", StringComparison.OrdinalIgnoreCase))
+        {
+            ClearAgentProgress();
+            return;
+        }
+
+        string valStr = payload;
+        string msg = "";
+        int pipeIdx = payload.IndexOf('|');
+        if (pipeIdx >= 0)
+        {
+            valStr = payload.Substring(0, pipeIdx).Trim();
+            msg = payload.Substring(pipeIdx + 1).Trim();
+        }
+        else
+        {
+            int spaceIdx = payload.IndexOf(' ');
+            if (spaceIdx >= 0)
+            {
+                valStr = payload.Substring(0, spaceIdx).Trim();
+                msg = payload.Substring(spaceIdx + 1).Trim();
+            }
+        }
+
+        float pct = 0f;
+        if (valStr.Contains("/"))
+        {
+            string[] slashParts = valStr.Split('/');
+            float num, den;
+            if (slashParts.Length == 2 && float.TryParse(slashParts[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out num) && float.TryParse(slashParts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out den) && den > 0f)
+            {
+                pct = num / den;
+            }
+        }
+        else
+        {
+            string cleanVal = valStr.Replace("%", "").Trim();
+            float raw;
+            if (float.TryParse(cleanVal, NumberStyles.Float, CultureInfo.InvariantCulture, out raw))
+            {
+                if (valStr.Contains("%") || raw > 1.0f) pct = raw / 100.0f;
+                else if (valStr.Contains(".")) pct = raw;
+                else pct = raw / 100.0f;
+            }
+        }
+
+        SetAgentProgress(pct, msg);
+    }
+
+    internal void SetAgentProgress(float percent, string message)
+    {
+        if (overlay != null)
+        {
+            if (settings != null && settings.AgentProgress && !overlay.Visible)
+            {
+                overlay.Show();
+            }
+            overlay.UpdateAgentProgress(percent, message);
+        }
+    }
+
+    internal void ClearAgentProgress()
+    {
+        if (overlay != null)
+        {
+            overlay.ClearAgentProgress();
+            if (state == ClockState.Idle && overlay.Visible)
+            {
+                overlay.Hide();
+            }
         }
     }
 
@@ -10030,6 +10261,7 @@ Options:
   -n, --notice <message>          Display popup notification and sound
   -a, --ask <question>            Flash Approval HUD: request human decision
                                   (options: --options ""A,B"", timeout: -t <sec>)
+  -pr, --progress <val|clear>     Show hairline agent progress on HUD (e.g. 60, 3/5, clear)
   -q, --quote                     Show daily quote popup
   --once                          Single-run mode: exit automatically after completion
                                   (ignored if desktop instance is already running)
@@ -10044,6 +10276,7 @@ Examples:
   iclock --start 25               Start a 25-minute Pomodoro timer
   iclock -s 25 --once             Run a 25-minute timer and exit upon completion
   iclock -a ""Deploy to prod?"" --options ""Approve,Reject""
+  iclock -pr 60 ""Building...""     Update task progress on clock HUD
   iclock -n ""Build finished!""     Trigger completion notice from script
   iclock --mcp-prompt             Print setup prompt for AI agents
   iclock --mcp-config             Output MCP JSON configuration snippet

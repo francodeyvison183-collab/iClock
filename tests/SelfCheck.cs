@@ -1141,6 +1141,17 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: AgentNotice default should be false");
                 return 32;
             }
+            FieldInfo agentProgressField = settings.GetType().GetField("AgentProgress");
+            if (agentProgressField == null)
+            {
+                Console.WriteLine("FAIL: Settings missing AgentProgress field");
+                return 32;
+            }
+            if ((bool)agentProgressField.GetValue(settings) != false)
+            {
+                Console.WriteLine("FAIL: AgentProgress default should be false");
+                return 32;
+            }
             MethodInfo detectAgents = appType.GetMethod("DetectAgents", BindingFlags.NonPublic | BindingFlags.Static);
             if (detectAgents == null)
             {
@@ -1184,12 +1195,13 @@ internal static class TestCheck
             Button btnTabAgent = (Button)settingsDialogType.GetField("btnTabAgent", bf).GetValue(tabDlg);
             Control minCtrl = (Control)settingsDialogType.GetField("minutes", bf).GetValue(tabDlg);
             CheckBox agNoticeBox = (CheckBox)settingsDialogType.GetField("agentNotice", bf).GetValue(tabDlg);
+            CheckBox agProgBox = (CheckBox)settingsDialogType.GetField("chkAgentProgress", bf).GetValue(tabDlg);
             Panel cardPanel = (Panel)settingsDialogType.GetField("panelAgentCards", bf).GetValue(tabDlg);
             Button btnRefresh = (Button)settingsDialogType.GetField("btnRefreshAgents", bf).GetValue(tabDlg);
             CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
             Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
 
-            if (btnTabTimer == null || btnTabAgent == null || cardPanel == null || btnRefresh == null)
+            if (btnTabTimer == null || btnTabAgent == null || cardPanel == null || btnRefresh == null || agProgBox == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Plan B-1 controls");
                 return 33;
@@ -1198,7 +1210,7 @@ internal static class TestCheck
             tabDlg.Show();
 
             // Initially on Tab 1 (Timer)
-            if (!minCtrl.Visible || agNoticeBox.Visible)
+            if (!minCtrl.Visible || agNoticeBox.Visible || agProgBox.Visible || agProgBox.Checked)
             {
                 Console.WriteLine("FAIL: SettingsDialog default tab should show timer controls and hide agent controls");
                 return 33;
@@ -1213,7 +1225,7 @@ internal static class TestCheck
 
             // Switch to Tab 2 (Agent Collaboration)
             btnTabAgent.PerformClick();
-            if (minCtrl.Visible || !agNoticeBox.Visible)
+            if (minCtrl.Visible || !agNoticeBox.Visible || !agProgBox.Visible)
             {
                 Console.WriteLine("FAIL: Switching to Agent tab should hide timer controls and show agent controls");
                 return 33;
@@ -2499,7 +2511,7 @@ internal static class TestCheck
                     return 59;
                 }
 
-                // Test tools/list contains iclock_ask_human and all 5 tools
+                // Test tools/list contains iclock_ask_human, iclock_progress and all 6 tools
                 mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/list\",\"params\":{}}");
                 string mcpListLine = mcpProc.StandardOutput.ReadLine();
                 if (string.IsNullOrEmpty(mcpListLine) ||
@@ -2508,7 +2520,8 @@ internal static class TestCheck
                     !mcpListLine.Contains("iclock_timer") ||
                     !mcpListLine.Contains("iclock_notify") ||
                     !mcpListLine.Contains("iclock_quote") ||
-                    !mcpListLine.Contains("iclock_status"))
+                    !mcpListLine.Contains("iclock_status") ||
+                    !mcpListLine.Contains("iclock_progress"))
                 {
                     Console.WriteLine("FAIL: MCP tools/list missing core tools or background_only: " + mcpListLine);
                     return 59;
@@ -2553,6 +2566,10 @@ internal static class TestCheck
                 return 59;
             }
             activeQuoteDlg.Close();
+
+            // Test IPC progress command
+            handleIpc.Invoke(app, new object[] { "progress:60|Compiling test" });
+            handleIpc.Invoke(app, new object[] { "progress:clear" });
 
             // Verify AskHumanDialog type exists and instantiates with options
             Type askDlgType = asm.GetType("AskHumanDialog");
