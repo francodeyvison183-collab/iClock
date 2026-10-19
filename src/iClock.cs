@@ -327,7 +327,7 @@ internal sealed class Overlay : Form
     private Graphics renderGraphics;
     private byte[] premulBuffer;
 
-    private Settings settings;
+    private readonly Settings settings;
     private string text;
     private bool moving;
     private Point dragStart;
@@ -504,17 +504,15 @@ internal sealed class Overlay : Form
         }
     }
 
-    public void SetSettings(Settings s)
+    public void RefreshSettings()
     {
-        settings = s;
         RebuildGdiResources();
         UpdateLocation();
         RenderLayeredWindow();
     }
 
-    public void SetVisualPreview(Settings s, string previewText)
+    public void SetVisualPreview(string previewText)
     {
-        settings = s;
         if (previewText != null) text = previewText;
         RebuildGdiResources();
         UpdateLocation();
@@ -766,7 +764,8 @@ internal sealed class Overlay : Form
         byte alpha = (byte)Math.Max(0, Math.Min(255, (int)(Opacity * 255)));
         BLENDFUNCTION blend = new BLENDFUNCTION { BlendOp = AC_SRC_OVER, BlendFlags = 0, SourceConstantAlpha = alpha, AlphaFormat = AC_SRC_ALPHA };
 
-        NativeMethods.UpdateLayeredWindow(Handle, screenDc, ref ptDst, ref size, memDc, ref ptSrc, 0, ref blend, ULW_ALPHA);
+        bool updated = NativeMethods.UpdateLayeredWindow(Handle, screenDc, ref ptDst, ref size, memDc, ref ptSrc, 0, ref blend, ULW_ALPHA);
+        int updateError = updated ? 0 : Marshal.GetLastWin32Error();
 
         NativeMethods.SelectObject(memDc, oldBitmap);
         NativeMethods.DeleteObject(hBitmap);
@@ -961,6 +960,10 @@ internal sealed class Overlay : Form
         }
         RenderLayeredWindow();
     }
+
+    public bool AgentProgressActive { get { return agentProgressActive; } }
+    public float AgentProgressPercent { get { return agentProgressPercent; } }
+    public string AgentProgressMessage { get { return agentProgressMessage; } }
 }
 
 internal sealed class DoubleBufferedPanel : Panel
@@ -1403,10 +1406,10 @@ internal sealed class SettingsDialog : Form
     private int hotkeyModifiers, hotkeyKey, candidateMods, candidateKey;
     private bool hotkeyActive;
     private Label lblMinutes, lblSize, lblFont, lblColor, lblFormat, lblEndMsg, lblHotkey, lblLanguage;
-    private Button saveBtn, cancelBtn;
     public Settings Value { get; private set; }
-    public event Action<Settings> PreviewRequested;
-    public event Action<Settings, bool> QuotePreviewRequested;
+    public event Action PreviewRequested;
+    public event Action SettingsCommitted;
+    public event Action<bool> QuotePreviewRequested;
     public event Action QuoteNextRequested;
     public bool IsDailyQuoteChecked { get { return dailyQuote != null && dailyQuote.Checked; } }
     public bool IsQuoteDesktopVisible { get { return IsDailyQuoteChecked; } }
@@ -1414,6 +1417,7 @@ internal sealed class SettingsDialog : Form
     public int ActiveTab { get { return activeTab; } }
     private static readonly string[] fontFamilies = { "Segoe UI", "Consolas", "Arial", "Impact", "Microsoft YaHei" };
 
+    private static int lastActiveTab = 0;
     private int activeTab = 0;
     private int hoveredTab = -1;
     private Button btnTabTimer, btnTabQuote, btnTabAgent;
@@ -1528,17 +1532,9 @@ internal sealed class SettingsDialog : Form
     public SettingsDialog(Settings s, bool hotkeyActive)
     {
         this.hotkeyActive = hotkeyActive;
-        Value = new Settings();
-        Value.Minutes = s.Minutes; Value.FontSize = s.FontSize; Value.X = s.X; Value.Y = s.Y;
-        Value.HotkeyModifiers = s.HotkeyModifiers; Value.HotkeyKey = s.HotkeyKey;
-        Value.Color = s.Color; Value.FontFamily = s.FontFamily; Value.Format = s.Format; Value.EndMessage = s.EndMessage;
-        Value.Language = s.Language;
-        Value.AutoStart = s.AutoStart; Value.EndSound = s.EndSound; Value.EndSoundStyle = s.EndSoundStyle; Value.EndNotice = s.EndNotice;
-        Value.NoticeStyle = s.NoticeStyle; Value.FullscreenDnd = s.FullscreenDnd; Value.AgentNotice = s.AgentNotice; Value.AgentProgress = s.AgentProgress;
-        Value.DailyQuote = s.DailyQuote; Value.QuoteX = s.QuoteX; Value.QuoteY = s.QuoteY; Value.QuoteWidth = s.QuoteWidth; Value.QuoteFontSize = s.QuoteFontSize;
-        Value.QuoteColor = s.QuoteColor ?? ""; Value.QuoteFont = s.QuoteFont ?? ""; Value.QuotePinTopMost = s.QuotePinTopMost;
-        selectedQuoteColor = Value.QuoteColor;
-        selectedQuoteFont = Value.QuoteFont;
+        Value = s;
+        selectedQuoteColor = s.QuoteColor ?? "";
+        selectedQuoteFont = s.QuoteFont ?? "";
         bool en = Value.Language == "en";
         Font = AppContext.GetUiFont(Value.Language, 9.5f);
         BackColor = AppContext.Win11Bg;
@@ -1595,6 +1591,7 @@ internal sealed class SettingsDialog : Form
         endMessage.Multiline = true;
         endMessage.MaxLength = 200;
         endMessage.Text = Value.EndMessage;
+        endMessage.TextChanged += OnPreviewChanged;
         ApplyInputPadding(endMessage);
         Controls.Add(endMessage);
         lblHotkey = AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 18, 270);
@@ -1648,6 +1645,7 @@ internal sealed class SettingsDialog : Form
         noticeStyle.SelectedIndex = Value.NoticeStyle == "Pulse" ? 1 : 0;
         noticeStyle.Enabled = notice.Checked;
         noticeStyle.DrawItem += OnDrawComboItem;
+        noticeStyle.SelectionChangeCommitted += OnPreviewChanged;
         notice.CheckedChanged += OnNoticeCheckChanged;
 
         startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 18, 402);
@@ -2035,28 +2033,14 @@ internal sealed class SettingsDialog : Form
         lblAgentCliTip.SetBounds(16, 414, 348, 20);
         Controls.Add(lblAgentCliTip);
 
-        saveBtn = new Button(); saveBtn.Text = en ? "Save" : "保存";
-        saveBtn.SetBounds(-100, -100, 10, 10);
-        saveBtn.TabStop = false;
-        if (!hotkeyActive || (Value.HotkeyKey == (int)Keys.Space && (Value.HotkeyModifiers & 3) != 0)) saveBtn.Enabled = false;
-        saveBtn.Click += SaveClick;
-        Controls.Add(saveBtn);
-
-        cancelBtn = new Button(); cancelBtn.Text = en ? "Cancel" : "取消";
-        cancelBtn.SetBounds(-100, -100, 10, 10);
-        cancelBtn.TabStop = false;
-        cancelBtn.DialogResult = DialogResult.Cancel;
-        cancelBtn.Click += OnCancelClick;
-        CancelButton = cancelBtn;
-        Controls.Add(cancelBtn);
-
         AppContext.CenterFormOnScreen(this);
-        SetActiveTab(0);
+        SetActiveTab(lastActiveTab);
     }
 
     internal void SetActiveTab(int tabIndex)
     {
         activeTab = tabIndex;
+        lastActiveTab = tabIndex;
         bool isTimer = (tabIndex == 0);
         bool isQuote = (tabIndex == 1);
         bool isAgent = (tabIndex == 2);
@@ -2711,7 +2695,7 @@ internal sealed class SettingsDialog : Form
 
     private void OnPreviewChanged(object sender, EventArgs e) { TriggerPreview(); }
     private void OnQuoteFontComboChanged(object sender, EventArgs e) { TriggerQuotePreview(); TriggerPreview(); }
-    private void OnSoundCheckChanged(object sender, EventArgs e) { soundStyle.Enabled = sound.Checked; }
+    private void OnSoundCheckChanged(object sender, EventArgs e) { soundStyle.Enabled = sound.Checked; TriggerPreview(); }
     private void OnSoundStyleCommitted(object sender, EventArgs e)
     {
         if (sound.Checked)
@@ -2719,8 +2703,9 @@ internal sealed class SettingsDialog : Form
             string st = soundStyle.SelectedIndex == 1 ? "QQ" : (soundStyle.SelectedIndex == 2 ? "Phone" : (soundStyle.SelectedIndex == 3 ? "Knock" : (soundStyle.SelectedIndex == 4 ? "Alarm" : "Doorbell")));
             AppContext.PlaySoundStyle(st);
         }
+        TriggerPreview();
     }
-    private void OnNoticeCheckChanged(object sender, EventArgs e) { noticeStyle.Enabled = notice.Checked; }
+    private void OnNoticeCheckChanged(object sender, EventArgs e) { noticeStyle.Enabled = notice.Checked; TriggerPreview(); }
     private void OnStartupCheckedChanged(object sender, EventArgs e)
     {
         if (startup.Checked && !Value.AutoStart && AppContext.IsInEphemeralFolder(Application.ExecutablePath))
@@ -2735,6 +2720,7 @@ internal sealed class SettingsDialog : Form
                 startup.Checked = false;
             }
         }
+        TriggerPreview();
     }
     private void OnDailyQuoteCheckChanged(object sender, EventArgs e)
     {
@@ -2759,7 +2745,6 @@ internal sealed class SettingsDialog : Form
             }
         }
     }
-    private void OnCancelClick(object sender, EventArgs e) { DialogResult = DialogResult.Cancel; Close(); }
     private void OnAgentNoticeToggleClick(object sender, EventArgs e)
     {
         Win11ToggleSwitch sw = btnAgentNoticeToggle as Win11ToggleSwitch;
@@ -2770,6 +2755,7 @@ internal sealed class SettingsDialog : Form
     {
         UpdateAgentNoticeToggleState(language != null && language.SelectedIndex == 1);
         RefreshAgentCards();
+        TriggerPreview();
     }
     private void OnAgentScrollBarValueChanged(object sender, EventArgs e) { UpdateCardsScroll(); }
     private void OnMcpCopyPromptClick(object sender, EventArgs e)
@@ -3063,9 +3049,6 @@ internal sealed class SettingsDialog : Form
         }
         if (panelQuoteCard != null) panelQuoteCard.Invalidate();
 
-        saveBtn.Text = toEnglish ? "Save" : "保存";
-        cancelBtn.Text = toEnglish ? "Cancel" : "取消";
-
         UpdateTabButtons();
         updatingTimerColorCombo = true;
         try
@@ -3128,7 +3111,7 @@ internal sealed class SettingsDialog : Form
             ? new object[] { "Popup (Auto DND Fullscreen)", "In-Place Pulse" }
             : new object[] { "弹窗强提醒 (全屏免打扰)", "原位呼吸轻提醒" });
         noticeStyle.SelectedIndex = nsSel >= 0 ? nsSel : 0;
-        if (saveBtn.Enabled)
+        if (hotkeyActive)
         {
             hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey);
             hotkeyBox.ForeColor = AppContext.Win11TextPrimary;
@@ -3152,54 +3135,64 @@ internal sealed class SettingsDialog : Form
         TriggerPreview();
     }
 
-    public Settings GetCurrentDraftSettings()
+    public Settings ApplyCurrentSettings()
     {
-        Settings draft = new Settings();
-        draft.Minutes = minutes != null ? (int)minutes.Value : Value.Minutes;
-        draft.FontSize = size != null ? (int)size.Value : Value.FontSize;
-        draft.Color = !string.IsNullOrEmpty(selectedColor) ? selectedColor : Value.Color;
-        draft.FontFamily = (fontCombo != null && fontCombo.SelectedIndex >= 0 && fontCombo.SelectedIndex < fontFamilies.Length)
+        Value.Minutes = minutes != null ? (int)minutes.Value : Value.Minutes;
+        Value.FontSize = size != null ? (int)size.Value : Value.FontSize;
+        Value.Color = !string.IsNullOrEmpty(selectedColor) ? selectedColor : Value.Color;
+        Value.FontFamily = (fontCombo != null && fontCombo.SelectedIndex >= 0 && fontCombo.SelectedIndex < fontFamilies.Length)
             ? fontFamilies[fontCombo.SelectedIndex]
             : (Value.FontFamily ?? "Segoe UI");
-        draft.HotkeyModifiers = hotkeyModifiers;
-        draft.HotkeyKey = hotkeyKey;
-        draft.AutoStart = startup != null ? startup.Checked : Value.AutoStart;
-        draft.Format = (format != null && format.SelectedIndex == 1) ? "MM:SS" : ((format != null && format.SelectedIndex == 2) ? "Chinese" : "HH:MM:SS");
-        draft.Language = (language != null && language.SelectedIndex == 1) ? "en" : "zh";
-        draft.EndSound = sound != null ? sound.Checked : Value.EndSound;
-        draft.EndSoundStyle = (soundStyle != null && soundStyle.SelectedIndex == 1) ? "QQ" : ((soundStyle != null && soundStyle.SelectedIndex == 2) ? "Phone" : ((soundStyle != null && soundStyle.SelectedIndex == 3) ? "Knock" : ((soundStyle != null && soundStyle.SelectedIndex == 4) ? "Alarm" : "Doorbell")));
-        draft.EndNotice = notice != null ? notice.Checked : Value.EndNotice;
-        draft.NoticeStyle = (noticeStyle != null && noticeStyle.SelectedIndex == 1) ? "Pulse" : "Popup";
-        draft.EndMessage = endMessage != null ? endMessage.Text.Trim() : Value.EndMessage;
-        draft.FullscreenDnd = Value.FullscreenDnd;
-        draft.AgentNotice = agentNotice != null ? agentNotice.Checked : Value.AgentNotice;
-        draft.AgentProgress = Value.AgentProgress;
-        draft.DailyQuote = dailyQuote != null ? dailyQuote.Checked : Value.DailyQuote;
-        draft.QuoteColor = selectedQuoteColor;
-        draft.QuoteFont = selectedQuoteFont;
-        draft.QuoteX = Value.QuoteX;
-        draft.QuoteY = Value.QuoteY;
-        draft.QuoteWidth = Value.QuoteWidth;
-        draft.QuoteFontSize = quoteFontSize != null ? (float)quoteFontSize.Value : Value.QuoteFontSize;
-        draft.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
-        draft.X = Value.X;
-        draft.Y = Value.Y;
-        return draft;
+        Value.HotkeyModifiers = hotkeyModifiers;
+        Value.HotkeyKey = hotkeyKey;
+        Value.AutoStart = startup != null ? startup.Checked : Value.AutoStart;
+        Value.Format = (format != null && format.SelectedIndex == 1) ? "MM:SS" : ((format != null && format.SelectedIndex == 2) ? "Chinese" : "HH:MM:SS");
+        Value.Language = (language != null && language.SelectedIndex == 1) ? "en" : "zh";
+        Value.EndSound = sound != null ? sound.Checked : Value.EndSound;
+        Value.EndSoundStyle = (soundStyle != null && soundStyle.SelectedIndex == 1) ? "QQ" : ((soundStyle != null && soundStyle.SelectedIndex == 2) ? "Phone" : ((soundStyle != null && soundStyle.SelectedIndex == 3) ? "Knock" : ((soundStyle != null && soundStyle.SelectedIndex == 4) ? "Alarm" : "Doorbell")));
+        Value.EndNotice = notice != null ? notice.Checked : Value.EndNotice;
+        Value.NoticeStyle = (noticeStyle != null && noticeStyle.SelectedIndex == 1) ? "Pulse" : "Popup";
+        Value.EndMessage = endMessage != null ? endMessage.Text.Trim() : Value.EndMessage;
+        Value.AgentNotice = agentNotice != null ? agentNotice.Checked : Value.AgentNotice;
+        Value.DailyQuote = dailyQuote != null ? dailyQuote.Checked : Value.DailyQuote;
+        Value.QuoteColor = selectedQuoteColor ?? "";
+        Value.QuoteFont = selectedQuoteFont ?? "";
+        if (quoteFontSize != null) Value.QuoteFontSize = (float)quoteFontSize.Value;
+        Value.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
+        return Value;
+    }
+
+    private void CommitQuoteSettings()
+    {
+        if (Value == null) return;
+        Value.DailyQuote = dailyQuote != null ? dailyQuote.Checked : Value.DailyQuote;
+        Value.QuoteColor = selectedQuoteColor ?? "";
+        Value.QuoteFont = selectedQuoteFont ?? "";
+        if (quoteFontSize != null) Value.QuoteFontSize = (float)quoteFontSize.Value;
+        Value.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
+        Value.Save();
     }
 
     private void TriggerPreview()
     {
         if (PreviewRequested != null && minutes != null && size != null && fontCombo != null && format != null && language != null && timerColorCombo != null)
         {
-            PreviewRequested(GetCurrentDraftSettings());
+            ApplyCurrentSettings();
+            Value.Save();
+            PreviewRequested();
+            if (SettingsCommitted != null) SettingsCommitted();
         }
     }
 
     private void TriggerQuotePreview()
     {
-        if (QuotePreviewRequested != null && dailyQuote != null)
+        if (dailyQuote != null)
         {
-            QuotePreviewRequested(GetCurrentDraftSettings(), activeTab == 1 && dailyQuote.Checked);
+            CommitQuoteSettings();
+            if (QuotePreviewRequested != null)
+            {
+                QuotePreviewRequested(activeTab == 1 && dailyQuote.Checked);
+            }
         }
     }
 
@@ -3223,7 +3216,6 @@ internal sealed class SettingsDialog : Form
         {
             hotkeyBox.Text = language.SelectedIndex == 1 ? "Use a modifier + key" : "请按修饰键 + 按键";
             hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
-            saveBtn.Enabled = false;
             return;
         }
         string text = AppContext.HotkeyText(mods, (int)key);
@@ -3231,7 +3223,6 @@ internal sealed class SettingsDialog : Form
         {
             hotkeyBox.Text = text + (language.SelectedIndex == 1 ? " (IME Conflict)" : " (与输入法冲突)");
             hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
-            saveBtn.Enabled = false;
             return;
         }
         bool isCurrent = hotkeyActive && (mods == Value.HotkeyModifiers && (int)key == Value.HotkeyKey);
@@ -3240,14 +3231,13 @@ internal sealed class SettingsDialog : Form
         {
             hotkeyBox.Text = text + (language.SelectedIndex == 1 ? " (Occupied)" : " (已被占用)");
             hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
-            saveBtn.Enabled = false;
         }
         else
         {
             hotkeyModifiers = mods; hotkeyKey = (int)key;
             hotkeyBox.Text = text;
             hotkeyBox.ForeColor = AppContext.Win11TextPrimary;
-            saveBtn.Enabled = true;
+            TriggerPreview();
         }
     }
     private void OnDrawFontItem(object sender, DrawItemEventArgs e)
@@ -3286,25 +3276,6 @@ internal sealed class SettingsDialog : Form
         }
         e.DrawFocusRectangle();
     }
-    private void SaveClick(object sender, EventArgs e)
-    {
-        if (startup.Checked && !Value.AutoStart && AppContext.IsInEphemeralFolder(Application.ExecutablePath))
-        {
-            bool toEnglish = language.SelectedIndex == 1;
-            string msg = toEnglish
-                ? "iClock is currently located in a temporary or download folder:\r\n" + Application.ExecutablePath + "\r\n\r\nIt is recommended to move iClock.exe to a permanent folder (such as Documents or Tools) before enabling auto-start, to prevent accidental deletion during cleanup.\r\n\r\nDo you still want to enable auto-start?"
-                : "检测到当前程序位于临时或下载目录：\r\n" + Application.ExecutablePath + "\r\n\r\n建议将 iClock.exe 移动到固定文件夹（如个人工具目录或文档）后再开启自启，以防清理下载文件时误删。\r\n\r\n是否仍要开启开机自启？";
-            string caption = toEnglish ? "iClock Auto-Start Tip" : "iClock 开机自启提示";
-            if (MessageBox.Show(this, msg, caption, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.No)
-            {
-                startup.Checked = false;
-                return;
-            }
-        }
-        Value = GetCurrentDraftSettings();
-        DialogResult = DialogResult.OK; Close();
-    }
-
     public void SetDailyQuoteChecked(bool chk)
     {
         if (dailyQuote != null && dailyQuote.Checked != chk)
@@ -3322,6 +3293,8 @@ internal sealed class SettingsDialog : Form
     {
         if (quoteLayerCombo != null)
         {
+            Value.QuotePinTopMost = pinned;
+            Value.Save();
             int target = pinned ? 1 : 0;
             if (quoteLayerCombo.SelectedIndex != target)
             {
@@ -3334,6 +3307,7 @@ internal sealed class SettingsDialog : Form
     {
         if (quoteFontSize != null && sz >= 8.0f && sz <= 24.0f)
         {
+            Value.QuoteFontSize = sz;
             decimal dec = (decimal)sz;
             if (quoteFontSize.Value != dec)
             {
@@ -3348,6 +3322,7 @@ internal sealed class SettingsDialog : Form
                     isSyncingQuoteFontSize = false;
                 }
             }
+            Value.Save();
         }
     }
 
@@ -3368,7 +3343,7 @@ internal sealed class SettingsDialog : Form
 
 internal sealed class NoticeDialog : Form
 {
-    private Settings settings;
+    private readonly Settings settings;
     private SoundPlayer player;
     private Timer timer;
     private DateTime finishTime;
@@ -3564,14 +3539,15 @@ internal sealed class CliNoticeDialog : Form
 {
     private Font msgFont;
 
-    public CliNoticeDialog(Settings s, string message)
+    public CliNoticeDialog(Settings s, string message, string agentName = null)
     {
         bool en = s != null && s.Language == "en";
         string lang = s != null ? s.Language : "zh";
         Font = AppContext.GetUiFont(lang, 9.5f);
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
-        Text = en ? "iClock Notice" : "iClock 终端提醒";
+        string prefix = !string.IsNullOrEmpty(agentName) ? agentName : "iClock";
+        Text = en ? (prefix + " Notice") : (prefix + " 终端提醒");
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
@@ -4139,7 +4115,7 @@ internal sealed class DailyQuoteDialog : Form
         new QuoteItem("日日行，不怕千万里；常常做，不怕千万事。", "《格言联璧》")
     };
 
-    private Settings settings;
+    private readonly Settings settings;
     private List<QuoteItem> quoteList;
     private int currentQuoteIndex;
     private bool isPinned;
@@ -4153,12 +4129,15 @@ internal sealed class DailyQuoteDialog : Form
     private int resizeStartWidth;
     private int customWidth = -1;
     private bool isProjectedNote;
+    private bool hasRenderedOnce;
+    private bool needsFirstVisibleGeometrySync;
     public bool IsProjectedNote { get { return isProjectedNote; } }
     private Timer autoDismissTimer;
 
     private Timer fadeTimer;
     private float currentFontSize = 18.0f;
     public float CurrentFontSize { get { return currentFontSize; } }
+    public int CurrentWidth { get { return customWidth; } }
     public event Action<float> FontSizeChanged;
     public event Action QuoteChanged;
     public event Action<bool> PinChanged;
@@ -4252,17 +4231,38 @@ internal sealed class DailyQuoteDialog : Form
         catch { }
     }
 
-    public void ApplyDraftSettings(Settings draft)
+    public void ApplySettings()
     {
-        if (draft == null) return;
-        settings = draft;
-        if (draft.QuoteFontSize >= 8.0f && draft.QuoteFontSize <= 24.0f)
+        if (settings == null) return;
+        if (!isProjectedNote)
         {
-            currentFontSize = draft.QuoteFontSize;
+            customWidth = settings.QuoteWidth > 0 ? settings.QuoteWidth : -1;
         }
-        isPinned = draft.QuotePinTopMost;
+        if (settings.QuoteFontSize >= 8.0f && settings.QuoteFontSize <= 24.0f)
+        {
+            currentFontSize = settings.QuoteFontSize;
+        }
+        isPinned = isProjectedNote || settings.QuotePinTopMost;
         UpdateTopMostState();
-        UpdateCardLayout(keepLeft: true);
+        UpdateCardLayout(keepLeft: false);
+    }
+
+    public void CapturePersistentState()
+    {
+        if (settings == null || isProjectedNote) return;
+        if (IsHandleCreated)
+        {
+            if (!IsUsingPrimaryFallback())
+            {
+                settings.QuoteX = Location.X;
+                settings.QuoteY = Location.Y;
+            }
+        }
+        settings.QuoteWidth = customWidth > 0 ? customWidth : -1;
+        if (currentFontSize >= 8.0f && currentFontSize <= 24.0f)
+        {
+            settings.QuoteFontSize = currentFontSize;
+        }
     }
     private double currentOpacity = 1.0;
 
@@ -4345,7 +4345,7 @@ internal sealed class DailyQuoteDialog : Form
             }
         };
 
-        UpdateCardLayout(keepLeft: false);
+        ApplySettings();
     }
 
     protected override bool ShowWithoutActivation
@@ -4419,6 +4419,80 @@ internal sealed class DailyQuoteDialog : Form
     protected override void OnPaintBackground(PaintEventArgs e) { }
     protected override void OnPaint(PaintEventArgs e) { }
 
+    private static bool IsAutoCenterCoord(int coord)
+    {
+        return coord == -99999 || coord == -1;
+    }
+
+    private Screen ResolveSavedScreen()
+    {
+        if (settings == null) return Screen.PrimaryScreen;
+        bool hasCustomX = !IsAutoCenterCoord(settings.QuoteX);
+        bool hasCustomY = !IsAutoCenterCoord(settings.QuoteY);
+        if (!hasCustomX && !hasCustomY) return Screen.PrimaryScreen;
+
+        Point savedPoint = new Point(hasCustomX ? settings.QuoteX : 0, hasCustomY ? settings.QuoteY : 0);
+        foreach (Screen s in Screen.AllScreens)
+        {
+            if (s.Bounds.Contains(savedPoint)) return s;
+        }
+        return null;
+    }
+
+    private bool IsSavedPositionAvailable(Screen host)
+    {
+        if (settings == null) return false;
+        bool customX = !IsAutoCenterCoord(settings.QuoteX);
+        bool customY = !IsAutoCenterCoord(settings.QuoteY);
+        if (!customX && !customY) return false;
+        Point savedPoint = new Point(customX ? settings.QuoteX : host.Bounds.Left, customY ? settings.QuoteY : host.Bounds.Top);
+        return host.Bounds.Contains(savedPoint);
+    }
+
+    private Screen GetCurrentScreen()
+    {
+        Screen savedScreen = ResolveSavedScreen();
+        if (savedScreen != null) return savedScreen;
+        if (settings != null && (!IsAutoCenterCoord(settings.QuoteX) || !IsAutoCenterCoord(settings.QuoteY)))
+        {
+            // The saved monitor is disconnected. Use the primary monitor for
+            // this session without overwriting the saved extended-screen state.
+            return Screen.PrimaryScreen;
+        }
+
+        if (IsHandleCreated)
+        {
+            try
+            {
+                Screen s = Screen.FromControl(this);
+                if (s != null) return s;
+            }
+            catch { }
+        }
+
+        Rectangle currentRect = new Rectangle(Location, Size);
+        foreach (Screen s in Screen.AllScreens)
+        {
+            Rectangle intersect = Rectangle.Intersect(s.WorkingArea, currentRect);
+            if (intersect.Width >= 30 && intersect.Height >= 20)
+            {
+                return s;
+            }
+        }
+
+        return Screen.PrimaryScreen;
+    }
+
+    private bool IsUsingPrimaryFallback()
+    {
+        if (settings == null) return false;
+        bool hasSavedPosition = !IsAutoCenterCoord(settings.QuoteX) || !IsAutoCenterCoord(settings.QuoteY);
+        if (!hasSavedPosition) return false;
+        Screen primary = Screen.PrimaryScreen;
+        if (primary == null) return false;
+        return !IsSavedPositionAvailable(primary);
+    }
+
     private QuoteItem GetCurrentQuote()
     {
         if (quoteList == null || quoteList.Count == 0) return DefaultQuotes[0];
@@ -4455,15 +4529,18 @@ internal sealed class DailyQuoteDialog : Form
             float gap = Math.Max(6f, currentFontSize * 0.35f);
             float padBottom = Math.Max(14f, currentFontSize * 0.6f);
 
+            Screen host = GetCurrentScreen();
+            Rectangle scr = host.WorkingArea;
+
             int cardW;
             if (customWidth > 0)
             {
-                cardW = Math.Max(260, Math.Min(Screen.PrimaryScreen.WorkingArea.Width - 40, customWidth));
+                cardW = Math.Max(260, Math.Min(scr.Width - 40, customWidth));
             }
             else
             {
-                int defaultW = (int)Math.Round(Screen.PrimaryScreen.WorkingArea.Width * 0.40);
-                cardW = Math.Max(320, Math.Min(Screen.PrimaryScreen.WorkingArea.Width - 40, defaultW));
+                int defaultW = (int)Math.Round(scr.Width * 0.40);
+                cardW = Math.Max(320, Math.Min(scr.Width - 40, defaultW));
             }
 
             int contentW = cardW - padX * 2;
@@ -4495,7 +4572,8 @@ internal sealed class DailyQuoteDialog : Form
             }
         }
 
-        if (!keepLeft || settings == null || settings.QuoteX < 0)
+        bool hasSavedPosition = settings != null && (!IsAutoCenterCoord(settings.QuoteX) || !IsAutoCenterCoord(settings.QuoteY));
+        if (!keepLeft || hasSavedPosition || settings == null || IsAutoCenterCoord(settings.QuoteX))
         {
             UpdatePosition();
         }
@@ -4504,9 +4582,13 @@ internal sealed class DailyQuoteDialog : Form
 
     private void UpdatePosition()
     {
-        Rectangle scr = Screen.PrimaryScreen.WorkingArea;
+        bool customX = settings != null && !IsAutoCenterCoord(settings.QuoteX);
+        bool customY = settings != null && !IsAutoCenterCoord(settings.QuoteY);
+        Screen host = GetCurrentScreen();
+        Rectangle scr = host.WorkingArea;
+        bool savedPositionAvailable = IsSavedPositionAvailable(host);
         int x;
-        if (settings != null && settings.QuoteX >= 0)
+        if (customX && savedPositionAvailable)
         {
             x = settings.QuoteX;
         }
@@ -4516,7 +4598,7 @@ internal sealed class DailyQuoteDialog : Form
         }
 
         int y;
-        if (settings != null && settings.QuoteY >= 0)
+        if (customY && savedPositionAvailable)
         {
             y = settings.QuoteY;
         }
@@ -4556,7 +4638,8 @@ internal sealed class DailyQuoteDialog : Form
         }
         if (!visible)
         {
-            Rectangle scr = Screen.PrimaryScreen.WorkingArea;
+            Screen host = GetCurrentScreen();
+            Rectangle scr = host.WorkingArea;
             Location = new Point(scr.Left + Math.Max(0, (scr.Width - Width) / 2), scr.Top + 120);
         }
     }
@@ -4619,6 +4702,12 @@ internal sealed class DailyQuoteDialog : Form
     public void RenderLayeredQuoteWindow()
     {
         if (!IsHandleCreated || IsDisposed || Width <= 0 || Height <= 0) return;
+        bool firstVisibleRender = Visible && !hasRenderedOnce;
+        if (firstVisibleRender)
+        {
+            hasRenderedOnce = true;
+            needsFirstVisibleGeometrySync = true;
+        }
 
         if (renderBitmap == null || renderBitmap.Width != Width || renderBitmap.Height != Height)
         {
@@ -4773,6 +4862,20 @@ internal sealed class DailyQuoteDialog : Form
         BLENDFUNCTION blend = new BLENDFUNCTION { BlendOp = AC_SRC_OVER, BlendFlags = 0, SourceConstantAlpha = alpha, AlphaFormat = AC_SRC_ALPHA };
 
         NativeMethods.UpdateLayeredWindow(Handle, screenDc, ref ptDst, ref size, memDc, ref ptSrc, 0, ref blend, ULW_ALPHA);
+        if (firstVisibleRender)
+        {
+            // On a negative-coordinate monitor, the first layered bitmap can
+            // retain stale screen geometry even though Form.Location is right.
+            // Reassert the native bounds once after the first visible update.
+            NativeMethods.SetWindowPos(Handle, IntPtr.Zero, Left, Top, Width, Height, 0x0020);
+            BeginInvoke(new Action(delegate
+            {
+                if (IsDisposed || !IsHandleCreated || !needsFirstVisibleGeometrySync) return;
+                needsFirstVisibleGeometrySync = false;
+                NativeMethods.SetWindowPos(Handle, IntPtr.Zero, Left, Top, Width, Height, 0x0020);
+                RenderLayeredQuoteWindow();
+            }));
+        }
 
         NativeMethods.SelectObject(memDc, oldBitmap);
         NativeMethods.DeleteObject(hBitmap);
@@ -4822,14 +4925,24 @@ internal sealed class DailyQuoteDialog : Form
         {
             Color pinCol = isPinned ? accentColor : iconCol;
             using (Pen p = new Pen(pinCol, 1.4f))
-            using (SolidBrush b = new SolidBrush(pinCol))
             {
                 p.StartCap = LineCap.Round;
                 p.EndCap = LineCap.Round;
-                g.FillEllipse(b, cx - 1.8f, cy - 5.0f, 3.6f, 3.6f);
-                g.DrawLine(p, cx - 3.2f, cy - 1.5f, cx + 3.2f, cy - 1.5f);
-                g.DrawLine(p, cx, cy - 1.5f, cx, cy + 1.8f);
-                g.DrawLine(p, cx, cy + 1.8f, cx, cy + 5.0f);
+                // Top bar (ceiling = "topmost layer")
+                g.DrawLine(p, cx - 4.5f, cy - 5.0f, cx + 4.5f, cy - 5.0f);
+                // Arrow pointing up toward the bar
+                g.DrawLine(p, cx - 3.0f, cy + 0.5f, cx, cy - 2.5f);
+                g.DrawLine(p, cx + 3.0f, cy + 0.5f, cx, cy - 2.5f);
+                // Arrow shaft
+                g.DrawLine(p, cx, cy + 0.5f, cx, cy + 5.0f);
+            }
+            if (isPinned)
+            {
+                using (SolidBrush b = new SolidBrush(pinCol))
+                {
+                    PointF[] tri = { new PointF(cx, cy - 2.5f), new PointF(cx - 3.0f, cy + 0.5f), new PointF(cx + 3.0f, cy + 0.5f) };
+                    g.FillPolygon(b, tri);
+                }
             }
         }
         else if (btnId == 3)
@@ -4921,7 +5034,7 @@ internal sealed class DailyQuoteDialog : Form
         {
             int deltaX = Cursor.Position.X - dragStartX;
             int minW = 260;
-            int maxW = Screen.PrimaryScreen.WorkingArea.Width - 40;
+            int maxW = GetCurrentScreen().WorkingArea.Width - 40;
             int targetW = Math.Max(minW, Math.Min(maxW, resizeStartWidth + deltaX));
             if (targetW != customWidth)
             {
@@ -5044,11 +5157,11 @@ internal sealed class DailyQuoteDialog : Form
         {
             isResizingWidth = false;
             Capture = false;
-            if (settings != null)
+            if (settings != null && !isProjectedNote)
             {
                 settings.QuoteWidth = customWidth;
-                if (settings.QuoteX >= 0) settings.QuoteX = Location.X;
-                if (settings.QuoteY >= 0) settings.QuoteY = Location.Y;
+                if (!IsAutoCenterCoord(settings.QuoteX)) settings.QuoteX = Location.X;
+                if (!IsAutoCenterCoord(settings.QuoteY)) settings.QuoteY = Location.Y;
                 settings.Save();
             }
             UpdateTopMostState();
@@ -5062,12 +5175,20 @@ internal sealed class DailyQuoteDialog : Form
             isDragging = false;
             if (settings != null)
             {
-                Rectangle scr = Screen.PrimaryScreen.WorkingArea;
+                Screen host = GetCurrentScreen();
+                Rectangle scr = host.WorkingArea;
                 int centerX = scr.Left + Math.Max(0, (scr.Width - Width) / 2);
                 if (Math.Abs(Location.X - centerX) <= 24)
                 {
-                    settings.QuoteX = -1;
                     Location = new Point(centerX, Location.Y);
+                    if (host.Primary)
+                    {
+                        settings.QuoteX = -1;
+                    }
+                    else
+                    {
+                        settings.QuoteX = centerX;
+                    }
                 }
                 else
                 {
@@ -5119,7 +5240,7 @@ internal sealed class DailyQuoteDialog : Form
             if (renderGraphics != null) { renderGraphics.Dispose(); renderGraphics = null; }
             if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
 
-            if (settings != null)
+            if (settings != null && !isProjectedNote)
             {
                 bool needSave = false;
                 if (customWidth > 0 && settings.QuoteWidth != customWidth)
@@ -6878,11 +6999,11 @@ internal sealed class AppContext : ApplicationContext
     private const int HOTKEY_ID = 0x4A10;
     private const int WM_HOTKEY = 0x0312;
     private const uint MOD_NOREPEAT = 0x4000;
-    private Settings settings;
+    private readonly Settings settings;
     private Overlay overlay;
     private NotifyIcon tray;
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuAbout, menuExit, menuUpdate;
-    internal const string CURRENT_VERSION = "1.08";
+    internal const string CURRENT_VERSION = "1.09";
     private string updateUrl;
     private string latestVersion;
     private Timer timer;
@@ -6913,6 +7034,8 @@ internal sealed class AppContext : ApplicationContext
     private Form activeDialog;
     private DailyQuoteDialog activeQuoteDialog;
     private DailyQuoteDialog activeProjectedNote;
+    private AskHumanDialog activeAskHumanDialog;
+    private string currentTimerLabel;
     private bool dailyQuoteSuspendedForProjection;
     private Timer projectedAgentMonitorTimer;
     private string projectedAgentName;
@@ -7297,6 +7420,7 @@ internal sealed class AppContext : ApplicationContext
     {
         if (overlay.IsPulsing) overlay.StopBreathingPulse();
         ClearAgentProgress();
+        currentTimerLabel = null;
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
         if (running) remaining = ReadRemaining();
         timer.Stop();
@@ -7515,27 +7639,40 @@ internal sealed class AppContext : ApplicationContext
         {
             string raw = action.StartsWith("notice:") ? cmd.Substring("notice:".Length).Trim() : (arg ?? "");
             string snd = null;
+            string agentName = null;
             if (raw.Contains("|"))
             {
-                string[] np = raw.Split(new char[] { '|' }, 2);
+                string[] np = raw.Split(new char[] { '|' }, 3);
                 snd = np[0];
-                raw = np[1];
+                raw = np.Length > 1 ? np[1] : "";
+                if (np.Length > 2 && !string.IsNullOrEmpty(np[2])) agentName = np[2];
             }
             if (!string.IsNullOrEmpty(snd)) PlaySoundStyle(snd);
-            TriggerCliNotice(raw);
+            TriggerCliNotice(raw, agentName);
         }
         else if (action == "quote" || action == "-q" || action == "--quote" || action.StartsWith("quote:"))
         {
             string raw = action.StartsWith("quote:") ? cmd.Substring("quote:".Length).Trim() : (arg ?? "");
             if (!string.IsNullOrEmpty(raw))
             {
-                string[] qp = raw.Split(new char[] { '|' }, 4);
-                string text = qp[0];
-                string author = qp.Length > 1 ? qp[1] : "";
-                string agentName = qp.Length > 2 && !string.IsNullOrEmpty(qp[2]) ? qp[2] : null;
-                int agentPid = 0;
-                if (qp.Length > 3) int.TryParse(qp[3], out agentPid);
-                ShowCustomQuote(text, author, agentName, agentPid);
+                if (raw.Equals("clear", StringComparison.OrdinalIgnoreCase) || raw.Equals("hide", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
+                    {
+                        try { activeProjectedNote.Close(); } catch { }
+                        activeProjectedNote = null;
+                    }
+                }
+                else
+                {
+                    string[] qp = raw.Split(new char[] { '|' }, 4);
+                    string text = qp[0];
+                    string author = qp.Length > 1 ? qp[1] : "";
+                    string agentName = qp.Length > 2 && !string.IsNullOrEmpty(qp[2]) ? qp[2] : null;
+                    int agentPid = 0;
+                    if (qp.Length > 3) int.TryParse(qp[3], out agentPid);
+                    ShowCustomQuote(text, author, agentName, agentPid);
+                }
             }
             else
             {
@@ -7572,7 +7709,7 @@ internal sealed class AppContext : ApplicationContext
         else if (action == "ask_human" || action.StartsWith("ask_human:"))
         {
             string payload = action.StartsWith("ask_human:") ? cmd.Substring("ask_human:".Length).Trim() : (arg ?? "");
-            string[] p = payload.Split(new char[] { '|' }, 4);
+            string[] p = payload.Split(new char[] { '|' }, 5);
             if (p.Length >= 3)
             {
                 string reqId = p[0];
@@ -7588,14 +7725,48 @@ internal sealed class AppContext : ApplicationContext
                 ShowAskHumanDialog(question, options, timeoutSec, resFile, agentName);
             }
         }
+        else if (action == "ask_human_cancel" || action.StartsWith("ask_human_cancel"))
+        {
+            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
+            {
+                try { activeAskHumanDialog.Close(); } catch { }
+                activeAskHumanDialog = null;
+            }
+        }
+        else if (action == "timer_label" || action.StartsWith("timer_label:"))
+        {
+            string lbl = action.StartsWith("timer_label:") ? cmd.Substring("timer_label:".Length).Trim() : (arg ?? "");
+            currentTimerLabel = !string.IsNullOrEmpty(lbl) ? lbl : null;
+        }
         else if (action == "status" || action.StartsWith("status:"))
         {
             string statFile = action.StartsWith("status:") ? cmd.Substring("status:".Length).Trim() : (arg ?? "");
             if (!string.IsNullOrEmpty(statFile))
             {
                 int rem = (int)ReadRemaining().TotalSeconds;
-                string json = string.Format("{{\"running\":{0},\"remaining_seconds\":{1},\"total_minutes\":{2}}}",
-                    running ? "true" : "false", rem, settings.Minutes);
+                bool progActive = (overlay != null && overlay.AgentProgressActive);
+                float progPct = progActive ? overlay.AgentProgressPercent : 0f;
+                string progMsg = progActive ? (overlay.AgentProgressMessage ?? "") : "";
+                bool hasAsk = (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed);
+                string label = currentTimerLabel ?? "";
+
+                var statObj = new Dictionary<string, object>
+                {
+                    { "running", running },
+                    { "remaining_seconds", rem },
+                    { "total_minutes", settings.Minutes },
+                    { "current_label", label },
+                    { "progress", new Dictionary<string, object>
+                        {
+                            { "active", progActive },
+                            { "percent", (double)Math.Round(progPct, 4) },
+                            { "message", progMsg }
+                        }
+                    },
+                    { "has_pending_ask", hasAsk },
+                    { "resident", true }
+                };
+                string json = new JavaScriptSerializer().Serialize(statObj);
                 try { File.WriteAllText(statFile, json, Encoding.UTF8); } catch { }
             }
         }
@@ -7693,12 +7864,12 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
-    internal void TriggerCliNotice(string message)
+    internal void TriggerCliNotice(string message, string agentName = null)
     {
         if (string.IsNullOrEmpty(message)) message = settings.Language == "en" ? "Task completed!" : "任务已完成！";
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
         if (settings.EndSound) PlaySoundStyle(settings.EndSoundStyle);
-        CliNoticeDialog dlg = new CliNoticeDialog(settings, message);
+        CliNoticeDialog dlg = new CliNoticeDialog(settings, message, agentName);
         activeNotice = dlg;
         dlg.FormClosed += delegate
         {
@@ -7711,6 +7882,12 @@ internal sealed class AppContext : ApplicationContext
 
     internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile, string agentName = null)
     {
+        if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
+        {
+            try { activeAskHumanDialog.Close(); } catch { }
+            activeAskHumanDialog = null;
+        }
+
         bool isFg = AppContext.IsAgentInForeground();
         if (string.IsNullOrEmpty(agentName))
         {
@@ -7719,6 +7896,11 @@ internal sealed class AppContext : ApplicationContext
         }
         PlayAiSound();
         AskHumanDialog dlg = new AskHumanDialog(settings, question, options, 0, resFile, isFg, agentName);
+        activeAskHumanDialog = dlg;
+        dlg.FormClosed += delegate
+        {
+            if (activeAskHumanDialog == dlg) activeAskHumanDialog = null;
+        };
         dlg.Show();
         if (isFg)
         {
@@ -7930,8 +8112,7 @@ internal sealed class AppContext : ApplicationContext
 
     private void FormatAndDisplay(long total)
     {
-        Settings current = previewSettings ?? settings;
-        string value = GetFormattedTime(current, total);
+        string value = GetFormattedTime(settings, total);
         overlay.UpdateText(value);
     }
 
@@ -9429,37 +9610,23 @@ internal sealed class AppContext : ApplicationContext
         catch { }
     }
 
-    private Settings previewSettings;
-
-    private void SetPreviewSettings(Settings preview)
+    private void RefreshTimerVisual()
     {
-        previewSettings = preview;
-        if (preview != null)
-        {
-            long total = running
-                ? (lastSeconds >= 0 ? lastSeconds : (long)Math.Ceiling(remaining.TotalSeconds))
-                : (sessionActive ? (long)Math.Ceiling(remaining.TotalSeconds) : (preview.Minutes * 60));
-            string value = GetFormattedTime(preview, total);
-            overlay.SetVisualPreview(preview, value);
-        }
-        else
-        {
-            long total = (running || sessionActive)
-                ? (lastSeconds >= 0 ? lastSeconds : (long)Math.Ceiling(remaining.TotalSeconds))
-                : (settings.Minutes * 60);
-            string value = GetFormattedTime(settings, total);
-            overlay.SetVisualPreview(settings, value);
-        }
+        long total = running
+            ? (lastSeconds >= 0 ? lastSeconds : (long)Math.Ceiling(remaining.TotalSeconds))
+            : (sessionActive ? (long)Math.Ceiling(remaining.TotalSeconds) : (settings.Minutes * 60));
+        string value = GetFormattedTime(settings, total);
+        overlay.SetVisualPreview(value);
     }
 
-    private void SetQuotePreview(Settings draft, bool visible)
+    private void SetQuotePreview(bool visible)
     {
         if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
         {
             dailyQuoteSuspendedForProjection = true;
             if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
             {
-                if (draft != null) activeQuoteDialog.ApplyDraftSettings(draft);
+                activeQuoteDialog.ApplySettings();
                 activeQuoteDialog.Hide();
             }
             return;
@@ -9482,14 +9649,6 @@ internal sealed class AppContext : ApplicationContext
                 if (settings.DailyQuote || (activeDialog is SettingsDialog && ((SettingsDialog)activeDialog).IsDailyQuoteChecked))
                 {
                     activeQuoteDialog.IsPreviewMode = false;
-                    if (draft != null)
-                    {
-                        if (activeDialog is SettingsDialog && ((SettingsDialog)activeDialog).ActiveTab != 1)
-                        {
-                            draft.QuoteFontSize = activeQuoteDialog.CurrentFontSize;
-                        }
-                        activeQuoteDialog.ApplyDraftSettings(draft);
-                    }
                     return;
                 }
                 activeQuoteDialog.Close();
@@ -9500,7 +9659,7 @@ internal sealed class AppContext : ApplicationContext
 
         if (activeQuoteDialog == null || activeQuoteDialog.IsDisposed)
         {
-            activeQuoteDialog = new DailyQuoteDialog(draft ?? settings);
+            activeQuoteDialog = new DailyQuoteDialog(settings);
             activeQuoteDialog.IsPreviewMode = true;
             if (activeDialog is SettingsDialog)
             {
@@ -9547,13 +9706,13 @@ internal sealed class AppContext : ApplicationContext
                     sd.SyncQuoteIndex(activeQuoteDialog.CurrentQuoteIndex);
                 }
             }
-            activeQuoteDialog.ApplyDraftSettings(draft ?? settings);
+            activeQuoteDialog.ApplySettings();
         }
     }
 
     private void ShowSettings()
     {
-        ShowSettingsTab(0);
+        ShowSettingsTab(-1);
     }
 
     internal void ShowSettingsTab(int initialTab)
@@ -9598,16 +9757,20 @@ internal sealed class AppContext : ApplicationContext
             activeQuoteDialog.QuoteChanged += quoteChangeSync;
         }
 
-        SetPreviewSettings(d.GetCurrentDraftSettings());
+        RefreshTimerVisual();
 
-        d.PreviewRequested += delegate(Settings preview)
+        d.PreviewRequested += delegate
         {
-            SetPreviewSettings(preview);
+            RefreshTimerVisual();
+        };
+        d.SettingsCommitted += delegate
+        {
+            ApplySavedSettings();
         };
 
-        d.QuotePreviewRequested += delegate(Settings preview, bool visible)
+        d.QuotePreviewRequested += delegate(bool visible)
         {
-            SetQuotePreview(preview, visible);
+            SetQuotePreview(visible);
         };
 
         d.QuoteNextRequested += delegate
@@ -9625,11 +9788,9 @@ internal sealed class AppContext : ApplicationContext
                 activeQuoteDialog.FontSizeChanged -= quoteFontSync;
                 activeQuoteDialog.QuoteChanged -= quoteChangeSync;
             }
-            SetPreviewSettings(null);
-            SetQuotePreview(null, false);
-            Settings draft = d.GetCurrentDraftSettings();
-            ApplySavedSettings(draft);
-            if (draft.DailyQuote)
+            RefreshTimerVisual();
+            SetQuotePreview(false);
+            if (settings.DailyQuote)
             {
                 if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
                 {
@@ -9637,14 +9798,14 @@ internal sealed class AppContext : ApplicationContext
                     if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
                     {
                         activeQuoteDialog.IsPreviewMode = false;
-                        activeQuoteDialog.ApplyDraftSettings(draft);
+                        activeQuoteDialog.ApplySettings();
                         activeQuoteDialog.Hide();
                     }
                 }
                 else if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
                 {
                     activeQuoteDialog.IsPreviewMode = false;
-                    activeQuoteDialog.ApplyDraftSettings(draft);
+                    activeQuoteDialog.ApplySettings();
                     activeQuoteDialog.Show();
                     activeQuoteDialog.EnsureVisible();
                 }
@@ -9672,23 +9833,15 @@ internal sealed class AppContext : ApplicationContext
         ActivateWindow(d);
     }
 
-    private void ApplySavedSettings(Settings newSettings)
+    private void ApplySavedSettings()
     {
         bool hotkeyFailed = false;
-        if ((newSettings.HotkeyKey == (int)Keys.Space && (newSettings.HotkeyModifiers & 3) != 0) || !SetHotkey(newSettings.HotkeyModifiers, newSettings.HotkeyKey))
+        if ((settings.HotkeyKey == (int)Keys.Space && (settings.HotkeyModifiers & 3) != 0) || !SetHotkey(settings.HotkeyModifiers, settings.HotkeyKey))
         {
-            newSettings.HotkeyModifiers = activeHotkeyModifiers; newSettings.HotkeyKey = activeHotkeyKey;
+            settings.HotkeyModifiers = activeHotkeyModifiers; settings.HotkeyKey = activeHotkeyKey;
             hotkeyFailed = true;
         }
-        if (settings != null && newSettings != null && settings != newSettings)
-        {
-            settings.CopyFrom(newSettings);
-        }
-        else
-        {
-            settings = newSettings;
-        }
-        settings.Save(); overlay.SetSettings(settings); ApplyStartup();
+        settings.Save(); overlay.RefreshSettings(); ApplyStartup();
         if (tray != null && tray.ContextMenuStrip != null)
         {
             tray.ContextMenuStrip.Font = GetUiFont(settings.Language, 9.5f);
@@ -10330,7 +10483,7 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
-    internal void CheckDailyQuote(bool forceShow = false, Settings customSettings = null)
+    internal void CheckDailyQuote(bool forceShow = false)
     {
         try
         {
@@ -10346,18 +10499,35 @@ internal sealed class AppContext : ApplicationContext
 
             if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
             {
-                if (!forceShow) return;
-                activeQuoteDialog.Close();
-                activeQuoteDialog = null;
+                if (!forceShow)
+                {
+                    // A hidden instance can survive projection/settings transitions.
+                    // Do not treat its existence as proof that the quote is visible.
+                    if (!activeQuoteDialog.Visible)
+                    {
+                        activeQuoteDialog.Show();
+                        activeQuoteDialog.EnsureVisible();
+                        activeQuoteDialog.UpdateTopMostState();
+                    }
+                    return;
+                }
+                if (forceShow)
+                {
+                    activeQuoteDialog.ApplySettings();
+                    activeQuoteDialog.IsPreviewMode = false;
+                    activeQuoteDialog.Show();
+                    activeQuoteDialog.EnsureVisible();
+                    activeQuoteDialog.UpdateTopMostState();
+                    return;
+                }
             }
 
-            Settings effective = customSettings ?? settings;
             if (!forceShow)
             {
-                if (!effective.DailyQuote) return;
+                if (!settings.DailyQuote) return;
             }
 
-            activeQuoteDialog = new DailyQuoteDialog(effective);
+            activeQuoteDialog = new DailyQuoteDialog(settings);
             activeQuoteDialog.FontSizeChanged += delegate(float sz)
             {
                 try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncQuoteFontSize(sz); } catch { }
@@ -10387,6 +10557,8 @@ internal sealed class AppContext : ApplicationContext
             };
             if (overlay.MoveMode) activeQuoteDialog.SetMoveMode(true);
             activeQuoteDialog.Show();
+            activeQuoteDialog.EnsureVisible();
+            activeQuoteDialog.UpdateTopMostState();
         }
         catch { }
     }
@@ -10419,6 +10591,13 @@ internal sealed class AppContext : ApplicationContext
     }
     private void Exit()
     {
+        if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed && settings != null)
+        {
+            // Persist the actual on-screen state before closing any preview dialog,
+            // whose close handler may otherwise save an older settings draft.
+            activeQuoteDialog.CapturePersistentState();
+            settings.Save();
+        }
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
         if (activeDialog != null && !activeDialog.IsDisposed) { activeDialog.Close(); activeDialog = null; }
         if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed) { activeQuoteDialog.Close(); activeQuoteDialog = null; }

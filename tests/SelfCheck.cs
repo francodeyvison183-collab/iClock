@@ -390,16 +390,16 @@ internal static class TestCheck
             // 10. Verify version comparison and JSON parsing
             BindingFlags sbf = BindingFlags.NonPublic | BindingFlags.Static;
             FieldInfo verField = appType.GetField("CURRENT_VERSION", sbf);
-            if (verField == null || (string)verField.GetValue(null) != "1.08")
+            if (verField == null || (string)verField.GetValue(null) != "1.09")
             {
-                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.08");
+                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.09");
                 return 16;
             }
             MethodInfo isNewer = appType.GetMethod("IsNewer", sbf);
             MethodInfo extractJson = appType.GetMethod("ExtractJsonValue", sbf);
-            if (!(bool)isNewer.Invoke(null, new object[] { "1.09", "1.08" }) ||
-                !(bool)isNewer.Invoke(null, new object[] { "v2.0", "1.08" }) ||
-                (bool)isNewer.Invoke(null, new object[] { "1.08", "1.08" }))
+            if (!(bool)isNewer.Invoke(null, new object[] { "1.10", "1.09" }) ||
+                !(bool)isNewer.Invoke(null, new object[] { "v2.0", "1.09" }) ||
+                (bool)isNewer.Invoke(null, new object[] { "1.09", "1.09" }))
             {
                 Console.WriteLine("FAIL: Version comparison failed");
                 return 16;
@@ -521,8 +521,8 @@ internal static class TestCheck
             // 13. Verify FontFamily setting dynamically updates Overlay cachedFont
             FieldInfo fontField = settingsType.GetField("FontFamily");
             fontField.SetValue(settings, "Consolas");
-            MethodInfo setSettings = overlayType.GetMethod("SetSettings");
-            setSettings.Invoke(overlay, new object[] { settings });
+            MethodInfo refreshSettings = overlayType.GetMethod("RefreshSettings");
+            refreshSettings.Invoke(overlay, null);
             Font updatedFont = (Font)overlayType.GetField("cachedFont", bf).GetValue(overlay);
             if (updatedFont == null || updatedFont.FontFamily.Name != "Consolas")
             {
@@ -701,28 +701,27 @@ internal static class TestCheck
 
             Form dlg = (Form)Activator.CreateInstance(settingsDialogType, new object[] { settings });
             TextBox box = (TextBox)settingsDialogType.GetField("hotkeyBox", bf).GetValue(dlg);
-            Button save = (Button)settingsDialogType.GetField("saveBtn", bf).GetValue(dlg);
             MethodInfo capture = settingsDialogType.GetMethod("CaptureHotkey", bf);
 
             // 17a. Standalone function key (F10) without modifiers should be accepted
             KeyEventArgs keF10 = new KeyEventArgs(Keys.F10);
             capture.Invoke(dlg, new object[] { box, keF10 });
-            if (!save.Enabled || box.Text != "F10")
+            if (box.Text != "F10")
             {
-                Console.WriteLine("FAIL: Standalone F10 should be accepted (save.Enabled=" + save.Enabled + ", text=" + box.Text + ")");
+                Console.WriteLine("FAIL: Standalone F10 should be accepted, text=" + box.Text);
                 return 25;
             }
 
             // 17b. Normal key without modifier (Space) should be rejected
             KeyEventArgs keSpace = new KeyEventArgs(Keys.Space);
             capture.Invoke(dlg, new object[] { box, keSpace });
-            if (save.Enabled || (!box.Text.Contains("修饰键") && !box.Text.Contains("modifier")))
+            if (!box.Text.Contains("修饰键") && !box.Text.Contains("modifier"))
             {
-                Console.WriteLine("FAIL: Lone space should be rejected (save.Enabled=" + save.Enabled + ", text=" + box.Text + ")");
+                Console.WriteLine("FAIL: Lone space should be rejected, text=" + box.Text);
                 return 25;
             }
 
-            // 17c. Occupied key should be flagged and save button disabled
+            // 17c. Occupied key should be flagged without replacing the active hotkey
             NativeWindow holder2 = new NativeWindow();
             holder2.CreateHandle(new CreateParams());
             bool held2 = (bool)regHotKey.Invoke(null, new object[] { holder2.Handle, 0x5678, (uint)(testMods | 0x4000), (uint)testKey });
@@ -732,9 +731,9 @@ internal static class TestCheck
                 capture.Invoke(dlg, new object[] { box, keOccupied });
                 unregHotKey.Invoke(null, new object[] { holder2.Handle, 0x5678 });
                 holder2.DestroyHandle();
-                if (save.Enabled || (!box.Text.Contains("已被占用") && !box.Text.Contains("Occupied")))
+                if (!box.Text.Contains("已被占用") && !box.Text.Contains("Occupied"))
                 {
-                    Console.WriteLine("FAIL: Occupied hotkey should disable save (save.Enabled=" + save.Enabled + ", text=" + box.Text + ")");
+                    Console.WriteLine("FAIL: Occupied hotkey should be flagged, text=" + box.Text);
                     return 25;
                 }
             }
@@ -752,9 +751,9 @@ internal static class TestCheck
             if ((currMods & 4) != 0) currentKeyCombination |= Keys.Shift;
             KeyEventArgs keCurrent = new KeyEventArgs(currentKeyCombination);
             capture.Invoke(dlg, new object[] { box, keCurrent });
-            if (!save.Enabled)
+            if (box.Text.Contains("已被占用") || box.Text.Contains("Occupied") || box.Text.Contains("修饰键") || box.Text.Contains("modifier"))
             {
-                Console.WriteLine("FAIL: Current hotkey should be valid (save.Enabled=" + save.Enabled + ", text=" + box.Text + ")");
+                Console.WriteLine("FAIL: Current hotkey should be valid, text=" + box.Text);
                 return 25;
             }
 
@@ -886,12 +885,16 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: ShowSettings did not close History or set settings");
                 return 27;
             }
-            // Test cancel button closes SettingsDialog
-            Button cancelBtn = (Button)dlg3.GetType().GetField("cancelBtn", bf).GetValue(dlg3);
-            cancelBtn.PerformClick();
+            // Settings has no hidden cancel button; closing only closes the window.
+            if (dlg3.GetType().GetField("cancelBtn", bf) != null || dlg3.GetType().GetField("saveBtn", bf) != null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog still contains hidden save/cancel buttons");
+                return 27;
+            }
+            dlg3.Close();
             if (!dlg3.IsDisposed || activeDlgField.GetValue(app) != null)
             {
-                Console.WriteLine("FAIL: Cancel button did not close SettingsDialog");
+                Console.WriteLine("FAIL: Closing SettingsDialog did not release active dialog");
                 return 27;
             }
             // Reopen About to verify center positioning
@@ -906,7 +909,7 @@ internal static class TestCheck
                 return 27;
             }
             dlgAbout.Close();
-            Console.WriteLine("PASS: Single active dialog mutual exclusion, screen centering, and cancel button verified.");
+            Console.WriteLine("PASS: Single active dialog mutual exclusion, screen centering, and immediate-close settings verified.");
 
             // 20. Verify Auto-Fallback, Status Transparency, and Tray Left-Click
             // Test 20a: Tray Left-Click toggles countdown (debounced to avoid triggering on double-click)
@@ -962,13 +965,12 @@ internal static class TestCheck
                 }
             }
 
-            // Test 20b: SettingsDialog with hotkeyActive = false disables save button and flags occupancy
+            // Test 20b: SettingsDialog with hotkeyActive = false flags occupancy
             Form unavailDlg = (Form)Activator.CreateInstance(settingsDialogType, new object[] { settings, false });
-            Button unavailSave = (Button)settingsDialogType.GetField("saveBtn", bf).GetValue(unavailDlg);
             TextBox unavailBox = (TextBox)settingsDialogType.GetField("hotkeyBox", bf).GetValue(unavailDlg);
-            if (unavailSave.Enabled || (!unavailBox.Text.Contains("已被占用") && !unavailBox.Text.Contains("Occupied")))
+            if (!unavailBox.Text.Contains("已被占用") && !unavailBox.Text.Contains("Occupied"))
             {
-                Console.WriteLine("FAIL: SettingsDialog with hotkeyActive=false must disable save and indicate occupied");
+                Console.WriteLine("FAIL: SettingsDialog with hotkeyActive=false must indicate occupied");
                 return 28;
             }
             unavailDlg.Dispose();
@@ -1743,12 +1745,17 @@ internal static class TestCheck
             NumericUpDown nudSize = (NumericUpDown)settingsDlgType.GetField("size", bf).GetValue(dlgInstance);
             nudSize.Value = 42;
 
-            MethodInfo getCurrentDraft = settingsDlgType.GetMethod("GetCurrentDraftSettings");
-            object draft = getCurrentDraft.Invoke(dlgInstance, null);
-            int draftSize = (int)settingsType.GetField("FontSize").GetValue(draft);
+            MethodInfo applyCurrentSettings = settingsDlgType.GetMethod("ApplyCurrentSettings");
+            object committed = applyCurrentSettings.Invoke(dlgInstance, null);
+            int draftSize = (int)settingsType.GetField("FontSize").GetValue(committed);
             if (draftSize != 42)
             {
-                Console.WriteLine("FAIL: GetCurrentDraftSettings returned incorrect FontSize: " + draftSize);
+                Console.WriteLine("FAIL: ApplyCurrentSettings did not commit FontSize to canonical settings: " + draftSize);
+                return 41;
+            }
+            if (!object.ReferenceEquals(committed, settings) || settingsDlgType.GetMethod("GetCurrentDraftSettings") != null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog still creates a separate draft configuration");
                 return 41;
             }
 
@@ -1759,7 +1766,7 @@ internal static class TestCheck
                 return 42;
             }
 
-            setVisualPreview.Invoke(overlay, new object[] { draft, "00:42:00" });
+            setVisualPreview.Invoke(overlay, new object[] { "00:42:00" });
             Font previewFont = (Font)overlayType.GetField("cachedFont", bf).GetValue(overlay);
             if (previewFont == null || (int)Math.Round(previewFont.Size) != 42)
             {
@@ -1827,7 +1834,7 @@ internal static class TestCheck
             }
             setPausedMethod.Invoke(overlay, new object[] { false });
 
-            setVisualPreview.Invoke(overlay, new object[] { settings, "25:00" });
+            setVisualPreview.Invoke(overlay, new object[] { "25:00" });
             dlgForm.Dispose();
 
             Console.WriteLine("PASS: SettingsDialog live screen preview, test alert button, and pause badge verified.");
@@ -2106,7 +2113,7 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: QuotePinTopMost default should be false (bottom/desktop layer)");
                 return 53;
             }
-            if ((int)fQuoteX.GetValue(settings) != -99999 || (int)fQuoteY.GetValue(settings) != -99999)
+            if ((int)fQuoteX.GetValue(defaultSettings) != -99999 || (int)fQuoteY.GetValue(defaultSettings) != -99999)
             {
                 Console.WriteLine("FAIL: QuoteX and QuoteY default should be -99999 sentinel");
                 return 53;
@@ -2232,7 +2239,7 @@ internal static class TestCheck
             FieldInfo fActiveQuoteField = appType.GetField("activeQuoteDialog", bf);
             FieldInfo fActiveDlgField = appType.GetField("activeDialog", bf);
             fActiveDlgField.SetValue(app, testSetDlg);
-            mSetQuotePrev.Invoke(app, new object[] { settings, true });
+            mSetQuotePrev.Invoke(app, new object[] { true });
             Form qForm = (Form)fActiveQuoteField.GetValue(app);
             if (qForm == null || qForm.IsDisposed)
             {
@@ -2243,7 +2250,7 @@ internal static class TestCheck
             pPinTest.SetValue(qForm, true, null);
 
             // Simulate tab switch: visible = false
-            mSetQuotePrev.Invoke(app, new object[] { settings, false });
+            mSetQuotePrev.Invoke(app, new object[] { false });
             Form qFormAfterSwitch = (Form)fActiveQuoteField.GetValue(app);
             if (qFormAfterSwitch == null || qFormAfterSwitch.IsDisposed)
             {
@@ -2284,10 +2291,10 @@ internal static class TestCheck
                 return 53;
             }
 
-            MethodInfo mApplyDraft = quoteDlgType.GetMethod("ApplyDraftSettings", BindingFlags.Public | BindingFlags.Instance);
-            if (mApplyDraft == null)
+            MethodInfo mApplySettings = quoteDlgType.GetMethod("ApplySettings", BindingFlags.Public | BindingFlags.Instance);
+            if (mApplySettings == null || quoteDlgType.GetMethod("ApplyDraftSettings", BindingFlags.Public | BindingFlags.Instance) != null)
             {
-                Console.WriteLine("FAIL: DailyQuoteDialog.ApplyDraftSettings method not found");
+                Console.WriteLine("FAIL: DailyQuoteDialog still exposes a draft settings path");
                 return 53;
             }
 
@@ -2382,6 +2389,8 @@ internal static class TestCheck
             FieldInfo fCurFontSize = quoteDlgType.GetField("currentFontSize", BindingFlags.NonPublic | BindingFlags.Instance);
             if (fCurFontSize != null) fCurFontSize.SetValue(desktopQuote, 15.5f);
 
+            FieldInfo fLastTab = setDlgType.GetField("lastActiveTab", BindingFlags.NonPublic | BindingFlags.Static);
+            if (fLastTab != null) fLastTab.SetValue(null, 0);
             Form setDlgInst = (Form)Activator.CreateInstance(setDlgType, new object[] { settings, true });
             fActiveDlg.SetValue(app, setDlgInst);
             MethodInfo mSyncQuoteFont = setDlgType.GetMethod("SyncQuoteFontSize");
@@ -2411,26 +2420,20 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: SettingsDialog ActiveTab property missing or not 0 initially");
                 return 54;
             }
-            MethodInfo mGetDraft = setDlgType.GetMethod("GetCurrentDraftSettings", BindingFlags.Public | BindingFlags.Instance);
-            object draftObj = mGetDraft.Invoke(setDlgInst, null);
-            FieldInfo fDraftQuoteSize = settingsType.GetField("QuoteFontSize");
-            fDraftQuoteSize.SetValue(draftObj, 10.5f);
-            mSetQuotePrev.Invoke(app, new object[] { draftObj, false });
+            fQuoteFontSize.SetValue(settings, 10.5f);
+            mSetQuotePrev.Invoke(app, new object[] { false });
 
             float sizeAfterTimerChange = (float)pCurFontSize.GetValue(desktopQuote, null);
             if (Math.Abs(sizeAfterTimerChange - 18.0f) > 0.05f)
             {
-                Console.WriteLine("FAIL: Changing timer settings in Tab 0 altered desktop quote font size! Expected 18.0, got: " + sizeAfterTimerChange);
+                Console.WriteLine("FAIL: Leaving the quote tab unexpectedly reapplied quote font size. Expected 18.0, got: " + sizeAfterTimerChange);
                 return 54;
             }
-
-            setDlgInst.Close();
-            fActiveDlg.SetValue(app, null);
-            desktopQuote.Close();
+            fQuoteFontSize.SetValue(settings, 18.0f);
+            mApplySettings.Invoke(desktopQuote, null);
 
             // Verify switching to Daily Quotes tab in Settings preserves current desktop quote index
-            handleIpc.Invoke(app, new object[] { "-q" });
-            Form quoteDlgCheck = (Form)fActiveQuote.GetValue(app);
+            Form quoteDlgCheck = desktopQuote;
             PropertyInfo pQuoteIdx = quoteDlgType.GetProperty("CurrentQuoteIndex");
             pQuoteIdx.SetValue(quoteDlgCheck, 3, null);
             Form setDlgCheck = (Form)Activator.CreateInstance(setDlgType, new object[] { settings, true });
@@ -2439,7 +2442,7 @@ internal static class TestCheck
             if (mSyncQIdx != null) mSyncQIdx.Invoke(setDlgCheck, new object[] { 3 });
 
             // Trigger preview as if switching to Tab 1
-            mSetQuotePrev.Invoke(app, new object[] { settings, true });
+            mSetQuotePrev.Invoke(app, new object[] { true });
             int idxAfterTabSwitch = (int)pQuoteIdx.GetValue(quoteDlgCheck, null);
             if (idxAfterTabSwitch != 3)
             {
@@ -2448,9 +2451,43 @@ internal static class TestCheck
             }
             setDlgCheck.Close();
             fActiveDlg.SetValue(app, null);
-            quoteDlgCheck.Close();
 
             Console.WriteLine("PASS: Desktop quote font size sync and Tab 0 countdown color immunity verified.");
+
+            // Quote settings have one canonical object; direct widget state is captured before exit.
+            MethodInfo mCapturePersistentState = quoteDlgType.GetMethod("CapturePersistentState", BindingFlags.Public | BindingFlags.Instance);
+            if (mCapturePersistentState == null || quoteDlgType.GetMethod("ApplyVisualPreview", BindingFlags.Public | BindingFlags.Instance) != null)
+            {
+                Console.WriteLine("FAIL: Quote settings still contain a separate preview configuration path");
+                return 53;
+            }
+            PropertyInfo pSettingsValue = setDlgType.GetProperty("Value", BindingFlags.Public | BindingFlags.Instance);
+            if (pSettingsValue == null || !object.ReferenceEquals(pSettingsValue.GetValue(setDlgInst, null), settings))
+            {
+                Console.WriteLine("FAIL: SettingsDialog does not edit the canonical quote settings object");
+                return 53;
+            }
+            setDlgType.GetMethod("SetActiveTab", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public).Invoke(setDlgInst, new object[] { 1 });
+            setDlgType.GetField("isSyncingQuoteFontSize", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(setDlgInst, false);
+            nud.Value = 16.0M;
+            nud.Value = 16.5M;
+            if (Math.Abs((float)fQuoteFontSize.GetValue(settings) - 16.5f) > 0.05f)
+            {
+                Console.WriteLine("FAIL: Quote font edit was not committed directly to canonical settings, expected 16.5, got: " + fQuoteFontSize.GetValue(settings));
+                return 53;
+            }
+            desktopQuote.Location = new Point(-1719, 945);
+            fCurFontSize.SetValue(desktopQuote, 16.5f);
+            mCapturePersistentState.Invoke(desktopQuote, null);
+            if ((int)fQuoteX.GetValue(settings) != -1719 || (int)fQuoteY.GetValue(settings) != 945 ||
+                Math.Abs((float)fQuoteFontSize.GetValue(settings) - 16.5f) > 0.05f)
+            {
+                Console.WriteLine("FAIL: Actual quote position/font size was not captured in canonical settings");
+                return 53;
+            }
+            setDlgInst.Close();
+            fActiveDlg.SetValue(app, null);
+            desktopQuote.Close();
 
             // 37. Verify CLI --once running instance immunity and quit lifecycle
             FieldInfo fIsOneShot = appType.GetField("isOneShot", bf);
@@ -2508,6 +2545,8 @@ internal static class TestCheck
             Console.WriteLine("PASS: Desktop quote in-card native badge tooltip (0ms latency, WinForms ToolTip elimination) verified.");
 
             // 39. Verify DailyQuoteDialog centered sandwich position (below countdown Y=60..96, above settings dialog)
+            fQuoteX.SetValue(settings, -99999);
+            fQuoteY.SetValue(settings, -99999);
             Form qDlgPosTest = (Form)Activator.CreateInstance(quoteDlgType, new object[] { settings });
             int expectedQuoteX = Screen.PrimaryScreen.WorkingArea.Left + Math.Max(0, (Screen.PrimaryScreen.WorkingArea.Width - qDlgPosTest.Width) / 2);
             if (qDlgPosTest.Location.X != expectedQuoteX || qDlgPosTest.Location.Y < 110 || qDlgPosTest.Location.Y > 130)
@@ -2538,6 +2577,45 @@ internal static class TestCheck
                     Console.WriteLine("FAIL: DailyQuoteDialog did not stay horizontally centered after quote change, expected: " + expectedAfterChangeX + ", got: " + qDlgDecoupled.Location.X);
                     return 57;
                 }
+            }
+
+            // Verify quote maintains secondary display coordinates on NextQuote
+            MethodInfo mNextQuote = quoteDlgType.GetMethod("NextQuote", BindingFlags.Public | BindingFlags.Instance);
+            Screen secScreen = null;
+            foreach (Screen s in Screen.AllScreens) { if (!s.Primary) { secScreen = s; break; } }
+            if (secScreen != null)
+            {
+                int testSecX = secScreen.WorkingArea.Left + 200;
+                int testSecY = secScreen.WorkingArea.Top + 200;
+                fQuoteX.SetValue(settings, testSecX);
+                fQuoteY.SetValue(settings, testSecY);
+                Form qDlgSec = (Form)Activator.CreateInstance(quoteDlgType, new object[] { settings });
+                if (mNextQuote != null)
+                {
+                    mNextQuote.Invoke(qDlgSec, null);
+                    if (qDlgSec.Location.X != testSecX || qDlgSec.Location.Y != testSecY)
+                    {
+                        Console.WriteLine("FAIL: DailyQuoteDialog jumped away from secondary screen coordinates upon NextQuote: X=" + qDlgSec.Location.X + " Y=" + qDlgSec.Location.Y);
+                        return 57;
+                    }
+                }
+
+                // Cold construction must already match the settings-tab refresh path.
+                // Otherwise the quote only jumps back to its saved state when the tab opens.
+                int constructedX = qDlgSec.Location.X;
+                int constructedY = qDlgSec.Location.Y;
+                int constructedWidth = qDlgSec.Width;
+                int constructedHeight = qDlgSec.Height;
+                float constructedFontSize = (float)pCurFontSize.GetValue(qDlgSec, null);
+                mApplySettings.Invoke(qDlgSec, null);
+                if (qDlgSec.Location.X != constructedX || qDlgSec.Location.Y != constructedY ||
+                    qDlgSec.Width != constructedWidth || qDlgSec.Height != constructedHeight ||
+                    Math.Abs((float)pCurFontSize.GetValue(qDlgSec, null) - constructedFontSize) > 0.05f)
+                {
+                    Console.WriteLine("FAIL: Cold quote construction differs from ApplySettings on secondary screen");
+                    return 57;
+                }
+                qDlgSec.Close();
             }
 
             qDlgDecoupled.Close();
@@ -2770,12 +2848,25 @@ internal static class TestCheck
 
             // Test daily quote suspension and restoration during projection
             MethodInfo checkDailyQuote = appType.GetMethod("CheckDailyQuote", bf);
-            checkDailyQuote.Invoke(app, new object[] { true, settings });
+            checkDailyQuote.Invoke(app, new object[] { true });
             fActiveQuote = appType.GetField("activeQuoteDialog", bf);
             Form dailyQuoteDlg = (Form)fActiveQuote.GetValue(app);
             if (dailyQuoteDlg == null)
             {
                 Console.WriteLine("FAIL: CheckDailyQuote did not create dailyQuoteDlg");
+                return 59;
+            }
+            if (!dailyQuoteDlg.Visible)
+            {
+                Console.WriteLine("FAIL: CheckDailyQuote created the quote but did not show it");
+                return 59;
+            }
+            // A hidden retained instance must also be restored by the normal startup/unlock path.
+            dailyQuoteDlg.Hide();
+            checkDailyQuote.Invoke(app, new object[] { false });
+            if (!dailyQuoteDlg.Visible)
+            {
+                Console.WriteLine("FAIL: CheckDailyQuote treated a hidden retained quote as visible");
                 return 59;
             }
             // Project note -> daily quote should be hidden
@@ -2809,7 +2900,7 @@ internal static class TestCheck
             MethodInfo mSetQuotePreview = appType.GetMethod("SetQuotePreview", BindingFlags.NonPublic | BindingFlags.Instance);
             if (mSetQuotePreview != null)
             {
-                mSetQuotePreview.Invoke(app, new object[] { settings, true });
+                mSetQuotePreview.Invoke(app, new object[] { true });
                 Form curActiveQuote = (Form)fActiveQuote.GetValue(app);
                 if (curActiveQuote != null && curActiveQuote.Visible)
                 {

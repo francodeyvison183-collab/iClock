@@ -55,3 +55,10 @@ if (Test-Path -LiteralPath $testSource) {
     $testSize = (Get-Item -LiteralPath $testExe).Length
     Write-Host "Built $testExe ($testSize bytes)."
 }
+
+$quoteLayoutTestSource = Join-Path $projectRoot 'tests\QuoteLayoutCheck.cs'
+if (Test-Path -LiteralPath $quoteLayoutTestSource) {
+    $quoteLayoutTestExe = Join-Path $outputDir 'QuoteLayoutCheck.exe'
+    & $compiler @('/nologo', '/target:exe', '/optimize+', '/codepage:65001', "/out:$quoteLayoutTestExe", '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', $quoteLayoutTestSource)
+    if ($LASTEXITCODE -ne 0) { throw "QuoteLayoutCheck compilation failed with exit code $LASTEXITCODE." }
+}

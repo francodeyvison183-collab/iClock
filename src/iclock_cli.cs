@@ -498,13 +498,14 @@ internal static class CliShim
                     { "type", "object" },
                     { "properties", new Dictionary<string, object>
                         {
+                            { "action", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "ask", "cancel" } }, { "description", "Action to perform: 'ask' (default) prompts user on screen; 'cancel' immediately closes active pending approval card." } } },
                             { "question", new Dictionary<string, object> { { "type", "string" }, { "description", "The question, prompt, or approval details to display (e.g. command details, target branch, risk warning)" } } },
                             { "options", new Dictionary<string, object> { { "type", "array" }, { "items", new Dictionary<string, object> { { "type", "string" } } }, { "description", "List of clickable option buttons (e.g. ['Approve', 'Cancel'] or ['Option A', 'Option B']). If omitted, a text input box is presented." } } },
                             { "timeout_seconds", new Dictionary<string, object> { { "type", "integer" }, { "description", "Optional auto-timeout duration in seconds (default: 0 = infinite wait, no auto-timeout fallback). Only set when running in unattended automated scripts." } } },
-                            { "background_only", new Dictionary<string, object> { { "type", "boolean" }, { "description", "Optional. If true, only pops up desktop card when the agent host window is in the background. If the user is actively focusing the agent window, immediately returns status in_foreground so the agent can ask directly in the chat." } } }
+                            { "background_only", new Dictionary<string, object> { { "type", "boolean" }, { "description", "Optional. If true, only pops up desktop card when the agent host window is in the background. If the user is actively focusing the agent window, immediately returns status in_foreground so the agent can ask directly in the chat." } } },
+                            { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional agent name for display (e.g. 'Cursor', 'Antigravity')" } } }
                         }
-                    },
-                    { "required", new string[] { "question" } }
+                    }
                 }
             }
         });
@@ -540,7 +541,8 @@ internal static class CliShim
                     { "properties", new Dictionary<string, object>
                         {
                             { "message", new Dictionary<string, object> { { "type", "string" }, { "description", "Notification message content" } } },
-                            { "sound", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "agent", "doorbell", "telephone", "qq", "knock", "alarm", "none" } }, { "description", "Chime sound style: agent (default, gentle AI chime), doorbell, telephone, qq, knock, alarm, or none" } } }
+                            { "sound", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "agent", "doorbell", "telephone", "qq", "knock", "alarm", "none" } }, { "description", "Chime sound style: agent (default, gentle AI chime), doorbell, telephone, qq, knock, alarm, or none" } } },
+                            { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional agent name projecting this notification (e.g. 'Cursor', 'Antigravity')" } } }
                         }
                     },
                     { "required", new string[] { "message" } }
@@ -552,13 +554,13 @@ internal static class CliShim
         list.Add(new Dictionary<string, object>
         {
             { "name", "iclock_quote" },
-            { "description", "Display, cycle, or add inspirational quotes / task sticky notes into iClock's desktop HUD and quotes library." },
+            { "description", "Display, cycle, add, or clear inspirational quotes / task sticky notes on iClock's desktop HUD and quotes library." },
             { "inputSchema", new Dictionary<string, object>
                 {
                     { "type", "object" },
                     { "properties", new Dictionary<string, object>
                         {
-                            { "action", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "show", "add", "next" } }, { "description", "Action to perform: 'show' (default) displays on desktop card; 'add' adds quote(s) permanently into the user's quotes library; 'next' cycles to next quote." } } },
+                            { "action", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "show", "add", "next", "clear", "hide" } }, { "description", "Action to perform: 'show' (default) displays on desktop card; 'add' adds quote(s) permanently; 'next' cycles to next quote; 'clear' or 'hide' removes current desktop note." } } },
                             { "text", new Dictionary<string, object> { { "type", "string" }, { "description", "Quote text or sticky note content" } } },
                             { "author", new Dictionary<string, object> { { "type", "string" }, { "description", "Author or attribution (e.g. 'Steve Jobs')" } } },
                             { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional agent name projecting this sticky note (e.g. 'Cursor', 'Antigravity')" } } },
@@ -573,7 +575,7 @@ internal static class CliShim
         list.Add(new Dictionary<string, object>
         {
             { "name", "iclock_status" },
-            { "description", "Query current iClock status (running state, remaining seconds, duration settings)." },
+            { "description", "Query current iClock status (running state, remaining seconds, duration settings, active label, and progress)." },
             { "inputSchema", new Dictionary<string, object>
                 {
                     { "type", "object" },
@@ -604,10 +606,76 @@ internal static class CliShim
         return list;
     }
 
+    private static bool IsValidProgress(string val, out float parsed)
+    {
+        parsed = 0f;
+        if (string.IsNullOrEmpty(val)) return false;
+        val = val.Trim();
+        if (val.Equals("clear", StringComparison.OrdinalIgnoreCase) ||
+            val.Equals("off", StringComparison.OrdinalIgnoreCase) ||
+            val.Equals("reset", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        if (val.Contains("/"))
+        {
+            string[] parts = val.Split('/');
+            float num, den;
+            if (parts.Length == 2 &&
+                float.TryParse(parts[0].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out num) &&
+                float.TryParse(parts[1].Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out den) &&
+                den > 0f)
+            {
+                parsed = num / den;
+                return true;
+            }
+            return false;
+        }
+        string clean = val.Replace("%", "").Trim();
+        float raw;
+        if (float.TryParse(clean, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out raw))
+        {
+            if (val.Contains("%") || raw > 1.0f) parsed = raw / 100.0f;
+            else parsed = raw;
+            return true;
+        }
+        return false;
+    }
+
+    private static string JsonOk(Dictionary<string, object> data = null)
+    {
+        var d = data ?? new Dictionary<string, object>();
+        if (!d.ContainsKey("status")) d["status"] = "ok";
+        return new JavaScriptSerializer().Serialize(d);
+    }
+
+    private static string JsonError(string message)
+    {
+        var d = new Dictionary<string, object>
+        {
+            { "status", "error" },
+            { "message", message ?? "Unknown error" }
+        };
+        return new JavaScriptSerializer().Serialize(d);
+    }
+
     private static string ExecuteToolCall(string toolName, Dictionary<string, object> args)
     {
         if (toolName == "iclock_ask_human")
         {
+            string action = args.ContainsKey("action") ? (args["action"] as string ?? "").ToLowerInvariant() : "";
+            if (action == "cancel" || action == "close")
+            {
+                SendIpc("ask_human_cancel");
+                var cancelResp = new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "cancel" },
+                    { "message", "已通知桌面关闭人机审批弹窗" }
+                };
+                return new JavaScriptSerializer().Serialize(cancelResp);
+            }
+
             bool bgOnly = false;
             if (args.ContainsKey("background_only") && args["background_only"] != null)
             {
@@ -616,7 +684,7 @@ internal static class CliShim
 
             if (bgOnly && IsAgentInForeground())
             {
-                return "{\"in_foreground\":true,\"action\":\"ask_in_chat\",\"message\":\"User is actively viewing your window. Please ask your question directly in the chat window.\"}";
+                return "{\"status\":\"in_foreground\",\"in_foreground\":true,\"action\":\"ask_in_chat\",\"message\":\"User is actively viewing your window. Please ask your question directly in the chat window.\"}";
             }
 
             string question = args.ContainsKey("question") ? args["question"] as string : "请确认：";
@@ -664,12 +732,29 @@ internal static class CliShim
                     {
                         string result = File.ReadAllText(resFile, Encoding.UTF8).Trim();
                         try { File.Delete(resFile); } catch { }
-                        return "用户已响应：" + result;
+                        bool isCancelled = (result == "[用户取消 / Cancelled]" || result == "用户取消");
+                        var resp = new Dictionary<string, object>
+                        {
+                            { "status", isCancelled ? "cancelled" : "ok" },
+                            { "action", isCancelled ? "cancelled" : "responded" },
+                            { "result", result },
+                            { "cancelled", isCancelled },
+                            { "timed_out", false }
+                        };
+                        return new JavaScriptSerializer().Serialize(resp);
                     }
                     catch { }
                 }
             }
-            return "等待用户决策超时（" + timeoutSec + "秒未响应）";
+            var timeoutResp = new Dictionary<string, object>
+            {
+                { "status", "timeout" },
+                { "action", "timeout" },
+                { "message", "等待用户决策超时（" + timeoutSec + "秒未响应）" },
+                { "cancelled", false },
+                { "timed_out", true }
+            };
+            return new JavaScriptSerializer().Serialize(timeoutResp);
         }
         else if (toolName == "iclock_timer")
         {
@@ -687,43 +772,81 @@ internal static class CliShim
                 SendIpc("start " + minutes);
                 if (!string.IsNullOrEmpty(label))
                 {
+                    SendIpc("timer_label:" + label);
                     SendIpc("notice:none|" + label);
                 }
-                return "已为用户启动倒计时：" + minutes + " 分钟" + (!string.IsNullOrEmpty(label) ? "（" + label + "）" : "");
+                var resp = new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "start" },
+                    { "minutes", minutes },
+                    { "label", label ?? "" },
+                    { "message", "已为用户启动倒计时：" + minutes + " 分钟" + (!string.IsNullOrEmpty(label) ? "（" + label + "）" : "") }
+                };
+                return new JavaScriptSerializer().Serialize(resp);
             }
             else if (action == "pause")
             {
                 SendIpc("pause");
-                return "已暂停倒计时";
+                return JsonOk(new Dictionary<string, object> { { "action", "pause" }, { "message", "已暂停倒计时" } });
             }
             else if (action == "resume")
             {
                 SendIpc("resume");
-                return "已恢复倒计时";
+                return JsonOk(new Dictionary<string, object> { { "action", "resume" }, { "message", "已恢复倒计时" } });
             }
             else if (action == "reset")
             {
                 SendIpc("reset");
-                return "已重置倒计时为初始就绪状态";
+                return JsonOk(new Dictionary<string, object> { { "action", "reset" }, { "message", "已重置倒计时为初始就绪状态" } });
             }
-            return "未知操作：" + action;
+            return JsonError("未知操作：" + action);
         }
         else if (toolName == "iclock_notify")
         {
             string message = args.ContainsKey("message") ? args["message"] as string : "任务完成";
             string sound = args.ContainsKey("sound") ? args["sound"] as string : "agent";
-            SendIpc("notice:" + sound + "|" + message);
-            return "已在用户桌面弹出提醒卡片：" + message;
+            string agentName = null;
+            if (args.ContainsKey("agent_name") && args["agent_name"] != null) agentName = args["agent_name"].ToString();
+            else if (args.ContainsKey("agent") && args["agent"] != null) agentName = args["agent"].ToString();
+            else if (!string.IsNullOrEmpty(mcpClientName)) agentName = mcpClientName;
+
+            SendIpc("notice:" + sound + "|" + message + (!string.IsNullOrEmpty(agentName) ? ("|" + agentName) : ""));
+            var resp = new Dictionary<string, object>
+            {
+                { "status", "ok" },
+                { "message", message },
+                { "sound", sound },
+                { "agent_name", agentName ?? "" }
+            };
+            return new JavaScriptSerializer().Serialize(resp);
         }
         else if (toolName == "iclock_quote")
         {
-            string action = args.ContainsKey("action") ? args["action"] as string : "show";
+            string action = args.ContainsKey("action") ? (args["action"] as string ?? "show").ToLowerInvariant() : "show";
             if (string.IsNullOrEmpty(action)) action = "show";
 
-            if (action == "next")
+            if (action == "clear" || action == "hide")
+            {
+                SendIpc("quote:clear");
+                var resp = new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "clear" },
+                    { "message", "已清除桌面便签投射" }
+                };
+                return new JavaScriptSerializer().Serialize(resp);
+            }
+            else if (action == "next")
             {
                 SendIpc("quote");
-                return "已为用户切换至下一句桌面格言";
+                var resp = new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "next" },
+                    { "message", "已为用户切换至下一句桌面格言" }
+                };
+                return new JavaScriptSerializer().Serialize(resp);
             }
             else if (action == "add")
             {
@@ -762,7 +885,7 @@ internal static class CliShim
 
                 if (quotesToAdd.Count == 0)
                 {
-                    return "未提供任何有效格言内容，请传入 text 或 quotes 参数";
+                    return JsonError("未提供任何有效格言内容，请传入 text 或 quotes 参数");
                 }
 
                 string batchId = Guid.NewGuid().ToString("N").Substring(0, 8);
@@ -849,7 +972,14 @@ internal static class CliShim
 
                 try { if (File.Exists(batchFile)) File.Delete(batchFile); } catch { }
 
-                return "已成功为用户收录 " + addedCount + " 条格言至 iClock 词库（已去重并自动创建 .bak 备份），并已即时刷新桌面！";
+                var resp = new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "add" },
+                    { "added_count", addedCount },
+                    { "message", "已成功为用户收录 " + addedCount + " 条格言至 iClock 词库（已去重并自动创建 .bak 备份），并已即时刷新桌面！" }
+                };
+                return new JavaScriptSerializer().Serialize(resp);
             }
             else // show
             {
@@ -869,12 +999,21 @@ internal static class CliShim
                     }
 
                     SendIpc("quote:" + text + "|" + (author ?? "") + "|" + (agentName ?? "") + "|" + pid);
-                    return "已在桌面置顶投射便签：" + text;
+                    var resp = new Dictionary<string, object>
+                    {
+                        { "status", "ok" },
+                        { "action", "show" },
+                        { "text", text },
+                        { "author", author ?? "" },
+                        { "agent_name", agentName ?? "" },
+                        { "message", "已在桌面置顶投射便签：" + text }
+                    };
+                    return new JavaScriptSerializer().Serialize(resp);
                 }
                 else
                 {
                     SendIpc("quote");
-                    return "已为用户切换至下一句桌面格言";
+                    return JsonOk(new Dictionary<string, object> { { "action", "next" }, { "message", "已为用户切换至下一句桌面格言" } });
                 }
             }
         }
@@ -908,16 +1047,39 @@ internal static class CliShim
         {
             string progress = args.ContainsKey("progress") ? (args["progress"] != null ? args["progress"].ToString() : "clear") : "clear";
             string message = args.ContainsKey("message") ? (args["message"] as string ?? "") : "";
-            if (string.Equals(progress, "clear", StringComparison.OrdinalIgnoreCase) || string.Equals(progress, "off", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(progress, "clear", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(progress, "off", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(progress, "reset", StringComparison.OrdinalIgnoreCase))
             {
                 SendIpc("progress:clear");
-                return "已清除桌面进度条";
+                var resp = new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "clear" },
+                    { "message", "已清除桌面进度条" }
+                };
+                return new JavaScriptSerializer().Serialize(resp);
             }
+
+            float parsedPct;
+            if (!IsValidProgress(progress, out parsedPct))
+            {
+                return JsonError("无效的进度格式，支持百分比(如 '60%')、分数(如 '3/5')、小数(如 '0.6')或 'clear'");
+            }
+
             string payload = !string.IsNullOrEmpty(message) ? (progress + "|" + message) : progress;
             SendIpc("progress:" + payload);
-            return "已更新桌面进度条：" + progress + (!string.IsNullOrEmpty(message) ? " (" + message + ")" : "");
+            var updateResp = new Dictionary<string, object>
+            {
+                { "status", "ok" },
+                { "action", "update" },
+                { "progress", progress },
+                { "percentage", Math.Round(parsedPct, 4) },
+                { "message", message }
+            };
+            return new JavaScriptSerializer().Serialize(updateResp);
         }
 
-        return "Unknown tool: " + toolName;
+        return JsonError("Unknown tool: " + toolName);
     }
 }
