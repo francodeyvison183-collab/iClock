@@ -1658,42 +1658,7 @@
     </div>
   </section>
 
-  <!-- 章节 1：为什么选择 iClock？ (Why iClock) -->
-  <section class="section-why" id="why">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-tag" data-i18n="why_tag">Philosophy</span>
-        <h2 class="section-title" data-i18n="why_title">为什么选择 iClock？</h2>
-        <p class="section-subtitle" data-i18n="why_subtitle">直面市面上桌面工具的两极分化，坚持极致的工程师克制美学。</p>
-      </div>
-
-      <div class="why-grid">
-        <div class="why-card pain">
-          <span class="why-card-badge" data-i18n="why_pain_badge">传统工具的困扰</span>
-          <h3 class="why-card-title" data-i18n="why_pain_title">臃肿、遮挡与后台黑洞</h3>
-          <p class="why-card-text" data-i18n="why_pain_desc">市面桌面工具常陷入两难：要么单一粗糙，要么动辄 100MB+（Electron 框架），常驻持续吞噬数百兆内存与 CPU，甚至附带弹窗与埋点；传统实体窗口还会死死遮挡代码与网页视线，打断心流。</p>
-          <ul class="why-card-list">
-            <li><span class="badge-cross">✘</span> <span data-i18n="why_pain_1">100MB+ 庞大安装包与高额内存开销</span></li>
-            <li><span class="badge-cross">✘</span> <span data-i18n="why_pain_2">实体窗口遮挡屏幕，严重阻碍鼠标操作</span></li>
-            <li><span class="badge-cross">✘</span> <span data-i18n="why_pain_3">后台定时循环轮询，持续耗电与唤醒</span></li>
-          </ul>
-        </div>
-
-        <div class="why-card solution">
-          <span class="why-card-badge" data-i18n="why_sol_badge">iClock 的极简哲学</span>
-          <h3 class="why-card-title" data-i18n="why_sol_title">原生、穿透与 0-Polling 协同</h3>
-          <p class="why-card-text" data-i18n="why_sol_desc">基于 Windows 原生底层 Win32 与 GDI+ 构建，无任何第三方依赖，单文件仅 275 KB，内存 &lt; 15 MB。它不仅是支持完全点击穿透的悬浮倒计时，更融合了零轮询桌面灵感与原生 MCP 智能体长任务协同。</p>
-          <ul class="why-card-list">
-            <li><span class="badge-check">✔</span> <span data-i18n="why_sol_1">单文件 275 KB，纯原生，内存稳定 &lt; 15 MB</span></li>
-            <li><span class="badge-check">✔</span> <span data-i18n="why_sol_2">完全点击穿透（WS_EX_TRANSPARENT），不挡鼠标</span></li>
-            <li><span class="badge-check">✔</span> <span data-i18n="why_sol_3">纯事件驱动消息机制，桌面常驻 0.0% CPU 占用</span></li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 章节 2：三大核心功能 (Three Core Features) -->
+  <!-- 章节 1：三大核心功能 (Three Core Features) -->
   <section class="section-features" id="features">
     <div class="container">
       <div class="section-header">
@@ -1753,6 +1718,41 @@
             <span class="feature-tag-pill">stdio JSON-RPC</span>
             <span class="feature-tag-pill" data-i18n="tag_cli_pipe">免 .exe 终端调用</span>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 章节 2：为什么选择 iClock？ (Why iClock) -->
+  <section class="section-why" id="why">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag" data-i18n="why_tag">Philosophy</span>
+        <h2 class="section-title" data-i18n="why_title">为什么选择 iClock？</h2>
+        <p class="section-subtitle" data-i18n="why_subtitle">直面市面上桌面工具的两极分化，坚持极致的工程师克制美学。</p>
+      </div>
+
+      <div class="why-grid">
+        <div class="why-card pain">
+          <span class="why-card-badge" data-i18n="why_pain_badge">传统工具的困扰</span>
+          <h3 class="why-card-title" data-i18n="why_pain_title">臃肿、遮挡与后台黑洞</h3>
+          <p class="why-card-text" data-i18n="why_pain_desc">市面桌面工具常陷入两难：要么单一粗糙，要么动辄 100MB+（Electron 框架），常驻持续吞噬数百兆内存与 CPU，甚至附带弹窗与埋点；传统实体窗口还会死死遮挡代码与网页视线，打断心流。</p>
+          <ul class="why-card-list">
+            <li><span class="badge-cross">✘</span> <span data-i18n="why_pain_1">100MB+ 庞大安装包与高额内存开销</span></li>
+            <li><span class="badge-cross">✘</span> <span data-i18n="why_pain_2">实体窗口遮挡屏幕，严重阻碍鼠标操作</span></li>
+            <li><span class="badge-cross">✘</span> <span data-i18n="why_pain_3">后台定时循环轮询，持续耗电与唤醒</span></li>
+          </ul>
+        </div>
+
+        <div class="why-card solution">
+          <span class="why-card-badge" data-i18n="why_sol_badge">iClock 的极简哲学</span>
+          <h3 class="why-card-title" data-i18n="why_sol_title">原生、穿透与 0-Polling 协同</h3>
+          <p class="why-card-text" data-i18n="why_sol_desc">基于 Windows 原生底层 Win32 与 GDI+ 构建，无任何第三方依赖，单文件仅 275 KB，内存 &lt; 15 MB。它不仅是支持完全点击穿透的悬浮倒计时，更融合了零轮询桌面灵感与原生 MCP 智能体长任务协同。</p>
+          <ul class="why-card-list">
+            <li><span class="badge-check">✔</span> <span data-i18n="why_sol_1">单文件 275 KB，纯原生，内存稳定 &lt; 15 MB</span></li>
+            <li><span class="badge-check">✔</span> <span data-i18n="why_sol_2">完全点击穿透（WS_EX_TRANSPARENT），不挡鼠标</span></li>
+            <li><span class="badge-check">✔</span> <span data-i18n="why_sol_3">纯事件驱动消息机制，桌面常驻 0.0% CPU 占用</span></li>
+          </ul>
         </div>
       </div>
     </div>
