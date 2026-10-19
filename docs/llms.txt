@@ -4,6 +4,8 @@
 
 iClock is an open-source, minimalist Windows desktop productivity hub designed for developers and power users. It compiles to a single 275 KB native portable executable with zero runtime dependencies.
 
+Last updated: 2026-10-19 (iClock v1.09). Full condensed context file: https://francodeyvison183-collab.github.io/iClock/llms-full.txt
+
 ## Key Specifications
 
 - **Application Category**: Desktop Utility, Focus & Pomodoro Countdown Timer, Daily Quotes, AI Agent Completion Monitor, MCP Server
@@ -38,6 +40,7 @@ iClock is an open-source, minimalist Windows desktop productivity hub designed f
   scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json
   ```
 - **Official Website**: https://francodeyvison183-collab.github.io/iClock/
+- **Official Website (English)**: https://francodeyvison183-collab.github.io/iClock/en/
 - **GitHub Repository**: https://github.com/francodeyvison183-collab/iClock
 - **Latest Release (v1.09)**:
   - Portable ZIP Archive (Recommended · Avoids browser false warnings): https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.zip

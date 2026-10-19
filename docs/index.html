@@ -13,18 +13,30 @@
   <link rel="apple-touch-icon" href="icon-256.png">
   <link rel="help" href="llms.txt" type="text/markdown" title="LLM context and documentation">
 
+  <link rel="canonical" href="https://francodeyvison183-collab.github.io/iClock/">
+  <link rel="alternate" hreflang="zh-CN" href="https://francodeyvison183-collab.github.io/iClock/">
+  <link rel="alternate" hreflang="en" href="https://francodeyvison183-collab.github.io/iClock/en/">
+  <link rel="alternate" hreflang="x-default" href="https://francodeyvison183-collab.github.io/iClock/">
+
   <!-- Open Graph -->
   <meta property="og:type" content="website">
+  <meta property="og:site_name" content="iClock">
+  <meta property="og:locale" content="zh_CN">
+  <meta property="og:locale:alternate" content="en_US">
   <meta property="og:url" content="https://francodeyvison183-collab.github.io/iClock/">
   <meta property="og:title" content="iClock — Windows 原生极简效率中枢">
   <meta property="og:description" content="Windows 原生极简效率中枢：悬浮穿透倒计时 · 零轮询桌面金句 · AI 智能体协同与原生 MCP。原生单文件免安装、0.0% 待机 CPU、内存小于 15MB、纯本地零网络。">
-  <meta property="og:image" content="https://francodeyvison183-collab.github.io/iClock/preview.png">
+  <meta property="og:image" content="https://francodeyvison183-collab.github.io/iClock/og-preview.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="iClock 悬浮倒计时真实桌面运行效果">
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="iClock — Windows 原生极简效率中枢">
   <meta name="twitter:description" content="Windows 原生极简效率中枢：悬浮穿透倒计时 · 零轮询桌面金句 · AI 智能体协同与原生 MCP。原生单文件免安装、0.0% 待机 CPU、内存小于 15MB、纯本地零网络。">
-  <meta name="twitter:image" content="https://francodeyvison183-collab.github.io/iClock/preview.png">
+  <meta name="twitter:image" content="https://francodeyvison183-collab.github.io/iClock/og-preview.jpg">
+  <meta name="twitter:image:alt" content="iClock floating countdown timer over a Windows desktop">
 
   <!-- Schema.org 结构化数据 (GEO & SEO 语义增强) -->
   <script type="application/ld+json">
@@ -40,7 +52,14 @@
         "applicationSubCategory": "Productivity",
         "fileSize": "275KB",
         "softwareVersion": "1.09",
+        "dateModified": "2026-10-19",
+        "inLanguage": ["zh-CN", "en"],
         "description": "Ultra-lightweight (275 KB), zero-dependency, click-through desktop countdown timer, ambient zero-polling daily quotes, and native stdio Model Context Protocol (MCP) server for Windows.",
+        "featureList": [
+          "Click-through floating countdown timer (WS_EX_TRANSPARENT, never steals focus)",
+          "Ambient zero-polling daily quotes (0.0% idle CPU, under 15 MB RAM)",
+          "Native stdio MCP server for AI agents (Claude Desktop, Cursor, Windsurf)"
+        ],
         "offers": {
           "@type": "Offer",
           "price": "0",
@@ -48,11 +67,27 @@
         },
         "license": "https://opensource.org/licenses/MIT",
         "downloadUrl": "https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.zip",
+        "releaseNotes": "https://github.com/francodeyvison183-collab/iClock/releases/tag/v1.09",
+        "screenshot": "https://francodeyvison183-collab.github.io/iClock/og-preview.jpg",
         "url": "https://francodeyvison183-collab.github.io/iClock/",
+        "codeRepository": "https://github.com/francodeyvison183-collab/iClock",
+        "sameAs": ["https://github.com/francodeyvison183-collab/iClock"],
         "author": {
           "@type": "Person",
           "name": "gujiangwen",
           "email": "francodeyvison183@gmail.com"
+        }
+      },
+      {
+        "@type": "SoftwareSourceCode",
+        "name": "iClock",
+        "codeRepository": "https://github.com/francodeyvison183-collab/iClock",
+        "programmingLanguage": "C#",
+        "runtimePlatform": "Windows",
+        "license": "https://opensource.org/licenses/MIT",
+        "author": {
+          "@type": "Person",
+          "name": "gujiangwen"
         }
       },
       {
@@ -1527,7 +1562,7 @@
         <!-- 语言切换器 -->
         <div class="lang-switch-pill" role="radiogroup" aria-label="Language">
           <button class="lang-pill-item active" id="btnLangZh" onclick="switchLanguage('zh')">中文</button>
-          <button class="lang-pill-item" id="btnLangEn" onclick="switchLanguage('en')">EN</button>
+          <a class="lang-pill-item" id="btnLangEn" href="./en/" hreflang="en">EN</a>
         </div>
 
         <!-- 主题切换按钮 -->
@@ -1651,7 +1686,10 @@
             </div>
 
             <!-- 实物截图模式 -->
-            <img src="preview.png" alt="iClock 真实桌面运行效果" class="real-screenshot-view" id="realScreenshot">
+            <picture>
+              <source srcset="preview.webp" type="image/webp">
+              <img src="preview.png" alt="iClock 真实桌面运行效果" class="real-screenshot-view" id="realScreenshot" width="1536" height="960" loading="lazy" decoding="async">
+            </picture>
           </div>
         </div>
       </div>
@@ -1991,7 +2029,7 @@
               </div>
               <pre><code id="codePrompt">请帮我将本地桌面效率工具 iClock 接入当前环境的 MCP Server 列表。
 iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，启动参数为 ["--mcp"]。
-服务原生提供 5 大工具：iclock_ask_human（桌面置顶决策请示门禁）、iclock_timer（倒计时设定与查询）、iclock_notify（任务里程碑桌面提醒与铃声）、iclock_quote（桌面格言轮换与扩充）以及 iclock_status（系统运行状态）。
+服务原生提供 6 大工具：iclock_ask_human（桌面置顶决策请示门禁）、iclock_progress（将任务步骤与进度投射到悬浮时钟 HUD）、iclock_timer（倒计时设定与查询）、iclock_notify（任务里程碑桌面提醒与铃声）、iclock_quote（桌面格言轮换与扩充）以及 iclock_status（系统运行状态）。
 配置完成后请直接尝试调用 iclock_status 工具验证连接。</code></pre>
             </div>
           </div>
@@ -2178,6 +2216,16 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
             内置原生 stdio MCP Server (iclock.com --mcp)，无须 Node.js 或 Python 环境，开箱支持 Claude Desktop、Cursor、Windsurf、Antigravity 等任意标准 MCP 客户端。
           </div>
         </div>
+
+        <div class="faq-card">
+          <div class="faq-question">
+            <span class="faq-q-icon">Q</span>
+            <span data-i18n="faq_q5">软件是否安全、纯净无广告？</span>
+          </div>
+          <div class="faq-answer" data-i18n="faq_a5">
+            100% 开源（MIT 协议），零流氓广告，零捆绑插件，零后台常驻守护进程，退出即彻底释放。
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -2193,7 +2241,7 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
 
       <div class="sponsor-card">
         <h4 style="font-size: 16px; font-weight: 700; color: var(--text-main);" data-i18n="spons_box_title">微信扫一扫 赞赏支持</h4>
-        <img src="zan.jpg" alt="iClock 微信赞赏码" class="sponsor-qr-img">
+        <img src="zan.jpg" alt="iClock 微信赞赏码" class="sponsor-qr-img" width="1152" height="1152" loading="lazy" decoding="async">
         <p class="sponsor-caption" data-i18n="spons_caption">“谢谢使用，恭喜发财！” · 每一份鼓励都是持续打磨的动力</p>
         <div class="sponsor-author-box">
           <span data-i18n="spons_author">开发者：<strong>gujiangwen</strong></span> · 
@@ -2360,6 +2408,9 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         comp_r7_iclock: "⚡ 0-Polling 悬浮 + AI 扩充",
         comp_r8_name: "网络行为与隐私",
         comp_r8_iclock: "⚡ 0 联网请求，纯本地隐私",
+        comp_r8_electron: "多数携带统计与更新上报",
+        comp_r8_win: "绑定微软在线账户",
+        comp_r8_web: "数据上报云端服务器",
 
         dl_tag: "Get Started",
         dl_title: "快速上手与下载中心",
@@ -2422,6 +2473,8 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         faq_a3: "完全不会。iClock 采用纯事件消息驱动与 0-Polling 架构，静止常驻时 CPU 占用为 0.0%，彻底消除了后台定时器循环唤醒，笔记本全天候常驻零耗电。",
         faq_q4: "原生 MCP 服务支持哪些智能体？",
         faq_a4: "内置原生 stdio MCP Server (iclock.com --mcp)，无须 Node.js 或 Python 环境，开箱支持 Claude Desktop、Cursor、Windsurf、Antigravity 等任意标准 MCP 客户端。",
+        faq_q5: "软件是否安全、纯净无广告？",
+        faq_a5: "100% 开源（MIT 协议），零流氓广告，零捆绑插件，零后台常驻守护进程，退出即彻底释放。",
 
         spons_tag: "Community & Sponsor",
         spons_title: "开源精神，致谢支持",
@@ -2567,6 +2620,9 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         comp_r7_iclock: "⚡ 0-Polling Floating + AI Expansion",
         comp_r8_name: "Network & Privacy",
         comp_r8_iclock: "⚡ 0 Network Calls, 100% Local",
+        comp_r8_electron: "Most ship telemetry & update beacons",
+        comp_r8_win: "Requires a Microsoft online account",
+        comp_r8_web: "Data reported to cloud servers",
 
         dl_tag: "Get Started",
         dl_title: "Quick Start & Download Center",
@@ -2629,6 +2685,8 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
         faq_a3: "Not at all. Pure event-driven message handling (0-Polling). Idle CPU consumption is 0.0%, preserving battery life throughout the day.",
         faq_q4: "Which agents work with the native MCP server?",
         faq_a4: "Native stdio MCP server (iclock.com --mcp) works out-of-the-box with Claude Desktop, Cursor, Windsurf, Antigravity, and any standard MCP client.",
+        faq_q5: "Is iClock safe, clean, and ad-free?",
+        faq_a5: "100% open source under the MIT license. No ads, no bundled plugins, no background daemons — exit the app and every resource is released instantly.",
 
         spons_tag: "Community & Sponsor",
         spons_title: "Open Source & Appreciation",
@@ -2664,19 +2722,18 @@ iClock 的 stdio 可执行程序路径为当前解压目录下的 iclock.com，�
     let currentLang = 'zh';
 
     function getInitialLang() {
-      const saved = localStorage.getItem('iclock_lang');
-      if (saved === 'zh' || saved === 'en') return saved;
-      return (navigator.language && navigator.language.toLowerCase().startsWith('zh')) ? 'zh' : 'en';
+      return /\/en(\/|$)/.test(location.pathname) ? 'en' : 'zh';
     }
 
     function switchLanguage(lang) {
       if (!i18n[lang]) return;
       currentLang = lang;
-      localStorage.setItem('iclock_lang', lang);
       document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
 
-      document.getElementById('btnLangZh').classList.toggle('active', lang === 'zh');
-      document.getElementById('btnLangEn').classList.toggle('active', lang === 'en');
+      const btnLangZh = document.getElementById('btnLangZh');
+      const btnLangEn = document.getElementById('btnLangEn');
+      if (btnLangZh) btnLangZh.classList.toggle('active', lang === 'zh');
+      if (btnLangEn) btnLangEn.classList.toggle('active', lang === 'en');
 
       document.title = i18n[lang].page_title;
       const metaDesc = document.querySelector('meta[name="description"]');

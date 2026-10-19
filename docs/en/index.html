@@ -1,0 +1,3384 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="page_title">
+            iClock — Native Minimalist Productivity Hub for Windows
+          </title>
+  <meta name="description" data-i18n-meta="description" content="Native Minimalist Productivity Hub for Windows: click-through transparent timer, 0-polling ambient quotes, 20+ AI agents monitor & native stdio MCP server.">
+  <meta name="keywords" content="iClock, 倒计时, 桌面倒计时, 悬浮倒计时, 番茄钟, 每日格言, MCP, Model Context Protocol, Windows 效率工具, 极简倒计时, countdown timer, desktop timer">
+  <link rel="icon" type="image/png" sizes="32x32" href="../icon-32.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="../icon-64.png">
+  <link rel="icon" type="image/png" sizes="256x256" href="../icon-256.png">
+  <link rel="shortcut icon" href="../favicon.ico">
+  <link rel="apple-touch-icon" href="../icon-256.png">
+  <link rel="help" href="../llms.txt" type="text/markdown" title="LLM context and documentation">
+
+  <link rel="canonical" href="https://francodeyvison183-collab.github.io/iClock/en/">
+  <link rel="alternate" hreflang="zh-CN" href="https://francodeyvison183-collab.github.io/iClock/">
+  <link rel="alternate" hreflang="en" href="https://francodeyvison183-collab.github.io/iClock/en/">
+  <link rel="alternate" hreflang="x-default" href="https://francodeyvison183-collab.github.io/iClock/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="iClock">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:locale:alternate" content="zh_CN">
+  <meta property="og:url" content="https://francodeyvison183-collab.github.io/iClock/en/">
+  <meta property="og:title" content="iClock — Native Minimalist Productivity Hub for Windows">
+  <meta property="og:description" content="Native Minimalist Productivity Hub for Windows: click-through transparent timer, 0-polling ambient quotes, 20+ AI agents monitor & native stdio MCP server.">
+  <meta property="og:image" content="https://francodeyvison183-collab.github.io/iClock/og-preview.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="iClock floating countdown timer over a Windows desktop">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="iClock — Native Minimalist Productivity Hub for Windows">
+  <meta name="twitter:description" content="Native Minimalist Productivity Hub for Windows: click-through transparent timer, 0-polling ambient quotes, 20+ AI agents monitor & native stdio MCP server.">
+  <meta name="twitter:image" content="https://francodeyvison183-collab.github.io/iClock/og-preview.jpg">
+  <meta name="twitter:image:alt" content="iClock floating countdown timer over a Windows desktop">
+
+  <!-- Schema.org 结构化数据 (GEO & SEO 语义增强) -->
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "iClock",
+      "alternateName": "iClock Desktop Timer & Productivity Hub",
+      "operatingSystem": "Windows 7, Windows 8, Windows 10, Windows 11",
+      "applicationCategory": "UtilitiesApplication",
+      "applicationSubCategory": "Productivity",
+      "fileSize": "275KB",
+      "softwareVersion": "1.09",
+      "dateModified": "2026-10-19",
+      "inLanguage": [
+        "zh-CN",
+        "en"
+      ],
+      "description": "Ultra-lightweight (275 KB), zero-dependency, click-through desktop countdown timer, ambient zero-polling daily quotes, and native stdio Model Context Protocol (MCP) server for Windows.",
+      "featureList": [
+        "Click-through floating countdown timer (WS_EX_TRANSPARENT, never steals focus)",
+        "Ambient zero-polling daily quotes (0.0% idle CPU, under 15 MB RAM)",
+        "Native stdio MCP server for AI agents (Claude Desktop, Cursor, Windsurf)"
+      ],
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "license": "https://opensource.org/licenses/MIT",
+      "downloadUrl": "https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.zip",
+      "releaseNotes": "https://github.com/francodeyvison183-collab/iClock/releases/tag/v1.09",
+      "screenshot": "https://francodeyvison183-collab.github.io/iClock/og-preview.jpg",
+      "url": "https://francodeyvison183-collab.github.io/iClock/",
+      "codeRepository": "https://github.com/francodeyvison183-collab/iClock",
+      "sameAs": [
+        "https://github.com/francodeyvison183-collab/iClock"
+      ],
+      "author": {
+        "@type": "Person",
+        "name": "gujiangwen",
+        "email": "francodeyvison183@gmail.com"
+      }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "name": "iClock",
+      "codeRepository": "https://github.com/francodeyvison183-collab/iClock",
+      "programmingLanguage": "C#",
+      "runtimePlatform": "Windows",
+      "license": "https://opensource.org/licenses/MIT",
+      "author": {
+        "@type": "Person",
+        "name": "gujiangwen"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Why does it never interfere with coding or full-screen gaming?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Powered by the native Windows WS_EX_TRANSPARENT API, digits float TopMost while all mouse clicks and scrolls pass through directly to underlying IDEs, terminals, and games without stealing focus."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Why is the executable only 275 KB?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Pure native C# and GDI+ rendering. Zero Electron, zero Chromium runtime, zero bulky dependencies. Active memory stays strictly under 15 MB."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does ambient quote display drain laptop battery?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Not at all. Pure event-driven message handling (0-Polling). Idle CPU consumption is 0.0%, preserving battery life throughout the day."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Which agents work with the native MCP server?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Native stdio MCP server (iclock.com --mcp) works out-of-the-box with Claude Desktop, Cursor, Windsurf, Antigravity, and any standard MCP client."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is iClock safe, clean, and ad-free?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "100% open source under the MIT license. No ads, no bundled plugins, no background daemons — exit the app and every resource is released instantly."
+          }
+        }
+      ]
+    }
+  ]
+}
+  </script>
+
+  <style>
+    :root {
+      --bg-primary: #FFFFFF;
+      --bg-secondary: #F5F5F7;
+      --bg-tertiary: #E8E8ED;
+      --card-bg: #FFFFFF;
+      --text-main: #1D1D1F;
+      --text-muted: #6E6E73;
+      --text-light: #86868B;
+      --brand-blue: #0071E3;
+      --brand-blue-hover: #0077ED;
+      --brand-blue-light: rgba(0, 113, 227, 0.08);
+      --brand-blue-glow: rgba(0, 113, 227, 0.2);
+      --accent-coral: #E30000;
+      --accent-green: #34C759;
+      --border-color: rgba(0, 0, 0, 0.08);
+      --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+      --card-shadow-hover: 0 14px 34px rgba(0, 0, 0, 0.08);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-full: 980px;
+      --container-max: 1120px;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #000000;
+      --bg-secondary: #161617;
+      --bg-tertiary: #2C2C2E;
+      --card-bg: #1C1C1E;
+      --text-main: #F5F5F7;
+      --text-muted: #86868B;
+      --text-light: #6E6E73;
+      --brand-blue: #2997FF;
+      --brand-blue-hover: #47A6FF;
+      --brand-blue-light: rgba(41, 151, 255, 0.15);
+      --brand-blue-glow: rgba(41, 151, 255, 0.3);
+      --accent-coral: #FF453A;
+      --accent-green: #30D158;
+      --border-color: rgba(255, 255, 255, 0.12);
+      --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+      --card-shadow-hover: 0 14px 34px rgba(0, 0, 0, 0.7);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button {
+      font-family: inherit;
+      border: none;
+      outline: none;
+      background: none;
+      cursor: pointer;
+    }
+
+    .container {
+      width: 100%;
+      max-width: var(--container-max);
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* 顶部导航 (Apple Minimalist Frosted Glass) */
+    header.navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--border-color);
+      transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+    }
+
+    [data-theme="dark"] header.navbar {
+      background: rgba(0, 0, 0, 0.82);
+    }
+
+    header.navbar.scrolled {
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.05);
+    }
+
+    [data-theme="dark"] header.navbar.scrolled {
+      background: rgba(22, 22, 23, 0.92);
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.4);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 52px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+    }
+
+    .brand-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 5px;
+      object-fit: contain;
+    }
+
+    .version-tag {
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      padding: 1px 7px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-color);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: clamp(14px, 1.8vw, 24px);
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 13.5px;
+      font-weight: 400;
+      color: var(--text-muted);
+      white-space: nowrap;
+      transition: color 0.15s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--text-main);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .lang-switch-pill {
+      display: flex;
+      align-items: center;
+      background: var(--bg-secondary);
+      padding: 2px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-color);
+    }
+
+    .lang-pill-item {
+      padding: 3px 9px;
+      font-size: 11.5px;
+      font-weight: 500;
+      border-radius: var(--radius-full);
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+    }
+
+    .lang-pill-item.active {
+      background: var(--bg-primary);
+      color: var(--text-main);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+      font-weight: 600;
+    }
+
+    .theme-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-full);
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      transition: all 0.2s ease;
+    }
+
+    .theme-toggle-btn:hover {
+      color: var(--text-main);
+      background: var(--bg-tertiary);
+    }
+
+    .btn-github {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 12px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-color);
+      background: var(--bg-primary);
+      color: var(--text-main);
+      font-size: 12.5px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+
+    .btn-github:hover {
+      background: var(--bg-secondary);
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--brand-blue);
+      color: #FFFFFF;
+      padding: 7px 15px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+
+    .btn-primary:hover {
+      background: var(--brand-blue-hover);
+      transform: scale(1.01);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-secondary);
+      color: var(--text-main);
+      padding: 7px 15px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid var(--border-color);
+      transition: all 0.15s ease;
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .btn-large {
+      padding: 12px 26px;
+      font-size: 15px;
+      font-weight: 500;
+      border-radius: var(--radius-full);
+    }
+
+    /* 首屏 Hero (Apple Atmospheric Elegance) */
+    .hero {
+      padding: 72px 0 56px;
+      text-align: center;
+      position: relative;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--brand-blue);
+      margin-bottom: 16px;
+    }
+
+    .hero-title {
+      font-size: clamp(34px, 5.6vw, 58px);
+      font-weight: 700;
+      line-height: 1.12;
+      letter-spacing: -0.035em;
+      color: var(--text-main);
+      max-width: 900px;
+      margin: 0 auto 16px;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(16px, 2vw, 20px);
+      font-weight: 400;
+      line-height: 1.5;
+      letter-spacing: -0.015em;
+      color: var(--text-muted);
+      max-width: 760px;
+      margin: 0 auto 30px;
+    }
+
+    .hero-buttons {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 38px;
+      flex-wrap: wrap;
+    }
+
+    /* Apple 签名式 4 核心指标条 (Metric Strip) */
+    .hero-key-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      max-width: 860px;
+      margin: 0 auto 40px;
+      padding: 22px 28px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      gap: 16px;
+    }
+
+    .metric-item {
+      text-align: center;
+      position: relative;
+    }
+
+    .metric-item:not(:last-child)::after {
+      content: '';
+      position: absolute;
+      right: -8px;
+      top: 15%;
+      height: 70%;
+      width: 1px;
+      background: var(--border-color);
+    }
+
+    .metric-val {
+      font-size: clamp(24px, 3.2vw, 34px);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: var(--text-main);
+      line-height: 1.15;
+    }
+
+    .metric-label {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-top: 4px;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 640px) {
+      .hero-key-metrics {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px 16px;
+      }
+      .metric-item:not(:last-child)::after {
+        display: none;
+      }
+    }
+
+    /* 交互沙盒 (Apple Clean Preview Window) */
+    .hero-preview {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .interactive-board {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--card-shadow);
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+
+    .board-header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .board-brand-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .win-logo {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .board-title {
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .board-view-switch {
+      display: flex;
+      gap: 2px;
+      background: var(--bg-primary);
+      padding: 2px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-color);
+    }
+
+    .board-tab {
+      padding: 4px 11px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-radius: var(--radius-full);
+      transition: all 0.15s ease;
+    }
+
+    .board-tab.active {
+      background: var(--bg-secondary);
+      color: var(--brand-blue);
+      font-weight: 600;
+    }
+
+    .board-screen {
+      position: relative;
+      height: 290px;
+      background: var(--bg-primary);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .simulated-floating-clock {
+      cursor: grab;
+      user-select: none;
+      padding: 14px 28px;
+      border-radius: var(--radius-md);
+      background: var(--bg-secondary);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+      border: 1px solid var(--border-color);
+      text-align: center;
+      transition: transform 0.1s ease, box-shadow 0.1s ease;
+    }
+
+    .simulated-floating-clock:active {
+      cursor: grabbing;
+      transform: scale(0.98);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.09);
+    }
+
+    .sim-drag-hint {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-light);
+      margin-bottom: 2px;
+      letter-spacing: 0.02em;
+      transition: color 0.15s ease;
+    }
+
+    .simulated-floating-clock:hover .sim-drag-hint {
+      color: var(--brand-blue);
+    }
+
+    .simulated-digits {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+      font-size: 46px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--accent-coral);
+    }
+
+    .simulated-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .simulated-controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 20px;
+      z-index: 2;
+    }
+
+    .sim-btn {
+      padding: 6px 14px;
+      font-size: 12.5px;
+      font-weight: 500;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-color);
+      background: var(--bg-secondary);
+      color: var(--text-main);
+      transition: all 0.15s ease;
+    }
+
+    .sim-btn:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .sim-btn.primary {
+      background: var(--brand-blue);
+      color: #FFFFFF;
+      border-color: var(--brand-blue);
+    }
+
+    .sim-btn.primary:hover {
+      background: var(--brand-blue-hover);
+    }
+
+    .sim-tip {
+      font-size: 12px;
+      color: var(--text-light);
+      margin-top: 14px;
+      z-index: 2;
+    }
+
+    .simulated-quote-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px 30px;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+    }
+
+    .sim-quote-text {
+      font-size: 20px;
+      font-weight: 500;
+      line-height: 1.6;
+      color: var(--text-main);
+      max-width: 640px;
+      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+    }
+
+    .sim-quote-author {
+      font-size: 13.5px;
+      color: var(--text-muted);
+    }
+
+    .real-screenshot-view {
+      display: none;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* 通用章节标题 (Apple Confident Typography) */
+    .section-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .section-tag {
+      display: inline-block;
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--brand-blue);
+      margin-bottom: 8px;
+    }
+
+    .section-title {
+      font-size: clamp(26px, 3.8vw, 40px);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: var(--text-main);
+      margin-bottom: 12px;
+      line-height: 1.2;
+    }
+
+    .section-subtitle {
+      font-size: 16px;
+      color: var(--text-muted);
+      max-width: 660px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* 章节 1：为什么选择 iClock (Apple Bento Grid) */
+    .section-why {
+      padding: 88px 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .why-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .why-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 36px 32px;
+      box-shadow: var(--card-shadow);
+      transition: all 0.2s ease;
+    }
+
+    .why-card-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      margin-bottom: 16px;
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+    }
+
+    .why-card.solution .why-card-badge {
+      background: var(--brand-blue-light);
+      color: var(--brand-blue);
+      border-color: transparent;
+    }
+
+    .why-card-title {
+      font-size: 21px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+      color: var(--text-main);
+    }
+
+    .why-card-text {
+      font-size: 14.5px;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    .why-card-list {
+      margin-top: 18px;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .why-card-list li {
+      font-size: 13.5px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    /* 章节 2：三大核心功能 (Apple Bento Pillars) */
+    .section-features {
+      padding: 88px 0;
+    }
+
+    .features-three-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 22px;
+    }
+
+    .feature-pillar-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 34px 28px;
+      box-shadow: var(--card-shadow);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+    }
+
+    .feature-pillar-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--card-shadow-hover);
+      border-color: rgba(0, 113, 227, 0.3);
+    }
+
+    .pillar-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      padding: 3px 10px;
+      border-radius: var(--radius-full);
+      margin-bottom: 14px;
+      background: var(--brand-blue-light);
+      color: var(--brand-blue);
+    }
+
+    .pillar-title {
+      font-size: 21px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+    }
+
+    .pillar-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-bottom: 24px;
+    }
+
+    .pillar-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 18px;
+    }
+
+    .feature-tag-pill {
+      font-size: 11.5px;
+      font-weight: 500;
+      padding: 3px 9px;
+      border-radius: var(--radius-full);
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+    }
+
+    /* 章节 3：横向对比 (Apple Comparison Spec Sheet) */
+    .section-comparison {
+      padding: 88px 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .comparison-table-wrapper {
+      max-width: 1040px;
+      margin: 0 auto;
+      overflow-x: auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--card-shadow);
+    }
+
+    .comparison-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13.5px;
+    }
+
+    .comparison-table th,
+    .comparison-table td {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .comparison-table th {
+      background: var(--bg-secondary);
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .comparison-table th.highlight {
+      background: var(--brand-blue-light);
+      font-weight: 700;
+      color: var(--brand-blue);
+      position: relative;
+    }
+
+    .comparison-table td.highlight {
+      background: var(--brand-blue-light);
+      font-weight: 600;
+      color: var(--brand-blue);
+    }
+
+    .th-winner-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #FFFFFF;
+      background: var(--brand-blue);
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      margin-bottom: 6px;
+      letter-spacing: 0.02em;
+    }
+
+    .comparison-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .badge-check {
+      color: var(--accent-green);
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    .badge-cross {
+      color: var(--text-light);
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    /* 章节 4：快速上手与下载 (Download Cards) */
+    .section-download {
+      padding: 88px 0;
+    }
+
+    .download-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      max-width: 860px;
+      margin: 0 auto 36px;
+    }
+
+    .download-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 34px 28px;
+      text-align: center;
+      box-shadow: var(--card-shadow);
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .download-card.primary-card {
+      border-color: var(--brand-blue);
+      box-shadow: 0 8px 28px var(--brand-blue-glow);
+    }
+
+    .card-recommend-badge {
+      position: absolute;
+      top: -11px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--brand-blue);
+      color: #FFFFFF;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 12px;
+      border-radius: var(--radius-full);
+      letter-spacing: 0.03em;
+    }
+
+    .dl-icon {
+      font-size: 36px;
+      margin-bottom: 12px;
+    }
+
+    .dl-name {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+
+    .dl-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 22px;
+    }
+
+    .dl-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 11px 18px;
+      border-radius: var(--radius-full);
+      font-size: 13.5px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+
+    .dl-btn.btn-solid {
+      background: var(--brand-blue);
+      color: #FFFFFF;
+    }
+    .dl-btn.btn-solid:hover {
+      background: var(--brand-blue-hover);
+      transform: scale(1.01);
+    }
+
+    .dl-btn.btn-outline {
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      background: var(--bg-secondary);
+    }
+    .dl-btn.btn-outline:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .pkg-install-box {
+      max-width: 860px;
+      margin: 0 auto 28px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .pkg-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .pkg-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow: hidden;
+    }
+
+    .pkg-title {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-light);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .pkg-cmd {
+      font-family: Consolas, monospace;
+      font-size: 12.5px;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .copy-btn {
+      padding: 5px 12px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border-radius: var(--radius-full);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.15s ease;
+    }
+
+    .copy-btn:hover {
+      color: var(--brand-blue);
+      border-color: var(--brand-blue);
+    }
+
+    .checksum-box {
+      max-width: 860px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 18px 24px;
+      font-size: 13px;
+    }
+
+    .checksum-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .checksum-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: Consolas, monospace;
+      color: var(--text-muted);
+      padding: 6px 0;
+      border-top: 1px dashed var(--border-color);
+      font-size: 12px;
+      gap: 12px;
+    }
+
+    /* 章节 5：原生 MCP 服务配置 (MCP) */
+    .section-mcp {
+      padding: 88px 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .mcp-container {
+      max-width: 860px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--card-shadow);
+      overflow: hidden;
+    }
+
+    .mcp-tabs {
+      display: flex;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .mcp-tab-btn {
+      padding: 13px 22px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s ease;
+    }
+
+    .mcp-tab-btn.active {
+      color: var(--brand-blue);
+      background: var(--card-bg);
+      border-bottom-color: var(--brand-blue);
+      font-weight: 600;
+    }
+
+    .mcp-body {
+      padding: 24px 28px;
+    }
+
+    .mcp-desc {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .code-block-wrapper {
+      position: relative;
+      background: #0B1120;
+      border: 1px solid #1E293B;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .code-file-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 16px;
+      background: #0F172A;
+      border-bottom: 1px solid #1E293B;
+      font-size: 12px;
+      font-family: Consolas, monospace;
+      color: #94A3B8;
+    }
+
+    .code-file-name {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      color: #CBD5E1;
+    }
+
+    .code-block-wrapper pre {
+      font-family: Consolas, "SF Mono", monospace;
+      font-size: 12.5px;
+      color: #E2E8F0;
+      line-height: 1.6;
+      padding: 16px 20px;
+      overflow-x: auto;
+    }
+
+    .code-copy-btn {
+      background: rgba(255, 255, 255, 0.12);
+      color: #E2E8F0;
+      padding: 3px 9px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 500;
+      transition: background 0.15s ease;
+      cursor: pointer;
+    }
+
+    .code-copy-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* 语法着色 */
+    .syn-key { color: #38BDF8; font-weight: 500; }
+    .syn-str { color: #34D399; }
+    .syn-punc { color: #94A3B8; }
+    .syn-arr { color: #FBBF24; }
+    .syn-com { color: #64748B; font-style: italic; }
+
+    /* 章节 6：命令行与脚本自动化 (CLI) */
+    .section-cli {
+      padding: 88px 0;
+    }
+
+    .cli-container {
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .cli-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      box-shadow: var(--card-shadow);
+      margin-top: 24px;
+      overflow: hidden;
+    }
+
+    .cli-table th,
+    .cli-table td {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border-color);
+      text-align: left;
+    }
+
+    .cli-table th {
+      background: var(--bg-secondary);
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .cli-table code {
+      font-family: Consolas, monospace;
+      background: var(--bg-secondary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--brand-blue);
+      font-size: 12px;
+    }
+
+    /* 章节 7：快捷键与随心微交互 (Hotkeys) */
+    .section-shortcuts {
+      padding: 88px 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .shortcuts-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+
+    .shortcut-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 24px 20px;
+      text-align: center;
+      box-shadow: var(--card-shadow);
+    }
+
+    .shortcut-keys {
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    kbd {
+      display: inline-block;
+      padding: 3px 8px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-main);
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+      user-select: none;
+    }
+
+    .shortcut-title {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+
+    .shortcut-desc {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* 章节 8：常见问答 (FAQ) */
+    .section-faq {
+      padding: 88px 0;
+    }
+
+    .faq-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    .faq-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 26px 28px;
+      box-shadow: var(--card-shadow);
+    }
+
+    .faq-question {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 15.5px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--text-main);
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+
+    .faq-q-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--brand-blue-light);
+      color: var(--brand-blue);
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .faq-answer {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.7;
+      padding-left: 32px;
+    }
+
+    /* 章节 9：赞赏与作者 (Sponsor) */
+    .section-sponsor {
+      padding: 88px 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+      text-align: center;
+    }
+
+    .sponsor-card {
+      max-width: 460px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 36px 30px;
+      box-shadow: var(--card-shadow);
+    }
+
+    .sponsor-qr-img {
+      width: 190px;
+      height: 190px;
+      object-fit: cover;
+      border-radius: var(--radius-md);
+      margin: 18px auto;
+      display: block;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+    }
+
+    .sponsor-caption {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 18px;
+    }
+
+    .sponsor-author-box {
+      border-top: 1px dashed var(--border-color);
+      padding-top: 18px;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .sponsor-email-link {
+      color: var(--brand-blue);
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .sponsor-email-link:hover {
+      text-decoration: underline;
+    }
+
+    /* 页脚 (Footer) */
+    .footer {
+      padding: 36px 0;
+      background: var(--bg-primary);
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 18px;
+    }
+
+    .footer-links a:hover {
+      color: var(--text-main);
+    }
+
+    /* Toast 通知 */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: rgba(29, 29, 31, 0.92);
+      color: #FFFFFF;
+      padding: 9px 18px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      font-weight: 500;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
+      opacity: 0;
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* 响应式适配 */
+    @media (max-width: 900px) {
+      .features-three-grid,
+      .shortcuts-grid {
+        grid-template-columns: 1fr;
+      }
+      .why-grid,
+      .faq-grid,
+      .download-grid,
+      .pkg-install-box {
+        grid-template-columns: 1fr;
+      }
+      .nav-links {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部导航 -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a href="#" class="brand">
+        <img src="../icon-64.png" alt="iClock" class="brand-icon" width="28" height="28">
+        <span>iClock</span>
+        <span class="version-tag">v1.09</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features" data-i18n="nav_features">
+            Features
+          </a></li>
+        <li><a href="#comparison" data-i18n="nav_comparison">
+            Benchmarks
+          </a></li>
+        <li><a href="#mcp" data-i18n="nav_mcp">
+            MCP Agent
+          </a></li>
+        <li><a href="#shortcuts" data-i18n="nav_shortcuts">
+            Shortcuts
+          </a></li>
+        <li><a href="#faq" data-i18n="nav_faq">
+            FAQ
+          </a></li>
+      </ul>
+      <div class="nav-actions">
+        <!-- 语言切换器 -->
+        <div class="lang-switch-pill" role="radiogroup" aria-label="Language">
+          <a class="lang-pill-item" id="btnLangZh" href="../" hreflang="zh-CN">中文</a>
+          <button class="lang-pill-item active" id="btnLangEn" onclick="switchLanguage('en')">EN</button>
+        </div>
+
+        <!-- 主题切换按钮 -->
+        <button class="theme-toggle-btn" id="themeToggle" onclick="toggleTheme()" title="切换暗色主题" aria-label="Toggle Theme">
+          <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+
+        <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank" class="btn-github" title="在 GitHub 查看源代码">
+          <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          <span>Star</span>
+        </a>
+        <a href="#download" class="btn-primary">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span data-i18n="nav_btn_download">
+            Download
+          </span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 首屏 Hero 区域 (Apple Minimalist Aesthetic) -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-eyebrow">
+        <span data-i18n="hero_eyebrow">
+            iClock 1.09 · Native Minimalist Productivity Hub
+          </span>
+      </div>
+      <h1 class="hero-title" data-i18n="hero_title">
+            Simply floating. Purely focused.
+          </h1>
+      <p class="hero-subtitle" data-i18n="hero_subtitle">
+            Single 275 KB binary, RAM strictly &lt; 15 MB. True click-through countdown timer, 0-polling ambient quotes, and native MCP agent collaboration.
+          </p>
+      <div class="hero-buttons">
+        <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.zip" class="btn-primary btn-large" id="heroDownloadBtn">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span data-i18n="hero_btn_dl">
+            Download Portable (.zip · Recommended)
+          </span>
+        </a>
+        <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.exe" class="btn-secondary btn-large">
+          <span data-i18n="hero_btn_exe">
+            Standalone .exe
+          </span>
+        </a>
+        <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank" class="btn-secondary btn-large" style="display:inline-flex;align-items:center;gap:6px;">
+          <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          <span data-i18n="hero_btn_gh">
+            GitHub Repository
+          </span>
+        </a>
+      </div>
+
+      <!-- Apple 签名式 4 核心指标条 -->
+      <div class="hero-key-metrics">
+        <div class="metric-item">
+          <div class="metric-val">275 KB</div>
+          <div class="metric-label" data-i18n="metric_size">
+            Portable Single Binary
+          </div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-val">&lt; 15 MB</div>
+          <div class="metric-label" data-i18n="metric_ram">
+            Physical Active RAM
+          </div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-val">0.0%</div>
+          <div class="metric-label" data-i18n="metric_cpu">
+            0-Polling Idle CPU
+          </div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-val">100%</div>
+          <div class="metric-label" data-i18n="metric_offline">
+            100% Offline & Private
+          </div>
+        </div>
+      </div>
+
+      <!-- 仿真交互演示面板 -->
+      <div class="hero-preview" id="demo">
+        <div class="interactive-board">
+          <div class="board-header">
+            <div class="board-brand-left">
+              <svg class="win-logo" width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M0 2.257l6.502-.89v6.188H0V2.257zm6.502 6.843v6.177L0 14.391V9.1H6.502zM7.55 1.196L16 0v7.555H7.55V1.196zm8.45 7.904V16l-8.45-1.18V9.1H16z"/>
+              </svg>
+              <span class="board-title" data-i18n="sandbox_title">
+            iClock Interactive Sandbox
+          </span>
+            </div>
+            <div class="board-view-switch">
+              <button class="board-tab active" id="tabInteractive" data-i18n="sandbox_tab_demo">
+            Timer Sandbox
+          </button>
+              <button class="board-tab" id="tabQuote" data-i18n="sandbox_tab_quote">
+            Daily Quotes
+          </button>
+              <button class="board-tab" id="tabScreenshot" data-i18n="sandbox_tab_shot">
+            Screenshots
+          </button>
+            </div>
+          </div>
+          <div class="board-screen" id="boardScreen">
+            <!-- 动态仿真时钟 -->
+            <div class="simulated-floating-clock" id="simClock">
+              <div class="sim-drag-hint">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>
+                <span data-i18n="sandbox_drag_hint">
+            Drag to Reposition
+          </span>
+              </div>
+              <div class="simulated-digits" id="simDigits">25:00</div>
+              <div class="simulated-status" id="simStatus">Press Ctrl+Shift+T or click below to start/pause</div>
+            </div>
+
+            <div class="simulated-controls" id="simControls">
+              <button class="sim-btn primary" id="simToggleBtn">▶ Start Countdown</button>
+              <button class="sim-btn" id="simResetBtn">↺ Reset</button>
+              <button class="sim-btn" id="simFormatBtn">Format: MM:SS</button>
+            </div>
+
+            <div class="sim-tip" data-i18n="sandbox_tip">
+            💡 Tip: Click and drag the clock above to experience translucent floating positioning
+          </div>
+
+            <!-- 每日格言仿真模式 -->
+            <div class="simulated-quote-card" id="simQuoteCard" style="display: none;">
+              <div class="sim-quote-text" id="simQuoteText">“Simplicity is the ultimate sophistication.”</div>
+              <div class="sim-quote-author" id="simQuoteAuthor">— Leonardo da Vinci</div>
+              <div class="simulated-controls" style="margin-top: 15px;">
+                <button class="sim-btn" id="simNextQuoteBtn">🎲 Next Quote</button>
+                <button class="sim-btn" id="simCopyQuoteBtn">📋 Copy Quote</button>
+              </div>
+            </div>
+
+            <!-- 实物截图模式 -->
+            <picture>
+              <source srcset="../preview.webp" type="image/webp">
+              <img src="../preview.png" alt="iClock floating overlay on a real Windows desktop" class="real-screenshot-view" id="realScreenshot" width="1536" height="960" loading="lazy" decoding="async">
+            </picture>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 章节 1：三大核心功能 (Three Core Features) -->
+  <section class="section-features" id="features">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag" data-i18n="feat_tag">
+            Core Features
+          </span>
+        <h2 class="section-title" data-i18n="feat_title">
+            Three Core Features
+          </h2>
+        <p class="section-subtitle" data-i18n="feat_subtitle">
+            Engineered for developers, creators, and power users in deep flow.
+          </p>
+      </div>
+
+      <div class="features-three-grid">
+        <!-- 功能 1 -->
+        <div class="feature-pillar-card feat-card-timer">
+          <div>
+            <div class="pillar-badge badge-timer"><span>⏱️</span> <span data-i18n="p1_num">
+            01 / FOCUS TIMER
+          </span></div>
+            <h3 class="pillar-title" data-i18n="p1_title">
+            The Minimalist Focus Timer
+          </h3>
+            <p class="pillar-desc" data-i18n="p1_desc">
+            Native 32-bit ARGB subpixel anti-aliasing with adaptive drop shadow. 100% click-through never steals focus or blocks clicks; direct Alt+drag repositioning, tray wheel duration tuning, auto-suppression during fullscreen games & presentations, and TSV analytics.
+          </p>
+          </div>
+          <div class="pillar-tags">
+            <span class="feature-tag-pill">32-bit ARGB</span>
+            <span class="feature-tag-pill" data-i18n="tag_drag">
+            Alt + Drag Positioning
+          </span>
+            <span class="feature-tag-pill" data-i18n="tag_wheel">
+            Tray Scroll Tuning
+          </span>
+            <span class="feature-tag-pill" data-i18n="tag_dnd">
+            Fullscreen DND
+          </span>
+            <span class="feature-tag-pill" data-i18n="tag_stats">
+            Focus Analytics
+          </span>
+          </div>
+        </div>
+
+        <!-- 功能 2 -->
+        <div class="feature-pillar-card feat-card-quotes">
+          <div>
+            <div class="pillar-badge badge-quotes"><span>💬</span> <span data-i18n="p2_num">
+            02 / DAILY QUOTES
+          </span></div>
+            <h3 class="pillar-title" data-i18n="p2_title">
+            Ambient Desktop Inspiration
+          </h3>
+            <p class="pillar-desc" data-i18n="p2_desc">
+            Morning unlock appearance, permanently pinned to desktop. Pure event-driven architecture eliminates polling loops: 0 wakeups and 0.0% CPU! Direct micro-interactions (drag, width adjust, font scale); batch expand 30 quotes via AI Agent / MCP with automatic deduplication.
+          </p>
+          </div>
+          <div class="pillar-tags">
+            <span class="feature-tag-pill" data-i18n="tag_zero">
+            0-Polling Zero CPU
+          </span>
+            <span class="feature-tag-pill" data-i18n="tag_quotes">
+            300+ Curated Quotes
+          </span>
+            <span class="feature-tag-pill" data-i18n="tag_scale">
+            Alt+Ctrl+Wheel Scale
+          </span>
+            <span class="feature-tag-pill" data-i18n="tag_ai_exp">
+            AI Batch Expansion
+          </span>
+          </div>
+        </div>
+
+        <!-- 功能 3 -->
+        <div class="feature-pillar-card feat-card-mcp">
+          <div>
+            <div class="pillar-badge badge-mcp"><span>🤖</span> <span data-i18n="p3_num">
+            03 / AI AGENTS & MCP
+          </span></div>
+            <h3 class="pillar-title" data-i18n="p3_title">
+            AI Agent Collaboration & Native MCP
+          </h3>
+            <p class="pillar-desc" data-i18n="p3_desc">
+            Automated task completion monitoring for 20+ programming agents (Cursor, Antigravity, Claude Code, Trae, etc.) with 0ms instant alert; built-in native stdio MCP server (iclock.com --mcp) offering 5 tools including Flash Approval HUD (iclock_ask_human) for instant human-in-the-loop decisions with Enter/1-9/Esc.
+          </p>
+          </div>
+          <div class="pillar-tags">
+            <span class="feature-tag-pill">⚡ Flash Approval HUD</span>
+            <span class="feature-tag-pill" data-i18n="tag_agents">
+            20+ Agents Monitored
+          </span>
+            <span class="feature-tag-pill">stdio JSON-RPC</span>
+            <span class="feature-tag-pill" data-i18n="tag_cli_pipe">
+            Zero-Latency CLI
+          </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 章节 2：为什么选择 iClock？ (Why iClock) -->
+  <section class="section-why" id="why">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag" data-i18n="why_tag">
+            Philosophy
+          </span>
+        <h2 class="section-title" data-i18n="why_title">
+            Why Choose iClock?
+          </h2>
+        <p class="section-subtitle" data-i18n="why_subtitle">
+            Rejecting the dichotomy of crude tools vs bloated 100MB+ Electron apps.
+          </p>
+      </div>
+
+      <div class="why-grid">
+        <div class="why-card pain">
+          <span class="why-card-badge" data-i18n="why_pain_badge">
+            The Problem with Typical Tools
+          </span>
+          <h3 class="why-card-title" data-i18n="why_pain_title">
+            Bloat, Occlusion & Background Drain
+          </h3>
+          <p class="why-card-text" data-i18n="why_pain_desc">
+            Desktop tools often fall into two extremes: either crude and single-purpose, or bloated 100MB+ Electron packages consuming hundreds of megabytes of RAM and CPU, with telemetry or ads. Opaque windows block your code and workspace.
+          </p>
+          <ul class="why-card-list">
+            <li><span class="badge-cross">✘</span> <span data-i18n="why_pain_1">
+            100MB+ install size and massive RAM footprint
+          </span></li>
+            <li><span class="badge-cross">✘</span> <span data-i18n="why_pain_2">
+            Opaque windows obstruct screen and block mouse clicks
+          </span></li>
+            <li><span class="badge-cross">✘</span> <span data-i18n="why_pain_3">
+            Continuous polling loops drain laptop battery
+          </span></li>
+          </ul>
+        </div>
+
+        <div class="why-card solution">
+          <span class="why-card-badge" data-i18n="why_sol_badge">
+            iClock's Minimalist Philosophy
+          </span>
+          <h3 class="why-card-title" data-i18n="why_sol_title">
+            Native, Click-Through & 0-Polling
+          </h3>
+          <p class="why-card-text" data-i18n="why_sol_desc">
+            Engineered on Windows native Win32 and GDI+ APIs with zero external runtimes. Single 275 KB executable with active RAM strictly under 15 MB. Click-through overlay, 0-polling ambient quotes, and native MCP agent collaboration.
+          </p>
+          <ul class="why-card-list">
+            <li><span class="badge-check">✔</span> <span data-i18n="why_sol_1">
+            Single 275 KB binary, pure native, RAM < 15 MB
+          </span></li>
+            <li><span class="badge-check">✔</span> <span data-i18n="why_sol_2">
+            True click-through (WS_EX_TRANSPARENT) never steals focus
+          </span></li>
+            <li><span class="badge-check">✔</span> <span data-i18n="why_sol_3">
+            Pure event-driven message loop, 0.0% CPU when idle
+          </span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 章节 3：性能与体验横向对比 (Comparison) -->
+  <section class="section-comparison" id="comparison">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag" data-i18n="comp_tag">
+            Benchmark
+          </span>
+        <h2 class="section-title" data-i18n="comp_title">
+            Performance & Experience Benchmark
+          </h2>
+        <p class="section-subtitle" data-i18n="comp_subtitle">
+            Side-by-side comparison between native engineering and typical bloatware.
+          </p>
+      </div>
+
+      <div class="comparison-table-wrapper">
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th data-i18n="comp_col_metric">
+            Core Metric
+          </th>
+              <th class="highlight">
+                <div class="th-winner-badge">🏆 Editor’s Pick · Minimal & Native</div>
+                <div data-i18n="comp_col_iclock">
+            ⚡ iClock (This Project)
+          </div>
+              </th>
+              <th data-i18n="comp_col_electron">
+            Typical Electron Timers
+          </th>
+              <th data-i18n="comp_col_win">
+            Windows Alarms & Clock
+          </th>
+              <th data-i18n="comp_col_web">
+            Online Web Timers
+          </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong data-i18n="comp_r1_name">
+            Binary Size
+          </strong></td>
+              <td class="highlight" data-i18n="comp_r1_iclock">
+            ⚡ 275 KB (Single Portable File)
+          </td>
+              <td data-i18n="comp_r1_electron">
+            120 MB ~ 250 MB
+          </td>
+              <td data-i18n="comp_r1_win">
+            Pre-installed System App
+          </td>
+              <td data-i18n="comp_r1_web">
+            Several MBs per visit
+          </td>
+            </tr>
+            <tr>
+              <td><strong data-i18n="comp_r2_name">
+            Active RAM
+          </strong></td>
+              <td class="highlight" data-i18n="comp_r2_iclock">
+            ⚡ ~15 MB (Physical Baseline)
+          </td>
+              <td data-i18n="comp_r2_electron">
+            150 MB ~ 300 MB
+          </td>
+              <td data-i18n="comp_r2_win">
+            ~30 MB
+          </td>
+              <td data-i18n="comp_r2_web">
+            80 MB ~ 200 MB (Browser Tab)
+          </td>
+            </tr>
+            <tr>
+              <td><strong data-i18n="comp_r3_name">
+            CPU Idle Consumption
+          </strong></td>
+              <td class="highlight" data-i18n="comp_r3_iclock">
+            ⚡ 0.0% (Heartbeat Aligned)
+          </td>
+              <td data-i18n="comp_r3_electron">
+            0.5% ~ 3.0% (Background Poll)
+          </td>
+              <td data-i18n="comp_r3_win">
+            0.0%
+          </td>
+              <td data-i18n="comp_r3_web">
+            0.3% ~ 1.5%
+          </td>
+            </tr>
+            <tr>
+              <td><strong data-i18n="comp_r4_name">
+            Interaction Obstruction
+          </strong></td>
+              <td class="highlight" data-i18n="comp_r4_iclock">
+            ⚡ True Click-Through, Never Blocks
+          </td>
+              <td data-i18n="comp_r4_electron">
+            Opaque Window Blocks Code & Web
+          </td>
+              <td data-i18n="comp_r4_win">
+            Minimized or Fullscreen
+          </td>
+              <td data-i18n="comp_r4_web">
+            Must Switch Out to Browser
+          </td>
+            </tr>
+            <tr>
+              <td><strong data-i18n="comp_r5_name">
+            Native MCP Server
+          </strong></td>
+              <td class="highlight" data-i18n="comp_r5_iclock">
+            ⚡ Built-in stdio Server (5 Tools)
+          </td>
+              <td><span class="badge-cross">✘</span> None</td>
+              <td><span class="badge-cross">✘</span> None</td>
+              <td><span class="badge-cross">✘</span> None</td>
+            </tr>
+            <tr>
+              <td><strong data-i18n="comp_r6_name">
+            AI Agents Perception
+          </strong></td>
+              <td class="highlight" data-i18n="comp_r6_iclock">
+            ⚡ 20+ Coding Agents Monitored
+          </td>
+              <td><span class="badge-cross">✘</span> None</td>
+              <td><span class="badge-cross">✘</span> None</td>
+              <td><span class="badge-cross">✘</span> None</td>
+            </tr>
+            <tr>
+              <td><strong data-i18n="comp_r7_name">
+            Ambient Daily Quotes
+          </strong></td>
+              <td class="highlight" data-i18n="comp_r7_iclock">
+            ⚡ 0-Polling Floating + AI Expansion
+          </td>
+              <td><span class="badge-cross">✘</span> None</td>
+              <td><span class="badge-cross">✘</span> None</td>
+              <td><span class="badge-cross">✘</span> Web-only</td>
+            </tr>
+            <tr>
+              <td><strong data-i18n="comp_r8_name">
+            Network & Privacy
+          </strong></td>
+              <td class="highlight" data-i18n="comp_r8_iclock">
+            ⚡ 0 Network Calls, 100% Local
+          </td>
+              <td data-i18n="comp_r8_electron">
+            Most ship telemetry & update beacons
+          </td>
+              <td data-i18n="comp_r8_win">
+            Requires a Microsoft online account
+          </td>
+              <td data-i18n="comp_r8_web">
+            Data reported to cloud servers
+          </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 章节 4：快速上手与下载中心 (Download) -->
+  <section class="section-download" id="download">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag" data-i18n="dl_tag">
+            Get Started
+          </span>
+        <h2 class="section-title" data-i18n="dl_title">
+            Quick Start & Download Center
+          </h2>
+        <p class="section-subtitle" data-i18n="dl_subtitle">
+            100% portable, standalone, zero installation. Compatible with Windows 7 / 8 / 10 / 11.
+          </p>
+      </div>
+
+      <div class="download-grid">
+        <div class="download-card primary-card">
+          <span class="card-recommend-badge" data-i18n="dl_c1_rec">
+            Recommended
+          </span>
+          <div class="dl-icon">📦</div>
+          <h3 class="dl-name" data-i18n="dl_c1_title">
+            iClock Portable Archive
+          </h3>
+          <p class="dl-meta" data-i18n="dl_c1_meta">
+            v1.09 · iClock-1.09-windows.zip · Safe & Fast · Avoids False Alarms
+          </p>
+          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.zip" class="dl-btn btn-solid">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span data-i18n="dl_c1_btn">
+            Download .zip (Recommended · Safe)
+          </span>
+          </a>
+        </div>
+
+        <div class="download-card">
+          <div class="dl-icon">⚡</div>
+          <h3 class="dl-name" data-i18n="dl_c2_title">
+            iClock Standalone Portable
+          </h3>
+          <p class="dl-meta" data-i18n="dl_c2_meta">
+            v1.09 · iClock-1.09-windows.exe · 275 KB
+          </p>
+          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.exe" class="dl-btn btn-outline">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span data-i18n="dl_c2_btn">
+            Download Standalone .exe
+          </span>
+          </a>
+        </div>
+      </div>
+
+      <!-- 命令行包管理器安装 -->
+      <div class="pkg-install-box">
+        <div class="pkg-card">
+          <div class="pkg-info">
+            <span class="pkg-title">Windows Package Manager (WinGet)</span>
+            <code class="pkg-cmd">winget install FrancoDeyvison.iClock</code>
+          </div>
+          <button class="copy-btn" onclick="copyText('winget install FrancoDeyvison.iClock')" data-i18n="btn_copy">
+            Copy
+          </button>
+        </div>
+
+        <div class="pkg-card">
+          <div class="pkg-info">
+            <span class="pkg-title">Scoop Package Manager</span>
+            <code class="pkg-cmd">scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json</code>
+          </div>
+          <button class="copy-btn" onclick="copyText('scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json')" data-i18n="btn_copy">
+            Copy
+          </button>
+        </div>
+      </div>
+
+      <!-- SHA256 校验和 -->
+      <div class="checksum-box">
+        <div class="checksum-header">
+          <span data-i18n="dl_chk_title">
+            🔒 File Integrity SHA-256 Checksums
+          </span>
+          <span style="font-size:12px;color:var(--text-light);" data-i18n="dl_chk_desc">
+            Guarantees downloaded files are genuine and untampered.
+          </span>
+        </div>
+        <div class="checksum-row">
+          <span>iClock-1.09-windows.zip: <strong>f0fb34f5fc9e3e2b7af7a33f9e60e779412fc4a1c21ce34419f25c72cd7a1acb</strong></span>
+          <button class="copy-btn" onclick="copyText('f0fb34f5fc9e3e2b7af7a33f9e60e779412fc4a1c21ce34419f25c72cd7a1acb')" data-i18n="btn_copy">
+            Copy
+          </button>
+        </div>
+        <div class="checksum-row">
+          <span>iClock-1.09-windows.exe: <strong>1a8b356cfeed6cd9e0093b0c85aad984f4283629413be52e741fbbc162013edc</strong></span>
+          <button class="copy-btn" onclick="copyText('1a8b356cfeed6cd9e0093b0c85aad984f4283629413be52e741fbbc162013edc')" data-i18n="btn_copy">
+            Copy
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 章节 5：原生 MCP 服务配置 (MCP Configuration) -->
+  <section class="section-mcp" id="mcp">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag" data-i18n="mcp_tag">
+            Model Context Protocol
+          </span>
+        <h2 class="section-title" data-i18n="mcp_title">
+            Configure Native MCP Server in 30s
+          </h2>
+        <p class="section-subtitle" data-i18n="mcp_subtitle">
+            Native stdio MCP server (iclock.com --mcp) with zero Node.js or Python dependencies.
+          </p>
+      </div>
+
+      <div class="mcp-container">
+        <div class="mcp-tabs">
+          <button class="mcp-tab-btn active" id="tabClaude" onclick="switchMcpTab('claude')">Claude Desktop</button>
+          <button class="mcp-tab-btn" id="tabCursor" onclick="switchMcpTab('cursor')">Cursor / Windsurf</button>
+          <button class="mcp-tab-btn" id="tabPrompt" onclick="switchMcpTab('prompt')">Agent Setup Prompt</button>
+        </div>
+        <div class="mcp-body">
+          <div id="mcpViewClaude">
+            <p class="mcp-desc" data-i18n="mcp_claude_desc">
+            Edit %APPDATA%\Claude\claude_desktop_config.json, add under mcpServers:
+          </p>
+            <div class="code-block-wrapper">
+              <div class="code-file-bar">
+                <span class="code-file-name">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  claude_desktop_config.json
+                </span>
+                <button class="code-copy-btn" onclick="copyMcpCode('codeClaude')" data-i18n="btn_copy">
+            Copy
+          </button>
+              </div>
+              <pre><code id="codeClaude"><span class="syn-punc">{</span>
+  <span class="syn-key">"mcpServers"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
+    <span class="syn-key">"iclock"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
+      <span class="syn-key">"command"</span><span class="syn-punc">:</span> <span class="syn-str">"C:\\Path\\To\\iClock\\iclock.com"</span><span class="syn-punc">,</span>
+      <span class="syn-key">"args"</span><span class="syn-punc">:</span> <span class="syn-punc">[</span><span class="syn-arr">"--mcp"</span><span class="syn-punc">]</span>
+    <span class="syn-punc">}</span>
+  <span class="syn-punc">}</span>
+<span class="syn-punc">}</span></code></pre>
+            </div>
+          </div>
+
+          <div id="mcpViewCursor" style="display: none;">
+            <p class="mcp-desc" data-i18n="mcp_cursor_desc">
+            Add to .cursor/mcp.json in your workspace root, or Cursor MCP Settings:
+          </p>
+            <div class="code-block-wrapper">
+              <div class="code-file-bar">
+                <span class="code-file-name">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  .cursor/mcp.json
+                </span>
+                <button class="code-copy-btn" onclick="copyMcpCode('codeCursor')" data-i18n="btn_copy">
+            Copy
+          </button>
+              </div>
+              <pre><code id="codeCursor"><span class="syn-punc">{</span>
+  <span class="syn-key">"mcpServers"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
+    <span class="syn-key">"iclock"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
+      <span class="syn-key">"command"</span><span class="syn-punc">:</span> <span class="syn-str">"C:/Path/To/iClock/iclock.com"</span><span class="syn-punc">,</span>
+      <span class="syn-key">"args"</span><span class="syn-punc">:</span> <span class="syn-punc">[</span><span class="syn-arr">"--mcp"</span><span class="syn-punc">]</span>
+    <span class="syn-punc">}</span>
+  <span class="syn-punc">}</span>
+<span class="syn-punc">}</span></code></pre>
+            </div>
+          </div>
+
+          <div id="mcpViewPrompt" style="display: none;">
+            <p class="mcp-desc" data-i18n="mcp_prompt_desc">
+            Send the following prompt directly to any MCP-compatible agent (Cursor, Antigravity, Claude) to let it connect automatically:
+          </p>
+            <div class="code-block-wrapper">
+              <div class="code-file-bar">
+                <span class="code-file-name">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  system_prompt.txt
+                </span>
+                <button class="code-copy-btn" onclick="copyMcpCode('codePrompt')" data-i18n="btn_copy">
+            Copy
+          </button>
+              </div>
+              <pre><code id="codePrompt">Please connect my local desktop productivity tool iClock to the MCP Server list of the current environment.
+The stdio executable of iClock is iclock.com in this unzipped directory, launched with arguments ["--mcp"].
+The server natively provides 6 tools: iclock_ask_human (topmost desktop decision gate), iclock_progress (project task steps and progress onto the floating clock HUD), iclock_timer (set & query countdowns), iclock_notify (milestone desktop notifications with chime), iclock_quote (desktop quote rotation & expansion), and iclock_status (runtime status).
+After configuration, please call the iclock_status tool directly to verify the connection.</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 章节 6：命令行与脚本自动化 (CLI) -->
+  <section class="section-cli" id="cli">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag" data-i18n="cli_tag">
+            CLI & Pipeline
+          </span>
+        <h2 class="section-title" data-i18n="cli_title">
+            Command Line & Script Automation
+          </h2>
+        <p class="section-subtitle" data-i18n="cli_subtitle">
+            Native Win32 WM_COPYDATA IPC pipeline supporting standalone global terminal calls without .exe.
+          </p>
+      </div>
+
+      <div class="cli-container">
+        <!-- 一键加入 PATH -->
+        <div class="pkg-card" style="margin-bottom: 24px; background: var(--bg-primary); box-shadow: var(--card-shadow);">
+          <div class="pkg-info">
+            <span class="pkg-title" data-i18n="cli_install_title">
+            One-Click Global CLI Setup (Call directly like git / claude)
+          </span>
+            <code class="pkg-cmd">iclock --install-cli</code>
+          </div>
+          <button class="copy-btn" onclick="copyText('iclock --install-cli')" data-i18n="btn_copy">
+            Copy
+          </button>
+        </div>
+
+        <!-- CLI 参数表格 -->
+        <table class="cli-table">
+          <thead>
+            <tr>
+              <th data-i18n="cli_th_cmd">
+            Command
+          </th>
+              <th data-i18n="cli_th_short">
+            Short
+          </th>
+              <th data-i18n="cli_th_desc">
+            Description
+          </th>
+              <th data-i18n="cli_th_eg">
+            Example
+          </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>iclock</code></td>
+              <td>-</td>
+              <td data-i18n="cli_r1_desc">
+            Wake or launch background iClock instance
+          </td>
+              <td><code>iclock</code></td>
+            </tr>
+            <tr>
+              <td><code>iclock --start [minutes]</code></td>
+              <td><code>iclock -s [m]</code></td>
+              <td data-i18n="cli_r2_desc">
+            Start focus timer with specified minutes
+          </td>
+              <td><code>iclock -s 25</code></td>
+            </tr>
+            <tr>
+              <td><code>iclock --pause</code></td>
+              <td><code>iclock -p</code></td>
+              <td data-i18n="cli_r3_desc">
+            Pause current running timer
+          </td>
+              <td><code>iclock -p</code></td>
+            </tr>
+            <tr>
+              <td><code>iclock --resume</code></td>
+              <td><code>iclock -r</code></td>
+              <td data-i18n="cli_r4_desc">
+            Resume paused timer
+          </td>
+              <td><code>iclock -r</code></td>
+            </tr>
+            <tr>
+              <td><code>iclock --reset</code></td>
+              <td>-</td>
+              <td data-i18n="cli_r5_desc">
+            Reset timer to standby and hide overlay
+          </td>
+              <td><code>iclock --reset</code></td>
+            </tr>
+            <tr>
+              <td><code>iclock -n &lt;message&gt;</code></td>
+              <td><code>iclock --notice</code></td>
+              <td data-i18n="cli_r6_desc">
+            Trigger desktop TopMost notification modal & chime
+          </td>
+              <td><code>iclock -n "Production build finished!"</code></td>
+            </tr>
+            <tr>
+              <td><code>iclock -q</code></td>
+              <td><code>iclock --quote</code></td>
+              <td data-i18n="cli_r7_desc">
+            Rotate to next desktop quote randomly
+          </td>
+              <td><code>iclock -q</code></td>
+            </tr>
+            <tr>
+              <td><code>iclock --help</code></td>
+              <td><code>iclock -h</code></td>
+              <td data-i18n="cli_r8_desc">
+            Print command help manual in terminal
+          </td>
+              <td><code>iclock -h</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 章节 7：常用快捷键与交互指南 (Hotkeys) -->
+  <section class="section-shortcuts" id="shortcuts">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag" data-i18n="sc_tag">
+            Ergonomics
+          </span>
+        <h2 class="section-title" data-i18n="sc_title">
+            Ergonomic Hotkeys & Micro-Interactions
+          </h2>
+        <p class="section-subtitle" data-i18n="sc_subtitle">
+            Crafted for deep keyboard focus and natural desktop micro-control.
+          </p>
+      </div>
+
+      <div class="shortcuts-grid">
+        <div class="shortcut-card">
+          <div class="shortcut-keys">
+            <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>T</kbd>
+          </div>
+          <h4 class="shortcut-title" data-i18n="sc_1_title">
+            Global Hotkey Toggle
+          </h4>
+          <p class="shortcut-desc" data-i18n="sc_1_desc">
+            Blindly start or pause timer over any full-screen app; single left-click tray icon also toggles.
+          </p>
+        </div>
+
+        <div class="shortcut-card">
+          <div class="shortcut-keys">
+            <kbd>Alt</kbd> + Left-drag
+          </div>
+          <h4 class="shortcut-title" data-i18n="sc_2_title">
+            Direct Drag Positioning
+          </h4>
+          <p class="shortcut-desc" data-i18n="sc_2_desc">
+            Hold Alt + left-click drag anywhere on the digits or quote to reposition instantly; auto-saves on release.
+          </p>
+        </div>
+
+        <div class="shortcut-card">
+          <div class="shortcut-keys">
+            Tray Icon + Mouse Wheel
+          </div>
+          <h4 class="shortcut-title" data-i18n="sc_3_title">
+            Tray Wheel Tuning
+          </h4>
+          <p class="shortcut-desc" data-i18n="sc_3_desc">
+            Hover over tray icon and scroll mouse wheel to adjust duration (±1m); hold Shift for ±5m.
+          </p>
+        </div>
+
+        <div class="shortcut-card">
+          <div class="shortcut-keys">
+            <kbd>Alt</kbd> + <kbd>Ctrl</kbd> + Mouse Wheel
+          </div>
+          <h4 class="shortcut-title" data-i18n="sc_4_title">
+            Quote Font Scaling
+          </h4>
+          <p class="shortcut-desc" data-i18n="sc_4_desc">
+            Scale quote font size directly on screen; drag right edge to adjust wrap width; double-click to skip.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 章节 8：常见问题解答 (FAQ) -->
+  <section class="section-faq" id="faq">
+    <div class="container">
+      <div class="section-header">
+        <span class="section-tag" data-i18n="faq_tag">
+            Q & A
+          </span>
+        <h2 class="section-title" data-i18n="faq_title">
+            Frequently Asked Questions
+          </h2>
+        <p class="section-subtitle" data-i18n="faq_subtitle">
+            Direct answers regarding architecture, click-through behavior, and security.
+          </p>
+      </div>
+
+      <div class="faq-grid">
+        <div class="faq-card">
+          <div class="faq-question">
+            <span class="faq-q-icon">Q</span>
+            <span data-i18n="faq_q1">
+            Why does it never interfere with coding or full-screen gaming?
+          </span>
+          </div>
+          <div class="faq-answer" data-i18n="faq_a1">
+            Powered by the native Windows WS_EX_TRANSPARENT API, digits float TopMost while all mouse clicks and scrolls pass through directly to underlying IDEs, terminals, and games without stealing focus.
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <div class="faq-question">
+            <span class="faq-q-icon">Q</span>
+            <span data-i18n="faq_q2">
+            Why is the executable only 275 KB?
+          </span>
+          </div>
+          <div class="faq-answer" data-i18n="faq_a2">
+            Pure native C# and GDI+ rendering. Zero Electron, zero Chromium runtime, zero bulky dependencies. Active memory stays strictly under 15 MB.
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <div class="faq-question">
+            <span class="faq-q-icon">Q</span>
+            <span data-i18n="faq_q3">
+            Does ambient quote display drain laptop battery?
+          </span>
+          </div>
+          <div class="faq-answer" data-i18n="faq_a3">
+            Not at all. Pure event-driven message handling (0-Polling). Idle CPU consumption is 0.0%, preserving battery life throughout the day.
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <div class="faq-question">
+            <span class="faq-q-icon">Q</span>
+            <span data-i18n="faq_q4">
+            Which agents work with the native MCP server?
+          </span>
+          </div>
+          <div class="faq-answer" data-i18n="faq_a4">
+            Native stdio MCP server (iclock.com --mcp) works out-of-the-box with Claude Desktop, Cursor, Windsurf, Antigravity, and any standard MCP client.
+          </div>
+        </div>
+
+        <div class="faq-card">
+          <div class="faq-question">
+            <span class="faq-q-icon">Q</span>
+            <span data-i18n="faq_q5">
+            Is iClock safe, clean, and ad-free?
+          </span>
+          </div>
+          <div class="faq-answer" data-i18n="faq_a5">
+            100% open source under the MIT license. No ads, no bundled plugins, no background daemons — exit the app and every resource is released instantly.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 章节 9：赞赏支持与作者 (Sponsor & Author) -->
+  <section class="section-sponsor" id="sponsor">
+    <div class="container">
+      <div class="section-header" style="margin-bottom: 28px;">
+        <span class="section-tag" data-i18n="spons_tag">
+            Community & Sponsor
+          </span>
+        <h2 class="section-title" data-i18n="spons_title">
+            Open Source & Appreciation
+          </h2>
+        <p class="section-subtitle" data-i18n="spons_subtitle">
+            iClock is 100% free and open-source. If it improves your productivity, support from you is deeply appreciated!
+          </p>
+      </div>
+
+      <div class="sponsor-card">
+        <h4 style="font-size: 16px; font-weight: 700; color: var(--text-main);" data-i18n="spons_box_title">
+            WeChat Pay Sponsor QR Code
+          </h4>
+        <img src="../zan.jpg" alt="iClock WeChat sponsor QR code" class="sponsor-qr-img" width="1152" height="1152" loading="lazy" decoding="async">
+        <p class="sponsor-caption" data-i18n="spons_caption">
+            “Thank you for using iClock!” · Every bit of encouragement fuels continuous craftsmanship
+          </p>
+        <div class="sponsor-author-box">
+          <span data-i18n="spons_author">
+            Designed & Built by <strong>gujiangwen</strong>
+          </span> · 
+          <span data-i18n="spons_email">
+            Feedback & Contact: 
+          </span><a href="mailto:francodeyvison183@gmail.com" class="sponsor-email-link">francodeyvison183@gmail.com</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 页脚 (Footer) -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <p data-i18n="footer_copy">
+            © 2026 iClock · Built by gujiangwen · MIT License.
+          </p>
+      </div>
+      <div class="footer-links">
+        <a href="mailto:francodeyvison183@gmail.com" data-i18n="footer_email">
+            Author Email
+          </a>
+        <a href="https://github.com/francodeyvison183-collab/iClock" target="_blank" data-i18n="footer_repo">
+            GitHub Repository
+          </a>
+        <a href="https://github.com/francodeyvison183-collab/iClock/issues" target="_blank" data-i18n="footer_issues">
+            Issues / Feedback
+          </a>
+        <a href="https://github.com/francodeyvison183-collab/iClock/releases" target="_blank" data-i18n="footer_releases">
+            Release History
+          </a>
+        <a href="../llms.txt" target="_blank">llms.txt</a>
+        <a href="#" onclick="window.scrollTo({top:0, behavior:'smooth'}); return false;" data-i18n="footer_top">
+            Back to Top ↑
+          </a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- 浮动提示 Toast -->
+  <div class="toast" id="toast">Copied to clipboard successfully</div>
+
+  <script>
+    // 格言数据
+    const quotes = {
+      zh: [
+        { text: "“至繁归于至简，方能行远。”", author: "— 列奥纳多·达·芬奇" },
+        { text: "“大巧若拙，大美不着痕迹。”", author: "— 东方智慧" },
+        { text: "“保持专注，做少但做透。”", author: "— Unix 哲学" },
+        { text: "“所谓完美，不是无可增加，而是无可删减。”", author: "— 安东尼·圣-埃克苏佩里" },
+        { text: "“在宁静中积蓄力量，在破晓时展翅高飞。”", author: "— 晨间灵感" }
+      ],
+      en: [
+        { text: "“Simplicity is the ultimate sophistication.”", author: "— Leonardo da Vinci" },
+        { text: "“Make each program do one thing well.”", author: "— Unix Philosophy" },
+        { text: "“Perfection is achieved not when there is nothing more to add, but when there is nothing left to take away.”", author: "— Antoine de Saint-Exupéry" },
+        { text: "“Stay hungry, stay foolish.”", author: "— Steve Jobs" },
+        { text: "“Focus is about saying no to a hundred other good ideas.”", author: "— Steve Jobs" }
+      ]
+    };
+    let quoteIndex = 0;
+
+    // 国际化文案字典
+    const i18n = {
+      zh: {
+        page_title: "iClock — Windows 原生极简效率中枢",
+        page_desc: "Windows 原生极简效率中枢：支持点击穿透悬浮倒计时、零轮询桌面每日金句、20+ 款 AI 智能体长任务协同与内置原生 MCP 服务器（含桌面请示门禁）。单文件、纯本地、解压即用。",
+        nav_why: "设计初衷",
+        nav_features: "功能特性",
+        nav_comparison: "硬核对比",
+        nav_download: "下载上手",
+        nav_mcp: "MCP 智能体",
+        nav_cli: "CLI 自动化",
+        nav_shortcuts: "快捷键",
+        nav_faq: "常见问答",
+        nav_sponsor: "赞赏致谢",
+        nav_btn_download: "下载",
+
+        hero_eyebrow: "iClock 1.09 · Windows 原生极简效率中枢",
+        hero_title: "极简悬浮，纯粹专注。",
+        hero_subtitle: "单文件仅 275 KB，内存稳定小于 15 MB。完全鼠标穿透悬浮倒计时，零轮询桌面每日金句，与原生 MCP 智能体深度协同。",
+        hero_btn_dl: "下载便携压缩包 (ZIP · 推荐)",
+        hero_btn_exe: "独立 .exe 版",
+        hero_btn_gh: "GitHub 开源主页",
+        metric_size: "原生单文件免安装",
+        metric_ram: "常驻物理内存",
+        metric_cpu: "0-Polling 待机 CPU",
+        metric_offline: "离线纯本地隐私",
+        hero_pill_timer: "悬浮穿透倒计时",
+        hero_pill_quotes: "零轮询桌面金句",
+        hero_pill_mcp: "AI 智能体协同与原生 MCP",
+        hero_spec_1: "📦 原生单文件免安装",
+        hero_spec_2: "⚡ 0.0% 待机 CPU (0-Polling)",
+        hero_spec_3: "💾 内存占用 &lt; 15 MB",
+        hero_spec_4: "🔒 100% 离线纯本地",
+        hero_spec_5: "🛡️ 纯原生零第三方依赖",
+
+        sandbox_title: "iClock 交互体验沙盒",
+        sandbox_drag_hint: "按住自由拖动",
+        sandbox_tab_demo: "倒计时沙盒",
+        sandbox_tab_quote: "每日格言",
+        sandbox_tab_shot: "软件实图",
+        sandbox_tip: "💡 提示：在上方可按住时钟自由拖动定位，感受半透明悬浮体验",
+
+        why_tag: "Philosophy",
+        why_title: "为什么选择 iClock？",
+        why_subtitle: "直面市面上桌面工具的两极分化，坚持极致的工程师克制美学。",
+        why_pain_badge: "传统工具的困扰",
+        why_pain_title: "臃肿、遮挡与后台黑洞",
+        why_pain_desc: "市面桌面工具常陷入两难：要么单一粗糙，要么动辄 100MB+（Electron 框架），常驻持续吞噬数百兆内存与 CPU，甚至附带弹窗与埋点；传统实体窗口还会死死遮挡代码与网页视线，打断心流。",
+        why_pain_1: "100MB+ 庞大安装包与高额内存开销",
+        why_pain_2: "实体窗口遮挡屏幕，严重阻碍鼠标操作",
+        why_pain_3: "后台定时循环轮询，持续耗电与唤醒",
+        why_sol_badge: "iClock 的极简哲学",
+        why_sol_title: "原生、穿透与 0-Polling 协同",
+        why_sol_desc: "基于 Windows 原生底层 Win32 与 GDI+ 构建，无任何第三方依赖，单文件仅 275 KB，内存 < 15 MB。它不仅是支持完全点击穿透的悬浮倒计时，更融合了零轮询桌面灵感与原生 MCP 智能体长任务协同。",
+        why_sol_1: "单文件 275 KB，纯原生，内存稳定 < 15 MB",
+        why_sol_2: "完全点击穿透（WS_EX_TRANSPARENT），不挡鼠标",
+        why_sol_3: "纯事件驱动消息机制，桌面常驻 0.0% CPU 占用",
+
+        feat_tag: "Core Features",
+        feat_title: "三大核心功能",
+        feat_subtitle: "专为现代开发者与深度专注者量身打造的效率中枢。",
+        p1_num: "01 / FOCUS TIMER",
+        p1_title: "极简悬浮倒计时",
+        p1_desc: "基于 Windows 原生 32 位 ARGB 渲染，消除毛刺平滑细腻，自适应微投影。默认鼠标完全点击穿透，不抢焦点不挡代码；按住 Alt 鼠标左键拖拽瞬时定位，托盘滚轮微调时长，智能识别全屏游戏与 PPT 降级原位呼吸免打扰，多维统计本地 TSV 自动归档。",
+        p2_num: "02 / DAILY QUOTES",
+        p2_title: "桌面每日格言与灵感常驻",
+        p2_desc: "开机/解锁晨间唤醒优雅浮现，支持一键钉在桌面背景常驻。纯事件消息驱动架构，彻底剔除死循环轮询，常驻 0 唤醒、0.0% CPU 占用！支持 Alt+拖拽位置、边缘调节折行、Alt+Ctrl+滚轮缩放字号；内置 300+ 双语精选词库，支持本地 AI / MCP 批量扩充 30 条格言并自动去重备份。",
+        p3_num: "03 / AI AGENTS & MCP",
+        p3_title: "AI 智能体协同 & 原生 MCP",
+        p3_desc: "自动感知国内外 20+ 款主流编程智能体（Cursor、Antigravity、Claude Code、GitHub Copilot、Trae 等）长任务完成，四级感知矩阵 0ms 零误报即时提醒；内置原生 stdio MCP Server (iclock.com --mcp)，向智能体开放 5 大工具，包含独创的 iclock_ask_human 极速桌面授权门禁 (Flash Approval HUD，支持 1/2/Enter/Esc 盲打)。",
+        tag_drag: "Alt + 拖拽定位",
+        tag_wheel: "托盘滚轮微调",
+        tag_dnd: "全屏免打扰",
+        tag_stats: "专注多维统计",
+        tag_zero: "0-Polling 零能耗",
+        tag_quotes: "300+ 离线双语库",
+        tag_scale: "Alt+Ctrl+滚轮缩放",
+        tag_ai_exp: "AI 批量扩充去重",
+        tag_agents: "20+ 智能体感知",
+        tag_cli_pipe: "免 .exe 终端调用",
+
+        comp_tag: "Benchmark",
+        comp_title: "性能与体验横向对比",
+        comp_subtitle: "看一看真正的原生开发与市面常见方案的硬核代差对比。",
+        comp_col_metric: "核心维度",
+        comp_col_iclock: "⚡ iClock (本项目)",
+        comp_col_electron: "常见 Electron 计时器",
+        comp_col_win: "Windows 自带闹钟",
+        comp_col_web: "网页在线番茄钟",
+        comp_r1_name: "安装包体积",
+        comp_r1_iclock: "⚡ 275 KB (单文件免安装)",
+        comp_r1_electron: "120 MB ~ 250 MB",
+        comp_r1_win: "系统预装应用",
+        comp_r1_web: "每次加载数 MB",
+        comp_r2_name: "常驻物理内存",
+        comp_r2_iclock: "⚡ ~15 MB (物理基线)",
+        comp_r2_electron: "150 MB ~ 300 MB",
+        comp_r2_win: "~30 MB",
+        comp_r2_web: "80 MB ~ 200 MB (浏览器标签)",
+        comp_r3_name: "CPU 运行占用",
+        comp_r3_iclock: "⚡ 0.0% (动态心跳对齐)",
+        comp_r3_electron: "0.5% ~ 3.0% (后台轮询)",
+        comp_r3_win: "0.0%",
+        comp_r3_web: "0.3% ~ 1.5%",
+        comp_r4_name: "交互阻碍",
+        comp_r4_iclock: "⚡ 完全点击穿透，不挡鼠标",
+        comp_r4_electron: "实体窗口遮挡代码与网页",
+        comp_r4_win: "最小化或占用全屏",
+        comp_r4_web: "必须切出浏览器查看",
+        comp_r5_name: "原生 MCP 支持",
+        comp_r5_iclock: "⚡ 内置 stdio Server (5 工具)",
+        comp_r6_name: "AI 任务感知矩阵",
+        comp_r6_iclock: "⚡ 20+ 款智能体任务结束感知",
+        comp_r7_name: "桌面灵感格言",
+        comp_r7_iclock: "⚡ 0-Polling 悬浮 + AI 扩充",
+        comp_r8_name: "网络行为与隐私",
+        comp_r8_iclock: "⚡ 0 联网请求，纯本地隐私",
+        comp_r8_electron: "多数携带统计与更新上报",
+        comp_r8_win: "绑定微软在线账户",
+        comp_r8_web: "数据上报云端服务器",
+
+        dl_tag: "Get Started",
+        dl_title: "快速上手与下载中心",
+        dl_subtitle: "单文件绿色免安装，纯本地，解压即用。适配 Windows 7 / 8 / 10 / 11。",
+        dl_c1_rec: "官方推荐",
+        dl_c1_title: "iClock 便携压缩包",
+        dl_c1_meta: "v1.09 · iClock-1.09-windows.zip · 推荐下载 · 防浏览器误报拦截",
+        dl_c1_btn: "直接下载 .zip (推荐 · 防浏览器拦截)",
+        dl_c2_title: "iClock 单文件独立绿色版",
+        dl_c2_meta: "v1.09 · iClock-1.09-windows.exe · 275 KB",
+        dl_c2_btn: "下载独立 .exe 格式",
+        btn_copy: "复制",
+        dl_chk_title: "🔒 文件完整性 SHA-256 校验和",
+        dl_chk_desc: "保障下载文件未被篡改",
+
+        mcp_tag: "Model Context Protocol",
+        mcp_title: "30 秒配置原生 MCP 服务",
+        mcp_subtitle: "内置原生 stdio MCP Server (iclock.com --mcp)，无须 Node.js 或 Python 依赖。",
+        mcp_claude_desc: "编辑 %APPDATA%\\Claude\\claude_desktop_config.json，在 mcpServers 中填入：",
+        mcp_cursor_desc: "在项目根目录 .cursor/mcp.json 或编辑器 MCP 设置面板中填入：",
+        mcp_prompt_desc: "把以下提示词直接发给任意支持 MCP 的智能体（Cursor / Antigravity / Claude），它将自主配置并完成连接：",
+
+        cli_tag: "CLI & Pipeline",
+        cli_title: "命令行与脚本自动化",
+        cli_subtitle: "内置原生 Win32 WM_COPYDATA IPC 管道，支持免 .exe 全局终端调用与 CI/CD 自动化通知。",
+        cli_install_title: "一键全局免 .exe 终端配置 (像 git / claude 一样直接调用)",
+        cli_th_cmd: "命令",
+        cli_th_short: "简写",
+        cli_th_desc: "功能说明",
+        cli_th_eg: "典型示例",
+        cli_r1_desc: "唤醒或启动 iClock 后台常驻",
+        cli_r2_desc: "启动指定分钟的工作倒计时",
+        cli_r3_desc: "暂停当前运行的倒计时",
+        cli_r4_desc: "恢复已暂停的倒计时",
+        cli_r5_desc: "重置倒计时为待命状态并隐藏悬浮字",
+        cli_r6_desc: "触发桌面置顶强通知弹窗与提示音",
+        cli_r7_desc: "随机切换下一句桌面格言",
+        cli_r8_desc: "在控制台终端打印完整指令帮助手册",
+
+        sc_tag: "Ergonomics",
+        sc_title: "常用快捷键与随心微交互",
+        sc_subtitle: "专为键盘党与效率玩家打磨的原生微交互手感。",
+        sc_1_title: "全局热键启停",
+        sc_1_desc: "在任意软件或游戏前台，盲操一键启停倒计时；也可左键单击托盘图标切换。",
+        sc_2_title: "随心拖拽定位",
+        sc_2_desc: "在倒计时或桌面格言文字上按住 Alt 拖动瞬时定位，松开自动保存坐标。",
+        sc_3_title: "滚轮快速微调",
+        sc_3_desc: "鼠标悬停托盘图标滚动滚轮快速加减时长 (±1m)，按住 Shift 加速微调 (±5m)。",
+        sc_4_title: "格言字号缩放",
+        sc_4_desc: "在桌面格言文字上快速缩放字号，拖动右边缘调节折行宽度，双击快速换一句。",
+
+        faq_tag: "Q & A",
+        faq_title: "常见问题与解答",
+        faq_subtitle: "解答关于极简架构、置顶穿透体验与安全性的核心疑问。",
+        faq_q1: "为什么打游戏或写代码时不挡鼠标操作？",
+        faq_a1: "基于 Windows WS_EX_TRANSPARENT 原生 API，倒计时浮窗始终悬浮在桌面最顶层，但所有鼠标点击与滚轮事件均直接穿透到底层的编辑器、终端或游戏画面，丝毫不干扰任何操作。",
+        faq_q2: "为什么体积只有 275 KB？",
+        faq_a2: "坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 15 MB 以内。",
+        faq_q3: "桌面格言常驻后台会消耗笔记本电池吗？",
+        faq_a3: "完全不会。iClock 采用纯事件消息驱动与 0-Polling 架构，静止常驻时 CPU 占用为 0.0%，彻底消除了后台定时器循环唤醒，笔记本全天候常驻零耗电。",
+        faq_q4: "原生 MCP 服务支持哪些智能体？",
+        faq_a4: "内置原生 stdio MCP Server (iclock.com --mcp)，无须 Node.js 或 Python 环境，开箱支持 Claude Desktop、Cursor、Windsurf、Antigravity 等任意标准 MCP 客户端。",
+        faq_q5: "软件是否安全、纯净无广告？",
+        faq_a5: "100% 开源（MIT 协议），零流氓广告，零捆绑插件，零后台常驻守护进程，退出即彻底释放。",
+
+        spons_tag: "Community & Sponsor",
+        spons_title: "开源精神，致谢支持",
+        spons_subtitle: "iClock 是一款完全开源免费的桌面工具。如果它让您的桌面更清爽、工作更专注，欢迎赞赏支持作者持续打磨！",
+        spons_box_title: "微信扫一扫 赞赏支持",
+        spons_caption: "“谢谢使用，恭喜发财！” · 每一份鼓励都是持续打磨的动力",
+        spons_author: "开发者：<strong>gujiangwen</strong>",
+        spons_email: "交流与反馈邮箱：",
+
+        footer_copy: "© 2026 iClock · 作者：gujiangwen · 采用 MIT 开源协议。",
+        footer_email: "作者邮箱",
+        footer_repo: "GitHub 仓库",
+        footer_issues: "提交反馈 / Issue",
+        footer_releases: "历史版本",
+        footer_top: "返回顶部 ↑",
+        toast_copied: "已成功复制到剪贴板",
+
+        sim_status_idle: "按 Ctrl+Shift+T 或下方按钮启停",
+        sim_status_running: "倒计时进行中...",
+        sim_status_paused: "倒计时已暂停",
+        sim_status_finished: "🎉 倒计时结束！",
+        sim_status_reset: "已重置为 25 分钟",
+        sim_btn_start: "▶ 开始倒计时",
+        sim_btn_pause: "⏸ 暂停倒计时",
+        sim_btn_resume: "▶ 继续倒计时",
+        sim_btn_reset: "↺ 重置",
+        sim_format_prefix: "格式: ",
+        sim_formats: ['MM:SS', 'HH:MM:SS', '中文单位'],
+        sim_alert_end: "iClock 提醒：倒计时已结束！"
+      },
+      en: {
+        page_title: "iClock — Native Minimalist Productivity Hub for Windows",
+        page_desc: "Native Minimalist Productivity Hub for Windows: click-through transparent timer, 0-polling ambient quotes, 20+ AI agents monitor & native stdio MCP server.",
+        nav_why: "Philosophy",
+        nav_features: "Features",
+        nav_comparison: "Benchmarks",
+        nav_download: "Download",
+        nav_mcp: "MCP Agent",
+        nav_cli: "CLI Pipeline",
+        nav_shortcuts: "Shortcuts",
+        nav_faq: "FAQ",
+        nav_sponsor: "Sponsor",
+        nav_btn_download: "Download",
+
+        hero_eyebrow: "iClock 1.09 · Native Minimalist Productivity Hub",
+        hero_title: "Simply floating. Purely focused.",
+        hero_subtitle: "Single 275 KB binary, RAM strictly &lt; 15 MB. True click-through countdown timer, 0-polling ambient quotes, and native MCP agent collaboration.",
+        hero_btn_dl: "Download Portable (.zip · Recommended)",
+        hero_btn_exe: "Standalone .exe",
+        hero_btn_gh: "GitHub Repository",
+        metric_size: "Portable Single Binary",
+        metric_ram: "Physical Active RAM",
+        metric_cpu: "0-Polling Idle CPU",
+        metric_offline: "100% Offline & Private",
+        hero_pill_timer: "Click-Through Transparent Timer",
+        hero_pill_quotes: "0-Polling Ambient Quotes",
+        hero_pill_mcp: "AI Agent Collaboration & Native MCP",
+        hero_spec_1: "📦 Single Portable Binary",
+        hero_spec_2: "⚡ 0.0% Idle CPU (0-Polling)",
+        hero_spec_3: "💾 Active RAM &lt; 15 MB",
+        hero_spec_4: "🔒 100% Offline (Zero Network)",
+        hero_spec_5: "🛡️ Pure Win32/GDI+ Zero Dependencies",
+
+        sandbox_title: "iClock Interactive Sandbox",
+        sandbox_drag_hint: "Drag to Reposition",
+        sandbox_tab_demo: "Timer Sandbox",
+        sandbox_tab_quote: "Daily Quotes",
+        sandbox_tab_shot: "Screenshots",
+        sandbox_tip: "💡 Tip: Click and drag the clock above to experience translucent floating positioning",
+
+        why_tag: "Philosophy",
+        why_title: "Why Choose iClock?",
+        why_subtitle: "Rejecting the dichotomy of crude tools vs bloated 100MB+ Electron apps.",
+        why_pain_badge: "The Problem with Typical Tools",
+        why_pain_title: "Bloat, Occlusion & Background Drain",
+        why_pain_desc: "Desktop tools often fall into two extremes: either crude and single-purpose, or bloated 100MB+ Electron packages consuming hundreds of megabytes of RAM and CPU, with telemetry or ads. Opaque windows block your code and workspace.",
+        why_pain_1: "100MB+ install size and massive RAM footprint",
+        why_pain_2: "Opaque windows obstruct screen and block mouse clicks",
+        why_pain_3: "Continuous polling loops drain laptop battery",
+        why_sol_badge: "iClock's Minimalist Philosophy",
+        why_sol_title: "Native, Click-Through & 0-Polling",
+        why_sol_desc: "Engineered on Windows native Win32 and GDI+ APIs with zero external runtimes. Single 275 KB executable with active RAM strictly under 15 MB. Click-through overlay, 0-polling ambient quotes, and native MCP agent collaboration.",
+        why_sol_1: "Single 275 KB binary, pure native, RAM < 15 MB",
+        why_sol_2: "True click-through (WS_EX_TRANSPARENT) never steals focus",
+        why_sol_3: "Pure event-driven message loop, 0.0% CPU when idle",
+
+        feat_tag: "Core Features",
+        feat_title: "Three Core Features",
+        feat_subtitle: "Engineered for developers, creators, and power users in deep flow.",
+        p1_num: "01 / FOCUS TIMER",
+        p1_title: "The Minimalist Focus Timer",
+        p1_desc: "Native 32-bit ARGB subpixel anti-aliasing with adaptive drop shadow. 100% click-through never steals focus or blocks clicks; direct Alt+drag repositioning, tray wheel duration tuning, auto-suppression during fullscreen games & presentations, and TSV analytics.",
+        p2_num: "02 / DAILY QUOTES",
+        p2_title: "Ambient Desktop Inspiration",
+        p2_desc: "Morning unlock appearance, permanently pinned to desktop. Pure event-driven architecture eliminates polling loops: 0 wakeups and 0.0% CPU! Direct micro-interactions (drag, width adjust, font scale); batch expand 30 quotes via AI Agent / MCP with automatic deduplication.",
+        p3_num: "03 / AI AGENTS & MCP",
+        p3_title: "AI Agent Collaboration & Native MCP",
+        p3_desc: "Automated task completion monitoring for 20+ programming agents (Cursor, Antigravity, Claude Code, Trae, etc.) with 0ms instant alert; built-in native stdio MCP server (iclock.com --mcp) offering 5 tools including Flash Approval HUD (iclock_ask_human) for instant human-in-the-loop decisions with Enter/1-9/Esc.",
+        tag_drag: "Alt + Drag Positioning",
+        tag_wheel: "Tray Scroll Tuning",
+        tag_dnd: "Fullscreen DND",
+        tag_stats: "Focus Analytics",
+        tag_zero: "0-Polling Zero CPU",
+        tag_quotes: "300+ Curated Quotes",
+        tag_scale: "Alt+Ctrl+Wheel Scale",
+        tag_ai_exp: "AI Batch Expansion",
+        tag_agents: "20+ Agents Monitored",
+        tag_cli_pipe: "Zero-Latency CLI",
+
+        comp_tag: "Benchmark",
+        comp_title: "Performance & Experience Benchmark",
+        comp_subtitle: "Side-by-side comparison between native engineering and typical bloatware.",
+        comp_col_metric: "Core Metric",
+        comp_col_iclock: "⚡ iClock (This Project)",
+        comp_col_electron: "Typical Electron Timers",
+        comp_col_win: "Windows Alarms & Clock",
+        comp_col_web: "Online Web Timers",
+        comp_r1_name: "Binary Size",
+        comp_r1_iclock: "⚡ 275 KB (Single Portable File)",
+        comp_r1_electron: "120 MB ~ 250 MB",
+        comp_r1_win: "Pre-installed System App",
+        comp_r1_web: "Several MBs per visit",
+        comp_r2_name: "Active RAM",
+        comp_r2_iclock: "⚡ ~15 MB (Physical Baseline)",
+        comp_r2_electron: "150 MB ~ 300 MB",
+        comp_r2_win: "~30 MB",
+        comp_r2_web: "80 MB ~ 200 MB (Browser Tab)",
+        comp_r3_name: "CPU Idle Consumption",
+        comp_r3_iclock: "⚡ 0.0% (Heartbeat Aligned)",
+        comp_r3_electron: "0.5% ~ 3.0% (Background Poll)",
+        comp_r3_win: "0.0%",
+        comp_r3_web: "0.3% ~ 1.5%",
+        comp_r4_name: "Interaction Obstruction",
+        comp_r4_iclock: "⚡ True Click-Through, Never Blocks",
+        comp_r4_electron: "Opaque Window Blocks Code & Web",
+        comp_r4_win: "Minimized or Fullscreen",
+        comp_r4_web: "Must Switch Out to Browser",
+        comp_r5_name: "Native MCP Server",
+        comp_r5_iclock: "⚡ Built-in stdio Server (5 Tools)",
+        comp_r6_name: "AI Agents Perception",
+        comp_r6_iclock: "⚡ 20+ Coding Agents Monitored",
+        comp_r7_name: "Ambient Daily Quotes",
+        comp_r7_iclock: "⚡ 0-Polling Floating + AI Expansion",
+        comp_r8_name: "Network & Privacy",
+        comp_r8_iclock: "⚡ 0 Network Calls, 100% Local",
+        comp_r8_electron: "Most ship telemetry & update beacons",
+        comp_r8_win: "Requires a Microsoft online account",
+        comp_r8_web: "Data reported to cloud servers",
+
+        dl_tag: "Get Started",
+        dl_title: "Quick Start & Download Center",
+        dl_subtitle: "100% portable, standalone, zero installation. Compatible with Windows 7 / 8 / 10 / 11.",
+        dl_c1_rec: "Recommended",
+        dl_c1_title: "iClock Portable Archive",
+        dl_c1_meta: "v1.09 · iClock-1.09-windows.zip · Safe & Fast · Avoids False Alarms",
+        dl_c1_btn: "Download .zip (Recommended · Safe)",
+        dl_c2_title: "iClock Standalone Portable",
+        dl_c2_meta: "v1.09 · iClock-1.09-windows.exe · 275 KB",
+        dl_c2_btn: "Download Standalone .exe",
+        btn_copy: "Copy",
+        dl_chk_title: "🔒 File Integrity SHA-256 Checksums",
+        dl_chk_desc: "Guarantees downloaded files are genuine and untampered.",
+
+        mcp_tag: "Model Context Protocol",
+        mcp_title: "Configure Native MCP Server in 30s",
+        mcp_subtitle: "Native stdio MCP server (iclock.com --mcp) with zero Node.js or Python dependencies.",
+        mcp_claude_desc: "Edit %APPDATA%\\Claude\\claude_desktop_config.json, add under mcpServers:",
+        mcp_cursor_desc: "Add to .cursor/mcp.json in your workspace root, or Cursor MCP Settings:",
+        mcp_prompt_desc: "Send the following prompt directly to any MCP-compatible agent (Cursor, Antigravity, Claude) to let it connect automatically:",
+
+        cli_tag: "CLI & Pipeline",
+        cli_title: "Command Line & Script Automation",
+        cli_subtitle: "Native Win32 WM_COPYDATA IPC pipeline supporting standalone global terminal calls without .exe.",
+        cli_install_title: "One-Click Global CLI Setup (Call directly like git / claude)",
+        cli_th_cmd: "Command",
+        cli_th_short: "Short",
+        cli_th_desc: "Description",
+        cli_th_eg: "Example",
+        cli_r1_desc: "Wake or launch background iClock instance",
+        cli_r2_desc: "Start focus timer with specified minutes",
+        cli_r3_desc: "Pause current running timer",
+        cli_r4_desc: "Resume paused timer",
+        cli_r5_desc: "Reset timer to standby and hide overlay",
+        cli_r6_desc: "Trigger desktop TopMost notification modal & chime",
+        cli_r7_desc: "Rotate to next desktop quote randomly",
+        cli_r8_desc: "Print command help manual in terminal",
+
+        sc_tag: "Ergonomics",
+        sc_title: "Ergonomic Hotkeys & Micro-Interactions",
+        sc_subtitle: "Crafted for deep keyboard focus and natural desktop micro-control.",
+        sc_1_title: "Global Hotkey Toggle",
+        sc_1_desc: "Blindly start or pause timer over any full-screen app; single left-click tray icon also toggles.",
+        sc_2_title: "Direct Drag Positioning",
+        sc_2_desc: "Hold Alt + left-click drag anywhere on the digits or quote to reposition instantly; auto-saves on release.",
+        sc_3_title: "Tray Wheel Tuning",
+        sc_3_desc: "Hover over tray icon and scroll mouse wheel to adjust duration (±1m); hold Shift for ±5m.",
+        sc_4_title: "Quote Font Scaling",
+        sc_4_desc: "Scale quote font size directly on screen; drag right edge to adjust wrap width; double-click to skip.",
+
+        faq_tag: "Q & A",
+        faq_title: "Frequently Asked Questions",
+        faq_subtitle: "Direct answers regarding architecture, click-through behavior, and security.",
+        faq_q1: "Why does it never interfere with coding or full-screen gaming?",
+        faq_a1: "Powered by the native Windows WS_EX_TRANSPARENT API, digits float TopMost while all mouse clicks and scrolls pass through directly to underlying IDEs, terminals, and games without stealing focus.",
+        faq_q2: "Why is the executable only 275 KB?",
+        faq_a2: "Pure native C# and GDI+ rendering. Zero Electron, zero Chromium runtime, zero bulky dependencies. Active memory stays strictly under 15 MB.",
+        faq_q3: "Does ambient quote display drain laptop battery?",
+        faq_a3: "Not at all. Pure event-driven message handling (0-Polling). Idle CPU consumption is 0.0%, preserving battery life throughout the day.",
+        faq_q4: "Which agents work with the native MCP server?",
+        faq_a4: "Native stdio MCP server (iclock.com --mcp) works out-of-the-box with Claude Desktop, Cursor, Windsurf, Antigravity, and any standard MCP client.",
+        faq_q5: "Is iClock safe, clean, and ad-free?",
+        faq_a5: "100% open source under the MIT license. No ads, no bundled plugins, no background daemons — exit the app and every resource is released instantly.",
+
+        spons_tag: "Community & Sponsor",
+        spons_title: "Open Source & Appreciation",
+        spons_subtitle: "iClock is 100% free and open-source. If it improves your productivity, support from you is deeply appreciated!",
+        spons_box_title: "WeChat Pay Sponsor QR Code",
+        spons_caption: "“Thank you for using iClock!” · Every bit of encouragement fuels continuous craftsmanship",
+        spons_author: "Designed & Built by <strong>gujiangwen</strong>",
+        spons_email: "Feedback & Contact: ",
+
+        footer_copy: "© 2026 iClock · Built by gujiangwen · MIT License.",
+        footer_email: "Author Email",
+        footer_repo: "GitHub Repository",
+        footer_issues: "Issues / Feedback",
+        footer_releases: "Release History",
+        footer_top: "Back to Top ↑",
+        toast_copied: "Copied to clipboard successfully",
+
+        sim_status_idle: "Press Ctrl+Shift+T or click below to start/pause",
+        sim_status_running: "Countdown in progress...",
+        sim_status_paused: "Countdown paused",
+        sim_status_finished: "🎉 Countdown Finished!",
+        sim_status_reset: "Reset to 25 minutes",
+        sim_btn_start: "▶ Start Countdown",
+        sim_btn_pause: "⏸ Pause Countdown",
+        sim_btn_resume: "▶ Resume Countdown",
+        sim_btn_reset: "↺ Reset",
+        sim_format_prefix: "Format: ",
+        sim_formats: ['MM:SS', 'HH:MM:SS', 'Units (h/m/s)'],
+        sim_alert_end: "iClock Notification: Countdown Finished!"
+      }
+    };
+
+    let currentLang = 'zh';
+
+    function getInitialLang() {
+      return /\/en(\/|$)/.test(location.pathname) ? 'en' : 'zh';
+    }
+
+    function switchLanguage(lang) {
+      if (!i18n[lang]) return;
+      currentLang = lang;
+      document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+
+      const btnLangZh = document.getElementById('btnLangZh');
+      const btnLangEn = document.getElementById('btnLangEn');
+      if (btnLangZh) btnLangZh.classList.toggle('active', lang === 'zh');
+      if (btnLangEn) btnLangEn.classList.toggle('active', lang === 'en');
+
+      document.title = i18n[lang].page_title;
+      const metaDesc = document.querySelector('meta[name="description"]');
+      if (metaDesc) metaDesc.setAttribute('content', i18n[lang].page_desc);
+
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (i18n[lang][key]) {
+          el.innerHTML = i18n[lang][key];
+        }
+      });
+
+      updateSimLanguage();
+      updateQuoteDisplay();
+      updateThemeIcon(document.documentElement.dataset.theme || 'light');
+    }
+
+    // 交互式沙盒倒计时逻辑
+    let totalSeconds = 25 * 60;
+    let remaining = totalSeconds;
+    let timerId = null;
+    let currentFormatIndex = 0;
+
+    const digitsEl = document.getElementById('simDigits');
+    const statusEl = document.getElementById('simStatus');
+    const toggleBtn = document.getElementById('simToggleBtn');
+    const resetBtn = document.getElementById('simResetBtn');
+    const formatBtn = document.getElementById('simFormatBtn');
+    const clockEl = document.getElementById('simClock');
+    const screenEl = document.getElementById('boardScreen');
+
+    function formatTime(secs) {
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      const pad = (n) => n.toString().padStart(2, '0');
+
+      if (currentFormatIndex === 0) {
+        return `${pad(Math.floor(secs / 60))}:${pad(s)}`;
+      } else if (currentFormatIndex === 1) {
+        return `${pad(h)}:${pad(m)}:${pad(s)}`;
+      } else if (currentFormatIndex === 2) {
+        return currentLang === 'zh' ? `${pad(h)}时${pad(m)}分${pad(s)}秒` : `${pad(h)}h ${pad(m)}m ${pad(s)}s`;
+      }
+      return `${pad(Math.floor(secs / 60))}:${pad(s)}`;
+    }
+
+    function updateDisplay() {
+      digitsEl.textContent = formatTime(remaining);
+    }
+
+    function updateSimLanguage() {
+      const texts = i18n[currentLang];
+      const formats = texts.sim_formats;
+      formatBtn.textContent = `${texts.sim_format_prefix}${formats[currentFormatIndex]}`;
+      resetBtn.textContent = texts.sim_btn_reset;
+
+      if (timerId) {
+        statusEl.textContent = texts.sim_status_running;
+        toggleBtn.textContent = texts.sim_btn_pause;
+      } else if (remaining === totalSeconds) {
+        statusEl.textContent = texts.sim_status_idle;
+        toggleBtn.textContent = texts.sim_btn_start;
+      } else {
+        statusEl.textContent = texts.sim_status_paused;
+        toggleBtn.textContent = texts.sim_btn_resume;
+      }
+      updateDisplay();
+    }
+
+    function startTimer() {
+      if (timerId) return;
+      const texts = i18n[currentLang];
+      statusEl.textContent = texts.sim_status_running;
+      toggleBtn.textContent = texts.sim_btn_pause;
+      toggleBtn.style.background = '#EF4444';
+      toggleBtn.style.borderColor = '#EF4444';
+
+      timerId = setInterval(() => {
+        if (remaining > 0) {
+          remaining--;
+          updateDisplay();
+        } else {
+          stopTimer();
+          statusEl.textContent = texts.sim_status_finished;
+          alert(texts.sim_alert_end);
+          remaining = totalSeconds;
+          updateDisplay();
+        }
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (!timerId) return;
+      clearInterval(timerId);
+      timerId = null;
+      const texts = i18n[currentLang];
+      statusEl.textContent = texts.sim_status_paused;
+      toggleBtn.textContent = texts.sim_btn_resume;
+      toggleBtn.style.background = 'var(--brand-blue)';
+      toggleBtn.style.borderColor = 'var(--brand-blue)';
+    }
+
+    toggleBtn.addEventListener('click', () => {
+      if (timerId) {
+        stopTimer();
+      } else {
+        startTimer();
+      }
+    });
+
+    resetBtn.addEventListener('click', () => {
+      stopTimer();
+      remaining = totalSeconds;
+      const texts = i18n[currentLang];
+      statusEl.textContent = texts.sim_status_reset;
+      toggleBtn.textContent = texts.sim_btn_start;
+      toggleBtn.style.background = 'var(--brand-blue)';
+      toggleBtn.style.borderColor = 'var(--brand-blue)';
+      updateDisplay();
+    });
+
+    formatBtn.addEventListener('click', () => {
+      const formats = i18n[currentLang].sim_formats;
+      currentFormatIndex = (currentFormatIndex + 1) % formats.length;
+      formatBtn.textContent = `${i18n[currentLang].sim_format_prefix}${formats[currentFormatIndex]}`;
+      updateDisplay();
+    });
+
+    // 拖拽仿真时钟
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let initialLeft = 0, initialTop = 0;
+
+    clockEl.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = clockEl.getBoundingClientRect();
+      const parentRect = screenEl.getBoundingClientRect();
+      initialLeft = rect.left - parentRect.left;
+      initialTop = rect.top - parentRect.top;
+      clockEl.style.position = 'absolute';
+      clockEl.style.left = `${initialLeft}px`;
+      clockEl.style.top = `${initialTop}px`;
+      clockEl.style.margin = '0';
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      clockEl.style.left = `${initialLeft + dx}px`;
+      clockEl.style.top = `${initialTop + dy}px`;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDragging) isDragging = false;
+    });
+
+    // 视图切换：倒计时沙盒 vs 每日格言 vs 软件实图
+    const tabInteractive = document.getElementById('tabInteractive');
+    const tabQuote = document.getElementById('tabQuote');
+    const tabScreenshot = document.getElementById('tabScreenshot');
+    const simQuoteCard = document.getElementById('simQuoteCard');
+    const realScreenshot = document.getElementById('realScreenshot');
+    const simControls = document.getElementById('simControls');
+    const simTip = document.querySelector('.sim-tip');
+
+    function showTab(tabName) {
+      tabInteractive.classList.toggle('active', tabName === 'timer');
+      tabQuote.classList.toggle('active', tabName === 'quote');
+      tabScreenshot.classList.toggle('active', tabName === 'screenshot');
+
+      if (tabName === 'timer') {
+        clockEl.style.display = 'block';
+        simControls.style.display = 'flex';
+        simTip.style.display = 'block';
+        simQuoteCard.style.display = 'none';
+        realScreenshot.style.display = 'none';
+      } else if (tabName === 'quote') {
+        clockEl.style.display = 'none';
+        simControls.style.display = 'none';
+        simTip.style.display = 'none';
+        simQuoteCard.style.display = 'flex';
+        realScreenshot.style.display = 'none';
+        updateQuoteDisplay();
+      } else if (tabName === 'screenshot') {
+        clockEl.style.display = 'none';
+        simControls.style.display = 'none';
+        simTip.style.display = 'none';
+        simQuoteCard.style.display = 'none';
+        realScreenshot.style.display = 'block';
+      }
+    }
+
+    tabInteractive.addEventListener('click', () => showTab('timer'));
+    tabQuote.addEventListener('click', () => showTab('quote'));
+    tabScreenshot.addEventListener('click', () => showTab('screenshot'));
+
+    function updateQuoteDisplay() {
+      const qList = quotes[currentLang] || quotes.zh;
+      const q = qList[quoteIndex % qList.length];
+      document.getElementById('simQuoteText').textContent = q.text;
+      document.getElementById('simQuoteAuthor').textContent = q.author;
+    }
+
+    document.getElementById('simNextQuoteBtn').addEventListener('click', () => {
+      quoteIndex++;
+      updateQuoteDisplay();
+    });
+
+    document.getElementById('simCopyQuoteBtn').addEventListener('click', () => {
+      const qList = quotes[currentLang] || quotes.zh;
+      const q = qList[quoteIndex % qList.length];
+      copyText(`${q.text} ${q.author}`);
+    });
+
+    // MCP Tab 切换
+    function switchMcpTab(tab) {
+      document.getElementById('tabClaude').classList.toggle('active', tab === 'claude');
+      document.getElementById('tabCursor').classList.toggle('active', tab === 'cursor');
+      document.getElementById('tabPrompt').classList.toggle('active', tab === 'prompt');
+
+      document.getElementById('mcpViewClaude').style.display = tab === 'claude' ? 'block' : 'none';
+      document.getElementById('mcpViewCursor').style.display = tab === 'cursor' ? 'block' : 'none';
+      document.getElementById('mcpViewPrompt').style.display = tab === 'prompt' ? 'block' : 'none';
+    }
+
+    function copyMcpCode(elementId) {
+      const code = document.getElementById(elementId).innerText;
+      copyText(code);
+    }
+
+    // 主题切换
+    function getInitialTheme() {
+      const saved = localStorage.getItem('iclock_theme');
+      if (saved) return saved;
+      return 'light';
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.dataset.theme || 'light';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem('iclock_theme', next);
+      updateThemeIcon(next);
+    }
+
+    function updateThemeIcon(theme) {
+      const icon = document.getElementById('themeIcon');
+      const btn = document.getElementById('themeToggle');
+      if (!icon) return;
+      if (theme === 'dark') {
+        icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+        if (btn) btn.title = currentLang === 'zh' ? '切换亮色主题' : 'Switch to Light Theme';
+      } else {
+        icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+        if (btn) btn.title = currentLang === 'zh' ? '切换暗色主题' : 'Switch to Dark Theme';
+      }
+    }
+
+    // 复制剪贴板
+    function copyText(text) {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(showToast);
+      } else {
+        const input = document.createElement('input');
+        input.value = text;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        document.body.removeChild(input);
+        showToast();
+      }
+    }
+
+    function showToast() {
+      const toast = document.getElementById('toast');
+      toast.textContent = i18n[currentLang].toast_copied;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2000);
+    }
+
+    // 导航栏滚动模糊与阴影过渡
+    function handleNavbarScroll() {
+      const nav = document.querySelector('header.navbar');
+      if (!nav) return;
+      nav.classList.toggle('scrolled', window.scrollY > 15);
+    }
+    window.addEventListener('scroll', handleNavbarScroll, { passive: true });
+
+    // 初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      const initTheme = getInitialTheme();
+      document.documentElement.dataset.theme = initTheme;
+      updateThemeIcon(initTheme);
+      const initLang = getInitialLang();
+      switchLanguage(initLang);
+      handleNavbarScroll();
+    });
+  </script>
+</body>
+</html>
