@@ -7,7 +7,7 @@
 
 ## 1. Executive Summary & Core Identity
 
-iClock is an ultra-lightweight (273 KB), open-source Windows native desktop productivity hub. It combines three core features into a single portable binary without third-party dependencies:
+iClock is an ultra-lightweight (275 KB), open-source Windows native desktop productivity hub. It combines three core features into a single portable binary without third-party dependencies:
 1. **The Minimalist Focus Timer**: Native 32-bit ARGB rendered countdown with true `WS_EX_TRANSPARENT` mouse click-through, global hotkeys, direct `Alt + Drag` repositioning, and tiered alerts with auto-fullscreen DND suppression.
 2. **Ambient Desktop Inspiration**: Morning wake-up quotes with 0-polling hibernation (0.0% CPU idle), direct desktop micro-interactions (drag position, resize width, scale font size), and AI agent / MCP batch expansion with deduplication.
 3. **AI Agent Collaboration & Native MCP Server**: Automated task completion monitoring for 20+ programming agents (Cursor, Claude Code, Trae, Antigravity, etc.) via a 4-tier perception engine, plus a built-in native stdio Model Context Protocol (MCP) server (`iclock.com --mcp`) providing 5 tools including `iclock_ask_human` (Desktop Human-in-the-Loop Decision Gate).
@@ -18,7 +18,7 @@ iClock is an ultra-lightweight (273 KB), open-source Windows native desktop prod
 
 | Parameter | Specification | Notes |
 | :--- | :--- | :--- |
-| **Executable Size** | 279,040 bytes (~273 KB) | Single portable PE binary |
+| **Executable Size** | 281,600 bytes (~275 KB) | Single portable PE binary |
 | **Runtime Requirement** | .NET Framework 4.5+ | Pre-installed on all Windows 10 & 11 PCs |
 | **Active Memory (RAM)** | < 15 MB | Low GC pressure, cached GDI handles |
 | **Idle CPU Consumption** | 0.0% | Dynamic heartbeat alignment + pure event-driven message handling |
@@ -65,17 +65,17 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 ```
 
 ### Option C: Standalone Portable Download
-- Archive (Recommended): `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.08/iClock-1.08-windows.zip`
-- Archive SHA-256: `6b3b20c11fe3998a5636a381002aa538736674576682b8021ecd7bc786611fff`
-- Standalone Binary: `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.08/iClock-1.08-windows.exe`
-- Binary SHA-256: `3cd5ad9303afcc40b9f0420b923aeb8b0de098680b09a420d3bb1b17c60e7e06`
+- Archive (Recommended): `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.zip`
+- Archive SHA-256: `f0fb34f5fc9e3e2b7af7a33f9e60e779412fc4a1c21ce34419f25c72cd7a1acb`
+- Standalone Binary: `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.exe`
+- Binary SHA-256: `1a8b356cfeed6cd9e0093b0c85aad984f4283629413be52e741fbbc162013edc`
 
 ---
 
 ## 5. Frequent User Questions & Direct Answers (Q&A)
 
 ### Q: Why is iClock so small compared to other modern timers?
-A: Most modern timer applications are built on Electron or web wrappers, packaging an entire Chromium browser and Node.js runtime (150 MB~400 MB). iClock is written in pure native C# utilizing the Windows operating system's built-in .NET Framework and GDI+, reducing binary size to just 273 KB.
+A: Most modern timer applications are built on Electron or web wrappers, packaging an entire Chromium browser and Node.js runtime (150 MB~400 MB). iClock is written in pure native C# utilizing the Windows operating system's built-in .NET Framework and GDI+, reducing binary size to just 275 KB.
 
 ### Q: Does iClock block mouse clicks when gaming or typing code?
 A: No. iClock applies the native Windows `WS_EX_TRANSPARENT` extended window style. The floating digits remain permanently on top of all other windows, but any mouse click or scroll event passes straight through to the underlying application (e.g., Visual Studio, game window, or browser).

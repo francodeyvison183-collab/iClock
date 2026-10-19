@@ -21,7 +21,7 @@ def main():
         'Accept': 'application/vnd.github.v3+json'
     }
 
-    version = sys.argv[1] if len(sys.argv) > 1 else '1.08'
+    version = sys.argv[1] if len(sys.argv) > 1 else '1.09'
     tag_name = f'v{version}'
     release_name = f'iClock {version} for Windows'
 

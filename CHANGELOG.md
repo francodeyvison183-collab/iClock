@@ -2,6 +2,33 @@
 
 This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY-MM-DD`).
 
+## [1.09] - 2026-10-19
+
+### Fixed
+
+- **Canonical Settings & Immediate-Apply Dialog (设置单一数据源与即改即生效)**:
+  - Settings dialog now edits the canonical `Settings` instance directly: draft/preview copies and the hidden save/cancel buttons were removed, every change applies to the live overlay instantly, and configuration drift between the dialog and the running state is structurally eliminated.
+  - Quote widget now captures and persists its actual on-screen position, width, and font size before settings/exit transitions, so preview or close paths can no longer overwrite newer user adjustments.
+- **Multi-Monitor Desktop Quote Restore (多屏桌面格言位置与宽度恢复)**:
+  - Cold quote construction restores the saved position, width, and font size on secondary monitors, including negative-coordinate layouts.
+  - First visible render performs a native layered-geometry bounds sync, eliminating the first-appearance jump of the floating quote.
+  - `NextQuote` and the settings-tab refresh path preserve saved coordinates and are idempotent; disconnected-monitor coordinates still gracefully fall back to the primary screen.
+  - A hidden retained quote instance is treated as not visible and restored by the normal startup/unlock path.
+- **Structured MCP Tool Responses (MCP 工具结构化 JSON 响应)**:
+  - All six MCP tools now return structured JSON (`status` / `action` / `message` ...), letting agents programmatically distinguish success, cancellation, and timeout.
+  - `iclock_ask_human` gains `action: "cancel"` plus `cancelled` / `timed_out` semantics; `question` is no longer required.
+  - `iclock_quote` gains `clear` / `hide`; `iclock_progress` validates percentage/fraction/decimal input and rejects malformed values; `iclock_notify` accepts `agent_name`.
+
+### Optimized
+
+- **Regression Suite Hardening (回归测试强化)**:
+  - SelfCheck suite expanded and updated for canonical settings, hotkey availability flags, quote persistent-state capture, hidden quote restoration, and secondary-screen coordinate retention (45 checks, all green).
+  - Added standalone multi-monitor `tests/QuoteLayoutCheck.cs` (compiled by `build.ps1`), covering cold restore, first-visible layered geometry, settings-refresh stability, and disconnected-monitor fallback.
+
+### Docs
+
+- **Version & Metadata Alignment (文档与元数据对齐)**: bumped to 1.09 across README (both languages), official website, `llms.txt` / `llms-full.txt`, and Scoop/WinGet manifests; fixed the stale 1.07 portable ZIP download name; corrected binary size claims to 275 KB (281,600 bytes).
+
 ## [1.08] - 2026-10-18
 
 ### Added
