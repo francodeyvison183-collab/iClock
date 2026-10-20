@@ -2572,19 +2572,12 @@ internal sealed class SettingsDialog : Form
             ? AppContext.Current.GetMcpConnectedClientNames()
             : new List<string>();
         List<string> runningAgents = AppContext.DetectAgents();
-        List<string> visibleRunningAgents = new List<string>();
+        HashSet<string> connectedSet = new HashSet<string>(connected, StringComparer.OrdinalIgnoreCase);
+        List<string> unconfigured = new List<string>();
         foreach (string agent in runningAgents)
         {
-            if (McpConfigHelper.GetConfigPathForAgent(agent) != null) visibleRunningAgents.Add(agent);
-        }
-        HashSet<string> connectedSet = new HashSet<string>(connected, StringComparer.OrdinalIgnoreCase);
-        List<string> configured = new List<string>();
-        List<string> unconfigured = new List<string>();
-        foreach (string agent in visibleRunningAgents)
-        {
             if (connectedSet.Contains(agent)) continue;
-            if (McpConfigHelper.IsAgentMcpConfigured(agent)) configured.Add(agent);
-            else unconfigured.Add(agent);
+            unconfigured.Add(agent);
         }
         bool running = AppContext.Current != null && AppContext.Current.IsMcpServerRunning;
         string lastError = AppContext.Current != null ? AppContext.Current.McpServerLastError : null;
@@ -2612,20 +2605,11 @@ internal sealed class SettingsDialog : Form
                 ? "iClock MCP is ready. 6 tools available.\nNo setup needed."
                 : "iClock MCP 已可用，共 6 项工具。\n无需配置。";
         }
-        else if (configured.Count > 0)
-        {
-            string name = configured[0];
-            mcpStatusState = "configured";
-            lblMcpStatusText.Text = en ? name + " Configured" : name + " 已配置，等待重载";
-            lblMcpStatusMeta.Text = en
-                ? "Reload the agent window to connect iClock MCP."
-                : "重载 " + name + " 窗口后自动连接 iClock MCP。";
-        }
         else if (unconfigured.Count > 0)
         {
             string name = unconfigured[0];
             mcpStatusState = "configured";
-            lblMcpStatusText.Text = en ? name + " Not Configured" : name + " 未配置 iClock MCP";
+            lblMcpStatusText.Text = en ? name + " Not Connected" : name + " 未连接 iClock";
             lblMcpStatusMeta.Text = en
                 ? "Click [Copy Setup Prompt] and send it to " + name + "."
                 : "点击 [复制接入提示词]，发送给 " + name + "。";
@@ -4144,6 +4128,7 @@ internal static class McpBridge
         if (lower.Contains("antigravity")) return "Antigravity";
         if (lower.Contains("cursor")) return "Cursor";
         if (lower.Contains("claude")) return "Claude Code";
+        if (lower.Contains("codex")) return "Codex";
         if (lower.Contains("windsurf")) return "Windsurf";
         if (lower.Contains("cline")) return "Cline";
         if (lower.Contains("roo")) return "Roo Code";
@@ -4283,90 +4268,6 @@ internal static class McpConfigHelper
         string exePath = Path.Combine(dir, "iClock.exe");
         if (File.Exists(exePath)) return exePath;
         return "iClock";
-    }
-
-    public static string GetCursorConfigPath()
-    {
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".cursor", "mcp.json");
-    }
-
-    public static string GetClaudeConfigPath()
-    {
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Claude", "claude_desktop_config.json");
-    }
-
-    public static string GetWindsurfConfigPath()
-    {
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codeium", "windsurf", "mcp_config.json");
-    }
-
-    public static string GetAntigravityConfigPath()
-    {
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".gemini", "config", "mcp_config.json");
-    }
-
-    public static string GetClineConfigPath()
-    {
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Code", "User", "globalStorage", "saoudrizwan.claude-dev", "settings", "cline_mcp_settings.json");
-    }
-
-    public static string GetRooConfigPath()
-    {
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Code", "User", "globalStorage", "rooveterinaryinc.roo-cline", "settings", "cline_mcp_settings.json");
-    }
-
-    public static string GetConfigPathForAgent(string agentName)
-    {
-        if (string.IsNullOrEmpty(agentName)) return null;
-        string lower = agentName.ToLowerInvariant();
-        if (lower.Contains("cursor")) return GetCursorConfigPath();
-        if (lower.Contains("claude")) return GetClaudeConfigPath();
-        if (lower.Contains("windsurf")) return GetWindsurfConfigPath();
-        if (lower.Contains("antigravity")) return GetAntigravityConfigPath();
-        if (lower.Contains("cline")) return GetClineConfigPath();
-        if (lower.Contains("roo")) return GetRooConfigPath();
-        return null;
-    }
-
-    public static List<string> GetKnownAgents()
-    {
-        return new List<string> { "Cursor", "Claude", "Windsurf", "Antigravity", "Cline", "Roo" };
-    }
-
-    private static readonly Dictionary<string, bool> mcpConfigCache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-    private static DateTime lastMcpCacheTime = DateTime.MinValue;
-
-    public static bool IsAgentMcpConfigured(string agentName)
-    {
-        if (string.IsNullOrEmpty(agentName)) return false;
-        if ((DateTime.Now - lastMcpCacheTime).TotalSeconds < 5 && mcpConfigCache.ContainsKey(agentName))
-        {
-            return mcpConfigCache[agentName];
-        }
-        string path = GetConfigPathForAgent(agentName);
-        bool cfg = IsConfigured(path);
-        mcpConfigCache[agentName] = cfg;
-        lastMcpCacheTime = DateTime.Now;
-        return cfg;
-    }
-
-    public static bool IsConfigured(string configFile)
-    {
-        if (string.IsNullOrEmpty(configFile) || !File.Exists(configFile)) return false;
-        try
-        {
-            string text = File.ReadAllText(configFile, Encoding.UTF8);
-            if (string.IsNullOrEmpty(text)) return false;
-            JavaScriptSerializer jss = new JavaScriptSerializer();
-            Dictionary<string, object> root = jss.Deserialize<Dictionary<string, object>>(text);
-            if (root != null && root.ContainsKey("mcpServers"))
-            {
-                Dictionary<string, object> servers = root["mcpServers"] as Dictionary<string, object>;
-                if (servers != null && servers.ContainsKey("iclock")) return true;
-            }
-        }
-        catch { }
-        return false;
     }
 
     public static string GenerateAgentPrompt(bool en)
@@ -6606,16 +6507,20 @@ internal sealed class AiQuoteDialog : Form
         cboAgent.SetBounds(18, 170, 374, 25);
         panelSetup.Controls.Add(cboAgent);
 
-        // 100% Only Show Agents Configured with MCP
+        // Show agents connected via MCP or currently running
         List<string> allDetected = AppContext.DetectAgents();
         HashSet<string> running = AppContext.GetRunningAgents();
+        List<string> mcpConnected = AppContext.Current != null
+            ? AppContext.Current.GetMcpConnectedClientNames()
+            : new List<string>();
         detectedAgents = new List<string>();
         foreach (string name in allDetected)
         {
-            if (McpConfigHelper.IsAgentMcpConfigured(name))
-            {
-                detectedAgents.Add(name);
-            }
+            detectedAgents.Add(name);
+        }
+        foreach (string name in mcpConnected)
+        {
+            if (!detectedAgents.Contains(name)) detectedAgents.Add(name);
         }
         detectedAgents.Sort(delegate(string a, string b)
         {

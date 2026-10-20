@@ -2830,57 +2830,15 @@ internal static class TestCheck
                 return 59;
             }
 
-            MethodInfo getCfgAgent = mcpHelperType.GetMethod("GetConfigPathForAgent", BindingFlags.Public | BindingFlags.Static);
-            string cursorCfg = (string)getCfgAgent.Invoke(null, new object[] { "Cursor" });
-            string claudeCfg = (string)getCfgAgent.Invoke(null, new object[] { "Claude Code" });
-            string agyCfg = (string)getCfgAgent.Invoke(null, new object[] { "Antigravity" });
-            string otherCfg = (string)getCfgAgent.Invoke(null, new object[] { "Codex" });
-            if (string.IsNullOrEmpty(cursorCfg) || !cursorCfg.Contains(".cursor") ||
-                string.IsNullOrEmpty(claudeCfg) || !claudeCfg.Contains("Claude") ||
-                string.IsNullOrEmpty(agyCfg) || !agyCfg.Contains(".gemini") ||
-                otherCfg != null)
+            // Config-file probing was removed: connection state now comes from the pipe only.
+            if (mcpHelperType.GetMethod("GetConfigPathForAgent") != null ||
+                mcpHelperType.GetMethod("IsConfigured") != null ||
+                mcpHelperType.GetMethod("IsAgentMcpConfigured") != null ||
+                mcpHelperType.GetMethod("GetKnownAgents") != null ||
+                mcpHelperType.GetMethod("Inject") != null || mcpHelperType.GetMethod("Remove") != null)
             {
-                Console.WriteLine("FAIL: GetConfigPathForAgent mapping invalid");
+                Console.WriteLine("FAIL: McpConfigHelper should no longer expose config-file probing methods");
                 return 59;
-            }
-
-            string testMcpDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "iclock_selfcheck_mcp_" + Guid.NewGuid().ToString("N"));
-            System.IO.Directory.CreateDirectory(testMcpDir);
-            try
-            {
-                string testMcpFile = System.IO.Path.Combine(testMcpDir, "mcp.json");
-                System.IO.File.WriteAllText(testMcpFile, "{\n  \"mcpServers\": {\n    \"playwright\": {\n      \"command\": \"npx\"\n    }\n  }\n}");
-                MethodInfo isCfgMethod = mcpHelperType.GetMethod("IsConfigured", BindingFlags.Public | BindingFlags.Static);
-                if (isCfgMethod == null)
-                {
-                    Console.WriteLine("FAIL: McpConfigHelper missing IsConfigured method");
-                    return 59;
-                }
-                bool configured1 = (bool)isCfgMethod.Invoke(null, new object[] { testMcpFile });
-                if (configured1)
-                {
-                    Console.WriteLine("FAIL: IsConfigured should return false when iclock is not present");
-                    return 59;
-                }
-
-                System.IO.File.WriteAllText(testMcpFile, "{\n  \"mcpServers\": {\n    \"iclock\": {\n      \"command\": \"iClock.exe\"\n    }\n  }\n}");
-                bool configured2 = (bool)isCfgMethod.Invoke(null, new object[] { testMcpFile });
-                if (!configured2)
-                {
-                    Console.WriteLine("FAIL: IsConfigured should return true when iclock is present");
-                    return 59;
-                }
-
-                // Verify obsolete Inject and Remove methods have been completely removed
-                if (mcpHelperType.GetMethod("Inject") != null || mcpHelperType.GetMethod("Remove") != null)
-                {
-                    Console.WriteLine("FAIL: McpConfigHelper should no longer expose Inject/Remove methods");
-                    return 59;
-                }
-            }
-            finally
-            {
-                try { if (System.IO.Directory.Exists(testMcpDir)) System.IO.Directory.Delete(testMcpDir, true); } catch { }
             }
 
             // Verify iClock.exe --mcp-config output
