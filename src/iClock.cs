@@ -43,7 +43,6 @@ internal sealed class Settings
     public bool FirstRun;
     public string NoticeStyle = "Popup";
     public bool FullscreenDnd = true;
-    public bool AgentNotice;
     public bool AgentProgress;
     public bool DailyQuote = true;
     public bool QuoteDesktopVisible { get { return DailyQuote; } set { DailyQuote = value; } }
@@ -67,7 +66,7 @@ internal sealed class Settings
         EndMessage = src.EndMessage; Language = src.Language; AutoStart = src.AutoStart;
         EndSound = src.EndSound; EndSoundStyle = src.EndSoundStyle; EndNotice = src.EndNotice;
         FirstRun = src.FirstRun; NoticeStyle = src.NoticeStyle; FullscreenDnd = src.FullscreenDnd;
-        AgentNotice = src.AgentNotice; AgentProgress = src.AgentProgress; DailyQuote = src.DailyQuote;
+        AgentProgress = src.AgentProgress; DailyQuote = src.DailyQuote;
         QuoteX = src.QuoteX; QuoteY = src.QuoteY; QuoteWidth = src.QuoteWidth;
         QuoteFontSize = src.QuoteFontSize; QuoteColor = src.QuoteColor; QuoteFont = src.QuoteFont;
         QuotePinTopMost = src.QuotePinTopMost;
@@ -136,7 +135,6 @@ internal sealed class Settings
                 else if (k == "FirstRun" && bool.TryParse(v, out b)) s.FirstRun = b;
                 else if (k == "NoticeStyle" && (v == "Popup" || v == "Pulse")) s.NoticeStyle = v;
                 else if (k == "FullscreenDnd" && bool.TryParse(v, out b)) s.FullscreenDnd = b;
-                else if (k == "AgentNotice" && bool.TryParse(v, out b)) s.AgentNotice = b;
                 else if (k == "AgentProgress" && bool.TryParse(v, out b)) s.AgentProgress = b;
                 else if (k == "DailyQuote" && bool.TryParse(v, out b)) s.DailyQuote = b;
                 else if (k == "QuoteX" && int.TryParse(v, out n)) s.QuoteX = n;
@@ -164,7 +162,7 @@ internal sealed class Settings
             "Minutes=" + Minutes, "FontSize=" + FontSize, "X=" + X, "Y=" + Y,
             "HotkeyModifiers=" + HotkeyModifiers, "HotkeyKey=" + HotkeyKey,
             "Color=" + Color, "FontFamily=" + FontFamily, "Format=" + Format, "EndMessage=" + EndMessage, "Language=" + Language, "AutoStart=" + AutoStart,
-            "EndSound=" + EndSound, "EndSoundStyle=" + EndSoundStyle, "EndNotice=" + EndNotice, "FirstRun=" + FirstRun, "NoticeStyle=" + NoticeStyle, "FullscreenDnd=" + FullscreenDnd, "AgentNotice=" + AgentNotice,
+            "EndSound=" + EndSound, "EndSoundStyle=" + EndSoundStyle, "EndNotice=" + EndNotice, "FirstRun=" + FirstRun, "NoticeStyle=" + NoticeStyle, "FullscreenDnd=" + FullscreenDnd,
             "AgentProgress=" + AgentProgress,
             "DailyQuote=" + DailyQuote, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
             "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuotePinTopMost=" + QuotePinTopMost,
@@ -262,11 +260,6 @@ internal static class NativeMethods
     [DllImport("user32.dll")] public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
     [DllImport("user32.dll")] public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
     [DllImport("user32.dll")] public static extern bool DestroyIcon(IntPtr hIcon);
-    [DllImport("user32.dll")] public static extern bool RegisterShellHookWindow(IntPtr hWnd);
-    [DllImport("user32.dll")] public static extern bool DeregisterShellHookWindow(IntPtr hWnd);
-    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-    public static extern uint RegisterWindowMessage(string lpString);
-
     public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
     [DllImport("user32.dll")] public static extern bool EnumDesktopWindows(IntPtr hDesktop, EnumWindowsProc lpfn, IntPtr lParam);
@@ -1214,139 +1207,6 @@ internal sealed class SlimScrollBar : Control
     }
 }
 
-internal sealed class Win11ToggleSwitch : Button
-{
-    private bool isChecked = false;
-    private bool isHovered = false;
-    private bool isPressed = false;
-    private string onText = "开";
-    private string offText = "关";
-
-    public bool Checked
-    {
-        get { return isChecked; }
-        set { if (isChecked != value) { isChecked = value; Invalidate(); OnCheckedChanged(); } }
-    }
-
-    public string OnText
-    {
-        get { return onText; }
-        set { onText = value; Invalidate(); }
-    }
-
-    public string OffText
-    {
-        get { return offText; }
-        set { offText = value; Invalidate(); }
-    }
-
-    public event EventHandler CheckedChanged;
-
-    private void OnCheckedChanged()
-    {
-        if (CheckedChanged != null) CheckedChanged(this, EventArgs.Empty);
-    }
-
-    public Win11ToggleSwitch()
-    {
-        SetStyle(ControlStyles.SupportsTransparentBackColor |
-                 ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.UserPaint |
-                 ControlStyles.OptimizedDoubleBuffer, true);
-        FlatStyle = FlatStyle.Flat;
-        FlatAppearance.BorderSize = 0;
-        BackColor = Color.Transparent;
-        Cursor = Cursors.Hand;
-        Size = new Size(72, 26);
-    }
-
-    protected override void OnMouseEnter(EventArgs e) { base.OnMouseEnter(e); isHovered = true; Invalidate(); }
-    protected override void OnMouseLeave(EventArgs e) { base.OnMouseLeave(e); isHovered = false; isPressed = false; Invalidate(); }
-    protected override void OnMouseDown(MouseEventArgs mevent) { base.OnMouseDown(mevent); if (mevent.Button == MouseButtons.Left) { isPressed = true; Invalidate(); } }
-    protected override void OnMouseUp(MouseEventArgs mevent) { base.OnMouseUp(mevent); isPressed = false; Invalidate(); }
-
-    protected override void OnClick(EventArgs e)
-    {
-        Checked = !Checked;
-        base.OnClick(e);
-    }
-
-    protected override bool ProcessDialogKey(Keys keyData)
-    {
-        if (keyData == Keys.Space || keyData == Keys.Enter)
-        {
-            Checked = !Checked;
-            base.OnClick(EventArgs.Empty);
-            return true;
-        }
-        return base.ProcessDialogKey(keyData);
-    }
-
-    protected override void OnPaint(PaintEventArgs pe)
-    {
-        Graphics g = pe.Graphics;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-
-        using (SolidBrush bg = new SolidBrush(Parent != null ? Parent.BackColor : Color.White))
-        {
-            g.FillRectangle(bg, ClientRectangle);
-        }
-
-        int trackH = 20;
-        int trackW = 40;
-        int trackY = (Height - trackH) / 2;
-        int trackX = 0;
-        Rectangle track = new Rectangle(trackX, trackY, trackW, trackH);
-
-        Color accent = AppContext.Win11Accent;
-        if (isChecked)
-        {
-            Color trackColor = isPressed ? Color.FromArgb(0, 90, 158) : (isHovered ? Color.FromArgb(25, 114, 196) : accent);
-            using (GraphicsPath p = AppContext.GetRoundedRectPath(track, 10))
-            using (SolidBrush b = new SolidBrush(trackColor))
-            {
-                g.FillPath(b, p);
-            }
-            int thumbD = 14;
-            Rectangle thumb = new Rectangle(track.Right - thumbD - 3, track.Y + 3, thumbD, thumbD);
-            using (SolidBrush tb = new SolidBrush(Color.White))
-            {
-                g.FillEllipse(tb, thumb);
-            }
-        }
-        else
-        {
-            Color trackBg = isPressed ? Color.FromArgb(235, 235, 235) : (isHovered ? Color.FromArgb(242, 242, 242) : Color.FromArgb(250, 250, 250));
-            Color borderCol = isPressed ? Color.FromArgb(60, 60, 60) : (isHovered ? Color.FromArgb(90, 90, 90) : Color.FromArgb(120, 120, 120));
-            using (GraphicsPath p = AppContext.GetRoundedRectPath(track, 10))
-            using (SolidBrush b = new SolidBrush(trackBg))
-            using (Pen pen = new Pen(borderCol, 1.2f))
-            {
-                g.FillPath(b, p);
-                g.DrawPath(pen, p);
-            }
-            int thumbD = 12;
-            Rectangle thumb = new Rectangle(track.X + 4, track.Y + 4, thumbD, thumbD);
-            Color thumbColor = isPressed ? Color.FromArgb(40, 40, 40) : (isHovered ? Color.FromArgb(60, 60, 60) : Color.FromArgb(92, 92, 92));
-            using (SolidBrush tb = new SolidBrush(thumbColor))
-            {
-                g.FillEllipse(tb, thumb);
-            }
-        }
-
-        string dispText = isChecked ? onText : offText;
-        if (!string.IsNullOrEmpty(dispText))
-        {
-            using (SolidBrush tb = new SolidBrush(AppContext.Win11TextPrimary))
-            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap })
-            {
-                Rectangle textRect = new Rectangle(track.Right + 8, 0, Width - track.Right - 8, Height);
-                g.DrawString(dispText, Font, tb, textRect, sf);
-            }
-        }
-    }
-}
 
 internal sealed class StyledTipLabel : Label
 {
@@ -1492,7 +1352,7 @@ internal sealed class SettingsDialog : Form
     private string selectedColor;
     private TextBox endMessage;
     private ComboBox format, language, fontCombo;
-    private CheckBox startup, sound, notice, agentNotice, dailyQuote;
+    private CheckBox startup, sound, notice, dailyQuote;
     private Button btnEditQuotes, btnAiQuotes;
     private ComboBox soundStyle, noticeStyle;
     private TextBox hotkeyBox;
@@ -1514,10 +1374,10 @@ internal sealed class SettingsDialog : Form
     private int activeTab = 0;
     private int hoveredTab = -1;
     private Button btnTabTimer, btnTabQuote, btnTabAgent;
-    private Button btnAgentNoticeToggle, btnMcpCopyJson, btnMcpDemo;
+    private Button btnMcpCopyJson, btnMcpDemo;
     private Button btnMcpDemoProgress, btnMcpDemoNotify, btnMcpDemoQuote;
     private Panel panelMcpBox;
-    private Label lblMcpTitle, lblCapDesc, lblMcpServerTitle;
+    private Label lblMcpServerTitle;
     private Label lblTool1Name, lblTool2Name, lblTool3Name, lblTool4Name;
     private StyledTipLabel lblAgentCliTip;
     // Two-section layout: MCP connection status first, capability previews second.
@@ -1947,69 +1807,25 @@ internal sealed class SettingsDialog : Form
             : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
 
 
-        agentNotice = new CheckBox();
-        agentNotice.Checked = Value.AgentNotice;
-        agentNotice.SetBounds(-100, -100, 10, 10);
-        agentNotice.TabStop = false;
-        agentNotice.Visible = false;
-        Controls.Add(agentNotice);
-
-        // Section 1: Background task alerts only; MCP stays available while iClock runs.
-        lblMcpTitle = new Label();
-        lblMcpTitle.Text = en ? "Background Task Alerts" : "后台任务提醒";
-        lblMcpTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
-        lblMcpTitle.ForeColor = AppContext.Win11TextPrimary;
-        lblMcpTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpTitle.SetBounds(18, 56, 224, 22);
-        Controls.Add(lblMcpTitle);
-
-        Win11ToggleSwitch swNotice = new Win11ToggleSwitch();
-        swNotice.SetBounds(290, 54, 72, 26);
-        swNotice.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
-        swNotice.Checked = agentNotice.Checked;
-        swNotice.OnText = en ? "On" : "开";
-        swNotice.OffText = en ? "Off" : "关";
-        swNotice.CheckedChanged += delegate
-        {
-            if (agentNotice.Checked != swNotice.Checked)
-                agentNotice.Checked = swNotice.Checked;
-        };
-        btnAgentNoticeToggle = swNotice;
-        Controls.Add(btnAgentNoticeToggle);
-
-        agentNotice.CheckedChanged += OnAgentNoticeCheckedChanged;
-        UpdateAgentNoticeToggleState(en);
-
-        lblCapDesc = new Label();
-        lblCapDesc.UseMnemonic = false;
-        lblCapDesc.Text = en
-            ? "Monitor agent background tasks and alert me on completion; MCP stays connected."
-            : "监控智能体后台任务，完成时提醒我；不影响 MCP 连接。";
-        lblCapDesc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblCapDesc.ForeColor = AppContext.Win11TextSecondary;
-        lblCapDesc.TextAlign = ContentAlignment.MiddleLeft;
-        lblCapDesc.SetBounds(18, 78, 344, 18);
-        Controls.Add(lblCapDesc);
-
-        // Section 2: MCP desktop collaboration status
+        // Section: MCP desktop collaboration status
         lblMcpServerTitle = new Label();
         lblMcpServerTitle.Text = en ? "MCP Desktop Collaboration" : "MCP 桌面协作";
         lblMcpServerTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblMcpServerTitle.ForeColor = AppContext.Win11TextPrimary;
         lblMcpServerTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpServerTitle.SetBounds(18, 100, 200, 22);
+        lblMcpServerTitle.SetBounds(18, 56, 200, 22);
         Controls.Add(lblMcpServerTitle);
 
         btnMcpCopyJson = new Button();
         btnMcpCopyJson.Text = en ? "Copy Setup Prompt" : "复制接入提示词";
         btnMcpCopyJson.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpCopyJson.SetBounds(238, 98, 124, 26);
+        btnMcpCopyJson.SetBounds(238, 54, 124, 26);
         AppContext.StyleSecondaryButton(btnMcpCopyJson);
         btnMcpCopyJson.Click += OnMcpCopyPromptClick;
         Controls.Add(btnMcpCopyJson);
 
         panelMcpStatus = new Panel();
-        panelMcpStatus.SetBounds(18, 124, 344, 88);
+        panelMcpStatus.SetBounds(18, 80, 344, 88);
         panelMcpStatus.BackColor = Color.White;
         panelMcpStatus.Paint += OnCardPaint;
         Controls.Add(panelMcpStatus);
@@ -2035,15 +1851,15 @@ internal sealed class SettingsDialog : Form
 
         Label lblCapabilityTitle = new Label();
         lblCapabilityTitle.Name = "lblCapabilityTitle";
-        lblCapabilityTitle.Text = en ? "Desktop Capability Previews (4/6)" : "常用桌面能力（4/6）";
+        lblCapabilityTitle.Text = en ? "Desktop Capability Previews" : "常用桌面能力";
         lblCapabilityTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblCapabilityTitle.ForeColor = AppContext.Win11TextPrimary;
         lblCapabilityTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblCapabilityTitle.SetBounds(18, 232, 344, 22);
+        lblCapabilityTitle.SetBounds(18, 188, 344, 22);
         Controls.Add(lblCapabilityTitle);
 
         panelCapCard = new Panel();
-        panelCapCard.SetBounds(18, 254, 344, 136);
+        panelCapCard.SetBounds(18, 210, 344, 136);
         panelCapCard.BackColor = Color.White;
         panelCapCard.Paint += OnMcpBoxPaint;
         Controls.Add(panelCapCard);
@@ -2137,7 +1953,7 @@ internal sealed class SettingsDialog : Form
             : "提示：终端运行 iclock -h 查看指令，iclock --install-cli 写入 PATH。";
         lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
         lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentCliTip.SetBounds(16, 402, 348, 20);
+        lblAgentCliTip.SetBounds(16, 358, 348, 20);
         Controls.Add(lblAgentCliTip);
 
         AppContext.CenterFormOnScreen(this);
@@ -2189,11 +2005,7 @@ internal sealed class SettingsDialog : Form
         if (btnAiQuotes != null) btnAiQuotes.Visible = isQuote;
         lblQuoteTip.Visible = isQuote;
 
-        if (agentNotice != null) agentNotice.Visible = isAgent;
-        if (btnAgentNoticeToggle != null) btnAgentNoticeToggle.Visible = isAgent;
         if (panelMcpStatus != null) panelMcpStatus.Visible = isAgent;
-        if (lblMcpTitle != null) lblMcpTitle.Visible = isAgent;
-        if (lblCapDesc != null) lblCapDesc.Visible = isAgent;
         if (lblMcpServerTitle != null) lblMcpServerTitle.Visible = isAgent;
         if (btnMcpCopyJson != null) btnMcpCopyJson.Visible = isAgent && mcpNeedsSetup;
         if (panelCapCard != null) panelCapCard.Visible = isAgent;
@@ -2573,23 +2385,6 @@ internal sealed class SettingsDialog : Form
     }
 
 
-    private void UpdateAgentNoticeToggleState(bool en)
-    {
-        if (btnAgentNoticeToggle == null) return;
-        bool enabled = (agentNotice != null && agentNotice.Checked);
-        Win11ToggleSwitch sw = btnAgentNoticeToggle as Win11ToggleSwitch;
-        if (sw != null)
-        {
-            if (sw.Checked != enabled) sw.Checked = enabled;
-            sw.OnText = en ? "On" : "开";
-            sw.OffText = en ? "Off" : "关";
-        }
-        else
-        {
-            btnAgentNoticeToggle.Text = enabled ? (en ? "On" : "开") : (en ? "Off" : "关");
-        }
-    }
-
     private static void OnCardPaint(object sender, PaintEventArgs pe)
     {
         Control card = (Control)sender;
@@ -2684,11 +2479,6 @@ internal sealed class SettingsDialog : Form
                 TriggerQuotePreview();
             }
         }
-    }
-    private void OnAgentNoticeCheckedChanged(object sender, EventArgs e)
-    {
-        UpdateAgentNoticeToggleState(language != null && language.SelectedIndex == 1);
-        TriggerPreview();
     }
     private void OnMcpCopyPromptClick(object sender, EventArgs e)
     {
@@ -3006,15 +2796,6 @@ internal sealed class SettingsDialog : Form
             lblCardQuoteAuthor.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.5f, FontStyle.Italic);
         }
 
-        UpdateAgentNoticeToggleState(toEnglish);
-        if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "Background Task Alerts" : "后台任务提醒";
-        if (lblCapDesc != null)
-        {
-            lblCapDesc.Text = toEnglish
-                ? "Monitor agent background tasks and alert me on completion; MCP stays connected."
-                : "监控智能体后台任务，完成时提醒我；不影响 MCP 连接。";
-            lblCapDesc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
-        }
         if (lblMcpServerTitle != null) lblMcpServerTitle.Text = toEnglish ? "MCP Desktop Collaboration" : "MCP 桌面协作";
         if (btnMcpCopyJson != null) btnMcpCopyJson.Text = toEnglish ? "Copy Setup Prompt" : "复制接入提示词";
         RefreshMcpStatusSummary();
@@ -3022,7 +2803,7 @@ internal sealed class SettingsDialog : Form
         {
             if (control != null && control.Name == "lblCapabilityTitle")
             {
-                control.Text = toEnglish ? "Desktop Capability Previews (4/6)" : "常用桌面能力（4/6）";
+                control.Text = toEnglish ? "Desktop Capability Previews" : "常用桌面能力";
                 control.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Bold);
                 break;
             }
@@ -3163,7 +2944,6 @@ internal sealed class SettingsDialog : Form
         Value.EndNotice = notice != null ? notice.Checked : Value.EndNotice;
         Value.NoticeStyle = (noticeStyle != null && noticeStyle.SelectedIndex == 1) ? "Pulse" : "Popup";
         Value.EndMessage = endMessage != null ? endMessage.Text.Trim() : Value.EndMessage;
-        Value.AgentNotice = agentNotice != null ? agentNotice.Checked : Value.AgentNotice;
         Value.DailyQuote = dailyQuote != null ? dailyQuote.Checked : Value.DailyQuote;
         Value.QuoteColor = selectedQuoteColor ?? "";
         Value.QuoteFont = selectedQuoteFont ?? "";
@@ -3508,7 +3288,6 @@ internal sealed class NoticeDialog : Form
     {
         if (isAgentNotice)
         {
-            if (settings != null && !settings.AgentNotice) return;
             AppContext.PlayAiSound();
         }
         else
@@ -8021,8 +7800,6 @@ internal sealed class AppContext : ApplicationContext
     private int projectedAgentPid;
     private long lastSeconds = -1;
     private MessageWindow messageWindow;
-    internal uint shellHookMsg;
-    private const int HSHELL_FLASH = 0x8006;
     private string exePath = Application.ExecutablePath;
     private Icon appIcon;
     private Timer trayClickTimer;
@@ -8161,11 +7938,6 @@ internal sealed class AppContext : ApplicationContext
         messageWindow = new MessageWindow(this);
         mcpPipeServer = new McpPipeServer(this);
         mcpPipeServer.Start();
-        shellHookMsg = NativeMethods.RegisterWindowMessage("SHELLHOOK");
-        if (shellHookMsg != 0)
-        {
-            try { NativeMethods.RegisterShellHookWindow(messageWindow.Handle); } catch { }
-        }
         activeHotkeyModifiers = settings.HotkeyModifiers; activeHotkeyKey = settings.HotkeyKey;
         int originalMods = settings.HotkeyModifiers, originalKey = settings.HotkeyKey;
         bool fallbackUsed = false;
@@ -8310,7 +8082,6 @@ internal sealed class AppContext : ApplicationContext
                 }
             }));
         }
-        UpdateAgentMonitoring();
         if (!isOneShot && settings.FirstRun)
         {
             overlay.BeginInvoke(new Action(delegate { ShowWelcome(fallbackUsed); }));
@@ -10315,200 +10086,6 @@ internal sealed class AppContext : ApplicationContext
         return false;
     }
 
-    internal static class ToastAgentMonitor
-    {
-        private static object listener;
-        private static MethodInfo getNotifsMethod;
-        private static MethodInfo asTaskMethod;
-        private static MethodInfo cachedGenericAsTask;
-        private static Type genericArg;
-        private static object toastKind;
-        private static uint lastSeenId = 0;
-        private static bool initialized = false;
-        private static bool initAttempted = false;
-
-        internal static uint LastSeenId { get { return lastSeenId; } set { lastSeenId = value; } }
-
-        public static bool IsAvailable
-        {
-            get
-            {
-                if (!initAttempted) Init();
-                return initialized;
-            }
-        }
-
-        public static bool Init()
-        {
-            initAttempted = true;
-            try
-            {
-                Type listenerType = Type.GetType("Windows.UI.Notifications.Management.UserNotificationListener, Windows, ContentType=WindowsRuntime");
-                if (listenerType == null) return false;
-
-                object current = listenerType.GetProperty("Current", BindingFlags.Public | BindingFlags.Static).GetValue(null, null);
-                MethodInfo getStatus = listenerType.GetMethod("GetAccessStatus");
-                object status = getStatus.Invoke(current, null);
-                if (status == null || status.ToString() != "Allowed") return false;
-
-                Type kindType = Type.GetType("Windows.UI.Notifications.NotificationKinds, Windows, ContentType=WindowsRuntime");
-                toastKind = Enum.Parse(kindType, "Toast");
-
-                getNotifsMethod = listenerType.GetMethod("GetNotificationsAsync", new Type[] { kindType });
-                genericArg = getNotifsMethod.ReturnType.GetGenericArguments()[0];
-
-                Type extType = typeof(System.WindowsRuntimeSystemExtensions);
-                foreach (MethodInfo m in extType.GetMethods(BindingFlags.Public | BindingFlags.Static))
-                {
-                    if (m.Name == "AsTask" && m.IsGenericMethod && m.GetParameters().Length == 1)
-                    {
-                        asTaskMethod = m;
-                        break;
-                    }
-                }
-                if (asTaskMethod == null) return false;
-
-                try { cachedGenericAsTask = asTaskMethod.MakeGenericMethod(genericArg); } catch { }
-
-                listener = current;
-                initialized = true;
-
-                uint maxId = 0;
-                IEnumerable initialList = FetchToastNotifications();
-                if (initialList != null)
-                {
-                    foreach (object item in initialList)
-                    {
-                        uint id = (uint)item.GetType().GetProperty("Id").GetValue(item, null);
-                        if (id > maxId) maxId = id;
-                    }
-                }
-                lastSeenId = maxId;
-                return true;
-            }
-            catch
-            {
-                initialized = false;
-                return false;
-            }
-        }
-
-        public static IEnumerable FetchToastNotifications()
-        {
-            if (!initialized || listener == null || getNotifsMethod == null || asTaskMethod == null) return null;
-            try
-            {
-                object asyncOp = getNotifsMethod.Invoke(listener, new object[] { toastKind });
-                MethodInfo m = cachedGenericAsTask ?? asTaskMethod.MakeGenericMethod(genericArg);
-                Task task = (Task)m.Invoke(null, new object[] { asyncOp });
-                if (task.Wait(1000))
-                {
-                    return (IEnumerable)task.GetType().GetProperty("Result").GetValue(task, null);
-                }
-                return null;
-            }
-            catch { return null; }
-        }
-
-        private static PropertyInfo propId, propAppInfo, propDisplayInfo, propDisplayName, propNotif, propVisual, propText;
-        private static MethodInfo methodGetBinding, methodGetTextElements;
-
-        public static void CheckNewAgentNotifications(Action<string, string> onAgentNotice)
-        {
-            if (!IsAvailable || onAgentNotice == null) return;
-            IEnumerable list = FetchToastNotifications();
-            if (list == null) return;
-
-            uint newMaxId = lastSeenId;
-            foreach (object item in list)
-            {
-                try
-                {
-                    Type itemType = item.GetType();
-                    if (propId == null) propId = itemType.GetProperty("Id");
-                    uint id = (uint)propId.GetValue(item, null);
-                    if (id <= lastSeenId) continue;
-                    if (id > newMaxId) newMaxId = id;
-
-                    if (propAppInfo == null) propAppInfo = itemType.GetProperty("AppInfo");
-                    object appInfo = propAppInfo.GetValue(item, null);
-                    if (appInfo == null) continue;
-
-                    if (propDisplayInfo == null) propDisplayInfo = appInfo.GetType().GetProperty("DisplayInfo");
-                    object displayInfo = propDisplayInfo.GetValue(appInfo, null);
-                    if (displayInfo == null) continue;
-
-                    if (propDisplayName == null) propDisplayName = displayInfo.GetType().GetProperty("DisplayName");
-                    string appName = (string)propDisplayName.GetValue(displayInfo, null);
-
-                    string agentName = MatchAgent(appName);
-                    if (agentName != null)
-                    {
-                        string text = "";
-                        try
-                        {
-                            if (propNotif == null) propNotif = itemType.GetProperty("Notification");
-                            object notifObj = propNotif.GetValue(item, null);
-                            if (notifObj != null)
-                            {
-                                if (propVisual == null) propVisual = notifObj.GetType().GetProperty("Visual");
-                                object visual = propVisual.GetValue(notifObj, null);
-                                if (visual != null)
-                                {
-                                    if (methodGetBinding == null) methodGetBinding = visual.GetType().GetMethod("GetBinding");
-                                    object binding = methodGetBinding.Invoke(visual, new object[] { "ToastGeneric" });
-                                    if (binding != null)
-                                    {
-                                        if (methodGetTextElements == null) methodGetTextElements = binding.GetType().GetMethod("GetTextElements");
-                                        IEnumerable texts = (IEnumerable)methodGetTextElements.Invoke(binding, null);
-                                        if (texts != null)
-                                        {
-                                            foreach (object t in texts)
-                                            {
-                                                if (propText == null) propText = t.GetType().GetProperty("Text");
-                                                string s = (string)propText.GetValue(t, null);
-                                                if (!string.IsNullOrEmpty(s))
-                                                {
-                                                    text += (text.Length > 0 ? " • " : "") + s;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        catch { }
-
-                        onAgentNotice(agentName, text);
-                    }
-                }
-                catch { }
-            }
-            lastSeenId = newMaxId;
-        }
-    }
-
-    internal const int AgentCpuBusyMinTicks = 5;       // 算力需持续活跃 >= 5 秒才认定进入后台任务（大幅提高启动门槛）
-    internal const int AgentCpuIdleMinTicks = 6;       // 算力需持续平稳 >= 6 秒才触发完成提醒（大幅提高触发门槛，防工具调用间隙误报）
-    internal const double AgentCpuSecsMin = 0.40;      // 集群单秒实际消耗 CPU 核心时间 >= 0.40 秒（原 0.15s）
-    internal const double AgentCpuUsageMin = 0.08;     // 系统总算力占用比 >= 8%（原 3%）
-    internal const int AgentNoticeCooldownSecs = 30;   // 提醒冷却周期 >= 30 秒（原 15s）
-
-    internal class AgentTrack
-    {
-        public string DisplayName;
-        public HashSet<int> Pids = new HashSet<int>();
-        public IntPtr MainWindow;
-        public TimeSpan LastCpu;
-        public DateTime LastSample;
-        public int BusyTicks;
-        public int IdleTicks;
-        public bool WasBusy;
-        public DateTime LastNoticeTime;
-        public string LastTitle;
-        public bool TitleWasBusy;
-    }
-
     internal static string GetAgentWindowTitle(IntPtr hWnd)
     {
         if (hWnd == IntPtr.Zero || !NativeMethods.IsWindow(hWnd)) return string.Empty;
@@ -10521,17 +10098,6 @@ internal sealed class AppContext : ApplicationContext
             return sb.ToString();
         }
         catch { return string.Empty; }
-    }
-
-    internal static bool IsBusyAgentTitle(string title)
-    {
-        if (string.IsNullOrEmpty(title)) return false;
-        string lower = title.ToLowerInvariant();
-        return lower.Contains("[running]") || lower.Contains("(running)") ||
-               lower.Contains("●") || lower.Contains("thinking...") ||
-               lower.Contains("generating...") || lower.Contains("[busy]") ||
-               lower.Contains("(busy)") || lower.Contains("[building]") ||
-               lower.Contains("(building)");
     }
 
     internal static IntPtr FindAgentMainWindow(HashSet<int> pids)
@@ -10587,403 +10153,6 @@ internal sealed class AppContext : ApplicationContext
         return best;
     }
 
-    private Timer agentTimer;
-    internal Dictionary<string, AgentTrack> trackedAgents = new Dictionary<string, AgentTrack>(StringComparer.OrdinalIgnoreCase);
-    private int agentScanCooldown;
-    private int toastScanCooldown;
-
-    private void UpdateAgentMonitoring()
-    {
-        if (settings.AgentNotice)
-        {
-            if (agentTimer == null)
-            {
-                agentTimer = new Timer();
-                agentTimer.Interval = 1000;
-                agentTimer.Tick += AgentTimerTick;
-            }
-            agentTimer.Start();
-        }
-        else
-        {
-            if (agentTimer != null) agentTimer.Stop();
-            trackedAgents.Clear();
-        }
-    }
-
-    private void AgentTimerTick(object sender, EventArgs e)
-    {
-        if (!settings.AgentNotice) return;
-        if (mouseHookHandle != IntPtr.Zero && Math.Abs(Environment.TickCount - lastTrayMouseMove) > 2500)
-        {
-            UnhookMouse();
-        }
-        IntPtr fg = NativeMethods.GetForegroundWindow();
-        uint fgPid = 0;
-        if (fg != IntPtr.Zero) NativeMethods.GetWindowThreadProcessId(fg, out fgPid);
-        ProcessAgentTick(DateTime.Now, fg, fgPid);
-    }
-
-    internal void ProcessAgentTick(DateTime now, IntPtr fg, uint fgPid)
-    {
-        if (ToastAgentMonitor.IsAvailable && trackedAgents.Count > 0)
-        {
-            toastScanCooldown--;
-            if (toastScanCooldown <= 0)
-            {
-                toastScanCooldown = 3;
-                ToastAgentMonitor.CheckNewAgentNotifications(delegate(string agentName, string detailText)
-                {
-                AgentTrack t = null;
-                IntPtr targetHwnd = IntPtr.Zero;
-                if (trackedAgents.TryGetValue(agentName, out t))
-                {
-                    if (t.MainWindow == IntPtr.Zero || !NativeMethods.IsWindow(t.MainWindow))
-                    {
-                        t.MainWindow = FindAgentMainWindow(t.Pids);
-                    }
-                    targetHwnd = t.MainWindow;
-                    t.LastNoticeTime = now;
-                    t.WasBusy = false;
-                    t.TitleWasBusy = false;
-                    t.BusyTicks = 0;
-                    t.IdleTicks = 0;
-                }
-                else
-                {
-                    try
-                    {
-                        EnumerateSystemProcesses(delegate(int pid, string exeName)
-                        {
-                            if (targetHwnd != IntPtr.Zero) return;
-                            if (string.Equals(MatchAgent(exeName), agentName, StringComparison.OrdinalIgnoreCase))
-                            {
-                                HashSet<int> pids = new HashSet<int>();
-                                pids.Add(pid);
-                                targetHwnd = FindAgentMainWindow(pids);
-                            }
-                        });
-                    }
-                    catch { }
-                }
-
-                bool isForeground = false;
-                if (t != null)
-                {
-                    bool isMinimized = t.MainWindow != IntPtr.Zero && NativeMethods.IsIconic(t.MainWindow);
-                    isForeground = !isMinimized && ((t.MainWindow != IntPtr.Zero && t.MainWindow == fg) || (t.Pids != null && t.Pids.Contains((int)fgPid)));
-                }
-                else if (targetHwnd != IntPtr.Zero && fg != IntPtr.Zero)
-                {
-                    isForeground = (targetHwnd == fg);
-                }
-
-                if (!isForeground)
-                {
-                    TriggerAgentNotice(agentName, targetHwnd, detailText);
-                }
-            });
-            }
-        }
-
-        agentScanCooldown--;
-        if (agentScanCooldown <= 0)
-        {
-            agentScanCooldown = (trackedAgents.Count > 0) ? 15 : 20;
-            try
-            {
-                Dictionary<string, HashSet<int>> currentAgentPids = new Dictionary<string, HashSet<int>>(StringComparer.OrdinalIgnoreCase);
-                EnumerateSystemProcesses(delegate(int pid, string exeName)
-                {
-                    string displayName = MatchAgent(exeName);
-                    if (displayName != null)
-                    {
-                        HashSet<int> pids;
-                        if (!currentAgentPids.TryGetValue(displayName, out pids))
-                        {
-                            pids = new HashSet<int>();
-                            currentAgentPids[displayName] = pids;
-                        }
-                        pids.Add(pid);
-                    }
-                });
-
-                foreach (KeyValuePair<string, HashSet<int>> kvp in currentAgentPids)
-                {
-                    string name = kvp.Key;
-                    HashSet<int> pids = kvp.Value;
-                    AgentTrack track;
-                    if (!trackedAgents.TryGetValue(name, out track))
-                    {
-                        TimeSpan totalCpu = TimeSpan.Zero;
-                        foreach (int pid in pids)
-                        {
-                            totalCpu += GetProcessCpuTime(pid);
-                        }
-
-                        track = new AgentTrack
-                        {
-                            DisplayName = name,
-                            Pids = pids,
-                            MainWindow = FindAgentMainWindow(pids),
-                            LastCpu = totalCpu,
-                            LastSample = now,
-                            LastNoticeTime = DateTime.MinValue
-                        };
-                        trackedAgents[name] = track;
-                    }
-                    else
-                    {
-                        track.Pids = pids;
-                        if (track.MainWindow == IntPtr.Zero || !NativeMethods.IsWindow(track.MainWindow))
-                        {
-                            track.MainWindow = FindAgentMainWindow(pids);
-                        }
-                    }
-                }
-
-                List<string> toRemove = new List<string>();
-                foreach (string name in trackedAgents.Keys)
-                {
-                    if (!currentAgentPids.ContainsKey(name)) toRemove.Add(name);
-                }
-                foreach (string name in toRemove) trackedAgents.Remove(name);
-            }
-            catch { }
-        }
-
-        foreach (AgentTrack track in new List<AgentTrack>(trackedAgents.Values))
-        {
-            try
-            {
-                if (track.Pids == null || track.Pids.Count == 0)
-                {
-                    trackedAgents.Remove(track.DisplayName);
-                    continue;
-                }
-
-                if (track.MainWindow == IntPtr.Zero || !NativeMethods.IsWindow(track.MainWindow))
-                {
-                    track.MainWindow = FindAgentMainWindow(track.Pids);
-                }
-
-                bool isMinimized = track.MainWindow != IntPtr.Zero && NativeMethods.IsIconic(track.MainWindow);
-                bool isForeground = !isMinimized && ((track.MainWindow != IntPtr.Zero && track.MainWindow == fg) || track.Pids.Contains((int)fgPid));
-
-                string curTitle = GetAgentWindowTitle(track.MainWindow);
-                bool isTitleBusy = IsBusyAgentTitle(curTitle);
-                bool titleJustFinished = track.TitleWasBusy && !isTitleBusy;
-
-                TimeSpan curCpu = TimeSpan.Zero;
-                List<int> deadPids = null;
-                foreach (int pid in track.Pids)
-                {
-                    TimeSpan pt = GetProcessCpuTime(pid);
-                    if (pt > TimeSpan.Zero)
-                    {
-                        curCpu += pt;
-                    }
-                    else
-                    {
-                        IntPtr hTest = NativeMethods.OpenProcess(0x1000, false, pid);
-                        if (hTest == IntPtr.Zero)
-                        {
-                            if (deadPids == null) deadPids = new List<int>();
-                            deadPids.Add(pid);
-                        }
-                        else
-                        {
-                            NativeMethods.CloseHandle(hTest);
-                        }
-                    }
-                }
-                if (deadPids != null)
-                {
-                    foreach (int d in deadPids) track.Pids.Remove(d);
-                }
-
-                if (isForeground)
-                {
-                    track.WasBusy = false;
-                    track.TitleWasBusy = false;
-                    track.BusyTicks = 0;
-                    track.IdleTicks = 0;
-                    track.LastCpu = curCpu;
-                    track.LastSample = now;
-                    track.LastTitle = curTitle;
-                    continue;
-                }
-
-                double elapsed = (now - track.LastSample).TotalSeconds;
-                if (elapsed <= 0.2) continue;
-
-                double cpuSecs = (curCpu - track.LastCpu).TotalSeconds;
-                track.LastCpu = curCpu;
-                track.LastSample = now;
-                track.LastTitle = curTitle;
-                if (cpuSecs < 0) cpuSecs = 0;
-
-                double usage = cpuSecs / (elapsed * Environment.ProcessorCount);
-                bool isCpuBusy = (usage >= AgentCpuUsageMin || cpuSecs >= AgentCpuSecsMin);
-
-                bool isToastAgent = ToastAgentMonitor.IsAvailable && (
-                    string.Equals(track.DisplayName, "Antigravity", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(track.DisplayName, "Cursor", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(track.DisplayName, "Windsurf", StringComparison.OrdinalIgnoreCase)
-                );
-
-                if (isTitleBusy)
-                {
-                    track.TitleWasBusy = true;
-                    track.WasBusy = true;
-                    track.BusyTicks++;
-                    track.IdleTicks = 0;
-                }
-                else if (titleJustFinished)
-                {
-                    toastScanCooldown = 0;
-                    track.TitleWasBusy = false;
-                    track.WasBusy = false;
-                    track.BusyTicks = 0;
-                    track.IdleTicks = 0;
-                    if ((now - track.LastNoticeTime).TotalSeconds >= AgentNoticeCooldownSecs)
-                    {
-                        track.LastNoticeTime = now;
-                        TriggerAgentNotice(track.DisplayName, track.MainWindow);
-                    }
-                }
-                else if (!isToastAgent && isCpuBusy)
-                {
-                    track.BusyTicks++;
-                    track.IdleTicks = 0;
-                    if (track.BusyTicks >= AgentCpuBusyMinTicks) track.WasBusy = true;
-                }
-                else if (!isToastAgent && track.WasBusy)
-                {
-                    track.IdleTicks++;
-                    if (track.IdleTicks >= AgentCpuIdleMinTicks)
-                    {
-                        track.WasBusy = false;
-                        track.TitleWasBusy = false;
-                        track.BusyTicks = 0;
-                        track.IdleTicks = 0;
-                        if ((now - track.LastNoticeTime).TotalSeconds >= AgentNoticeCooldownSecs)
-                        {
-                            track.LastNoticeTime = now;
-                            if (track.MainWindow == IntPtr.Zero || !NativeMethods.IsWindow(track.MainWindow))
-                            {
-                                track.MainWindow = FindAgentMainWindow(track.Pids);
-                            }
-                            TriggerAgentNotice(track.DisplayName, track.MainWindow);
-                        }
-                    }
-                }
-                else
-                {
-                    track.BusyTicks = 0;
-                }
-            }
-            catch { }
-        }
-    }
-
-    private void TriggerAgentNotice(string agentName, IntPtr targetHwnd, string detailText = null)
-    {
-        if (settings.NoticeStyle == "Pulse" || (settings.FullscreenDnd && IsForegroundFullScreen()))
-        {
-            overlay.StartBreathingPulse(delegate
-            {
-                ResetDisplay();
-                overlay.Hide();
-            });
-            if (settings.AgentNotice)
-            {
-                PlayAiSound();
-            }
-        }
-        else
-        {
-            if (activeNotice != null && !activeNotice.IsDisposed)
-            {
-                activeNotice.Close();
-                activeNotice = null;
-            }
-            activeNotice = new NoticeDialog(settings, DateTime.Now, agentName, targetHwnd, null, detailText);
-            activeNotice.FormClosed += delegate { activeNotice = null; };
-            activeNotice.Show();
-        }
-    }
-
-    internal void HandleShellHook(int code, IntPtr targetHwnd)
-    {
-        if (targetHwnd == IntPtr.Zero || !settings.AgentNotice) return;
-        if (code != HSHELL_FLASH) return;
-
-        try
-        {
-            IntPtr fg = NativeMethods.GetForegroundWindow();
-            if (fg != IntPtr.Zero && fg == targetHwnd) return;
-
-            uint pid = 0;
-            NativeMethods.GetWindowThreadProcessId(targetHwnd, out pid);
-
-            string agentName = null;
-            foreach (KeyValuePair<string, AgentTrack> kvp in trackedAgents)
-            {
-                if (kvp.Value.MainWindow == targetHwnd || (pid != 0 && kvp.Value.Pids.Contains((int)pid)))
-                {
-                    agentName = kvp.Key;
-                    break;
-                }
-            }
-
-            if (agentName == null && pid != 0)
-            {
-                string procName = GetProcessNameByPid((int)pid);
-                if (procName != null) agentName = MatchAgent(procName);
-            }
-
-            if (agentName == null)
-            {
-                string title = GetAgentWindowTitle(targetHwnd);
-                agentName = MatchAgent(title);
-            }
-
-            if (agentName != null)
-            {
-                DateTime now = DateTime.Now;
-                AgentTrack track;
-                if (trackedAgents.TryGetValue(agentName, out track))
-                {
-                    if ((now - track.LastNoticeTime).TotalSeconds < AgentNoticeCooldownSecs) return;
-                    track.LastNoticeTime = now;
-                    track.WasBusy = false;
-                    track.TitleWasBusy = false;
-                    track.BusyTicks = 0;
-                    track.IdleTicks = 0;
-                    if (track.MainWindow == IntPtr.Zero || !NativeMethods.IsWindow(track.MainWindow))
-                    {
-                        track.MainWindow = targetHwnd;
-                    }
-                }
-                else
-                {
-                    track = new AgentTrack
-                    {
-                        DisplayName = agentName,
-                        MainWindow = targetHwnd,
-                        LastNoticeTime = now,
-                        LastSample = now
-                    };
-                    if (pid != 0) track.Pids.Add((int)pid);
-                    trackedAgents[agentName] = track;
-                }
-
-                TriggerAgentNotice(agentName, targetHwnd, null);
-            }
-        }
-        catch { }
-    }
 
     private void RefreshTimerVisual()
     {
@@ -11223,7 +10392,6 @@ internal sealed class AppContext : ApplicationContext
             if (menuStart != null) menuStart.Font = new Font(tray.ContextMenuStrip.Font, FontStyle.Bold);
         }
         UpdateMenuText();
-        UpdateAgentMonitoring();
         lastSeconds = -1;
         if (!running && !sessionActive) { ResetDisplay(); overlay.SetPaused(false); overlay.Hide(); }
         else if (running) { Tick(null, EventArgs.Empty); }
@@ -11987,9 +11155,7 @@ internal sealed class AppContext : ApplicationContext
         if (mouseHookHandle != IntPtr.Zero) { try { NativeMethods.UnhookWindowsHookEx(mouseHookHandle); } catch { } mouseHookHandle = IntPtr.Zero; }
         if (displaySettingsHandler != null) { try { SystemEvents.DisplaySettingsChanged -= displaySettingsHandler; } catch { } displaySettingsHandler = null; }
         if (sessionSwitchHandler != null) { try { SystemEvents.SessionSwitch -= sessionSwitchHandler; } catch { } sessionSwitchHandler = null; }
-        if (agentTimer != null) { try { agentTimer.Stop(); agentTimer.Dispose(); } catch { } agentTimer = null; }
         if (trayClickTimer != null) { try { trayClickTimer.Stop(); trayClickTimer.Dispose(); } catch { } trayClickTimer = null; }
-        if (shellHookMsg != 0 && messageWindow != null && messageWindow.Handle != IntPtr.Zero) { try { NativeMethods.DeregisterShellHookWindow(messageWindow.Handle); } catch { } }
         overlay.Close(); overlay.Dispose(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); timer.Dispose(); ExitThread();
     }
     internal static string FormatDuration(long secs, bool en)
@@ -12537,10 +11703,6 @@ internal sealed class AppContext : ApplicationContext
         protected override void WndProc(ref Message m)
         {
             if (m.Msg == WM_HOTKEY) owner.HandleHotkey();
-            else if (owner.shellHookMsg != 0 && (uint)m.Msg == owner.shellHookMsg)
-            {
-                owner.HandleShellHook(m.WParam.ToInt32(), m.LParam);
-            }
             else if (m.Msg == 0x004A) // WM_COPYDATA
             {
                 try

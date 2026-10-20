@@ -1188,17 +1188,6 @@ internal static class TestCheck
             Console.WriteLine("PASS: Multi-monitor connect/disconnect and off-screen auto-recovery verified.");
 
             // 24. Test Agent Notice settings, agent detection, and NoticeDialog agent overload
-            FieldInfo agentNoticeField = settings.GetType().GetField("AgentNotice");
-            if (agentNoticeField == null)
-            {
-                Console.WriteLine("FAIL: Settings missing AgentNotice field");
-                return 32;
-            }
-            if ((bool)agentNoticeField.GetValue(settings) != false)
-            {
-                Console.WriteLine("FAIL: AgentNotice default should be false");
-                return 32;
-            }
             FieldInfo agentProgressField = settings.GetType().GetField("AgentProgress");
             if (agentProgressField == null)
             {
@@ -1252,15 +1241,12 @@ internal static class TestCheck
             Button btnTabTimer = (Button)settingsDialogType.GetField("btnTabTimer", bf).GetValue(tabDlg);
             Button btnTabAgent = (Button)settingsDialogType.GetField("btnTabAgent", bf).GetValue(tabDlg);
             Control minCtrl = (Control)settingsDialogType.GetField("minutes", bf).GetValue(tabDlg);
-            CheckBox agNoticeBox = (CheckBox)settingsDialogType.GetField("agentNotice", bf).GetValue(tabDlg);
             Button btnProgDemo = (Button)settingsDialogType.GetField("btnMcpDemoProgress", bf).GetValue(tabDlg);
             Panel capCard = (Panel)settingsDialogType.GetField("panelCapCard", bf).GetValue(tabDlg);
             Panel mcpStatus = (Panel)settingsDialogType.GetField("panelMcpStatus", bf).GetValue(tabDlg);
-            Button btnToggle = (Button)settingsDialogType.GetField("btnAgentNoticeToggle", bf).GetValue(tabDlg);
             Button btnConnect = (Button)settingsDialogType.GetField("btnMcpCopyJson", bf).GetValue(tabDlg);
             CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
             Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
-            Label mcpTitle = (Label)settingsDialogType.GetField("lblMcpTitle", bf).GetValue(tabDlg);
             Label mcpServerTitle = (Label)settingsDialogType.GetField("lblMcpServerTitle", bf).GetValue(tabDlg);
             Label tool1 = (Label)settingsDialogType.GetField("lblTool1Name", bf).GetValue(tabDlg);
             Label tool2 = (Label)settingsDialogType.GetField("lblTool2Name", bf).GetValue(tabDlg);
@@ -1276,7 +1262,7 @@ internal static class TestCheck
                 }
             }
 
-            if (btnTabTimer == null || btnTabAgent == null || capCard == null || mcpStatus == null || btnToggle == null || btnProgDemo == null || btnConnect == null || mcpTitle == null || mcpServerTitle == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null || tool4 == null)
+            if (btnTabTimer == null || btnTabAgent == null || capCard == null || mcpStatus == null || btnProgDemo == null || btnConnect == null || mcpServerTitle == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null || tool4 == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Agent tab controls");
                 return 33;
@@ -1285,7 +1271,7 @@ internal static class TestCheck
             tabDlg.Show();
 
             // Initially on Tab 1 (Timer)
-            if (!minCtrl.Visible || agNoticeBox.Visible || btnProgDemo.Visible)
+            if (!minCtrl.Visible || btnProgDemo.Visible)
             {
                 Console.WriteLine("FAIL: SettingsDialog default tab should show timer controls and hide agent controls");
                 return 33;
@@ -1300,7 +1286,7 @@ internal static class TestCheck
 
             // Switch to Tab 2 (Agent Collaboration)
             btnTabAgent.PerformClick();
-            if (minCtrl.Visible || !agNoticeBox.Visible || !btnProgDemo.Visible)
+            if (minCtrl.Visible || !btnProgDemo.Visible)
             {
                 Console.WriteLine("FAIL: Switching to Agent tab should hide timer controls and show agent controls");
                 return 33;
@@ -1314,10 +1300,8 @@ internal static class TestCheck
                 return 33;
             }
 
-            Label capDesc = (Label)settingsDialogType.GetField("lblCapDesc", bf).GetValue(tabDlg);
-            if (capDesc == null || capDesc.Text.Contains("\n") || !capDesc.Text.Contains("不影响 MCP 连接") ||
-                mcpTitle.Text != "后台任务提醒" || mcpServerTitle.Text != "MCP 桌面协作" ||
-                capabilityTitle.Text != "常用桌面能力（4/6）" ||
+            if (mcpServerTitle.Text != "MCP 桌面协作" ||
+                capabilityTitle.Text != "常用桌面能力" ||
                 tool1.Text != "决策请示" || tool2.Text != "任务进度" || tool3.Text != "完成提醒" || tool4.Text != "状态置顶" ||
                 btnConnect.Text != "复制接入提示词" || btnProgDemo.Text != "预览" ||
                 mcpStatus.Top >= capCard.Top)
@@ -1326,35 +1310,9 @@ internal static class TestCheck
                 return 33;
             }
 
-            // Verify Win11ToggleSwitch control and two-way binding
-            if (btnToggle.GetType().Name != "Win11ToggleSwitch")
-            {
-                Console.WriteLine("FAIL: btnAgentNoticeToggle should be a Win11ToggleSwitch");
-                return 33;
-            }
-            PropertyInfo propChecked = btnToggle.GetType().GetProperty("Checked");
-            if (propChecked == null)
-            {
-                Console.WriteLine("FAIL: btnAgentNoticeToggle should have Checked property");
-                return 33;
-            }
-            bool initialChecked = (bool)propChecked.GetValue(btnToggle, null);
-            btnToggle.PerformClick();
-            if ((bool)propChecked.GetValue(btnToggle, null) == initialChecked || agNoticeBox.Checked == initialChecked)
-            {
-                Console.WriteLine("FAIL: Performing click on Win11ToggleSwitch did not toggle state");
-                return 33;
-            }
-            btnToggle.PerformClick();
-            if ((bool)propChecked.GetValue(btnToggle, null) != initialChecked || agNoticeBox.Checked != initialChecked)
-            {
-                Console.WriteLine("FAIL: Performing second click on Win11ToggleSwitch did not restore state");
-                return 33;
-            }
-
             // Switch back to Tab 1
             btnTabTimer.PerformClick();
-            if (!minCtrl.Visible || agNoticeBox.Visible)
+            if (!minCtrl.Visible)
             {
                 Console.WriteLine("FAIL: Switching back to Timer tab failed");
                 return 33;
@@ -1444,291 +1402,6 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: Architecture optimizations P0 (Atomic Save), P1 (NativeMethods & Zero-GC), P2 (ClockState FSM & Work/Rest cycle) verified.");
 
-            // 28. Test Multi-Process AI Agent Monitoring, FindAgentMainWindow, and Background Completion Lifecycle
-            MethodInfo findWin = appType.GetMethod("FindAgentMainWindow", BindingFlags.NonPublic | BindingFlags.Static);
-            if (findWin == null)
-            {
-                Console.WriteLine("FAIL: AppContext missing FindAgentMainWindow static method");
-                return 43;
-            }
-            HashSet<int> curAntiPids = new HashSet<int>();
-            foreach (Process p in Process.GetProcessesByName("Antigravity"))
-            {
-                using (p) curAntiPids.Add(p.Id);
-            }
-            if (curAntiPids.Count > 0)
-            {
-                IntPtr detectedHwnd = (IntPtr)findWin.Invoke(null, new object[] { curAntiPids });
-                if (detectedHwnd == IntPtr.Zero)
-                {
-                    Console.WriteLine("FAIL: FindAgentMainWindow returned Zero for running Antigravity processes");
-                    return 43;
-                }
-            }
-
-            FieldInfo trackedAgentsField = appType.GetField("trackedAgents", bf);
-            if (trackedAgentsField == null)
-            {
-                Console.WriteLine("FAIL: AppContext missing trackedAgents field");
-                return 44;
-            }
-            MethodInfo processTick = appType.GetMethod("ProcessAgentTick", bf);
-            if (processTick == null)
-            {
-                Console.WriteLine("FAIL: AppContext missing ProcessAgentTick method");
-                return 44;
-            }
-
-            agentNoticeField.SetValue(settings, true);
-            DateTime t0 = DateTime.Now;
-            processTick.Invoke(app, new object[] { t0, IntPtr.Zero, 0u });
-            IDictionary trackedDict = (IDictionary)trackedAgentsField.GetValue(app);
-            if (trackedDict == null)
-            {
-                Console.WriteLine("FAIL: trackedAgents dictionary is null");
-                return 45;
-            }
-
-            Type agentTrackType = asm.GetType("AppContext+AgentTrack");
-            object mockTrack = Activator.CreateInstance(agentTrackType);
-            agentTrackType.GetField("DisplayName").SetValue(mockTrack, "TestAgent");
-            HashSet<int> mockPids = new HashSet<int>();
-            mockPids.Add(Process.GetCurrentProcess().Id);
-            agentTrackType.GetField("Pids").SetValue(mockTrack, mockPids);
-            agentTrackType.GetField("MainWindow").SetValue(mockTrack, new IntPtr(12345));
-            agentTrackType.GetField("LastCpu").SetValue(mockTrack, TimeSpan.FromSeconds(10));
-            agentTrackType.GetField("LastSample").SetValue(mockTrack, t0);
-            agentTrackType.GetField("BusyTicks").SetValue(mockTrack, 0);
-            agentTrackType.GetField("IdleTicks").SetValue(mockTrack, 0);
-            agentTrackType.GetField("WasBusy").SetValue(mockTrack, false);
-            agentTrackType.GetField("LastNoticeTime").SetValue(mockTrack, DateTime.MinValue);
-            trackedDict["TestAgent"] = mockTrack;
-            appType.GetField("agentScanCooldown", bf).SetValue(app, 999);
-
-            // Test transient CPU spike rejection (short 2-second burst -> should NOT enter WasBusy)
-            DateTime curTime = t0;
-            TimeSpan realCurCpu = Process.GetCurrentProcess().TotalProcessorTime;
-            for (int b = 1; b <= 2; b++)
-            {
-                curTime = curTime.AddSeconds(1);
-                agentTrackType.GetField("LastCpu").SetValue(mockTrack, realCurCpu - TimeSpan.FromSeconds(0.5));
-                processTick.Invoke(app, new object[] { curTime, IntPtr.Zero, 999999u });
-            }
-            // Quiet for 1 second -> resets BusyTicks, WasBusy remains false
-            curTime = curTime.AddSeconds(1);
-            agentTrackType.GetField("LastCpu").SetValue(mockTrack, realCurCpu);
-            processTick.Invoke(app, new object[] { curTime, IntPtr.Zero, 999999u });
-            int busyReset = (int)agentTrackType.GetField("BusyTicks").GetValue(mockTrack);
-            bool wasBusyTransient = (bool)agentTrackType.GetField("WasBusy").GetValue(mockTrack);
-            if (busyReset != 0 || wasBusyTransient != false)
-            {
-                Console.WriteLine("FAIL: Transient CPU spike should reset BusyTicks=0 and WasBusy=false");
-                return 46;
-            }
-
-            // Test sustained workload (5 consecutive busy seconds >= AgentCpuBusyMinTicks)
-            for (int b = 1; b <= 5; b++)
-            {
-                curTime = curTime.AddSeconds(1);
-                realCurCpu = Process.GetCurrentProcess().TotalProcessorTime;
-                agentTrackType.GetField("LastCpu").SetValue(mockTrack, realCurCpu - TimeSpan.FromSeconds(0.5));
-                processTick.Invoke(app, new object[] { curTime, IntPtr.Zero, 999999u });
-                int bTicks = (int)agentTrackType.GetField("BusyTicks").GetValue(mockTrack);
-                bool wBusy = (bool)agentTrackType.GetField("WasBusy").GetValue(mockTrack);
-                if (b < 5)
-                {
-                    if (bTicks != b || wBusy != false)
-                    {
-                        Console.WriteLine("FAIL: Busy tick " + b + " should have BusyTicks=" + b + ", WasBusy=false");
-                        return 46;
-                    }
-                }
-                else
-                {
-                    if (bTicks < 5 || !wBusy)
-                    {
-                        Console.WriteLine("FAIL: Busy tick 5 should set BusyTicks>=5 and WasBusy=true");
-                        return 46;
-                    }
-                }
-            }
-
-            // Test quiet interval: Ticks 1..5 of quiet should NOT trigger completion (AgentCpuIdleMinTicks = 6)
-            for (int id = 1; id < 6; id++)
-            {
-                curTime = curTime.AddSeconds(1);
-                realCurCpu = Process.GetCurrentProcess().TotalProcessorTime;
-                agentTrackType.GetField("LastCpu").SetValue(mockTrack, realCurCpu);
-                processTick.Invoke(app, new object[] { curTime, IntPtr.Zero, 999999u });
-                int idTicks = (int)agentTrackType.GetField("IdleTicks").GetValue(mockTrack);
-                bool wBusy = (bool)agentTrackType.GetField("WasBusy").GetValue(mockTrack);
-                if (idTicks != id || !wBusy)
-                {
-                    Console.WriteLine("FAIL: Idle tick " + id + " should have IdleTicks=" + id + ", WasBusy=true, got " + idTicks + ", " + wBusy);
-                    return 46;
-                }
-            }
-
-            // Tick 6 of quiet: triggers completion notice!
-            curTime = curTime.AddSeconds(1);
-            realCurCpu = Process.GetCurrentProcess().TotalProcessorTime;
-            agentTrackType.GetField("LastCpu").SetValue(mockTrack, realCurCpu);
-            processTick.Invoke(app, new object[] { curTime, IntPtr.Zero, 999999u });
-            bool wasBusyDone = (bool)agentTrackType.GetField("WasBusy").GetValue(mockTrack);
-            DateTime lastNotice = (DateTime)agentTrackType.GetField("LastNoticeTime").GetValue(mockTrack);
-            if (wasBusyDone != false || lastNotice != curTime)
-            {
-                Console.WriteLine("FAIL: Idle tick 6 should trigger notice and reset WasBusy, got WasBusy=" + wasBusyDone + ", lastNotice=" + lastNotice);
-                return 46;
-            }
-            trackedDict.Remove("TestAgent");
-
-            // Verify Window Title Dynamics helper & instant completion
-            MethodInfo isBusyTitleMethod = appType.GetMethod("IsBusyAgentTitle", BindingFlags.NonPublic | BindingFlags.Static);
-            if (isBusyTitleMethod == null)
-            {
-                Console.WriteLine("FAIL: AppContext missing IsBusyAgentTitle static method");
-                return 47;
-            }
-            if (!(bool)isBusyTitleMethod.Invoke(null, new object[] { "Cursor - [Running] index.ts" }) ||
-                !(bool)isBusyTitleMethod.Invoke(null, new object[] { "● Claude Code" }) ||
-                (bool)isBusyTitleMethod.Invoke(null, new object[] { "Cursor - index.ts" }))
-            {
-                Console.WriteLine("FAIL: IsBusyAgentTitle logic incorrect");
-                return 47;
-            }
-
-            // Test title-revert instant completion
-            object titleTrack = Activator.CreateInstance(agentTrackType);
-            agentTrackType.GetField("DisplayName").SetValue(titleTrack, "TitleAgent");
-            agentTrackType.GetField("Pids").SetValue(titleTrack, mockPids);
-            agentTrackType.GetField("MainWindow").SetValue(titleTrack, new IntPtr(54321));
-            agentTrackType.GetField("LastCpu").SetValue(titleTrack, realCurCpu);
-            agentTrackType.GetField("LastSample").SetValue(titleTrack, t0);
-            agentTrackType.GetField("TitleWasBusy").SetValue(titleTrack, true);
-            agentTrackType.GetField("WasBusy").SetValue(titleTrack, true);
-            agentTrackType.GetField("LastNoticeTime").SetValue(titleTrack, DateTime.MinValue);
-            trackedDict["TitleAgent"] = titleTrack;
-
-            // When title reverts, it immediately fires notice without waiting for quiet ticks
-            appType.GetField("agentScanCooldown", bf).SetValue(app, 5);
-            DateTime tTitle = t0.AddSeconds(1);
-            agentTrackType.GetField("LastCpu").SetValue(titleTrack, realCurCpu);
-            processTick.Invoke(app, new object[] { tTitle, IntPtr.Zero, 999999u });
-            bool titleWasBusyAfter = (bool)agentTrackType.GetField("TitleWasBusy").GetValue(titleTrack);
-            DateTime titleNotice = (DateTime)agentTrackType.GetField("LastNoticeTime").GetValue(titleTrack);
-            if (titleWasBusyAfter != false || titleNotice != tTitle)
-            {
-                Console.WriteLine("FAIL: Title-revert should instantly trigger completion notice, got TitleWasBusy=" + titleWasBusyAfter + ", LastNoticeTime=" + titleNotice);
-                return 47;
-            }
-            trackedDict.Remove("TitleAgent");
-
-            Console.WriteLine("PASS: Multi-process AI Agent monitoring, FindAgentMainWindow, window title dynamics, and background completion lifecycle verified.");
-
-            // 29. Verify ToastAgentMonitor, Zero-False-Positive CPU bypass, and Notification Details
-            Type toastMonType = asm.GetType("AppContext+ToastAgentMonitor");
-            if (toastMonType == null)
-            {
-                Console.WriteLine("FAIL: AppContext missing ToastAgentMonitor class");
-                return 48;
-            }
-            PropertyInfo isAvailProp = toastMonType.GetProperty("IsAvailable", BindingFlags.Public | BindingFlags.Static);
-            if (isAvailProp == null)
-            {
-                Console.WriteLine("FAIL: ToastAgentMonitor missing IsAvailable property");
-                return 48;
-            }
-            bool isAvail = (bool)isAvailProp.GetValue(null, null);
-
-            if (isAvail)
-            {
-                object toastAgentTrack = Activator.CreateInstance(agentTrackType);
-                agentTrackType.GetField("DisplayName").SetValue(toastAgentTrack, "Antigravity");
-                agentTrackType.GetField("Pids").SetValue(toastAgentTrack, mockPids);
-                agentTrackType.GetField("MainWindow").SetValue(toastAgentTrack, new IntPtr(23456));
-                agentTrackType.GetField("LastCpu").SetValue(toastAgentTrack, realCurCpu - TimeSpan.FromSeconds(1.0));
-                agentTrackType.GetField("LastSample").SetValue(toastAgentTrack, t0);
-                agentTrackType.GetField("BusyTicks").SetValue(toastAgentTrack, 0);
-                agentTrackType.GetField("IdleTicks").SetValue(toastAgentTrack, 0);
-                agentTrackType.GetField("WasBusy").SetValue(toastAgentTrack, false);
-                agentTrackType.GetField("LastNoticeTime").SetValue(toastAgentTrack, DateTime.MinValue);
-                trackedDict["Antigravity"] = toastAgentTrack;
-
-                DateTime tToast = t0.AddSeconds(1);
-                processTick.Invoke(app, new object[] { tToast, IntPtr.Zero, 999999u });
-                int toastBusy = (int)agentTrackType.GetField("BusyTicks").GetValue(toastAgentTrack);
-                bool toastWasBusy = (bool)agentTrackType.GetField("WasBusy").GetValue(toastAgentTrack);
-                if (toastBusy != 0 || toastWasBusy != false)
-                {
-                    Console.WriteLine("FAIL: Antigravity should bypass CPU busy heuristics to prevent false positives, got BusyTicks=" + toastBusy);
-                    return 48;
-                }
-                trackedDict.Remove("Antigravity");
-            }
-
-            Form noticeWithDetail = (Form)Activator.CreateInstance(noticeType, new object[] { settings, DateTime.Now, "Antigravity", IntPtr.Zero, null, "Task Completed • Model Refactored" });
-            if (noticeWithDetail == null || !noticeWithDetail.Text.Contains("Antigravity"))
-            {
-                Console.WriteLine("FAIL: NoticeDialog with detailMessage failed to instantiate or bad title");
-                return 48;
-            }
-            noticeWithDetail.Dispose();
-
-            Console.WriteLine("PASS: Windows Toast notification listener, zero-false-positive CPU bypass, and task detail display verified.");
-
-            // 30. Verify Win32 Shell Hook (RegisterShellHookWindow, HSHELL_FLASH, and 0ms window flash routing)
-            FieldInfo shellHookMsgField = appType.GetField("shellHookMsg", bf);
-            if (shellHookMsgField == null)
-            {
-                Console.WriteLine("FAIL: AppContext missing shellHookMsg field");
-                return 49;
-            }
-            MethodInfo handleShellMethod = appType.GetMethod("HandleShellHook", bf);
-            if (handleShellMethod == null)
-            {
-                Console.WriteLine("FAIL: AppContext missing HandleShellHook method");
-                return 49;
-            }
-
-            object windsurfTrack = Activator.CreateInstance(agentTrackType);
-            agentTrackType.GetField("DisplayName").SetValue(windsurfTrack, "Windsurf");
-            agentTrackType.GetField("Pids").SetValue(windsurfTrack, mockPids);
-            agentTrackType.GetField("MainWindow").SetValue(windsurfTrack, new IntPtr(34567));
-            agentTrackType.GetField("LastCpu").SetValue(windsurfTrack, TimeSpan.Zero);
-            agentTrackType.GetField("LastSample").SetValue(windsurfTrack, t0);
-            agentTrackType.GetField("LastNoticeTime").SetValue(windsurfTrack, DateTime.MinValue);
-            trackedDict["Windsurf"] = windsurfTrack;
-
-            handleShellMethod.Invoke(app, new object[] { 6, new IntPtr(34567) });
-            DateTime lastNoticeNonFlash = (DateTime)agentTrackType.GetField("LastNoticeTime").GetValue(windsurfTrack);
-            if (lastNoticeNonFlash != DateTime.MinValue)
-            {
-                Console.WriteLine("FAIL: Non-flash code should not trigger alert");
-                return 49;
-            }
-
-            handleShellMethod.Invoke(app, new object[] { 0x8006, new IntPtr(34567) });
-            DateTime lastNoticeFlashed = (DateTime)agentTrackType.GetField("LastNoticeTime").GetValue(windsurfTrack);
-            if (lastNoticeFlashed == DateTime.MinValue || (DateTime.Now - lastNoticeFlashed).TotalSeconds > 5)
-            {
-                Console.WriteLine("FAIL: HSHELL_FLASH should instantly trigger alert and update LastNoticeTime");
-                return 49;
-            }
-
-            handleShellMethod.Invoke(app, new object[] { 0x8006, new IntPtr(34567) });
-            DateTime lastNoticeCooldown = (DateTime)agentTrackType.GetField("LastNoticeTime").GetValue(windsurfTrack);
-            if (lastNoticeCooldown != lastNoticeFlashed)
-            {
-                Console.WriteLine("FAIL: Repeat flash within cooldown should be suppressed");
-                return 49;
-            }
-            trackedDict.Remove("Windsurf");
-
-            Form actNotice = (Form)appType.GetField("activeNotice", bf).GetValue(app);
-            if (actNotice != null && !actNotice.IsDisposed) { actNotice.Close(); actNotice.Dispose(); }
-
-            Console.WriteLine("PASS: Win32 RegisterShellHookWindow, HSHELL_FLASH window flashing detection, and instant dispatch verified.");
 
             // 31. Live preview in SettingsDialog and SetVisualPreview verification
             Type settingsDlgType = asm.GetType("SettingsDialog");
