@@ -327,6 +327,10 @@ internal sealed class Overlay : Form
     private Graphics renderGraphics;
     private byte[] premulBuffer;
 
+    // Snap guide overlay (fullscreen transparent window for drawing center lines)
+    private Form snapGuideForm;
+    private bool snapGuideH, snapGuideV;
+
     private readonly Settings settings;
     private string text;
     private bool moving;
@@ -871,6 +875,7 @@ internal sealed class Overlay : Form
         bool alt = (NativeMethods.GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
         if (!MoveMode && !alt) return;
         moving = true; dragStart = Cursor.Position; formStart = Location;
+        ShowSnapGuide();
     }
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
@@ -895,6 +900,14 @@ internal sealed class Overlay : Form
 
             Location = new Point(newX, newY);
             RenderLayeredWindow(); // redraw snap guides
+
+            // Update fullscreen guide overlay
+            if (snapGuideForm != null && snapGuideForm.Visible)
+            {
+                snapGuideH = snapH;
+                snapGuideV = snapV;
+                snapGuideForm.Invalidate();
+            }
         }
         else
         {
@@ -906,8 +919,56 @@ internal sealed class Overlay : Form
         if (!moving) return;
         moving = false;
         snapH = snapV = false;
+        HideSnapGuide();
         EnsureVisible();
         if (PositionChanged != null) PositionChanged(Location);
+    }
+
+    private void ShowSnapGuide()
+    {
+        if (snapGuideForm == null)
+        {
+            snapGuideForm = new Form();
+            snapGuideForm.FormBorderStyle = FormBorderStyle.None;
+            snapGuideForm.ShowInTaskbar = false;
+            snapGuideForm.TopMost = true;
+            snapGuideForm.BackColor = Color.Black;
+            snapGuideForm.Opacity = 0.0; // fully transparent, we draw lines on it
+            snapGuideForm.StartPosition = FormStartPosition.Manual;
+            snapGuideForm.Paint += OnSnapGuidePaint;
+        }
+        Rectangle scr = Screen.FromPoint(Cursor.Position).WorkingArea;
+        snapGuideForm.Bounds = scr;
+        snapGuideForm.Show();
+    }
+
+    private void HideSnapGuide()
+    {
+        if (snapGuideForm != null)
+        {
+            snapGuideForm.Hide();
+        }
+    }
+
+    private void OnSnapGuidePaint(object sender, PaintEventArgs e)
+    {
+        if (!snapGuideH && !snapGuideV) return;
+        Form f = (Form)sender;
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using (Pen pen = new Pen(Color.FromArgb(180, 0, 180, 255), 2.0f))
+        {
+            pen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
+            if (snapGuideV)
+            {
+                int x = f.Width / 2;
+                e.Graphics.DrawLine(pen, x, 0, x, f.Height);
+            }
+            if (snapGuideH)
+            {
+                int y = f.Height / 2;
+                e.Graphics.DrawLine(pen, 0, y, f.Width, y);
+            }
+        }
     }
 
     private void CheckProgressHover(Point clientPt)
