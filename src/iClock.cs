@@ -907,8 +907,8 @@ internal sealed class Overlay : Form
                     ShowSnapGuide();
                 if (snapGuideForm != null)
                 {
-                    snapGuideH = snapH;
-                    snapGuideV = snapV;
+                    snapGuideH = snapV; // horizontal line shows when Y-axis snapped
+                    snapGuideV = snapH; // vertical line shows when X-axis snapped
                     snapGuideForm.Invalidate();
                 }
             }
@@ -963,7 +963,7 @@ internal sealed class Overlay : Form
         if (!snapGuideH && !snapGuideV) return;
         Form f = (Form)sender;
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using (Pen pen = new Pen(Color.FromArgb(180, 0, 180, 255), 2.0f))
+        using (Pen pen = new Pen(Color.FromArgb(180, 0, 180, 255), 1.0f))
         {
             pen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
             if (snapGuideV)
@@ -4904,8 +4904,8 @@ internal sealed class DailyQuoteDialog : Form
                     ShowSnapGuide();
                 if (snapGuideForm != null)
                 {
-                    snapGuideH = snapH;
-                    snapGuideV = snapV;
+                    snapGuideH = snapV; // horizontal line shows when Y-axis snapped
+                    snapGuideV = snapH; // vertical line shows when X-axis snapped
                     snapGuideForm.Invalidate();
                 }
             }
@@ -5119,7 +5119,7 @@ internal sealed class DailyQuoteDialog : Form
         if (!snapGuideH && !snapGuideV) return;
         Form f = (Form)sender;
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using (Pen pen = new Pen(Color.FromArgb(180, 0, 180, 255), 2.0f))
+        using (Pen pen = new Pen(Color.FromArgb(180, 0, 180, 255), 1.0f))
         {
             pen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
             if (snapGuideV)
