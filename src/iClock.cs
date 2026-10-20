@@ -875,7 +875,6 @@ internal sealed class Overlay : Form
         bool alt = (NativeMethods.GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
         if (!MoveMode && !alt) return;
         moving = true; dragStart = Cursor.Position; formStart = Location;
-        ShowSnapGuide();
     }
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
@@ -902,11 +901,20 @@ internal sealed class Overlay : Form
             RenderLayeredWindow(); // redraw snap guides
 
             // Update fullscreen guide overlay
-            if (snapGuideForm != null && snapGuideForm.Visible)
+            if (snapH || snapV)
             {
-                snapGuideH = snapH;
-                snapGuideV = snapV;
-                snapGuideForm.Invalidate();
+                if (snapGuideForm == null || !snapGuideForm.Visible)
+                    ShowSnapGuide();
+                if (snapGuideForm != null)
+                {
+                    snapGuideH = snapH;
+                    snapGuideV = snapV;
+                    snapGuideForm.Invalidate();
+                }
+            }
+            else
+            {
+                HideSnapGuide();
             }
         }
         else
@@ -4890,11 +4898,20 @@ internal sealed class DailyQuoteDialog : Form
             if (snapH || snapV) RenderLayeredQuoteWindow(); // redraw to show snap state
 
             // Update fullscreen guide overlay
-            if (snapGuideForm != null && snapGuideForm.Visible)
+            if (snapH || snapV)
             {
-                snapGuideH = snapH;
-                snapGuideV = snapV;
-                snapGuideForm.Invalidate();
+                if (snapGuideForm == null || !snapGuideForm.Visible)
+                    ShowSnapGuide();
+                if (snapGuideForm != null)
+                {
+                    snapGuideH = snapH;
+                    snapGuideV = snapV;
+                    snapGuideForm.Invalidate();
+                }
+            }
+            else
+            {
+                HideSnapGuide();
             }
             return;
         }
@@ -5017,7 +5034,6 @@ internal sealed class DailyQuoteDialog : Form
         isDragging = true;
         dragStart = Cursor.Position;
         formStart = Location;
-        ShowSnapGuide();
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
