@@ -46,6 +46,10 @@ internal static class TestCheck
             Type noticeType = asm.GetType("NoticeDialog");
             BindingFlags bf = BindingFlags.NonPublic | BindingFlags.Instance;
 
+            // Signal headless mode
+            FieldInfo selfCheckField = appType.GetField("IsSelfCheckRunning", BindingFlags.NonPublic | BindingFlags.Static);
+            if (selfCheckField != null) selfCheckField.SetValue(null, true);
+
             object app = Activator.CreateInstance(appType);
             Form overlay = (Form)appType.GetField("overlay", bf).GetValue(app);
             NotifyIcon tray = (NotifyIcon)appType.GetField("tray", bf).GetValue(app);

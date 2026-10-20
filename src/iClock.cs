@@ -1430,6 +1430,9 @@ internal sealed class SettingsDialog : Form
     private Label lblMcpTitle, lblMcpDesc;
     private Label lblTool1Name, lblTool2Name, lblTool3Name, lblTool4Name;
     private StyledTipLabel lblAgentCliTip;
+    // Three-section layout: MCP status (top), Capabilities (middle), CLI (bottom)
+    private Panel panelMcpStatus, panelCapCard, panelCliCard;
+    private Label lblMcpStatusDot, lblMcpStatusText, lblMcpStatusMeta;
 
     private NumericUpDown quoteFontSize;
     private bool isSyncingQuoteFontSize;
@@ -1870,6 +1873,32 @@ internal sealed class SettingsDialog : Form
         lblAgentDesc.SetBounds(18, 76, 250, 18);
         Controls.Add(lblAgentDesc);
 
+        // Section 1: MCP Server Status Card (top)
+        panelMcpStatus = new Panel();
+        panelMcpStatus.SetBounds(18, 96, 344, 72);
+        panelMcpStatus.BackColor = Color.White;
+        panelMcpStatus.Paint += OnCardPaint;
+        Controls.Add(panelMcpStatus);
+
+        lblMcpStatusDot = new Label();
+        lblMcpStatusDot.SetBounds(14, 12, 12, 12);
+        lblMcpStatusDot.Paint += OnStatusDotPaint;
+        panelMcpStatus.Controls.Add(lblMcpStatusDot);
+
+        lblMcpStatusText = new Label();
+        lblMcpStatusText.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
+        lblMcpStatusText.ForeColor = AppContext.Win11TextPrimary;
+        lblMcpStatusText.TextAlign = ContentAlignment.MiddleLeft;
+        lblMcpStatusText.SetBounds(32, 8, 200, 20);
+        panelMcpStatus.Controls.Add(lblMcpStatusText);
+
+        lblMcpStatusMeta = new Label();
+        lblMcpStatusMeta.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblMcpStatusMeta.ForeColor = AppContext.Win11TextSecondary;
+        lblMcpStatusMeta.TextAlign = ContentAlignment.MiddleLeft;
+        lblMcpStatusMeta.SetBounds(32, 28, 300, 36);
+        panelMcpStatus.Controls.Add(lblMcpStatusMeta);
+
         Win11ToggleSwitch swNotice = new Win11ToggleSwitch();
         swNotice.SetBounds(290, 63, 72, 26);
         swNotice.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
@@ -1888,20 +1917,20 @@ internal sealed class SettingsDialog : Form
         UpdateAgentNoticeToggleState(en);
 
         panelAgentBox = new Panel();
-        panelAgentBox.SetBounds(18, 96, 344, 114);
+        panelAgentBox.SetBounds(18, 176, 344, 80);
         panelAgentBox.BackColor = Color.White;
         panelAgentBox.Paint += OnCardPaint;
         Controls.Add(panelAgentBox);
 
         panelAgentCards = new DoubleBufferedPanel();
-        panelAgentCards.SetBounds(1, 1, 335, 112);
+        panelAgentCards.SetBounds(1, 1, 335, 78);
         panelAgentCards.AutoScroll = false;
         panelAgentCards.BackColor = Color.White;
         panelAgentCards.BorderStyle = BorderStyle.None;
         panelAgentBox.Controls.Add(panelAgentCards);
 
         agentScrollBar = new SlimScrollBar();
-        agentScrollBar.SetBounds(336, 4, 6, 106);
+        agentScrollBar.SetBounds(336, 4, 6, 72);
         agentScrollBar.Visible = false;
         agentScrollBar.ValueChanged += OnAgentScrollBarValueChanged;
         panelAgentBox.Controls.Add(agentScrollBar);
@@ -1910,37 +1939,39 @@ internal sealed class SettingsDialog : Form
         panelAgentBox.MouseWheel += OnAgentCardMouseWheel;
 
         lblMcpTitle = new Label();
-        lblMcpTitle.Text = en ? "Agent MCP Integration" : "智能体 MCP 接入";
+        lblMcpTitle.Text = en ? "Agent Capabilities" : "智能体赋能";
         lblMcpTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblMcpTitle.ForeColor = AppContext.Win11TextPrimary;
         lblMcpTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpTitle.SetBounds(18, 222, 224, 22);
+        lblMcpTitle.SetBounds(18, 268, 224, 22);
         Controls.Add(lblMcpTitle);
 
         lblMcpDesc = new Label();
         lblMcpDesc.UseMnemonic = false;
         lblMcpDesc.Text = en
-            ? "Empower agents with HUD progress, alerts & decision gates"
-            : "赋予智能体主动交互、悬浮进度与人机门禁能力";
+            ? "Toggle MCP tools for connected agents"
+            : "为已连接智能体开启 MCP 工具能力";
         lblMcpDesc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblMcpDesc.ForeColor = AppContext.Win11TextSecondary;
         lblMcpDesc.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpDesc.SetBounds(18, 244, 344, 18);
+        lblMcpDesc.SetBounds(18, 290, 344, 18);
         Controls.Add(lblMcpDesc);
 
         btnMcpCopyJson = new Button();
         btnMcpCopyJson.Text = en ? "Copy Prompt" : "复制接入提示词";
         btnMcpCopyJson.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpCopyJson.SetBounds(254, 219, 108, 26);
+        btnMcpCopyJson.SetBounds(254, 265, 108, 26);
         AppContext.StyleSecondaryButton(btnMcpCopyJson);
         btnMcpCopyJson.Click += OnMcpCopyPromptClick;
         Controls.Add(btnMcpCopyJson);
 
-        panelMcpBox = new Panel();
-        panelMcpBox.SetBounds(18, 264, 344, 136);
-        panelMcpBox.BackColor = Color.White;
-        panelMcpBox.Paint += OnMcpBoxPaint;
-        Controls.Add(panelMcpBox);
+        // Section 2: Agent Capabilities Card (middle) - reuse panelMcpBox as panelCapCard
+        panelCapCard = new Panel();
+        panelCapCard.SetBounds(18, 312, 344, 136);
+        panelCapCard.BackColor = Color.White;
+        panelCapCard.Paint += OnMcpBoxPaint;
+        Controls.Add(panelCapCard);
+        panelMcpBox = panelCapCard; // Keep legacy reference for compatibility
 
         // Row 1: Decision Gate (iclock_ask_human)
         lblTool1Name = new Label();
@@ -2023,6 +2054,29 @@ internal sealed class SettingsDialog : Form
         toolTip.SetToolTip(lblTool4Name, mcpTip4);
         toolTip.SetToolTip(btnMcpDemoQuote, mcpTip4);
 
+        // Section 3: CLI Card (bottom)
+        panelCliCard = new Panel();
+        panelCliCard.SetBounds(18, 456, 344, 52);
+        panelCliCard.BackColor = Color.White;
+        panelCliCard.Paint += OnCardPaint;
+        Controls.Add(panelCliCard);
+
+        Label lblCliTitle = new Label();
+        lblCliTitle.Text = en ? "Command Line Interface" : "命令行终端 (CLI)";
+        lblCliTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f, FontStyle.Bold);
+        lblCliTitle.ForeColor = AppContext.Win11TextPrimary;
+        lblCliTitle.TextAlign = ContentAlignment.MiddleLeft;
+        lblCliTitle.SetBounds(12, 6, 200, 18);
+        panelCliCard.Controls.Add(lblCliTitle);
+
+        Label lblCliCmds = new Label();
+        lblCliCmds.Text = "iclock -h  |  iclock --install-cli";
+        lblCliCmds.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblCliCmds.ForeColor = AppContext.Win11TextSecondary;
+        lblCliCmds.TextAlign = ContentAlignment.MiddleLeft;
+        lblCliCmds.SetBounds(12, 26, 320, 18);
+        panelCliCard.Controls.Add(lblCliCmds);
+
         lblAgentCliTip = new StyledTipLabel("iclock --install-cli", "iclock -h");
         lblAgentCliTip.UseMnemonic = false;
         lblAgentCliTip.Text = en
@@ -2030,7 +2084,7 @@ internal sealed class SettingsDialog : Form
             : "提示：终端运行 iclock -h 查看指令，iclock --install-cli 写入 PATH。";
         lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
         lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentCliTip.SetBounds(16, 414, 348, 20);
+        lblAgentCliTip.SetBounds(16, 516, 348, 20);
         Controls.Add(lblAgentCliTip);
 
         AppContext.CenterFormOnScreen(this);
@@ -2086,12 +2140,14 @@ internal sealed class SettingsDialog : Form
         if (lblDetectedHeader != null) lblDetectedHeader.Visible = isAgent;
         if (lblAgentDesc != null) lblAgentDesc.Visible = isAgent;
         if (btnAgentNoticeToggle != null) btnAgentNoticeToggle.Visible = isAgent;
+        if (panelMcpStatus != null) panelMcpStatus.Visible = isAgent;
         if (panelAgentBox != null) panelAgentBox.Visible = isAgent;
         if (panelAgentCards != null) panelAgentCards.Visible = isAgent;
         if (lblMcpTitle != null) lblMcpTitle.Visible = isAgent;
         if (lblMcpDesc != null) lblMcpDesc.Visible = isAgent;
         if (btnMcpCopyJson != null) btnMcpCopyJson.Visible = isAgent;
-        if (panelMcpBox != null) panelMcpBox.Visible = isAgent;
+        if (panelCapCard != null) panelCapCard.Visible = isAgent;
+        if (panelCliCard != null) panelCliCard.Visible = isAgent;
         if (lblAgentCliTip != null) lblAgentCliTip.Visible = isAgent;
 
         UpdateTabButtons();
@@ -2099,6 +2155,7 @@ internal sealed class SettingsDialog : Form
         if (isAgent)
         {
             RefreshAgentCards();
+            RefreshMcpStatusSummary();
         }
         Update();
     }
@@ -2674,6 +2731,17 @@ internal sealed class SettingsDialog : Form
         }
     }
 
+    private static void OnStatusDotPaint(object sender, PaintEventArgs pe)
+    {
+        Label dot = (Label)sender;
+        pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        Color dotColor = AppContext.Win11Accent;
+        using (SolidBrush brush = new SolidBrush(dotColor))
+        {
+            pe.Graphics.FillEllipse(brush, 0, 0, dot.Width - 1, dot.Height - 1);
+        }
+    }
+
     private static void OnBadgePaint(object sender, PaintEventArgs pe)
     {
         Label lbl = (Label)sender;
@@ -2784,6 +2852,21 @@ internal sealed class SettingsDialog : Form
         {
             MessageBox.Show(this, ((Value != null && Value.Language == "en") ? "Failed to copy to clipboard: " : "复制到剪贴板失败：") + ex.Message, "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
+    }
+
+    private void RefreshMcpStatusSummary()
+    {
+        if (lblMcpStatusText == null || lblMcpStatusMeta == null) return;
+        bool en = Value != null && Value.Language == "en";
+        List<string> agents = AppContext.DetectAgents();
+        HashSet<string> running = AppContext.GetRunningAgents();
+        int mcpCount = 0;
+        foreach (string a in agents) { if (running.Contains(a)) mcpCount++; }
+        lblMcpStatusText.Text = en ? "MCP Server Running" : "MCP Server 运行中";
+        lblMcpStatusMeta.Text = en
+            ? mcpCount + " agent(s) connected · Protocol: MCP 1.0"
+            : mcpCount + " 个智能体已连接 · 协议: MCP 1.0";
+        lblMcpStatusDot.Invalidate();
     }
     private void OnMcpDemoClick(object sender, EventArgs e)
     {
@@ -3007,15 +3090,16 @@ internal sealed class SettingsDialog : Form
         }
 
         UpdateAgentNoticeToggleState(toEnglish);
-        if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "Agent MCP Integration" : "智能体 MCP 接入";
+        if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "Agent Capabilities" : "智能体赋能";
         if (lblMcpDesc != null)
         {
             lblMcpDesc.Text = toEnglish
-                ? "Empower agents with HUD progress, alerts & decision gates"
-                : "赋予智能体主动交互、悬浮进度与人机门禁能力";
+                ? "Toggle MCP tools for connected agents"
+                : "为已连接智能体开启 MCP 工具能力";
             lblMcpDesc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
         }
         if (btnMcpCopyJson != null) btnMcpCopyJson.Text = toEnglish ? "Copy Prompt" : "复制接入提示词";
+        RefreshMcpStatusSummary();
         if (btnMcpDemo != null) btnMcpDemo.Text = toEnglish ? "Demo" : "演示";
         if (btnMcpDemoProgress != null) btnMcpDemoProgress.Text = toEnglish ? "Demo" : "演示";
         if (btnMcpDemoNotify != null) btnMcpDemoNotify.Text = toEnglish ? "Demo" : "演示";
@@ -6996,6 +7080,8 @@ internal sealed class AppContext : ApplicationContext
     private static AppContext currentInstance;
     internal static AppContext Current { get { return currentInstance; } }
 
+    internal static bool IsSelfCheckRunning = false;
+
     private const int HOTKEY_ID = 0x4A10;
     private const int WM_HOTKEY = 0x0312;
     private const uint MOD_NOREPEAT = 0x4000;
@@ -8164,14 +8250,21 @@ internal sealed class AppContext : ApplicationContext
                 return;
             }
             Action onRest = wasRest ? null : new Action(delegate { StartRest(5); });
-            activeNotice = new NoticeDialog(settings, DateTime.Now, wasRest ? (settings.Language == "en" ? "Break" : "休息") : null, IntPtr.Zero, onRest);
-            activeNotice.FormClosed += delegate
+            try
             {
-                activeNotice = null;
-                if (state == ClockState.Alarming) SetState(ClockState.Idle);
-                if (isOneShot) Exit();
-            };
-            activeNotice.Show();
+                activeNotice = new NoticeDialog(settings, DateTime.Now, wasRest ? (settings.Language == "en" ? "Break" : "休息") : null, IntPtr.Zero, onRest);
+                activeNotice.FormClosed += delegate
+                {
+                    activeNotice = null;
+                    if (state == ClockState.Alarming) SetState(ClockState.Idle);
+                    if (isOneShot) Exit();
+                };
+                activeNotice.Show();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("FinishCore error: " + ex.Message);
+            }
         }
         else
         {
@@ -8229,6 +8322,7 @@ internal sealed class AppContext : ApplicationContext
 
     internal static bool IsForegroundFullScreen()
     {
+        if (IsSelfCheckRunning) return false;
         try
         {
             IntPtr fg = NativeMethods.GetForegroundWindow();
@@ -10707,7 +10801,7 @@ internal sealed class AppContext : ApplicationContext
     internal static void CenterFormOnScreen(Form f)
     {
         if (f == null) return;
-        Screen scr = Screen.FromPoint(Cursor.Position) ?? Screen.PrimaryScreen;
+        Screen scr = IsSelfCheckRunning ? Screen.PrimaryScreen : (Screen.FromPoint(Cursor.Position) ?? Screen.PrimaryScreen);
         Rectangle wa = scr.WorkingArea;
         f.StartPosition = FormStartPosition.Manual;
         f.Location = new Point(wa.Left + Math.Max(0, (wa.Width - f.Width) / 2), wa.Top + Math.Max(0, (wa.Height - f.Height) / 2));
