@@ -3963,6 +3963,10 @@ internal sealed class DailyQuoteDialog : Form
     private Point dragStart;
     private Point formStart;
 
+    // Snap guide overlay
+    private Form snapGuideForm;
+    private bool snapGuideH, snapGuideV;
+
     private bool isResizingWidth;
     private int dragStartX;
     private int resizeStartWidth;
@@ -4884,6 +4888,14 @@ internal sealed class DailyQuoteDialog : Form
 
             Location = new Point(newX, newY);
             if (snapH || snapV) RenderLayeredQuoteWindow(); // redraw to show snap state
+
+            // Update fullscreen guide overlay
+            if (snapGuideForm != null && snapGuideForm.Visible)
+            {
+                snapGuideH = snapH;
+                snapGuideV = snapV;
+                snapGuideForm.Invalidate();
+            }
             return;
         }
 
@@ -5005,6 +5017,7 @@ internal sealed class DailyQuoteDialog : Form
         isDragging = true;
         dragStart = Cursor.Position;
         formStart = Location;
+        ShowSnapGuide();
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
@@ -5030,6 +5043,7 @@ internal sealed class DailyQuoteDialog : Form
         if (isDragging)
         {
             isDragging = false;
+            HideSnapGuide();
             if (settings != null)
             {
                 Screen host = GetCurrentScreen();
@@ -5056,6 +5070,53 @@ internal sealed class DailyQuoteDialog : Form
     {
         base.OnMouseLeave(e);
         OnMouseLeaveNative();
+    }
+
+    private void ShowSnapGuide()
+    {
+        if (snapGuideForm == null)
+        {
+            snapGuideForm = new Form();
+            snapGuideForm.FormBorderStyle = FormBorderStyle.None;
+            snapGuideForm.ShowInTaskbar = false;
+            snapGuideForm.TopMost = true;
+            snapGuideForm.BackColor = Color.Black;
+            snapGuideForm.Opacity = 0.0;
+            snapGuideForm.StartPosition = FormStartPosition.Manual;
+            snapGuideForm.Paint += OnSnapGuidePaint;
+        }
+        Rectangle scr = GetCurrentScreen().WorkingArea;
+        snapGuideForm.Bounds = scr;
+        snapGuideForm.Show();
+    }
+
+    private void HideSnapGuide()
+    {
+        if (snapGuideForm != null)
+        {
+            snapGuideForm.Hide();
+        }
+    }
+
+    private void OnSnapGuidePaint(object sender, PaintEventArgs e)
+    {
+        if (!snapGuideH && !snapGuideV) return;
+        Form f = (Form)sender;
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using (Pen pen = new Pen(Color.FromArgb(180, 0, 180, 255), 2.0f))
+        {
+            pen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
+            if (snapGuideV)
+            {
+                int x = f.Width / 2;
+                e.Graphics.DrawLine(pen, x, 0, x, f.Height);
+            }
+            if (snapGuideH)
+            {
+                int y = f.Height / 2;
+                e.Graphics.DrawLine(pen, 0, y, f.Width, y);
+            }
+        }
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
