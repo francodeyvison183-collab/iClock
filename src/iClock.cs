@@ -647,21 +647,10 @@ internal sealed class Overlay : Form
         {
             using (GraphicsPath path = AppContext.GetRoundedRectPath(new Rectangle(2, 2, Width - 5, Height - 5), 8))
             using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(190, 255, 255, 255)))
-            using (Pen borderPen = new Pen(AppContext.Win11Accent, 2.0f))
+            using (Pen borderPen = new Pen(snapH || snapV ? Color.FromArgb(0, 180, 255) : AppContext.Win11Accent, snapH || snapV ? 3.0f : 2.0f))
             {
                 renderGraphics.FillPath(bgBrush, path);
                 renderGraphics.DrawPath(borderPen, path);
-            }
-
-            // Snap guides (screen center lines)
-            if (snapH || snapV)
-            {
-                using (Pen guidePen = new Pen(Color.FromArgb(120, AppContext.Win11Accent), 1.5f))
-                {
-                    guidePen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
-                    if (snapV) renderGraphics.DrawLine(guidePen, Width / 2f, 0, Width / 2f, Height);
-                    if (snapH) renderGraphics.DrawLine(guidePen, 0, Height / 2f, Width, Height / 2f);
-                }
             }
         }
 
