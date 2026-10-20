@@ -1838,7 +1838,7 @@ internal sealed class SettingsDialog : Form
         lblMcpStatusMeta.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblMcpStatusMeta.ForeColor = AppContext.Win11TextSecondary;
         lblMcpStatusMeta.TextAlign = ContentAlignment.TopLeft;
-        lblMcpStatusMeta.SetBounds(32, 32, 300, 56);
+        lblMcpStatusMeta.SetBounds(32, 32, 300, 36);
         panelMcpStatus.Controls.Add(lblMcpStatusMeta);
 
         lnkMcpCopyPrompt = new LinkLabel();
@@ -1848,7 +1848,7 @@ internal sealed class SettingsDialog : Form
         lnkMcpCopyPrompt.VisitedLinkColor = AppContext.Win11Accent;
         lnkMcpCopyPrompt.LinkBehavior = LinkBehavior.HoverUnderline;
         lnkMcpCopyPrompt.AutoSize = true;
-        lnkMcpCopyPrompt.SetBounds(32, 52, 200, 16);
+        lnkMcpCopyPrompt.Location = new Point(32, 68);
         lnkMcpCopyPrompt.Visible = false;
         lnkMcpCopyPrompt.LinkClicked += OnMcpCopyPromptClick;
         panelMcpStatus.Controls.Add(lnkMcpCopyPrompt);
