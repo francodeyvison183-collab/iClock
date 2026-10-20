@@ -1259,8 +1259,19 @@ internal static class TestCheck
             Button btnConnect = (Button)settingsDialogType.GetField("btnMcpCopyJson", bf).GetValue(tabDlg);
             CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
             Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
+            Label mcpTitle = (Label)settingsDialogType.GetField("lblMcpTitle", bf).GetValue(tabDlg);
+            Label mcpServerTitle = (Label)settingsDialogType.GetField("lblMcpServerTitle", bf).GetValue(tabDlg);
+            Label capabilityTitle = null;
+            foreach (Control control in tabDlg.Controls)
+            {
+                if (control != null && control.Name == "lblCapabilityTitle")
+                {
+                    capabilityTitle = (Label)control;
+                    break;
+                }
+            }
 
-            if (btnTabTimer == null || btnTabAgent == null || capCard == null || mcpStatus == null || btnToggle == null || btnProgDemo == null || btnConnect == null)
+            if (btnTabTimer == null || btnTabAgent == null || capCard == null || mcpStatus == null || btnToggle == null || btnProgDemo == null || btnConnect == null || mcpTitle == null || mcpServerTitle == null || capabilityTitle == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Agent tab controls");
                 return 33;
@@ -1298,9 +1309,13 @@ internal static class TestCheck
             }
 
             Label capDesc = (Label)settingsDialogType.GetField("lblCapDesc", bf).GetValue(tabDlg);
-            if (capDesc == null || capDesc.Text.Contains("\n") || !capDesc.Text.Contains("为智能体开启桌面协作能力"))
+            if (capDesc == null || capDesc.Text.Contains("\n") || !capDesc.Text.Contains("不影响 MCP 连接") ||
+                mcpTitle.Text != "后台任务提醒" || mcpServerTitle.Text != "MCP 桌面协作" ||
+                capabilityTitle.Text != "常用桌面能力（4/6）" ||
+                btnConnect.Text != "复制接入提示词" || btnProgDemo.Text != "预览" ||
+                mcpStatus.Top >= capCard.Top)
             {
-                Console.WriteLine("FAIL: lblCapDesc should be concise single line without \\n");
+                Console.WriteLine("FAIL: Agent tab should put MCP status before capability previews and use explicit copy/preview wording");
                 return 33;
             }
 
