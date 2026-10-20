@@ -933,7 +933,7 @@ internal sealed class Overlay : Form
             snapGuideForm.ShowInTaskbar = false;
             snapGuideForm.TopMost = true;
             snapGuideForm.BackColor = Color.Black;
-            snapGuideForm.Opacity = 0.0; // fully transparent, we draw lines on it
+            snapGuideForm.TransparencyKey = Color.Black; // background transparent, drawn lines visible
             snapGuideForm.StartPosition = FormStartPosition.Manual;
             snapGuideForm.Paint += OnSnapGuidePaint;
         }
@@ -5081,7 +5081,7 @@ internal sealed class DailyQuoteDialog : Form
             snapGuideForm.ShowInTaskbar = false;
             snapGuideForm.TopMost = true;
             snapGuideForm.BackColor = Color.Black;
-            snapGuideForm.Opacity = 0.0;
+            snapGuideForm.TransparencyKey = Color.Black;
             snapGuideForm.StartPosition = FormStartPosition.Manual;
             snapGuideForm.Paint += OnSnapGuidePaint;
         }
