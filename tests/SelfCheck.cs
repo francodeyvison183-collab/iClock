@@ -1244,7 +1244,7 @@ internal static class TestCheck
             Button btnProgDemo = (Button)settingsDialogType.GetField("btnMcpDemoProgress", bf).GetValue(tabDlg);
             Panel capCard = (Panel)settingsDialogType.GetField("panelCapCard", bf).GetValue(tabDlg);
             Panel mcpStatus = (Panel)settingsDialogType.GetField("panelMcpStatus", bf).GetValue(tabDlg);
-            LinkLabel lnkCopy = (LinkLabel)settingsDialogType.GetField("lnkMcpCopyPrompt", bf).GetValue(tabDlg);
+            Label lnkCopy = (Label)settingsDialogType.GetField("lnkMcpCopyPrompt", bf).GetValue(tabDlg);
             CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
             Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
             Label mcpServerTitle = (Label)settingsDialogType.GetField("lblMcpServerTitle", bf).GetValue(tabDlg);
@@ -2777,7 +2777,7 @@ internal static class TestCheck
             // Verify unified Tab 2 MCP controls in SettingsDialog (Option 1: Zero-modal MCP integration)
             Type setDialogType = asm.GetType("SettingsDialog");
             Form mcpSetDlg = (Form)Activator.CreateInstance(setDialogType, new object[] { settings });
-            LinkLabel lnkMcpCopy = (LinkLabel)setDialogType.GetField("lnkMcpCopyPrompt", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
+            Label lnkMcpCopy = (Label)setDialogType.GetField("lnkMcpCopyPrompt", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
             Button btnMcpDemo = (Button)setDialogType.GetField("btnMcpDemo", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
             Button btnMcpDemoProgress = (Button)setDialogType.GetField("btnMcpDemoProgress", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
             Button btnMcpDemoNotify = (Button)setDialogType.GetField("btnMcpDemoNotify", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);

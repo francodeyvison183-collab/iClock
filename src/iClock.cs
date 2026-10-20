@@ -1384,7 +1384,7 @@ internal sealed class SettingsDialog : Form
     private Panel panelMcpStatus, panelCapCard;
     private Label lblMcpStatusDot, lblMcpStatusText, lblMcpStatusMeta;
     private string mcpStatusState = "unknown";
-    private LinkLabel lnkMcpCopyPrompt;
+    private Label lnkMcpCopyPrompt, lblMcpCopyHint;
     private string mcpCopyFeedback;
     private System.Windows.Forms.Timer mcpStatusTimer;
     private System.Windows.Forms.Timer mcpCopyFeedbackTimer;
@@ -1817,7 +1817,7 @@ internal sealed class SettingsDialog : Form
         Controls.Add(lblMcpServerTitle);
 
         panelMcpStatus = new Panel();
-        panelMcpStatus.SetBounds(18, 80, 344, 88);
+        panelMcpStatus.SetBounds(18, 80, 344, 96);
         panelMcpStatus.BackColor = Color.White;
         panelMcpStatus.Paint += OnCardPaint;
         Controls.Add(panelMcpStatus);
@@ -1841,17 +1841,25 @@ internal sealed class SettingsDialog : Form
         lblMcpStatusMeta.SetBounds(32, 32, 300, 36);
         panelMcpStatus.Controls.Add(lblMcpStatusMeta);
 
-        lnkMcpCopyPrompt = new LinkLabel();
-        lnkMcpCopyPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lnkMcpCopyPrompt.LinkColor = AppContext.Win11Accent;
-        lnkMcpCopyPrompt.ActiveLinkColor = AppContext.Win11Accent;
-        lnkMcpCopyPrompt.VisitedLinkColor = AppContext.Win11Accent;
-        lnkMcpCopyPrompt.LinkBehavior = LinkBehavior.HoverUnderline;
-        lnkMcpCopyPrompt.AutoSize = true;
-        lnkMcpCopyPrompt.Location = new Point(32, 68);
+        lnkMcpCopyPrompt = new Label();
+        lnkMcpCopyPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Underline);
+        lnkMcpCopyPrompt.ForeColor = AppContext.Win11Accent;
+        lnkMcpCopyPrompt.AutoSize = false;
+        lnkMcpCopyPrompt.TextAlign = ContentAlignment.MiddleLeft;
+        lnkMcpCopyPrompt.SetBounds(32, 36, 1, 18);
+        lnkMcpCopyPrompt.Cursor = Cursors.Hand;
         lnkMcpCopyPrompt.Visible = false;
-        lnkMcpCopyPrompt.LinkClicked += OnMcpCopyPromptClick;
+        lnkMcpCopyPrompt.Click += OnMcpCopyPromptClick;
         panelMcpStatus.Controls.Add(lnkMcpCopyPrompt);
+
+        lblMcpCopyHint = new Label();
+        lblMcpCopyHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblMcpCopyHint.ForeColor = AppContext.Win11TextSecondary;
+        lblMcpCopyHint.AutoSize = false;
+        lblMcpCopyHint.TextAlign = ContentAlignment.MiddleLeft;
+        lblMcpCopyHint.SetBounds(32, 36, 1, 18);
+        lblMcpCopyHint.Visible = false;
+        panelMcpStatus.Controls.Add(lblMcpCopyHint);
 
         Label lblCapabilityTitle = new Label();
         lblCapabilityTitle.Name = "lblCapabilityTitle";
@@ -1859,11 +1867,11 @@ internal sealed class SettingsDialog : Form
         lblCapabilityTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblCapabilityTitle.ForeColor = AppContext.Win11TextPrimary;
         lblCapabilityTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblCapabilityTitle.SetBounds(18, 188, 344, 22);
+        lblCapabilityTitle.SetBounds(18, 196, 344, 22);
         Controls.Add(lblCapabilityTitle);
 
         panelCapCard = new Panel();
-        panelCapCard.SetBounds(18, 210, 344, 136);
+        panelCapCard.SetBounds(18, 218, 344, 136);
         panelCapCard.BackColor = Color.White;
         panelCapCard.Paint += OnMcpBoxPaint;
         Controls.Add(panelCapCard);
@@ -2612,9 +2620,7 @@ internal sealed class SettingsDialog : Form
             string name = unconfigured[0];
             mcpStatusState = "configured";
             lblMcpStatusText.Text = en ? name + " Not Connected" : name + " 未连接 iClock";
-            lblMcpStatusMeta.Text = en
-                ? "Send the setup prompt to " + name + " to connect."
-                : "发送接入提示词给 " + name + " 完成接入。";
+            lblMcpStatusMeta.Text = "";
             showCopyLink = true;
         }
         else
@@ -2629,15 +2635,32 @@ internal sealed class SettingsDialog : Form
         {
             if (lnkMcpCopyPrompt != null)
             {
-                lnkMcpCopyPrompt.Text = mcpCopyFeedback;
                 lnkMcpCopyPrompt.Enabled = false;
+                lnkMcpCopyPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+                lnkMcpCopyPrompt.ForeColor = AppContext.Win11TextSecondary;
+                lnkMcpCopyPrompt.Cursor = Cursors.Default;
+                lnkMcpCopyPrompt.Text = mcpCopyFeedback;
                 showCopyLink = true;
             }
+            if (lblMcpCopyHint != null) lblMcpCopyHint.Text = "";
         }
         else if (lnkMcpCopyPrompt != null)
         {
-            lnkMcpCopyPrompt.Text = en ? "Copy Setup Prompt" : "复制接入提示词";
             lnkMcpCopyPrompt.Enabled = true;
+            lnkMcpCopyPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Underline);
+            lnkMcpCopyPrompt.ForeColor = AppContext.Win11Accent;
+            lnkMcpCopyPrompt.Cursor = Cursors.Hand;
+            if (showCopyLink && unconfigured.Count > 0)
+            {
+                lnkMcpCopyPrompt.Text = en ? "Copy Setup Prompt" : "复制接入提示词";
+                if (lblMcpCopyHint != null) lblMcpCopyHint.Text = en
+                    ? ", then send it to " + unconfigured[0]
+                    : "，发送给 " + unconfigured[0] + " 完成接入";
+                Size linkSize = TextRenderer.MeasureText(lnkMcpCopyPrompt.Text, lnkMcpCopyPrompt.Font, new Size(300, 18), TextFormatFlags.NoPadding);
+                int linkWidth = Math.Min(300, linkSize.Width + 2);
+                lnkMcpCopyPrompt.SetBounds(32, 36, linkWidth, 18);
+                if (lblMcpCopyHint != null) lblMcpCopyHint.SetBounds(32 + linkWidth, 36, 300 - linkWidth, 18);
+            }
         }
         UpdateMcpCopyLinkVisibility(showCopyLink);
         if (lblMcpStatusDot != null)
@@ -2649,7 +2672,9 @@ internal sealed class SettingsDialog : Form
 
     private void UpdateMcpCopyLinkVisibility(bool visible)
     {
+        if (lblMcpStatusMeta != null) lblMcpStatusMeta.Visible = !visible;
         if (lnkMcpCopyPrompt != null) lnkMcpCopyPrompt.Visible = visible;
+        if (lblMcpCopyHint != null) lblMcpCopyHint.Visible = visible;
     }
     private void OnMcpDemoClick(object sender, EventArgs e)
     {
