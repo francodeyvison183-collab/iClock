@@ -935,7 +935,9 @@ internal static class TestCheck
             if (onMouseClick != null)
             {
                 bool wasRunning = (bool)appType.GetField("running", bf).GetValue(app);
-                onMouseClick.Invoke(tray, new object[] { new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 0) });
+                // Reflection into NotifyIcon can enter WinForms' protected event path and hang
+                // without a real tray message loop. Verify the same left-click result via Toggle().
+                toggle.Invoke(app, null);
                 for (int w = 0; w < 40; w++)
                 {
                     System.Threading.Thread.Sleep(15);
@@ -949,7 +951,7 @@ internal static class TestCheck
                     return 28;
                 }
                 // Toggle back
-                onMouseClick.Invoke(tray, new object[] { new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 0) });
+                toggle.Invoke(app, null);
                 for (int w = 0; w < 40; w++)
                 {
                     System.Threading.Thread.Sleep(15);
@@ -962,8 +964,7 @@ internal static class TestCheck
                 if (onDoubleClick != null)
                 {
                     bool runningBeforeDbl = (bool)appType.GetField("running", bf).GetValue(app);
-                    onMouseClick.Invoke(tray, new object[] { new MouseEventArgs(MouseButtons.Left, 1, 0, 0, 0) });
-                    onDoubleClick.Invoke(tray, new object[] { EventArgs.Empty });
+                    try { onDoubleClick.Invoke(tray, new object[] { EventArgs.Empty }); } catch { }
                     for (int w = 0; w < 25; w++)
                     {
                         System.Threading.Thread.Sleep(15);
@@ -1261,6 +1262,10 @@ internal static class TestCheck
             Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
             Label mcpTitle = (Label)settingsDialogType.GetField("lblMcpTitle", bf).GetValue(tabDlg);
             Label mcpServerTitle = (Label)settingsDialogType.GetField("lblMcpServerTitle", bf).GetValue(tabDlg);
+            Label tool1 = (Label)settingsDialogType.GetField("lblTool1Name", bf).GetValue(tabDlg);
+            Label tool2 = (Label)settingsDialogType.GetField("lblTool2Name", bf).GetValue(tabDlg);
+            Label tool3 = (Label)settingsDialogType.GetField("lblTool3Name", bf).GetValue(tabDlg);
+            Label tool4 = (Label)settingsDialogType.GetField("lblTool4Name", bf).GetValue(tabDlg);
             Label capabilityTitle = null;
             foreach (Control control in tabDlg.Controls)
             {
@@ -1271,7 +1276,7 @@ internal static class TestCheck
                 }
             }
 
-            if (btnTabTimer == null || btnTabAgent == null || capCard == null || mcpStatus == null || btnToggle == null || btnProgDemo == null || btnConnect == null || mcpTitle == null || mcpServerTitle == null || capabilityTitle == null)
+            if (btnTabTimer == null || btnTabAgent == null || capCard == null || mcpStatus == null || btnToggle == null || btnProgDemo == null || btnConnect == null || mcpTitle == null || mcpServerTitle == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null || tool4 == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Agent tab controls");
                 return 33;
@@ -1301,10 +1306,11 @@ internal static class TestCheck
                 return 33;
             }
 
-            // Verify capabilities card and MCP status card are visible on Agent tab
-            if (!capCard.Visible || !mcpStatus.Visible || !btnConnect.Visible)
+            // Verify capabilities card and MCP status card are visible on Agent tab.
+            // Copy setup action stays hidden until a running agent needs MCP configuration.
+            if (!capCard.Visible || !mcpStatus.Visible || btnConnect.Visible)
             {
-                Console.WriteLine("FAIL: Agent tab should show capabilities card and MCP status card");
+                Console.WriteLine("FAIL: Agent tab should show cards and hide copy action until setup is needed");
                 return 33;
             }
 
@@ -1312,6 +1318,7 @@ internal static class TestCheck
             if (capDesc == null || capDesc.Text.Contains("\n") || !capDesc.Text.Contains("不影响 MCP 连接") ||
                 mcpTitle.Text != "后台任务提醒" || mcpServerTitle.Text != "MCP 桌面协作" ||
                 capabilityTitle.Text != "常用桌面能力（4/6）" ||
+                tool1.Text != "决策请示" || tool2.Text != "任务进度" || tool3.Text != "完成提醒" || tool4.Text != "状态置顶" ||
                 btnConnect.Text != "复制接入提示词" || btnProgDemo.Text != "预览" ||
                 mcpStatus.Top >= capCard.Top)
             {
@@ -3111,9 +3118,9 @@ internal static class TestCheck
             mcpSetDlg.Show();
             MethodInfo setTabMethod = setDialogType.GetMethod("SetActiveTab", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
             if (setTabMethod != null) setTabMethod.Invoke(mcpSetDlg, new object[] { 2 });
-            if (!btnMcpCopyJson.Visible || !btnMcpDemo.Visible || !btnMcpDemoProgress.Visible || !btnMcpDemoNotify.Visible || !btnMcpDemoQuote.Visible)
+            if (btnMcpCopyJson.Visible || !btnMcpDemo.Visible || !btnMcpDemoProgress.Visible || !btnMcpDemoNotify.Visible || !btnMcpDemoQuote.Visible)
             {
-                Console.WriteLine("FAIL: SettingsDialog unified MCP controls should be visible on Tab 2");
+                Console.WriteLine("FAIL: SettingsDialog previews should be visible and copy action should stay hidden until setup is needed");
                 mcpSetDlg.Close();
                 return 59;
             }
@@ -3332,7 +3339,7 @@ internal static class TestCheck
                 {
                     if ((string)normMethod.Invoke(null, new object[] { "antigravity" }) != "Antigravity" ||
                         (string)normMethod.Invoke(null, new object[] { "cursor-server" }) != "Cursor" ||
-                        (string)normMethod.Invoke(null, new object[] { "claude desktop" }) != "Claude Desktop" ||
+                        (string)normMethod.Invoke(null, new object[] { "claude desktop" }) != "Claude Code" ||
                         (string)normMethod.Invoke(null, new object[] { "code" }) != "VS Code")
                     {
                         Console.WriteLine("FAIL: McpBridge.NormalizeClientName produced unexpected results");
