@@ -17,6 +17,19 @@ internal static class TestCheck
         return (double)o.GetType().GetProperty("Opacity").GetValue(o, null);
     }
 
+    private static bool ReadMcpResponse(System.IO.StreamReader reader, int id, out string line)
+    {
+        string expected = "\"id\":" + id;
+        for (int i = 0; i < 20; i++)
+        {
+            line = reader.ReadLine();
+            if (line == null) return false;
+            if (line.Contains(expected)) return true;
+        }
+        line = null;
+        return false;
+    }
+
 
 
     [STAThread]
@@ -27,6 +40,7 @@ internal static class TestCheck
         string todayHistoryPath = System.IO.Path.Combine(appDataDir, "history-" + DateTime.Now.ToString("yyyyMMdd") + ".tsv");
         string iniBackup = null;
         string historyBackup = null;
+        Process mcpGuiProc = null;
         if (System.IO.File.Exists(iniPath))
         {
             try { iniBackup = System.IO.File.ReadAllText(iniPath); System.IO.File.Delete(iniPath); } catch { }
@@ -2686,18 +2700,41 @@ internal static class TestCheck
 
             Console.WriteLine("PASS: Tool introductions modernization (AboutDialog Option 1, Settings Tab 0 tip, Tab 2 terminal CLI guidance & CliHelpDialog elimination) verified.");
 
-            // 41. Verify Native MCP (Model Context Protocol) Server & Tools (iclock.com --mcp stdio)
-            string comBinary = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(exePath), "iclock.com");
-            if (!System.IO.File.Exists(comBinary)) comBinary = System.IO.Path.Combine(dir, "iclock.com");
-            if (!System.IO.File.Exists(comBinary))
+            // 41. Verify the single-file MCP bridge (iClock.exe --mcp stdio + Named Pipe GUI bridge)
+            string mcpBinary = exePath;
+            if (!System.IO.File.Exists(mcpBinary))
             {
-                Console.WriteLine("FAIL: iclock.com binary missing for MCP test");
+                Console.WriteLine("FAIL: iClock.exe binary missing for MCP bridge test");
                 return 59;
             }
 
+            // The in-process harness has no message loop, so use a real GUI process for tool calls.
+            FieldInfo mcpPipeServerField = appType.GetField("mcpPipeServer", bf);
+            object inProcessPipeServer = mcpPipeServerField.GetValue(app);
+            if (inProcessPipeServer != null)
+            {
+                MethodInfo stopPipeServer = inProcessPipeServer.GetType().GetMethod("Stop", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (stopPipeServer != null) stopPipeServer.Invoke(inProcessPipeServer, null);
+                mcpPipeServerField.SetValue(app, null);
+            }
+            settings.GetType().GetField("FirstRun").SetValue(settings, false);
+            settings.GetType().GetMethod("Save").Invoke(settings, null);
+            mcpGuiProc = Process.Start(new ProcessStartInfo
+            {
+                FileName = mcpBinary,
+                WorkingDirectory = dir,
+                UseShellExecute = true
+            });
+            if (mcpGuiProc == null)
+            {
+                Console.WriteLine("FAIL: Could not start GUI process for MCP bridge test");
+                return 59;
+            }
+            System.Threading.Thread.Sleep(1200);
+
             ProcessStartInfo mcpPsi = new ProcessStartInfo
             {
-                FileName = comBinary,
+                FileName = mcpBinary,
                 Arguments = "--mcp",
                 UseShellExecute = false,
                 RedirectStandardInput = true,
@@ -2749,6 +2786,97 @@ internal static class TestCheck
                 if (string.IsNullOrEmpty(mcpErrLine) || !mcpErrLine.Contains("-32601"))
                 {
                     Console.WriteLine("FAIL: MCP unknown method error handling failed: " + mcpErrLine);
+                    return 59;
+                }
+
+                // Regression: the first tool call must not hit the old initial-listener PIPE_CLOSED race.
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_status\",\"arguments\":{}}}");
+                string mcpStatus1;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 5, out mcpStatus1) ||
+                    !mcpStatus1.Contains("\"isError\":false") ||
+                    !mcpStatus1.Contains("remaining_seconds"))
+                {
+                    Console.WriteLine("FAIL: First MCP iclock_status call failed or returned PIPE_CLOSED: " + mcpStatus1);
+                    return 59;
+                }
+
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_status\",\"arguments\":{}}}");
+                string mcpStatus2;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 6, out mcpStatus2) ||
+                    !mcpStatus2.Contains("\"isError\":false"))
+                {
+                    Console.WriteLine("FAIL: Second MCP iclock_status call failed: " + mcpStatus2);
+                    return 59;
+                }
+
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_progress\",\"arguments\":{\"progress\":\"60%\",\"message\":\"SelfCheck\"}}}");
+                string mcpProgress;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 7, out mcpProgress) ||
+                    !mcpProgress.Contains("\"isError\":false") ||
+                    !mcpProgress.Contains("0.6"))
+                {
+                    Console.WriteLine("FAIL: MCP iclock_progress call failed: " + mcpProgress);
+                    return 59;
+                }
+
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_timer\",\"arguments\":{\"action\":\"start\",\"minutes\":7,\"label\":\"SelfCheck\"}}}");
+                string mcpTimer;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 8, out mcpTimer) ||
+                    !mcpTimer.Contains("\"isError\":false") ||
+                    !mcpTimer.Contains("minutes") ||
+                    !mcpTimer.Contains("7"))
+                {
+                    Console.WriteLine("FAIL: MCP iclock_timer call failed: " + mcpTimer);
+                    return 59;
+                }
+
+                // ask_human must stay pending without blocking other tool calls.
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_ask_human\",\"arguments\":{\"question\":\"SelfCheck approval\",\"options\":[\"Approve\",\"Cancel\"],\"timeout_seconds\":0}}}");
+                System.Threading.Thread.Sleep(150);
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_status\",\"arguments\":{}}}");
+                string mcpAskOverlap;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 10, out mcpAskOverlap) ||
+                    !mcpAskOverlap.Contains("\"isError\":false") ||
+                    !mcpAskOverlap.Contains("has_pending_ask"))
+                {
+                    Console.WriteLine("FAIL: MCP tool call was blocked by pending ask_human: " + mcpAskOverlap);
+                    return 59;
+                }
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":9}}");
+                string mcpAskCancel;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 9, out mcpAskCancel) ||
+                    !mcpAskCancel.Contains("\"isError\":false") ||
+                    !mcpAskCancel.Contains("cancelled"))
+                {
+                    Console.WriteLine("FAIL: MCP ask_human cancellation failed: " + mcpAskCancel);
+                    return 59;
+                }
+
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_progress\",\"arguments\":{\"progress\":\"clear\"}}}");
+                string mcpClear;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 11, out mcpClear) ||
+                    !mcpClear.Contains("\"isError\":false"))
+                {
+                    Console.WriteLine("FAIL: MCP iclock_progress clear failed: " + mcpClear);
+                    return 59;
+                }
+
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_timer\",\"arguments\":{\"action\":\"reset\"}}}");
+                string mcpReset;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 12, out mcpReset) ||
+                    !mcpReset.Contains("\"isError\":false"))
+                {
+                    Console.WriteLine("FAIL: MCP iclock_timer reset failed: " + mcpReset);
+                    return 59;
+                }
+
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_notify\",\"arguments\":{\"message\":\"SelfCheck\",\"sound\":\"none\"}}}");
+                string mcpNotify;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 13, out mcpNotify) ||
+                    !mcpNotify.Contains("\"isError\":false") ||
+                    !mcpNotify.Contains("none"))
+                {
+                    Console.WriteLine("FAIL: MCP iclock_notify call failed: " + mcpNotify);
                     return 59;
                 }
 
@@ -3040,7 +3168,7 @@ internal static class TestCheck
                     return 59;
                 }
 
-                System.IO.File.WriteAllText(testMcpFile, "{\n  \"mcpServers\": {\n    \"iclock\": {\n      \"command\": \"iclock.com\"\n    }\n  }\n}");
+                System.IO.File.WriteAllText(testMcpFile, "{\n  \"mcpServers\": {\n    \"iclock\": {\n      \"command\": \"iClock.exe\"\n    }\n  }\n}");
                 bool configured2 = (bool)isCfgMethod.Invoke(null, new object[] { testMcpFile });
                 if (!configured2)
                 {
@@ -3060,10 +3188,10 @@ internal static class TestCheck
                 try { if (System.IO.Directory.Exists(testMcpDir)) System.IO.Directory.Delete(testMcpDir, true); } catch { }
             }
 
-            // Verify iclock.com --mcp-config output
+            // Verify iClock.exe --mcp-config output
             ProcessStartInfo cfgPsi = new ProcessStartInfo
             {
-                FileName = comBinary,
+                FileName = mcpBinary,
                 Arguments = "--mcp-config",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -3075,15 +3203,15 @@ internal static class TestCheck
                 cfgProc.WaitForExit(1000);
                 if (!cfgOut.Contains("\"mcpServers\"") || !cfgOut.Contains("\"iclock\"") || !cfgOut.Contains("\"--mcp\""))
                 {
-                    Console.WriteLine("FAIL: iclock.com --mcp-config output invalid: " + cfgOut);
+                    Console.WriteLine("FAIL: iClock.exe --mcp-config output invalid: " + cfgOut);
                     return 59;
                 }
             }
 
-            // Verify iclock.com --mcp-prompt output
+            // Verify iClock.exe --mcp-prompt output
             ProcessStartInfo promptPsi = new ProcessStartInfo
             {
-                FileName = comBinary,
+                FileName = mcpBinary,
                 Arguments = "--mcp-prompt",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -3095,15 +3223,15 @@ internal static class TestCheck
                 promptProc.WaitForExit(1000);
                 if (!promptOut.Contains("iclock_ask_human") || !promptOut.Contains("iclock_notify") || !promptOut.Contains("iclock_quote"))
                 {
-                    Console.WriteLine("FAIL: iclock.com --mcp-prompt output invalid: " + promptOut);
+                    Console.WriteLine("FAIL: iClock.exe --mcp-prompt output invalid: " + promptOut);
                     return 59;
                 }
             }
 
-            // Verify iclock.com --ask CLI dispatch
+            // Verify iClock.exe --ask CLI dispatch
             ProcessStartInfo askPsi = new ProcessStartInfo
             {
-                FileName = comBinary,
+                FileName = mcpBinary,
                 Arguments = "--ask",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
@@ -3116,12 +3244,12 @@ internal static class TestCheck
                 askProc.WaitForExit(1500);
                 if (askProc.ExitCode != 1 || !askErr.Contains("Usage: iclock --ask"))
                 {
-                    Console.WriteLine("FAIL: iclock.com --ask CLI usage output invalid (ExitCode=" + askProc.ExitCode + ", Err=" + askErr + ")");
+                    Console.WriteLine("FAIL: iClock.exe --ask CLI usage output invalid (ExitCode=" + askProc.ExitCode + ", Err=" + askErr + ")");
                     return 59;
                 }
             }
 
-            Console.WriteLine("PASS: Native MCP Server (iclock.com --mcp), stdio JSON-RPC 2.0 protocol, Unified Tab 2 MCP Integration, McpConfigHelper (detection & prompt generation), --mcp-config, --mcp-prompt, Flash Approval HUD (--ask CLI), and 5 tools (including iclock_ask_human) verified.");
+            Console.WriteLine("PASS: Single-file MCP Bridge (iClock.exe --mcp + Named Pipe), concurrent tools, ask_human cancellation, Unified Tab 2 MCP Integration, McpConfigHelper, --mcp-config, --mcp-prompt, and --ask CLI verified.");
 
             // 42. Verify MCP Silent Connection Handshake and Prompt-Driven iclock_notify Verification
             MethodInfo handleIpcMethod = appType.GetMethod("HandleIpcCommand", bf);
@@ -3181,11 +3309,10 @@ internal static class TestCheck
             }
 
             // Verify CLI client name normalization
-            Assembly cliAsm = Assembly.LoadFrom(comBinary);
-            Type cliShimType = cliAsm.GetType("CliShim");
-            if (cliShimType != null)
+            Type bridgeType = asm.GetType("McpBridge");
+            if (bridgeType != null)
             {
-                MethodInfo normMethod = cliShimType.GetMethod("NormalizeClientName", BindingFlags.NonPublic | BindingFlags.Static);
+                MethodInfo normMethod = bridgeType.GetMethod("NormalizeClientName", BindingFlags.NonPublic | BindingFlags.Static);
                 if (normMethod != null)
                 {
                     if ((string)normMethod.Invoke(null, new object[] { "antigravity" }) != "Antigravity" ||
@@ -3193,7 +3320,7 @@ internal static class TestCheck
                         (string)normMethod.Invoke(null, new object[] { "claude desktop" }) != "Claude Desktop" ||
                         (string)normMethod.Invoke(null, new object[] { "code" }) != "VS Code")
                     {
-                        Console.WriteLine("FAIL: CliShim.NormalizeClientName produced unexpected results");
+                        Console.WriteLine("FAIL: McpBridge.NormalizeClientName produced unexpected results");
                         return 60;
                     }
                 }
@@ -3569,6 +3696,19 @@ internal static class TestCheck
         }
         finally
         {
+            if (mcpGuiProc != null)
+            {
+                try
+                {
+                    if (!mcpGuiProc.HasExited)
+                    {
+                        mcpGuiProc.Kill();
+                        mcpGuiProc.WaitForExit(2000);
+                    }
+                }
+                catch { }
+                try { mcpGuiProc.Dispose(); } catch { }
+            }
             if (iniBackup != null)
             {
                 try { System.IO.File.WriteAllText(iniPath, iniBackup); } catch { }

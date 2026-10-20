@@ -6,7 +6,6 @@ if (-not (Test-Path $releaseDir)) {
 }
 
 $exeSource = Join-Path $projectRoot 'dist\iClock.exe'
-$cliSource = Join-Path $projectRoot 'dist\iclock.com'
 if (-not (Test-Path $exeSource)) {
     & (Join-Path $projectRoot 'build.ps1')
 }
@@ -24,7 +23,6 @@ if (Test-Path $stage) {
 New-Item -ItemType Directory -Path $stage | Out-Null
 
 Copy-Item $exeSource (Join-Path $stage 'iClock.exe')
-Copy-Item $cliSource (Join-Path $stage 'iclock.com')
 Copy-Item (Join-Path $projectRoot 'README.md') (Join-Path $stage 'README.md')
 Copy-Item (Join-Path $projectRoot 'LICENSE') (Join-Path $stage 'LICENSE')
 

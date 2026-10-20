@@ -113,7 +113,7 @@ def main() -> None:
     # MCP setup prompt block
     prompt_en = (
         "Please connect my local desktop productivity tool iClock to the MCP Server list of the current environment.\n"
-        'The stdio executable of iClock is iclock.com in this unzipped directory, launched with arguments ["--mcp"].\n'
+        'The GUI and stdio MCP bridge are the same iClock.exe in this unzipped directory; launch it with arguments ["--mcp"]. The bridge connects to the GUI over a local Named Pipe.\n'
         "The server natively provides 6 tools: iclock_ask_human (topmost desktop decision gate), iclock_progress (project task steps and progress onto the floating clock HUD), iclock_timer (set & query countdowns), iclock_notify (milestone desktop notifications with chime), iclock_quote (desktop quote rotation & expansion), and iclock_status (runtime status).\n"
         "After configuration, please call the iclock_status tool directly to verify the connection."
     )

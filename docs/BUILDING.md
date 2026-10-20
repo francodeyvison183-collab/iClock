@@ -16,18 +16,19 @@ From the repository root in PowerShell:
 .\build.ps1
 ```
 
-The script compiles `src/iClock.cs` as a Windows GUI executable and writes `dist/iClock.exe`. The output directory is ignored by Git. The executable targets the .NET Framework v4 runtime and references only `System.Windows.Forms.dll`, `System.Drawing.dll`, and `System.Runtime.WindowsRuntime.dll` (for Windows Toast notification listening) from the framework.
+The script compiles `src/iClock.cs` as a Windows GUI executable and writes `dist/iClock.exe`. The same executable also runs the stdio MCP bridge when launched with `--mcp`; no separate CLI shim is built. The output directory is ignored by Git. The executable targets the .NET Framework v4 runtime and references framework assemblies only, including `System.Windows.Forms.dll`, `System.Drawing.dll`, `System.Runtime.WindowsRuntime.dll`, `System.Core.dll`, and `System.Web.Extensions.dll`.
 
 Equivalent compiler invocation:
 
 ```powershell
-csc.exe /nologo /target:winexe /optimize+ /out:dist\iClock.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Runtime.WindowsRuntime.dll /resource:src\zan.jpg,zan.jpg /win32icon:src\app.ico src\iClock.cs
+csc.exe /nologo /target:winexe /optimize+ /out:dist\iClock.exe /r:System.Core.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Runtime.WindowsRuntime.dll /r:System.Web.Extensions.dll /resource:src\zan.jpg,zan.jpg /win32icon:src\app.ico src\iClock.cs
 ```
 
 ## Release checklist
 
 - Build from a clean checkout using `build.ps1`.
 - Confirm the application starts, tray menu opens, and the configured hotkey can start and pause the countdown.
-- Confirm the release executable is below the project's target (currently ~273 KB).
+- Confirm the release executable is below the project's target (currently about 300 KB).
+- Run `dist\SelfCheck.exe` and `dist\QuoteLayoutCheck.exe`; both must pass.
 - Attach `dist/iClock.exe` to a GitHub Release; do not commit generated binaries to the source tree.
 - Update `CHANGELOG.md` and tag the source commit used for the release.

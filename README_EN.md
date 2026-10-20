@@ -2,7 +2,7 @@
 
 # <img src="docs/icon-64.png" width="36" height="36" style="vertical-align: -6px;" alt="iClock Logo" /> iClock
 
-### Ultra-Lightweight (275 KB) Windows Native Productivity Hub
+### Ultra-Lightweight (300 KB) Windows Native Productivity Hub
 **⏱ Transparent Floating Timer · 💬 Ambient Daily Quotes · 🤖 AI Agent Monitor & Native MCP Server**
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
@@ -14,7 +14,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>Single 275 KB Binary · RAM &lt; 15 MB · 0.0% CPU Idle · Full Mouse Click-Through · Zero-Polling Daily Quotes · Native MCP Agent Hub</b>
+  <b>Single 300 KB Binary · RAM &lt; 15 MB · 0.0% CPU Idle · Full Mouse Click-Through · Zero-Polling Daily Quotes · Native MCP Agent Hub</b>
 </p>
 
 <p align="center">
@@ -36,7 +36,7 @@
 
 Desktop tools often fall into two extremes: either crude and single-purpose, or bloated **100MB+** Electron packages that continuously consume CPU and hundreds of megabytes of RAM, often bundled with telemetry or ads, while their opaque windows obstruct your code and web workspace.
 
-**iClock adheres to extreme engineering minimalism**: built on Windows native Win32 and GDI+ APIs with zero external runtimes or dependencies, packing a **275 KB** standalone executable with an active RAM footprint under **15 MB**. It is not merely a click-through desktop countdown timer, but a cohesive productivity hub integrating **zero-polling ambient daily quotes** and **native Model Context Protocol (MCP) agent collaboration**.
+**iClock adheres to extreme engineering minimalism**: built on Windows native Win32 and GDI+ APIs with zero external runtimes or dependencies, packing a **300 KB** standalone executable with an active RAM footprint under **15 MB**. It is not merely a click-through desktop countdown timer, but a cohesive productivity hub integrating **zero-polling ambient daily quotes** and **native Model Context Protocol (MCP) agent collaboration**.
 
 ---
 
@@ -56,7 +56,7 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 
 ### 3. 🤖 AI Agent Collaboration & Native MCP Server
 * 👁 **20+ Programming Agents Monitored**: Automated perception for Cursor, Antigravity, Claude Code, GitHub Copilot, Windsurf, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, Aider, and more. A 4-tier perception matrix (Toast hooks, `HSHELL_FLASH` window flashing, title scanning, process lifecycle) delivers **0ms instant alert** upon task completion with 1-click window restore.
-* 🔌 **Built-in Native stdio MCP Server (`iclock.com --mcp`)**: Native Anthropic Model Context Protocol JSON-RPC 2.0 server without Node.js or Python dependencies. Provides 5 tools:
+* 🔌 **Built-in Native stdio MCP Server (`iClock.exe --mcp`)**: The GUI and MCP bridge share one executable. The bridge connects to the desktop process over a local Named Pipe and starts the GUI automatically when needed. It implements Anthropic Model Context Protocol JSON-RPC 2.0 without Node.js or Python dependencies and provides 6 tools:
   - `iclock_ask_human`: **Desktop Decision Gate (Human-in-the-Loop)**. When an AI agent performs dangerous actions (e.g. deleting files, irreversible script execution, production deploy), it triggers a native modal on your desktop to request human authorization and input;
   - `iclock_timer`: Agent sets, queries, and controls countdown timers autonomously;
   - `iclock_notify`: Agent triggers desktop top-most popups, breathing pulses, and chimes upon task milestones;
@@ -70,11 +70,11 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 
 | Metric | **iClock (This Project)** | Typical Electron Timer | Windows Clock App | Web Pomodoro Timer |
 | :--- | :--- | :--- | :--- | :--- |
-| **Package Size** | ⚡ **275 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed | Several MBs on load |
+| **Package Size** | ⚡ **300 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed | Several MBs on load |
 | **Memory (RAM)** | ⚡ **~15 MB** (Physical baseline) | 150 MB ~ 300 MB | ~30 MB | 80 MB ~ 200 MB (Browser tab) |
 | **CPU Usage** | ⚡ **0.0%** (Heartbeat aligned) | 0.5% ~ 3.0% (Polling) | 0.0% | 0.3% ~ 1.5% |
 | **Interaction** | ⚡ **Full click-through, borderless** | Solid window blocking view | Minimized or full window | Must switch tab to view |
-| **Native MCP** | ⚡ **Built-in stdio Server (5 tools)** | ❌ None | ❌ None | ❌ None |
+| **Native MCP** | ⚡ **Built-in stdio Server (6 tools)** | ❌ None | ❌ None | ❌ None |
 | **AI Agent Monitor**| ⚡ **20+ coding agents supported** | ❌ None | ❌ None | ❌ None |
 | **Desktop Quotes** | ⚡ **0-Polling + AI expansion** | ❌ None | ❌ None | ❌ In-page only |
 | **Network Traffic**| ⚡ **0 network calls, 100% offline** | Telemetry / Update checks | Microsoft account sync | Cloud telemetry |
@@ -106,7 +106,7 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 ## 🔌 30-Second Setup for Claude Desktop / Cursor (Native MCP)
 
-iClock includes a standalone stdio MCP server (`iclock.com --mcp`) that requires no Node.js or Python runtime.
+iClock includes a native stdio MCP bridge (`iClock.exe --mcp`) that requires no Node.js or Python runtime. The GUI and bridge use the same executable; the bridge talks to the running desktop process over a local Named Pipe and starts it automatically if necessary.
 
 ### 1. Claude Desktop
 Edit `%APPDATA%\Claude\claude_desktop_config.json`:
@@ -114,7 +114,7 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 {
   "mcpServers": {
     "iclock": {
-      "command": "C:\\Path\\To\\iClock\\iclock.com",
+      "command": "C:\\Path\\To\\iClock\\iClock.exe",
       "args": ["--mcp"]
     }
   }
@@ -127,7 +127,7 @@ Add to `.cursor/mcp.json` or through settings:
 {
   "mcpServers": {
     "iclock": {
-      "command": "C:/Path/To/iClock/iclock.com",
+      "command": "C:/Path/To/iClock/iClock.exe",
       "args": ["--mcp"]
     }
   }
@@ -194,7 +194,7 @@ iclock -s 50
 
 * **Q: Why doesn't it block mouse clicks while gaming or coding?**  
   **A**: iClock leverages the native Windows `WS_EX_TRANSPARENT` style. Digits render TopMost above all windows, but all mouse clicks and scroll events pass through directly to underlying games, IDEs, and browser tabs.
-* **Q: Why is the file size only 275 KB?**  
+* **Q: Why is the file size only 300 KB?**
   **A**: Pure native C# WinForms and GDI+ rendering. Zero Electron, zero Chromium runtime, zero bulky third-party DLLs. Memory stays strictly below 15 MB.
 * **Q: Does desktop quote hibernation consume laptop battery?**  
   **A**: No. It relies purely on Windows native event messages (0-Polling). Idle CPU consumption is 0.0%, preserving battery life.
@@ -214,7 +214,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> Builds in less than a second into `dist/iClock.exe` (275 KB). See [BUILDING.md](docs/BUILDING.md).
+> Builds in less than a second into `dist/iClock.exe` (about 300 KB). See [BUILDING.md](docs/BUILDING.md).
 
 ---
 

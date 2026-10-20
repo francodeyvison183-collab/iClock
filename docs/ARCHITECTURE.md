@@ -1,6 +1,6 @@
 # Architecture
 
-iClock is an ultra-lightweight Windows desktop utility compiled directly via `csc.exe` against the .NET Framework (4.6+ / 4.8). It has zero external package dependencies, produces a single compact binary (~273 KB), and runs with minimal resource usage (< 15 MB RAM, ~0.0% idle CPU).
+iClock is an ultra-lightweight Windows desktop utility compiled directly via `csc.exe` against the .NET Framework (4.6+ / 4.8). It has zero external package dependencies, produces one compact binary (~300 KB), and runs with minimal resource usage (< 15 MB RAM, ~0.0% idle CPU).
 
 ## Architectural Foundations
 
@@ -48,4 +48,13 @@ To enable terminal scripting and automation without external daemon services or 
 - **Zero-Allocation Data Transfer**: Secondary CLI processes marshal arguments via Win32 `WM_COPYDATA` (`0x004A`) with `NativeMethods.COPYDATASTRUCT`. The message is delivered synchronously into the primary instance's message queue on the main UI thread with 0ms dispatch latency.
 - **Console Attachment for GUI Binaries**: As a `/target:winexe` application, standard output is not attached to a console by default. `Program.WriteToConsole` probes `GetStdHandle(STD_OUTPUT_HANDLE)` and calls `AttachConsole(-1)` dynamically. This guarantees that CLI feedback, help text (`-h`), and pipe redirections (`|`, `>`) print correctly in interactive PowerShell, CMD, or headless automation runners without flashing unwanted console windows during standard GUI launches.
 - **Idempotent User PATH Registration**: `iclock --install-cli` queries and updates `Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User)` natively, providing global terminal invocation without `.exe` (via Windows `%PATHEXT%`).
+
+### 9. Single-File MCP stdio Bridge
+The GUI and MCP server are two modes of the same `iClock.exe`; the build does not emit a separate console shim.
+- **Dual-Mode Entry Point**: `Program.Main` dispatches `iClock.exe --mcp` before single-instance mutex and WinForms initialization. Normal launches start the GUI; `--mcp` starts only the stdio bridge.
+- **Named Pipe Boundary**: The GUI owns `\\.\pipe\iClock.McpBridge.v1`. A bridge process connects to that pipe and remains the MCP client's stdio endpoint. If the GUI is not running, the bridge starts `iClock.exe` and retries the connection.
+- **Non-Blocking Tool Execution**: The stdio reader stays responsive while `tools/call` work runs on the thread pool. Each GUI request is marshalled onto the WinForms thread only for UI state changes, so a pending `iclock_ask_human` dialog does not block status, progress, timer, or notification calls.
+- **Concurrent Pipe Clients**: The server accepts multiple Named Pipe connections and handles each client on its own background thread. Per-connection writes are lock-protected; stdio JSON-RPC output is serialized through a separate global write lock so concurrent completions cannot interleave partial JSON lines.
+- **Cancellation and Reconnect**: MCP request IDs are mapped to pipe request IDs. `notifications/cancelled` targets the matching GUI request, and a dropped bridge connection fails outstanding requests with a structured error instead of leaving callers blocked.
+- **Security and Lifecycle**: The pipe ACL grants access to the current Windows user only. Closing the GUI stops the pipe server and disconnects bridge processes; a later bridge call can reconnect after the GUI is restarted.
 

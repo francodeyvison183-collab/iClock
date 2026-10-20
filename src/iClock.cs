@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Drawing;
 using System.Drawing.Text;
 using System.Drawing.Drawing2D;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Pipes;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Reflection;
@@ -14,6 +16,8 @@ using System.Net;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.Collections;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using Microsoft.Win32;
@@ -2695,18 +2699,31 @@ internal sealed class SettingsDialog : Form
             return;
         }
         bool en = Value != null && Value.Language == "en";
+        List<string> connected = AppContext.Current != null
+            ? AppContext.Current.GetMcpConnectedClientNames()
+            : new List<string>();
         List<string> configured = new List<string>();
         foreach (string agent in McpConfigHelper.GetKnownAgents())
         {
             if (McpConfigHelper.IsAgentMcpConfigured(agent)) configured.Add(agent);
         }
-        lblMcpStatusText.Text = en ? "MCP Server Running" : "MCP Server 运行中";
-        if (configured.Count > 0)
+        bool running = AppContext.Current != null && AppContext.Current.IsMcpServerRunning;
+        lblMcpStatusText.Text = running
+            ? (en ? "MCP Server Running" : "MCP Server 运行中")
+            : (en ? "MCP Server Stopped" : "MCP Server 未启动");
+        if (connected.Count > 0)
+        {
+            string names = string.Join(", ", connected.ToArray());
+            lblMcpStatusMeta.Text = en
+                ? "Online: " + names
+                : "在线: " + names;
+        }
+        else if (configured.Count > 0)
         {
             string names = string.Join(", ", configured.ToArray());
             lblMcpStatusMeta.Text = en
-                ? "Connected: " + names
-                : "已接入: " + names;
+                ? "Configured: " + names + "\nWaiting for the agent to connect."
+                : "已配置: " + names + "\n等待智能体启动连接。";
         }
         else
         {
@@ -3474,6 +3491,865 @@ internal sealed class CliNoticeDialog : Form
 }
 
 
+internal static class McpBridgeProtocol
+{
+    internal const string PipeName = "iClock.McpBridge.v1";
+    private static int nextRequestId;
+
+    internal static string NewRequestId()
+    {
+        return "r" + System.Threading.Interlocked.Increment(ref nextRequestId).ToString(CultureInfo.InvariantCulture);
+    }
+
+    internal static Dictionary<string, object> Parse(string json)
+    {
+        JavaScriptSerializer serializer = new JavaScriptSerializer();
+        serializer.MaxJsonLength = int.MaxValue;
+        return serializer.Deserialize<Dictionary<string, object>>(json);
+    }
+
+    internal static string Serialize(object value)
+    {
+        JavaScriptSerializer serializer = new JavaScriptSerializer();
+        serializer.MaxJsonLength = int.MaxValue;
+        return serializer.Serialize(value);
+    }
+
+    internal static Dictionary<string, object> Error(string code, string message)
+    {
+        return new Dictionary<string, object>
+        {
+            { "status", "error" },
+            { "code", code },
+            { "message", message ?? "" }
+        };
+    }
+}
+
+
+internal sealed class McpPipeConnection
+{
+    private readonly NamedPipeServerStream pipe;
+    private readonly StreamReader reader;
+    private readonly StreamWriter writer;
+    private readonly object writeLock = new object();
+    private int closed;
+
+    internal string ClientName { get; set; }
+
+    internal McpPipeConnection(NamedPipeServerStream pipe)
+    {
+        this.pipe = pipe;
+        reader = new StreamReader(pipe, new UTF8Encoding(false), false, 4096, true);
+        writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, true);
+        writer.AutoFlush = true;
+    }
+
+    internal string ReadLine()
+    {
+        return reader.ReadLine();
+    }
+
+    internal bool Send(Dictionary<string, object> message)
+    {
+        if (message == null || System.Threading.Volatile.Read(ref closed) != 0) return false;
+        try
+        {
+            string json = McpBridgeProtocol.Serialize(message);
+            lock (writeLock)
+            {
+                if (System.Threading.Volatile.Read(ref closed) != 0) return false;
+                writer.WriteLine(json);
+                writer.Flush();
+                return true;
+            }
+        }
+        catch
+        {
+            Close();
+            return false;
+        }
+    }
+
+    internal bool SendResponse(string id, bool ok, object result)
+    {
+        Dictionary<string, object> message = new Dictionary<string, object>
+        {
+            { "id", id },
+            { "ok", ok }
+        };
+        if (ok) message["result"] = result;
+        else message["error"] = result ?? McpBridgeProtocol.Error("INTERNAL_ERROR", "Unknown error");
+        return Send(message);
+    }
+
+    internal void Close()
+    {
+        if (System.Threading.Interlocked.Exchange(ref closed, 1) != 0) return;
+        try { reader.Close(); } catch { }
+        try { writer.Close(); } catch { }
+        try { pipe.Close(); } catch { }
+    }
+}
+
+
+internal sealed class McpPipeServer
+{
+    private readonly AppContext owner;
+    private readonly ConcurrentDictionary<McpPipeConnection, bool> connections = new ConcurrentDictionary<McpPipeConnection, bool>();
+    private System.Threading.Thread acceptThread;
+    private NamedPipeServerStream listener;
+    private volatile bool running;
+    private volatile bool stopping;
+    private string lastError;
+
+    internal McpPipeServer(AppContext owner)
+    {
+        this.owner = owner;
+    }
+
+    internal bool IsRunning { get { return running && !stopping; } }
+    internal string LastError { get { return lastError; } }
+    internal int ConnectionCount { get { return connections.Count; } }
+
+    internal List<string> GetConnectedClientNames()
+    {
+        List<string> names = new List<string>();
+        foreach (McpPipeConnection connection in connections.Keys)
+        {
+            string name = connection.ClientName;
+            if (string.IsNullOrEmpty(name) || names.Contains(name)) continue;
+            names.Add(name);
+        }
+        if (names.Count == 0 && connections.Count > 0) names.Add("MCP Client");
+        return names;
+    }
+
+    internal void Start()
+    {
+        if (running || stopping) return;
+        try
+        {
+            running = true;
+            acceptThread = new System.Threading.Thread(AcceptLoop);
+            acceptThread.IsBackground = true;
+            acceptThread.Name = "iClock.MCP.PipeServer";
+            acceptThread.Start();
+        }
+        catch (Exception ex)
+        {
+            lastError = ex.Message;
+            running = false;
+            try { if (listener != null) listener.Close(); } catch { }
+            listener = null;
+        }
+    }
+
+    internal void Stop()
+    {
+        stopping = true;
+        running = false;
+        NamedPipeServerStream current = listener;
+        listener = null;
+        if (current != null)
+        {
+            try { current.Close(); } catch { }
+        }
+        foreach (McpPipeConnection connection in connections.Keys)
+        {
+            connection.Close();
+        }
+    }
+
+    private static NamedPipeServerStream CreateListener()
+    {
+        PipeSecurity security = new PipeSecurity();
+        try
+        {
+            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
+            {
+                if (identity != null && identity.User != null)
+                {
+                    security.AddAccessRule(new PipeAccessRule(
+                        identity.User,
+                        PipeAccessRights.ReadWrite | PipeAccessRights.CreateNewInstance,
+                        AccessControlType.Allow));
+                }
+            }
+        }
+        catch { }
+
+        return new NamedPipeServerStream(
+            McpBridgeProtocol.PipeName,
+            PipeDirection.InOut,
+            NamedPipeServerStream.MaxAllowedServerInstances,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous,
+            4096,
+            4096,
+            security);
+    }
+
+    private void AcceptLoop()
+    {
+        while (!stopping)
+        {
+            NamedPipeServerStream pipe = null;
+            try
+            {
+                pipe = CreateListener();
+                listener = pipe;
+                pipe.WaitForConnection();
+                if (stopping)
+                {
+                    try { pipe.Close(); } catch { }
+                    break;
+                }
+
+                listener = null;
+                McpPipeConnection connection = new McpPipeConnection(pipe);
+                connections[connection] = true;
+                System.Threading.Thread clientThread = new System.Threading.Thread(delegate() { HandleClient(connection); });
+                clientThread.IsBackground = true;
+                clientThread.Name = "iClock.MCP.PipeClient";
+                clientThread.Start();
+            }
+            catch (Exception ex)
+            {
+                listener = null;
+                if (pipe != null)
+                {
+                    try { pipe.Close(); } catch { }
+                }
+                if (stopping) break;
+                lastError = ex.Message;
+                System.Threading.Thread.Sleep(150);
+            }
+        }
+    }
+
+    private void HandleClient(McpPipeConnection connection)
+    {
+        try
+        {
+            string line;
+            while (!stopping && (line = connection.ReadLine()) != null)
+            {
+                line = line.Trim();
+                if (line.Length == 0) continue;
+                Dictionary<string, object> message;
+                try
+                {
+                    message = McpBridgeProtocol.Parse(line);
+                }
+                catch (Exception ex)
+                {
+                    connection.Send(new Dictionary<string, object>
+                    {
+                        { "ok", false },
+                        { "error", McpBridgeProtocol.Error("BAD_REQUEST", ex.Message) }
+                    });
+                    continue;
+                }
+                if (message != null) owner.HandleMcpMessage(connection, message);
+            }
+        }
+        catch { }
+        finally
+        {
+            bool ignored;
+            connections.TryRemove(connection, out ignored);
+            connection.Close();
+        }
+    }
+}
+
+
+internal sealed class McpBridgeClient
+{
+    private readonly object connectLock = new object();
+    private readonly object writeLock = new object();
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<Dictionary<string, object>>> pending =
+        new ConcurrentDictionary<string, TaskCompletionSource<Dictionary<string, object>>>();
+    private readonly ConcurrentDictionary<string, string> requestMap = new ConcurrentDictionary<string, string>();
+    private NamedPipeClientStream pipe;
+    private StreamReader reader;
+    private StreamWriter writer;
+    private volatile bool closed;
+    private int startGuiAttempted;
+
+    internal volatile string ClientName;
+
+    internal void EnsureConnected()
+    {
+        if (closed) throw new InvalidOperationException("MCP bridge is closed.");
+        lock (connectLock)
+        {
+            if (pipe != null && pipe.IsConnected) return;
+            ClosePipeLocked();
+
+            Exception last = null;
+            for (int attempt = 0; attempt < 60; attempt++)
+            {
+                if (closed) throw new InvalidOperationException("MCP bridge is closed.");
+                try
+                {
+                    NamedPipeClientStream next = new NamedPipeClientStream(
+                        ".", McpBridgeProtocol.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+                    try
+                    {
+                        next.Connect(150);
+                        pipe = next;
+                        reader = new StreamReader(next, new UTF8Encoding(false), false, 4096, true);
+                        writer = new StreamWriter(next, new UTF8Encoding(false), 4096, true);
+                        writer.AutoFlush = true;
+                        StreamReader connectedReader = reader;
+                        System.Threading.Thread readThread = new System.Threading.Thread(delegate() { ReadLoop(next, connectedReader); });
+                        readThread.IsBackground = true;
+                        readThread.Name = "iClock.MCP.StdioReader";
+                        readThread.Start();
+                        SendHello();
+                        return;
+                    }
+                    catch
+                    {
+                        try { next.Close(); } catch { }
+                        throw;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    last = ex;
+                }
+
+                if (attempt == 2) TryStartGui();
+                System.Threading.Thread.Sleep(100);
+            }
+            throw new IOException("iClock GUI unavailable.", last);
+        }
+    }
+
+    private void SendHello()
+    {
+        Send(new Dictionary<string, object>
+        {
+            { "id", McpBridgeProtocol.NewRequestId() },
+            { "op", "hello" },
+            { "client", ClientName ?? "" }
+        });
+    }
+
+    internal void Cancel(string requestId)
+    {
+        string pipeRequestId;
+        if (string.IsNullOrEmpty(requestId) || !requestMap.TryGetValue(requestId, out pipeRequestId)) return;
+        Send(new Dictionary<string, object>
+        {
+            { "id", McpBridgeProtocol.NewRequestId() },
+            { "op", "cancel" },
+            { "target", pipeRequestId }
+        });
+    }
+
+    internal Dictionary<string, object> CallTool(string mcpRequestId, string toolName, Dictionary<string, object> args)
+    {
+        string pipeRequestId = McpBridgeProtocol.NewRequestId();
+        TaskCompletionSource<Dictionary<string, object>> completion =
+            new TaskCompletionSource<Dictionary<string, object>>();
+        pending[pipeRequestId] = completion;
+        requestMap[mcpRequestId ?? ""] = pipeRequestId;
+
+        try
+        {
+            EnsureConnected();
+            if (!Send(new Dictionary<string, object>
+            {
+                { "id", pipeRequestId },
+                { "op", "call" },
+                { "tool", toolName ?? "" },
+                { "args", args ?? new Dictionary<string, object>() }
+            }))
+            {
+                return Failure("PIPE_WRITE_FAILED", "Failed to send request to iClock GUI.");
+            }
+
+            bool waitForever = string.Equals(toolName, "iclock_ask_human", StringComparison.Ordinal);
+            bool completed = waitForever ? completion.Task.Wait(-1) : completion.Task.Wait(10000);
+            if (!completed)
+            {
+                TaskCompletionSource<Dictionary<string, object>> ignored;
+                pending.TryRemove(pipeRequestId, out ignored);
+                Send(new Dictionary<string, object>
+                {
+                    { "id", McpBridgeProtocol.NewRequestId() },
+                    { "op", "cancel" },
+                    { "target", pipeRequestId }
+                });
+                return Failure("GUI_TIMEOUT", "iClock GUI did not respond in time.");
+            }
+            return completion.Task.Result;
+        }
+        catch (Exception ex)
+        {
+            return Failure("GUI_UNAVAILABLE", ex.Message);
+        }
+        finally
+        {
+            TaskCompletionSource<Dictionary<string, object>> ignored;
+            pending.TryRemove(pipeRequestId, out ignored);
+            string mappedId;
+            requestMap.TryRemove(mcpRequestId ?? "", out mappedId);
+        }
+    }
+
+    private bool Send(Dictionary<string, object> message)
+    {
+        lock (writeLock)
+        {
+            if (closed || writer == null) return false;
+            try
+            {
+                writer.WriteLine(McpBridgeProtocol.Serialize(message));
+                writer.Flush();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    private void ReadLoop(NamedPipeClientStream currentPipe, StreamReader currentReader)
+    {
+        try
+        {
+            string line;
+            while (!closed && (line = currentReader.ReadLine()) != null)
+            {
+                Dictionary<string, object> message;
+                try { message = McpBridgeProtocol.Parse(line); }
+                catch { continue; }
+                if (message == null) continue;
+                string id = message.ContainsKey("id") ? ObjectIdToString(message["id"]) : null;
+                if (string.IsNullOrEmpty(id)) continue;
+
+                TaskCompletionSource<Dictionary<string, object>> completion;
+                if (pending.TryRemove(id, out completion))
+                {
+                    completion.TrySetResult(message);
+                }
+            }
+        }
+        catch { }
+        finally
+        {
+            HandleDisconnected(currentPipe);
+        }
+    }
+
+    private void HandleDisconnected(NamedPipeClientStream currentPipe)
+    {
+        lock (connectLock)
+        {
+            if (pipe != currentPipe) return;
+            ClosePipeLocked();
+        }
+        foreach (KeyValuePair<string, TaskCompletionSource<Dictionary<string, object>>> entry in pending)
+        {
+            TaskCompletionSource<Dictionary<string, object>> ignored;
+            if (pending.TryRemove(entry.Key, out ignored))
+            {
+                entry.Value.TrySetResult(Failure("PIPE_CLOSED", "iClock GUI connection closed."));
+            }
+        }
+    }
+
+    private void ClosePipeLocked()
+    {
+        try { if (writer != null) writer.Close(); } catch { }
+        try { if (reader != null) reader.Close(); } catch { }
+        try { if (pipe != null) pipe.Close(); } catch { }
+        writer = null;
+        reader = null;
+        pipe = null;
+    }
+
+    internal void Close()
+    {
+        closed = true;
+        lock (connectLock) { ClosePipeLocked(); }
+        foreach (KeyValuePair<string, TaskCompletionSource<Dictionary<string, object>>> entry in pending)
+        {
+            TaskCompletionSource<Dictionary<string, object>> ignored;
+            if (pending.TryRemove(entry.Key, out ignored))
+            {
+                entry.Value.TrySetResult(Failure("PIPE_CLOSED", "MCP bridge stopped."));
+            }
+        }
+    }
+
+    private static Dictionary<string, object> Failure(string code, string message)
+    {
+        return new Dictionary<string, object>
+        {
+            { "ok", false },
+            { "error", McpBridgeProtocol.Error(code, message) }
+        };
+    }
+
+    private void TryStartGui()
+    {
+        if (System.Threading.Interlocked.Exchange(ref startGuiAttempted, 1) != 0) return;
+        try
+        {
+            string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "iClock.exe");
+            if (!File.Exists(exe)) return;
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = exe,
+                WorkingDirectory = Path.GetDirectoryName(exe),
+                UseShellExecute = true
+            });
+        }
+        catch { }
+    }
+
+    internal static string ObjectIdToString(object id)
+    {
+        return id == null ? "" : Convert.ToString(id, CultureInfo.InvariantCulture);
+    }
+}
+
+
+internal static class McpBridge
+{
+    private static readonly object stdoutLock = new object();
+
+    internal static int RunMcpServer()
+    {
+        StreamReader stdin;
+        StreamWriter stdout;
+        try
+        {
+            stdin = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false), false);
+            stdout = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
+        }
+        catch (Exception ex)
+        {
+            try { Console.Error.WriteLine("[iClock] MCP stdio unavailable: " + ex.Message); } catch { }
+            return 1;
+        }
+
+        McpBridgeClient bridge = new McpBridgeClient();
+        try
+        {
+            string line;
+            while ((line = stdin.ReadLine()) != null)
+            {
+                line = line.Trim();
+                if (line.Length == 0) continue;
+
+                Dictionary<string, object> request;
+                try
+                {
+                    request = McpBridgeProtocol.Parse(line);
+                }
+                catch (Exception ex)
+                {
+                    Write(stdout, ProtocolError(null, -32700, "Parse error: " + ex.Message));
+                    continue;
+                }
+                if (request == null) continue;
+
+                object rpcId = request.ContainsKey("id") ? request["id"] : null;
+                string method = request.ContainsKey("method") ? request["method"] as string : null;
+                string requestId = McpBridgeClient.ObjectIdToString(rpcId);
+                Dictionary<string, object> parameters = request.ContainsKey("params")
+                    ? request["params"] as Dictionary<string, object>
+                    : null;
+
+                if (method == "initialize")
+                {
+                    if (parameters != null && parameters.ContainsKey("clientInfo"))
+                    {
+                        Dictionary<string, object> clientInfo = parameters["clientInfo"] as Dictionary<string, object>;
+                        if (clientInfo != null && clientInfo.ContainsKey("name") && clientInfo["name"] != null)
+                        {
+                            bridge.ClientName = NormalizeClientName(clientInfo["name"].ToString());
+                        }
+                    }
+                    System.Threading.ThreadPool.QueueUserWorkItem(delegate
+                    {
+                        try { bridge.EnsureConnected(); } catch { }
+                    });
+                    Write(stdout, new Dictionary<string, object>
+                    {
+                        { "jsonrpc", "2.0" },
+                        { "id", rpcId },
+                        { "result", new Dictionary<string, object>
+                            {
+                                { "protocolVersion", "2024-11-05" },
+                                { "capabilities", new Dictionary<string, object> { { "tools", new Dictionary<string, object>() } } },
+                                { "serverInfo", new Dictionary<string, object> { { "name", "iclock" }, { "version", "1.09" } } }
+                            }
+                        }
+                    });
+                }
+                else if (method == "notifications/initialized" || method == "initialized")
+                {
+                    // Notifications have no response.
+                }
+                else if (method == "ping")
+                {
+                    Write(stdout, new Dictionary<string, object>
+                    {
+                        { "jsonrpc", "2.0" },
+                        { "id", rpcId },
+                        { "result", new Dictionary<string, object>() }
+                    });
+                }
+                else if (method == "tools/list")
+                {
+                    Write(stdout, new Dictionary<string, object>
+                    {
+                        { "jsonrpc", "2.0" },
+                        { "id", rpcId },
+                        { "result", new Dictionary<string, object> { { "tools", BuildToolsList() } } }
+                    });
+                }
+                else if (method == "tools/call")
+                {
+                    Dictionary<string, object> callParameters = parameters;
+                    object workId = rpcId;
+                    string workRequestId = requestId;
+                    System.Threading.ThreadPool.QueueUserWorkItem(delegate
+                    {
+                        string toolName = callParameters != null && callParameters.ContainsKey("name")
+                            ? Convert.ToString(callParameters["name"], CultureInfo.InvariantCulture)
+                            : "";
+                        Dictionary<string, object> args = callParameters != null && callParameters.ContainsKey("arguments")
+                            ? callParameters["arguments"] as Dictionary<string, object>
+                            : null;
+                        if (args == null) args = new Dictionary<string, object>();
+                        Dictionary<string, object> result = bridge.CallTool(workRequestId, toolName, args);
+                        WriteToolResult(stdout, workId, result);
+                    });
+                }
+                else if (method == "notifications/cancelled" || method == "cancelled")
+                {
+                    if (parameters != null && parameters.ContainsKey("requestId"))
+                    {
+                        bridge.Cancel(McpBridgeClient.ObjectIdToString(parameters["requestId"]));
+                    }
+                }
+                else if (rpcId != null)
+                {
+                    Write(stdout, ProtocolError(rpcId, -32601, "Method not found: " + method));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            try { Console.Error.WriteLine("[iClock] MCP server error: " + ex.Message); } catch { }
+        }
+        finally
+        {
+            bridge.Close();
+            try { stdin.Close(); } catch { }
+        }
+        return 0;
+    }
+
+    private static void WriteToolResult(StreamWriter stdout, object rpcId, Dictionary<string, object> result)
+    {
+        bool ok = result != null && result.ContainsKey("ok") && result["ok"] is bool && (bool)result["ok"];
+        object textValue = null;
+        if (result != null)
+        {
+            if (ok && result.ContainsKey("result")) textValue = result["result"];
+            else if (!ok && result.ContainsKey("error")) textValue = result["error"];
+        }
+        if (textValue == null) textValue = McpBridgeProtocol.Error("INTERNAL_ERROR", "Empty GUI response.");
+        string text = textValue as string;
+        if (text == null) text = McpBridgeProtocol.Serialize(textValue);
+
+        Write(stdout, new Dictionary<string, object>
+        {
+            { "jsonrpc", "2.0" },
+            { "id", rpcId },
+            { "result", new Dictionary<string, object>
+                {
+                    { "content", new object[]
+                        {
+                            new Dictionary<string, object> { { "type", "text" }, { "text", text } }
+                        }
+                    },
+                    { "isError", !ok }
+                }
+            }
+        });
+    }
+
+    private static Dictionary<string, object> ProtocolError(object id, int code, string message)
+    {
+        return new Dictionary<string, object>
+        {
+            { "jsonrpc", "2.0" },
+            { "id", id },
+            { "error", new Dictionary<string, object> { { "code", code }, { "message", message ?? "" } } }
+        };
+    }
+
+    private static void Write(StreamWriter stdout, Dictionary<string, object> message)
+    {
+        try
+        {
+            lock (stdoutLock)
+            {
+                stdout.WriteLine(McpBridgeProtocol.Serialize(message));
+                stdout.Flush();
+            }
+        }
+        catch { }
+    }
+
+    internal static string NormalizeClientName(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return null;
+        string lower = raw.Trim().ToLowerInvariant();
+        if (lower.Contains("antigravity")) return "Antigravity";
+        if (lower.Contains("cursor")) return "Cursor";
+        if (lower.Contains("claude")) return "Claude Desktop";
+        if (lower.Contains("windsurf")) return "Windsurf";
+        if (lower.Contains("cline")) return "Cline";
+        if (lower.Contains("roo")) return "Roo Code";
+        if (lower.Contains("trae")) return "Trae";
+        if (lower.Contains("code") || lower.Contains("vscode")) return "VS Code";
+        if (lower.Contains("pycharm")) return "PyCharm";
+        if (lower.Contains("idea") || lower.Contains("intellij")) return "IntelliJ IDEA";
+        if (lower.Contains("webstorm")) return "WebStorm";
+        return raw.Trim();
+    }
+
+    private static List<Dictionary<string, object>> BuildToolsList()
+    {
+        List<Dictionary<string, object>> list = new List<Dictionary<string, object>>();
+
+        list.Add(new Dictionary<string, object>
+        {
+            { "name", "iclock_ask_human" },
+            { "description", "Flash Approval HUD: Pop up an interactive desktop authorization gate on the user's screen for critical decision approvals and choices (Human-in-the-Loop, Enter/1-9/Esc shortcuts, infinite wait by default)." },
+            { "inputSchema", new Dictionary<string, object>
+                {
+                    { "type", "object" },
+                    { "properties", new Dictionary<string, object>
+                        {
+                            { "action", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "ask", "cancel" } }, { "description", "Action to perform: 'ask' (default) prompts user on screen; 'cancel' immediately closes active pending approval card." } } },
+                            { "question", new Dictionary<string, object> { { "type", "string" }, { "description", "The question, prompt, or approval details to display" } } },
+                            { "options", new Dictionary<string, object> { { "type", "array" }, { "items", new Dictionary<string, object> { { "type", "string" } } }, { "description", "List of clickable option buttons. If omitted, a text input box is presented." } } },
+                            { "timeout_seconds", new Dictionary<string, object> { { "type", "integer" }, { "description", "Optional auto-timeout duration in seconds (default: 0 = infinite wait)." } } },
+                            { "background_only", new Dictionary<string, object> { { "type", "boolean" }, { "description", "If true, only pop up when the agent host is in the background." } } },
+                            { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional agent display name." } } }
+                        }
+                    }
+                }
+            }
+        });
+
+        list.Add(new Dictionary<string, object>
+        {
+            { "name", "iclock_timer" },
+            { "description", "Control the desktop countdown timer (start, pause, resume, reset) with optional task label." },
+            { "inputSchema", new Dictionary<string, object>
+                {
+                    { "type", "object" },
+                    { "properties", new Dictionary<string, object>
+                        {
+                            { "action", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "start", "pause", "resume", "reset" } }, { "description", "Action to perform" } } },
+                            { "minutes", new Dictionary<string, object> { { "type", "integer" }, { "description", "Countdown duration in minutes (default: 25)" } } },
+                            { "label", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional task name or label" } } }
+                        }
+                    },
+                    { "required", new string[] { "action" } }
+                }
+            }
+        });
+
+        list.Add(new Dictionary<string, object>
+        {
+            { "name", "iclock_notify" },
+            { "description", "Display an immediate desktop popup notification and sound chime to alert the user." },
+            { "inputSchema", new Dictionary<string, object>
+                {
+                    { "type", "object" },
+                    { "properties", new Dictionary<string, object>
+                        {
+                            { "message", new Dictionary<string, object> { { "type", "string" }, { "description", "Notification message content" } } },
+                            { "sound", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "agent", "doorbell", "telephone", "qq", "knock", "alarm", "none" } }, { "description", "Chime sound style" } } },
+                            { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional agent display name." } } }
+                        }
+                    },
+                    { "required", new string[] { "message" } }
+                }
+            }
+        });
+
+        list.Add(new Dictionary<string, object>
+        {
+            { "name", "iclock_quote" },
+            { "description", "Display, cycle, add, or clear inspirational quotes / task sticky notes on iClock's desktop HUD and quotes library." },
+            { "inputSchema", new Dictionary<string, object>
+                {
+                    { "type", "object" },
+                    { "properties", new Dictionary<string, object>
+                        {
+                            { "action", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "show", "add", "next", "clear", "hide" } }, { "description", "Action to perform" } } },
+                            { "text", new Dictionary<string, object> { { "type", "string" }, { "description", "Quote text or sticky note content" } } },
+                            { "author", new Dictionary<string, object> { { "type", "string" }, { "description", "Author or attribution" } } },
+                            { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional agent display name." } } },
+                            { "quotes", new Dictionary<string, object> { { "type", "array" }, { "items", new Dictionary<string, object> { { "type", "string" } } }, { "description", "Optional list of quotes in 'text | author' format for batch add." } } }
+                        }
+                    }
+                }
+            }
+        });
+
+        list.Add(new Dictionary<string, object>
+        {
+            { "name", "iclock_status" },
+            { "description", "Query current iClock status (running state, remaining seconds, duration settings, active label, and progress)." },
+            { "inputSchema", new Dictionary<string, object>
+                {
+                    { "type", "object" },
+                    { "properties", new Dictionary<string, object>() }
+                }
+            }
+        });
+
+        list.Add(new Dictionary<string, object>
+        {
+            { "name", "iclock_progress" },
+            { "description", "Report task progress to iClock's desktop HUD. Use 'clear' to remove the progress bar." },
+            { "inputSchema", new Dictionary<string, object>
+                {
+                    { "type", "object" },
+                    { "properties", new Dictionary<string, object>
+                        {
+                            { "progress", new Dictionary<string, object> { { "type", "string" }, { "description", "Percentage ('60' or '60%'), fraction ('3/5'), float ('0.6'), or 'clear'" } } },
+                            { "message", new Dictionary<string, object> { { "type", "string" }, { "description", "Brief status description of the current step" } } }
+                        }
+                    },
+                    { "required", new string[] { "progress" } }
+                }
+            }
+        });
+
+        return list;
+    }
+}
+
+
 internal static class McpConfigHelper
 {
     public static string GetMcpExePath()
@@ -3481,11 +4357,9 @@ internal static class McpConfigHelper
         string dir = "";
         try { dir = Path.GetDirectoryName(typeof(McpConfigHelper).Assembly.Location); } catch { }
         if (string.IsNullOrEmpty(dir)) dir = AppDomain.CurrentDomain.BaseDirectory;
-        string comPath = Path.Combine(dir, "iclock.com");
-        if (File.Exists(comPath)) return comPath;
         string exePath = Path.Combine(dir, "iClock.exe");
         if (File.Exists(exePath)) return exePath;
-        return "iclock";
+        return "iClock";
     }
 
     public static string GetCursorConfigPath()
@@ -3629,6 +4503,8 @@ internal sealed class AskHumanDialog : Form
     private string resultFilePath;
     private bool resultWritten;
     private bool nonIntrusive;
+    private readonly Action<string> resultCallback;
+    private Timer timeoutTimer;
 
     protected override bool ShowWithoutActivation
     {
@@ -3636,18 +4512,24 @@ internal sealed class AskHumanDialog : Form
     }
 
     public AskHumanDialog(Settings s, string question, string[] options, int timeoutSeconds, string resultFile)
-        : this(s, question, options, timeoutSeconds, resultFile, false, null)
+        : this(s, question, options, timeoutSeconds, resultFile, false, null, null)
     {
     }
 
     public AskHumanDialog(Settings s, string question, string[] options, int timeoutSeconds, string resultFile, bool nonIntrusiveMode)
-        : this(s, question, options, timeoutSeconds, resultFile, nonIntrusiveMode, null)
+        : this(s, question, options, timeoutSeconds, resultFile, nonIntrusiveMode, null, null)
     {
     }
 
     public AskHumanDialog(Settings s, string question, string[] options, int timeoutSeconds, string resultFile, bool nonIntrusiveMode, string agentName)
+        : this(s, question, options, timeoutSeconds, resultFile, nonIntrusiveMode, agentName, null)
+    {
+    }
+
+    public AskHumanDialog(Settings s, string question, string[] options, int timeoutSeconds, string resultFile, bool nonIntrusiveMode, string agentName, Action<string> onResult)
     {
         resultFilePath = resultFile;
+        resultCallback = onResult;
         nonIntrusive = nonIntrusiveMode;
         string lang = s != null ? s.Language : "zh";
         bool en = lang == "en";
@@ -3807,8 +4689,26 @@ internal sealed class AskHumanDialog : Form
             }
         };
 
+        if (timeoutSeconds > 0)
+        {
+            timeoutTimer = new Timer();
+            timeoutTimer.Interval = timeoutSeconds > 2147483 ? int.MaxValue : timeoutSeconds * 1000;
+            timeoutTimer.Tick += delegate
+            {
+                timeoutTimer.Stop();
+                WriteResult("[超时未响应 / Timeout]");
+                Close();
+            };
+            timeoutTimer.Start();
+        }
+
         FormClosed += delegate
         {
+            if (timeoutTimer != null)
+            {
+                try { timeoutTimer.Stop(); timeoutTimer.Dispose(); } catch { }
+                timeoutTimer = null;
+            }
             if (!resultWritten)
             {
                 WriteResult("[用户取消 / Cancelled]");
@@ -3828,6 +4728,10 @@ internal sealed class AskHumanDialog : Form
             }
         }
         catch { }
+        if (resultCallback != null)
+        {
+            try { resultCallback(result ?? ""); } catch { }
+        }
     }
 
     private sealed class OptionRowControl : RadioButton
@@ -6963,6 +7867,8 @@ internal sealed class AppContext : ApplicationContext
     private DailyQuoteDialog activeQuoteDialog;
     private DailyQuoteDialog activeProjectedNote;
     private AskHumanDialog activeAskHumanDialog;
+    private McpPipeServer mcpPipeServer;
+    private McpAskRequest activeMcpAsk;
     private string currentTimerLabel;
     private bool dailyQuoteSuspendedForProjection;
     private Timer projectedAgentMonitorTimer;
@@ -7108,6 +8014,8 @@ internal sealed class AppContext : ApplicationContext
         overlay.TimeAdjustRequested += delegate(int delta) { AdjustMinutes(delta); };
         IntPtr forceOverlayHandle = overlay.Handle;
         messageWindow = new MessageWindow(this);
+        mcpPipeServer = new McpPipeServer(this);
+        mcpPipeServer.Start();
         shellHookMsg = NativeMethods.RegisterWindowMessage("SHELLHOOK");
         if (shellHookMsg != 0)
         {
@@ -7725,6 +8633,455 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
+    private sealed class McpAskRequest
+    {
+        internal readonly McpPipeConnection Connection;
+        internal readonly string RequestId;
+        internal bool Completed;
+
+        internal McpAskRequest(McpPipeConnection connection, string requestId)
+        {
+            Connection = connection;
+            RequestId = requestId;
+        }
+    }
+
+    internal void HandleMcpMessage(McpPipeConnection connection, Dictionary<string, object> message)
+    {
+        if (connection == null || message == null) return;
+        if (overlay != null && overlay.InvokeRequired)
+        {
+            try
+            {
+                overlay.BeginInvoke(new Action(delegate { HandleMcpMessage(connection, message); }));
+            }
+            catch { connection.Close(); }
+            return;
+        }
+
+        string op = message.ContainsKey("op") ? message["op"] as string : null;
+        string requestId = message.ContainsKey("id") ? McpBridgeClient.ObjectIdToString(message["id"]) : null;
+        if (op == "hello")
+        {
+            connection.ClientName = message.ContainsKey("client")
+                ? McpBridge.NormalizeClientName(message["client"] as string)
+                : null;
+            connection.SendResponse(requestId, true, new Dictionary<string, object> { { "status", "connected" } });
+            return;
+        }
+
+        if (op == "cancel")
+        {
+            string target = message.ContainsKey("target")
+                ? McpBridgeClient.ObjectIdToString(message["target"])
+                : null;
+            CancelMcpAsk(connection, target);
+            return;
+        }
+
+        if (op != "call") return;
+        string toolName = message.ContainsKey("tool") ? message["tool"] as string : "";
+        Dictionary<string, object> args = message.ContainsKey("args")
+            ? message["args"] as Dictionary<string, object>
+            : new Dictionary<string, object>();
+        if (args == null) args = new Dictionary<string, object>();
+
+        if (string.Equals(toolName, "iclock_ask_human", StringComparison.Ordinal))
+        {
+            HandleMcpAsk(connection, requestId, args);
+            return;
+        }
+
+        try
+        {
+            string result = ExecuteMcpTool(toolName, args, connection.ClientName);
+            bool isError = false;
+            Dictionary<string, object> parsed = null;
+            try { parsed = McpBridgeProtocol.Parse(result); } catch { }
+            if (parsed != null && parsed.ContainsKey("status") &&
+                string.Equals(parsed["status"] as string, "error", StringComparison.OrdinalIgnoreCase))
+            {
+                isError = true;
+            }
+            connection.SendResponse(requestId, !isError, isError ? (object)parsed : result);
+        }
+        catch (Exception ex)
+        {
+            connection.SendResponse(requestId, false, McpBridgeProtocol.Error("TOOL_ERROR", ex.Message));
+        }
+    }
+
+    private void HandleMcpAsk(McpPipeConnection connection, string requestId, Dictionary<string, object> args)
+    {
+        string action = ArgString(args, "action", "ask").ToLowerInvariant();
+        if (action == "cancel" || action == "close")
+        {
+            CancelMcpAsk(connection, null);
+            connection.SendResponse(requestId, true, McpBridgeProtocol.Serialize(new Dictionary<string, object>
+            {
+                { "status", "ok" },
+                { "action", "cancel" },
+                { "message", "已通知桌面关闭人机审批弹窗" }
+            }));
+            return;
+        }
+
+        bool backgroundOnly = ArgBool(args, "background_only", false);
+        if (backgroundOnly && IsAgentInForeground())
+        {
+            connection.SendResponse(requestId, true, McpBridgeProtocol.Serialize(new Dictionary<string, object>
+            {
+                { "status", "in_foreground" },
+                { "in_foreground", true },
+                { "action", "ask_in_chat" },
+                { "message", "User is actively viewing your window. Please ask your question directly in the chat window." }
+            }));
+            return;
+        }
+
+        string question = ArgString(args, "question", "请确认：");
+        int timeoutSeconds = ArgInt(args, "timeout_seconds", 0);
+        if (timeoutSeconds < 0) timeoutSeconds = 0;
+        List<string> options = new List<string>();
+        if (args.ContainsKey("options") && args["options"] is IEnumerable)
+        {
+            foreach (object option in (IEnumerable)args["options"])
+            {
+                if (option != null && !string.IsNullOrEmpty(option.ToString())) options.Add(option.ToString());
+            }
+        }
+
+        string agentName = ResolveAgentName(args, connection.ClientName);
+        McpAskRequest request = new McpAskRequest(connection, requestId);
+        if (activeMcpAsk != null)
+        {
+            activeMcpAsk = null;
+            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
+            {
+                try { activeAskHumanDialog.Close(); } catch { }
+            }
+            activeAskHumanDialog = null;
+        }
+        activeMcpAsk = request;
+        ShowAskHumanDialog(question, options.ToArray(), timeoutSeconds, null, agentName,
+            delegate(string result) { CompleteMcpAsk(request, result); });
+    }
+
+    private void CompleteMcpAsk(McpAskRequest request, string result)
+    {
+        if (request == null || request.Completed) return;
+        request.Completed = true;
+        if (activeMcpAsk == request) activeMcpAsk = null;
+
+        bool cancelled = result == "[用户取消 / Cancelled]" || result == "用户取消" || result == "Cancelled";
+        bool timedOut = result == "[超时未响应 / Timeout]";
+        Dictionary<string, object> response = new Dictionary<string, object>
+        {
+            { "status", timedOut ? "timeout" : (cancelled ? "cancelled" : "ok") },
+            { "action", timedOut ? "timeout" : (cancelled ? "cancelled" : "responded") },
+            { "result", result ?? "" },
+            { "cancelled", cancelled },
+            { "timed_out", timedOut }
+        };
+        request.Connection.SendResponse(request.RequestId, true, McpBridgeProtocol.Serialize(response));
+    }
+
+    private void CancelMcpAsk(McpPipeConnection requester, string target)
+    {
+        if (activeMcpAsk != null && (string.IsNullOrEmpty(target) || activeMcpAsk.RequestId == target))
+        {
+            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
+            {
+                try { activeAskHumanDialog.Close(); } catch { }
+            }
+            activeAskHumanDialog = null;
+            return;
+        }
+
+        if (requester != null && !string.IsNullOrEmpty(target))
+        {
+            requester.SendResponse(target, true, McpBridgeProtocol.Serialize(new Dictionary<string, object>
+            {
+                { "status", "cancelled" },
+                { "action", "cancelled" },
+                { "cancelled", true },
+                { "timed_out", false }
+            }));
+        }
+    }
+
+    private string ExecuteMcpTool(string toolName, Dictionary<string, object> args, string clientName)
+    {
+        if (string.Equals(toolName, "iclock_timer", StringComparison.Ordinal))
+        {
+            string action = ArgString(args, "action", "start").ToLowerInvariant();
+            if (action == "start")
+            {
+                int minutes = ArgInt(args, "minutes", 25);
+                if (minutes <= 0) minutes = 25;
+                string label = ArgString(args, "label", null);
+                StartWorkWithMinutes(minutes);
+                currentTimerLabel = string.IsNullOrEmpty(label) ? null : label;
+                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "start" },
+                    { "minutes", minutes },
+                    { "label", label ?? "" },
+                    { "message", "已为用户启动倒计时：" + minutes + " 分钟" + (string.IsNullOrEmpty(label) ? "" : "（" + label + "）") }
+                });
+            }
+            if (action == "pause") { Pause(); return McpBridgeProtocol.Serialize(new Dictionary<string, object> { { "status", "ok" }, { "action", "pause" }, { "message", "已暂停倒计时" } }); }
+            if (action == "resume") { Resume(); return McpBridgeProtocol.Serialize(new Dictionary<string, object> { { "status", "ok" }, { "action", "resume" }, { "message", "已恢复倒计时" } }); }
+            if (action == "reset") { Reset(); return McpBridgeProtocol.Serialize(new Dictionary<string, object> { { "status", "ok" }, { "action", "reset" }, { "message", "已重置倒计时为初始就绪状态" } }); }
+            return McpBridgeProtocol.Serialize(McpBridgeProtocol.Error("INVALID_ACTION", "未知操作：" + action));
+        }
+
+        if (string.Equals(toolName, "iclock_notify", StringComparison.Ordinal))
+        {
+            string message = ArgString(args, "message", "任务完成");
+            string sound = ArgString(args, "sound", "agent");
+            string agentName = ResolveAgentName(args, clientName);
+            PlaySoundStyle(sound);
+            TriggerCliNotice(message, agentName);
+            return McpBridgeProtocol.Serialize(new Dictionary<string, object>
+            {
+                { "status", "ok" },
+                { "message", message },
+                { "sound", sound },
+                { "agent_name", agentName ?? "" }
+            });
+        }
+
+        if (string.Equals(toolName, "iclock_quote", StringComparison.Ordinal))
+        {
+            string action = ArgString(args, "action", "show").ToLowerInvariant();
+            if (action == "clear" || action == "hide")
+            {
+                if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
+                {
+                    try { activeProjectedNote.Close(); } catch { }
+                    activeProjectedNote = null;
+                }
+                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "clear" },
+                    { "message", "已清除桌面便签投射" }
+                });
+            }
+            if (action == "next")
+            {
+                CheckDailyQuote(true);
+                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "next" },
+                    { "message", "已为用户切换至下一句桌面格言" }
+                });
+            }
+
+            string agentName = ResolveAgentName(args, clientName);
+            if (action == "add")
+            {
+                List<string> quoteLines = new List<string>();
+                if (args.ContainsKey("quotes") && args["quotes"] is IEnumerable)
+                {
+                    foreach (object item in (IEnumerable)args["quotes"])
+                    {
+                        if (item == null) continue;
+                        if (item is string)
+                        {
+                            string text = ((string)item).Trim();
+                            if (text.Length > 0) quoteLines.Add(text);
+                        }
+                        else if (item is Dictionary<string, object>)
+                        {
+                            Dictionary<string, object> itemMap = (Dictionary<string, object>)item;
+                            string text = ArgString(itemMap, "text", "");
+                            string author = ArgString(itemMap, "author", "");
+                            if (!string.IsNullOrEmpty(text)) quoteLines.Add(string.IsNullOrEmpty(author) ? text : text + " | " + author);
+                        }
+                    }
+                }
+                if (quoteLines.Count == 0)
+                {
+                    string text = ArgString(args, "text", "");
+                    string author = ArgString(args, "author", "");
+                    if (!string.IsNullOrEmpty(text)) quoteLines.Add(string.IsNullOrEmpty(author) ? text : text + " | " + author);
+                }
+
+                List<QuoteItem> parsed = AiAgentQuoteHelper.ParseQuotes(string.Join("\n", quoteLines.ToArray()));
+                int addedCount;
+                string error = null;
+                if (parsed.Count == 0 || !AiAgentQuoteHelper.AppendQuotesToFile(parsed, out addedCount, out error))
+                {
+                    return McpBridgeProtocol.Serialize(McpBridgeProtocol.Error("QUOTE_ERROR", error ?? "未提供任何有效格言内容"));
+                }
+                AiAgentQuoteHelper.NotifyQuotesAdded(addedCount, parsed[0]);
+                if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed) activeQuoteDialog.ReloadQuotes();
+                ShowCustomQuote(parsed[0].Text, parsed[0].Author, agentName);
+                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "add" },
+                    { "added_count", addedCount },
+                    { "message", "已成功为用户收录 " + addedCount + " 条格言至 iClock 词库（已去重并自动创建 .bak 备份），并已即时刷新桌面！" }
+                });
+            }
+
+            string quoteText = ArgString(args, "text", null);
+            string quoteAuthor = ArgString(args, "author", null);
+            if (!string.IsNullOrEmpty(quoteText))
+            {
+                ShowCustomQuote(quoteText, quoteAuthor, agentName);
+                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "show" },
+                    { "text", quoteText },
+                    { "author", quoteAuthor ?? "" },
+                    { "agent_name", agentName ?? "" },
+                    { "message", "已在桌面置顶投射便签：" + quoteText }
+                });
+            }
+            CheckDailyQuote(true);
+            return McpBridgeProtocol.Serialize(new Dictionary<string, object>
+            {
+                { "status", "ok" },
+                { "action", "next" },
+                { "message", "已为用户切换至下一句桌面格言" }
+            });
+        }
+
+        if (string.Equals(toolName, "iclock_status", StringComparison.Ordinal))
+        {
+            return McpBridgeProtocol.Serialize(BuildMcpStatus());
+        }
+
+        if (string.Equals(toolName, "iclock_progress", StringComparison.Ordinal))
+        {
+            string progress = ArgString(args, "progress", "clear").Trim();
+            string message = ArgString(args, "message", "");
+            if (string.Equals(progress, "clear", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(progress, "off", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(progress, "reset", StringComparison.OrdinalIgnoreCase))
+            {
+                ClearAgentProgress();
+                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
+                {
+                    { "status", "ok" },
+                    { "action", "clear" },
+                    { "message", "已清除桌面进度条" }
+                });
+            }
+
+            float parsedPercent;
+            if (!TryParseProgress(progress, out parsedPercent))
+            {
+                return McpBridgeProtocol.Serialize(McpBridgeProtocol.Error(
+                    "INVALID_PROGRESS",
+                    "无效的进度格式，支持百分比(如 '60%')、分数(如 '3/5')、小数(如 '0.6')或 'clear'"));
+            }
+            HandleProgressCommand(string.IsNullOrEmpty(message) ? progress : progress + "|" + message);
+            return McpBridgeProtocol.Serialize(new Dictionary<string, object>
+            {
+                { "status", "ok" },
+                { "action", "update" },
+                { "progress", progress },
+                { "percentage", Math.Round(parsedPercent, 4) },
+                { "message", message }
+            });
+        }
+
+        return McpBridgeProtocol.Serialize(McpBridgeProtocol.Error("UNKNOWN_TOOL", "Unknown tool: " + toolName));
+    }
+
+    private Dictionary<string, object> BuildMcpStatus()
+    {
+        int remainingSeconds = (int)ReadRemaining().TotalSeconds;
+        bool progressActive = overlay != null && overlay.AgentProgressActive;
+        float progressPercent = progressActive ? overlay.AgentProgressPercent : 0f;
+        string progressMessage = progressActive ? (overlay.AgentProgressMessage ?? "") : "";
+        bool hasAsk = activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed;
+        return new Dictionary<string, object>
+        {
+            { "running", running },
+            { "remaining_seconds", remainingSeconds },
+            { "total_minutes", settings.Minutes },
+            { "current_label", currentTimerLabel ?? "" },
+            { "progress", new Dictionary<string, object>
+                {
+                    { "active", progressActive },
+                    { "percent", (double)Math.Round(progressPercent, 4) },
+                    { "message", progressMessage }
+                }
+            },
+            { "has_pending_ask", hasAsk },
+            { "resident", true }
+        };
+    }
+
+    internal bool IsMcpServerRunning
+    {
+        get { return mcpPipeServer != null && mcpPipeServer.IsRunning; }
+    }
+
+    internal List<string> GetMcpConnectedClientNames()
+    {
+        return mcpPipeServer != null ? mcpPipeServer.GetConnectedClientNames() : new List<string>();
+    }
+
+    private static string ArgString(Dictionary<string, object> args, string key, string fallback)
+    {
+        if (args == null || !args.ContainsKey(key) || args[key] == null) return fallback;
+        string value = args[key] as string;
+        return value ?? args[key].ToString();
+    }
+
+    private static int ArgInt(Dictionary<string, object> args, string key, int fallback)
+    {
+        if (args == null || !args.ContainsKey(key) || args[key] == null) return fallback;
+        int value;
+        return int.TryParse(args[key].ToString(), out value) ? value : fallback;
+    }
+
+    private static bool ArgBool(Dictionary<string, object> args, string key, bool fallback)
+    {
+        if (args == null || !args.ContainsKey(key) || args[key] == null) return fallback;
+        bool value;
+        return bool.TryParse(args[key].ToString(), out value) ? value : fallback;
+    }
+
+    private static string ResolveAgentName(Dictionary<string, object> args, string clientName)
+    {
+        string name = ArgString(args, "agent_name", null);
+        if (string.IsNullOrEmpty(name)) name = ArgString(args, "agent", null);
+        if (string.IsNullOrEmpty(name)) name = clientName;
+        return name;
+    }
+
+    private static bool TryParseProgress(string value, out float parsed)
+    {
+        parsed = 0f;
+        if (string.IsNullOrEmpty(value)) return false;
+        value = value.Trim();
+        if (value.Contains("/"))
+        {
+            string[] parts = value.Split('/');
+            float numerator, denominator;
+            return parts.Length == 2 &&
+                float.TryParse(parts[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out numerator) &&
+                float.TryParse(parts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out denominator) &&
+                denominator > 0f && (parsed = numerator / denominator) >= 0f;
+        }
+        string clean = value.Replace("%", "").Trim();
+        float raw;
+        if (!float.TryParse(clean, NumberStyles.Float, CultureInfo.InvariantCulture, out raw)) return false;
+        parsed = value.Contains("%") || raw > 1.0f ? raw / 100.0f : raw;
+        return parsed >= 0f;
+    }
+
     internal void HandleProgressCommand(string payload)
     {
         if (string.IsNullOrEmpty(payload) || payload.Equals("clear", StringComparison.OrdinalIgnoreCase) || payload.Equals("off", StringComparison.OrdinalIgnoreCase) || payload.Equals("reset", StringComparison.OrdinalIgnoreCase))
@@ -7816,7 +9173,7 @@ internal sealed class AppContext : ApplicationContext
         ForceTopMost(dlg);
     }
 
-    internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile, string agentName = null)
+    internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile, string agentName = null, Action<string> resultCallback = null)
     {
         if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
         {
@@ -7831,7 +9188,7 @@ internal sealed class AppContext : ApplicationContext
             if (agents != null && agents.Count > 0) agentName = agents[0];
         }
         PlayAiSound();
-        AskHumanDialog dlg = new AskHumanDialog(settings, question, options, 0, resFile, isFg, agentName);
+        AskHumanDialog dlg = new AskHumanDialog(settings, question, options, timeoutSec, resFile, isFg, agentName, resultCallback);
         activeAskHumanDialog = dlg;
         dlg.FormClosed += delegate
         {
@@ -10462,6 +11819,9 @@ internal sealed class AppContext : ApplicationContext
         if (activeDialog != null && !activeDialog.IsDisposed) { activeDialog.Close(); activeDialog = null; }
         if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed) { activeQuoteDialog.Close(); activeQuoteDialog = null; }
         if (activeProjectedNote != null && !activeProjectedNote.IsDisposed) { activeProjectedNote.Close(); activeProjectedNote = null; }
+        if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed) { activeAskHumanDialog.Close(); activeAskHumanDialog = null; }
+        activeMcpAsk = null;
+        if (mcpPipeServer != null) { mcpPipeServer.Stop(); mcpPipeServer = null; }
         StopProjectedAgentMonitor();
         if (running) remaining = ReadRemaining();
         if (sessionActive) { LogSession("Interrupted"); sessionActive = false; }
@@ -10801,6 +12161,7 @@ internal sealed class AppContext : ApplicationContext
     {
         if (launchReported) return;
         launchReported = true;
+        if (IsSelfCheckRunning) return;
         System.Threading.ThreadPool.QueueUserWorkItem(delegate
         {
             string latest, url;
@@ -11206,12 +12567,130 @@ Examples:
         }
     }
 
+    private static IntPtr EnsureIpcWindow()
+    {
+        IntPtr hWnd = NativeMethods.FindWindow(null, "iClock.IpcWindow");
+        if (hWnd != IntPtr.Zero) return hWnd;
+
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "iClock.exe"),
+                UseShellExecute = true
+            });
+        }
+        catch { }
+
+        for (int i = 0; i < 40; i++)
+        {
+            System.Threading.Thread.Sleep(100);
+            hWnd = NativeMethods.FindWindow(null, "iClock.IpcWindow");
+            if (hWnd != IntPtr.Zero) return hWnd;
+        }
+        return IntPtr.Zero;
+    }
+
+    private static int RunAskCommand(string[] args)
+    {
+        string question = null;
+        List<string> options = new List<string>();
+        int timeoutSec = 0;
+
+        for (int i = 1; i < args.Length; i++)
+        {
+            string a = args[i];
+            if (a == "--options" || a == "-o" || a == "--option")
+            {
+                if (i + 1 < args.Length)
+                {
+                    string[] parts = args[++i].Split(new char[] { ',', '，', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (string part in parts)
+                    {
+                        string option = part.Trim();
+                        if (option.Length > 0) options.Add(option);
+                    }
+                }
+            }
+            else if (a == "--timeout" || a == "-t")
+            {
+                int parsed;
+                if (i + 1 < args.Length && int.TryParse(args[++i], out parsed) && parsed > 0) timeoutSec = parsed;
+            }
+            else if (question == null && !a.StartsWith("-"))
+            {
+                question = a;
+            }
+        }
+
+        if (string.IsNullOrEmpty(question))
+        {
+            Console.Error.WriteLine("[iClock] Usage: iclock --ask <question> [--options <opt1,opt2>] [--timeout <sec>]");
+            return 1;
+        }
+
+        if (EnsureIpcWindow() == IntPtr.Zero)
+        {
+            Console.Error.WriteLine("[iClock] Error: Failed to connect to iClock desktop instance.");
+            return 1;
+        }
+
+        string requestId = Guid.NewGuid().ToString("N").Substring(0, 8);
+        string resultFile = Path.Combine(Path.GetTempPath(), "iclock_ask_" + requestId + ".txt");
+        string command = "ask_human:" + requestId + "|" + timeoutSec + "|" + question + "|" + string.Join("~", options.ToArray());
+        if (!SendIpcMessage(command))
+        {
+            Console.Error.WriteLine("[iClock] Error: Failed to send decision request to iClock.");
+            return 1;
+        }
+
+        int maxWait = timeoutSec > 0 ? (timeoutSec + 5) * 1000 : -1;
+        int waited = 0;
+        while (maxWait < 0 || waited < maxWait)
+        {
+            System.Threading.Thread.Sleep(100);
+            waited += 100;
+            if (!File.Exists(resultFile)) continue;
+            try
+            {
+                string result = File.ReadAllText(resultFile, Encoding.UTF8).Trim();
+                File.Delete(resultFile);
+                if (result == "[用户取消 / Cancelled]" || result == "用户取消" || result == "Cancelled")
+                {
+                    Console.Error.WriteLine(result);
+                    return 1;
+                }
+                if (result == "[超时未响应 / Timeout]")
+                {
+                    Console.Error.WriteLine(result);
+                    return 2;
+                }
+                WriteToConsole(result);
+                return 0;
+            }
+            catch { }
+        }
+
+        Console.Error.WriteLine("[iClock] Timed out waiting for human decision.");
+        return 2;
+    }
+
     [STAThread]
     private static void Main(string[] args)
     {
         if (args != null && args.Length > 0)
         {
             string first = args[0].ToLowerInvariant();
+            if (first == "--mcp" || first == "-mcp")
+            {
+                Environment.ExitCode = McpBridge.RunMcpServer();
+                return;
+            }
+            if (first == "--ask" || first == "-a" || first == "ask")
+            {
+                Environment.ExitCode = RunAskCommand(args);
+                return;
+            }
             if (first == "-h" || first == "--help" || first == "/?" || first == "help")
             {
                 PrintHelp();
