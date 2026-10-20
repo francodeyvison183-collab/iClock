@@ -1374,7 +1374,7 @@ internal sealed class SettingsDialog : Form
     private int activeTab = 0;
     private int hoveredTab = -1;
     private Button btnTabTimer, btnTabQuote, btnTabAgent;
-    private Button btnMcpCopyJson, btnMcpDemo;
+    private Button btnMcpDemo;
     private Button btnMcpDemoProgress, btnMcpDemoNotify, btnMcpDemoQuote;
     private Panel panelMcpBox;
     private Label lblMcpServerTitle;
@@ -1384,7 +1384,7 @@ internal sealed class SettingsDialog : Form
     private Panel panelMcpStatus, panelCapCard;
     private Label lblMcpStatusDot, lblMcpStatusText, lblMcpStatusMeta;
     private string mcpStatusState = "unknown";
-    private bool mcpNeedsSetup;
+    private LinkLabel lnkMcpCopyPrompt;
     private string mcpCopyFeedback;
     private System.Windows.Forms.Timer mcpStatusTimer;
     private System.Windows.Forms.Timer mcpCopyFeedbackTimer;
@@ -1816,14 +1816,6 @@ internal sealed class SettingsDialog : Form
         lblMcpServerTitle.SetBounds(18, 56, 200, 22);
         Controls.Add(lblMcpServerTitle);
 
-        btnMcpCopyJson = new Button();
-        btnMcpCopyJson.Text = en ? "Copy Setup Prompt" : "复制接入提示词";
-        btnMcpCopyJson.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpCopyJson.SetBounds(238, 54, 124, 26);
-        AppContext.StyleSecondaryButton(btnMcpCopyJson);
-        btnMcpCopyJson.Click += OnMcpCopyPromptClick;
-        Controls.Add(btnMcpCopyJson);
-
         panelMcpStatus = new Panel();
         panelMcpStatus.SetBounds(18, 80, 344, 88);
         panelMcpStatus.BackColor = Color.White;
@@ -1848,6 +1840,18 @@ internal sealed class SettingsDialog : Form
         lblMcpStatusMeta.TextAlign = ContentAlignment.TopLeft;
         lblMcpStatusMeta.SetBounds(32, 32, 300, 56);
         panelMcpStatus.Controls.Add(lblMcpStatusMeta);
+
+        lnkMcpCopyPrompt = new LinkLabel();
+        lnkMcpCopyPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lnkMcpCopyPrompt.LinkColor = AppContext.Win11Accent;
+        lnkMcpCopyPrompt.ActiveLinkColor = AppContext.Win11Accent;
+        lnkMcpCopyPrompt.VisitedLinkColor = AppContext.Win11Accent;
+        lnkMcpCopyPrompt.LinkBehavior = LinkBehavior.HoverUnderline;
+        lnkMcpCopyPrompt.AutoSize = true;
+        lnkMcpCopyPrompt.SetBounds(32, 52, 200, 16);
+        lnkMcpCopyPrompt.Visible = false;
+        lnkMcpCopyPrompt.LinkClicked += OnMcpCopyPromptClick;
+        panelMcpStatus.Controls.Add(lnkMcpCopyPrompt);
 
         Label lblCapabilityTitle = new Label();
         lblCapabilityTitle.Name = "lblCapabilityTitle";
@@ -2007,7 +2011,6 @@ internal sealed class SettingsDialog : Form
 
         if (panelMcpStatus != null) panelMcpStatus.Visible = isAgent;
         if (lblMcpServerTitle != null) lblMcpServerTitle.Visible = isAgent;
-        if (btnMcpCopyJson != null) btnMcpCopyJson.Visible = isAgent && mcpNeedsSetup;
         if (panelCapCard != null) panelCapCard.Visible = isAgent;
         if (lblAgentCliTip != null) lblAgentCliTip.Visible = isAgent;
         foreach (Control control in Controls)
@@ -2487,7 +2490,7 @@ internal sealed class SettingsDialog : Form
             bool en = Value != null && Value.Language == "en";
             string prompt = McpConfigHelper.GenerateAgentPrompt(en);
             Clipboard.SetText(prompt);
-            mcpCopyFeedback = en ? "Copied. Paste it into your agent." : "已复制，粘贴给智能体完成接入。";
+            mcpCopyFeedback = en ? "Copied!" : "已复制 ✓";
             RefreshMcpStatusSummary();
             if (mcpCopyFeedbackTimer == null)
             {
@@ -2562,9 +2565,8 @@ internal sealed class SettingsDialog : Form
             lblMcpStatusText.Text = "MCP";
             lblMcpStatusMeta.Text = "-";
             mcpStatusState = "unknown";
-            mcpNeedsSetup = false;
             if (lblMcpStatusDot != null) lblMcpStatusDot.Tag = mcpStatusState;
-            UpdateMcpCopyActionVisibility(false);
+            UpdateMcpCopyLinkVisibility(false);
             return;
         }
         bool en = Value != null && Value.Language == "en";
@@ -2581,7 +2583,7 @@ internal sealed class SettingsDialog : Form
         }
         bool running = AppContext.Current != null && AppContext.Current.IsMcpServerRunning;
         string lastError = AppContext.Current != null ? AppContext.Current.McpServerLastError : null;
-        mcpNeedsSetup = false;
+        bool showCopyLink = false;
         if (!running)
         {
             mcpStatusState = "error";
@@ -2611,9 +2613,9 @@ internal sealed class SettingsDialog : Form
             mcpStatusState = "configured";
             lblMcpStatusText.Text = en ? name + " Not Connected" : name + " 未连接 iClock";
             lblMcpStatusMeta.Text = en
-                ? "Click [Copy Setup Prompt] and send it to " + name + "."
-                : "点击 [复制接入提示词]，发送给 " + name + "。";
-            mcpNeedsSetup = true;
+                ? "Send the setup prompt to " + name + " to connect."
+                : "发送接入提示词给 " + name + " 完成接入。";
+            showCopyLink = true;
         }
         else
         {
@@ -2625,9 +2627,19 @@ internal sealed class SettingsDialog : Form
         }
         if (!string.IsNullOrEmpty(mcpCopyFeedback))
         {
-            lblMcpStatusMeta.Text = mcpCopyFeedback + "\n" + lblMcpStatusMeta.Text;
+            if (lnkMcpCopyPrompt != null)
+            {
+                lnkMcpCopyPrompt.Text = mcpCopyFeedback;
+                lnkMcpCopyPrompt.Enabled = false;
+                showCopyLink = true;
+            }
         }
-        UpdateMcpCopyActionVisibility(mcpNeedsSetup);
+        else if (lnkMcpCopyPrompt != null)
+        {
+            lnkMcpCopyPrompt.Text = en ? "Copy Setup Prompt" : "复制接入提示词";
+            lnkMcpCopyPrompt.Enabled = true;
+        }
+        UpdateMcpCopyLinkVisibility(showCopyLink);
         if (lblMcpStatusDot != null)
         {
             lblMcpStatusDot.Tag = mcpStatusState;
@@ -2635,9 +2647,9 @@ internal sealed class SettingsDialog : Form
         }
     }
 
-    private void UpdateMcpCopyActionVisibility(bool showCopyAction)
+    private void UpdateMcpCopyLinkVisibility(bool visible)
     {
-        if (btnMcpCopyJson != null) btnMcpCopyJson.Visible = showCopyAction;
+        if (lnkMcpCopyPrompt != null) lnkMcpCopyPrompt.Visible = visible;
     }
     private void OnMcpDemoClick(object sender, EventArgs e)
     {
@@ -2781,7 +2793,6 @@ internal sealed class SettingsDialog : Form
         }
 
         if (lblMcpServerTitle != null) lblMcpServerTitle.Text = toEnglish ? "MCP Desktop Collaboration" : "MCP 桌面协作";
-        if (btnMcpCopyJson != null) btnMcpCopyJson.Text = toEnglish ? "Copy Setup Prompt" : "复制接入提示词";
         RefreshMcpStatusSummary();
         foreach (Control control in Controls)
         {
