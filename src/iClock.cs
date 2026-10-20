@@ -332,6 +332,7 @@ internal sealed class Overlay : Form
     private bool moving;
     private Point dragStart;
     private Point formStart;
+    private bool snapH, snapV; // horizontal/vertical center snap active during drag
     private Font cachedFont;
     private SolidBrush cachedBrush;
     private SolidBrush cachedShadowBrush;
@@ -651,6 +652,17 @@ internal sealed class Overlay : Form
                 renderGraphics.FillPath(bgBrush, path);
                 renderGraphics.DrawPath(borderPen, path);
             }
+
+            // Snap guides (screen center lines)
+            if (snapH || snapV)
+            {
+                using (Pen guidePen = new Pen(Color.FromArgb(120, AppContext.Win11Accent), 1.5f))
+                {
+                    guidePen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
+                    if (snapV) renderGraphics.DrawLine(guidePen, Width / 2f, 0, Width / 2f, Height);
+                    if (snapH) renderGraphics.DrawLine(guidePen, 0, Height / 2f, Width, Height / 2f);
+                }
+            }
         }
 
         if (!string.IsNullOrEmpty(text) && cachedFont != null && cachedBrush != null)
@@ -875,7 +887,25 @@ internal sealed class Overlay : Form
     {
         if (moving)
         {
-            Location = new Point(formStart.X + Cursor.Position.X - dragStart.X, formStart.Y + Cursor.Position.Y - dragStart.Y);
+            int newX = formStart.X + Cursor.Position.X - dragStart.X;
+            int newY = formStart.Y + Cursor.Position.Y - dragStart.Y;
+
+            // Snap to screen center lines
+            Rectangle screen = Screen.FromPoint(Cursor.Position).WorkingArea;
+            int centerX = screen.Left + screen.Width / 2;
+            int centerY = screen.Top + screen.Height / 2;
+            int windowCenterX = newX + Width / 2;
+            int windowCenterY = newY + Height / 2;
+            const int snapThreshold = 24;
+
+            snapH = Math.Abs(windowCenterX - centerX) <= snapThreshold;
+            snapV = Math.Abs(windowCenterY - centerY) <= snapThreshold;
+
+            if (snapH) newX = centerX - Width / 2;
+            if (snapV) newY = centerY - Height / 2;
+
+            Location = new Point(newX, newY);
+            RenderLayeredWindow(); // redraw snap guides
         }
         else
         {
@@ -886,6 +916,7 @@ internal sealed class Overlay : Form
     {
         if (!moving) return;
         moving = false;
+        snapH = snapV = false;
         EnsureVisible();
         if (PositionChanged != null) PositionChanged(Location);
     }
@@ -1421,17 +1452,14 @@ internal sealed class SettingsDialog : Form
     private int activeTab = 0;
     private int hoveredTab = -1;
     private Button btnTabTimer, btnTabQuote, btnTabAgent;
-    private Label lblAgentDesc;
-    private Label lblDetectedHeader;
     private Button btnAgentNoticeToggle, btnMcpCopyJson, btnMcpDemo;
     private Button btnMcpDemoProgress, btnMcpDemoNotify, btnMcpDemoQuote;
-    private Panel panelAgentBox, panelAgentCards, panelMcpBox;
-    private SlimScrollBar agentScrollBar;
-    private Label lblMcpTitle, lblMcpDesc;
+    private Panel panelMcpBox;
+    private Label lblMcpTitle, lblCapDesc, lblMcpServerTitle;
     private Label lblTool1Name, lblTool2Name, lblTool3Name, lblTool4Name;
     private StyledTipLabel lblAgentCliTip;
-    // Three-section layout: MCP status (top), Capabilities (middle), CLI (bottom)
-    private Panel panelMcpStatus, panelCapCard, panelCliCard;
+    // Two-section layout: Capabilities (top), MCP Server status (bottom)
+    private Panel panelMcpStatus, panelCapCard;
     private Label lblMcpStatusDot, lblMcpStatusText, lblMcpStatusMeta;
 
     private NumericUpDown quoteFontSize;
@@ -1859,48 +1887,17 @@ internal sealed class SettingsDialog : Form
         agentNotice.Visible = false;
         Controls.Add(agentNotice);
 
-        lblDetectedHeader = new Label();
-        lblDetectedHeader.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
-        lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
-        lblDetectedHeader.TextAlign = ContentAlignment.MiddleLeft;
-        lblDetectedHeader.SetBounds(18, 56, 250, 20);
-        Controls.Add(lblDetectedHeader);
-
-        lblAgentDesc = new Label();
-        lblAgentDesc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentDesc.ForeColor = AppContext.Win11TextSecondary;
-        lblAgentDesc.TextAlign = ContentAlignment.MiddleLeft;
-        lblAgentDesc.SetBounds(18, 76, 250, 18);
-        Controls.Add(lblAgentDesc);
-
-        // Section 1: MCP Server Status Card (top)
-        panelMcpStatus = new Panel();
-        panelMcpStatus.SetBounds(18, 96, 344, 72);
-        panelMcpStatus.BackColor = Color.White;
-        panelMcpStatus.Paint += OnCardPaint;
-        Controls.Add(panelMcpStatus);
-
-        lblMcpStatusDot = new Label();
-        lblMcpStatusDot.SetBounds(14, 12, 12, 12);
-        lblMcpStatusDot.Paint += OnStatusDotPaint;
-        panelMcpStatus.Controls.Add(lblMcpStatusDot);
-
-        lblMcpStatusText = new Label();
-        lblMcpStatusText.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
-        lblMcpStatusText.ForeColor = AppContext.Win11TextPrimary;
-        lblMcpStatusText.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpStatusText.SetBounds(32, 8, 200, 20);
-        panelMcpStatus.Controls.Add(lblMcpStatusText);
-
-        lblMcpStatusMeta = new Label();
-        lblMcpStatusMeta.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblMcpStatusMeta.ForeColor = AppContext.Win11TextSecondary;
-        lblMcpStatusMeta.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpStatusMeta.SetBounds(32, 28, 300, 36);
-        panelMcpStatus.Controls.Add(lblMcpStatusMeta);
+        // Section 1: Agent Capabilities
+        lblMcpTitle = new Label();
+        lblMcpTitle.Text = en ? "Agent Capabilities" : "智能体赋能";
+        lblMcpTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
+        lblMcpTitle.ForeColor = AppContext.Win11TextPrimary;
+        lblMcpTitle.TextAlign = ContentAlignment.MiddleLeft;
+        lblMcpTitle.SetBounds(18, 56, 224, 22);
+        Controls.Add(lblMcpTitle);
 
         Win11ToggleSwitch swNotice = new Win11ToggleSwitch();
-        swNotice.SetBounds(290, 63, 72, 26);
+        swNotice.SetBounds(290, 54, 72, 26);
         swNotice.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         swNotice.Checked = agentNotice.Checked;
         swNotice.OnText = en ? "On" : "开";
@@ -1916,58 +1913,19 @@ internal sealed class SettingsDialog : Form
         agentNotice.CheckedChanged += OnAgentNoticeCheckedChanged;
         UpdateAgentNoticeToggleState(en);
 
-        panelAgentBox = new Panel();
-        panelAgentBox.SetBounds(18, 176, 344, 80);
-        panelAgentBox.BackColor = Color.White;
-        panelAgentBox.Paint += OnCardPaint;
-        Controls.Add(panelAgentBox);
+        lblCapDesc = new Label();
+        lblCapDesc.UseMnemonic = false;
+        lblCapDesc.Text = en
+            ? "Grant agents desktop collaboration capabilities"
+            : "为智能体开启桌面协作能力";
+        lblCapDesc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblCapDesc.ForeColor = AppContext.Win11TextSecondary;
+        lblCapDesc.TextAlign = ContentAlignment.MiddleLeft;
+        lblCapDesc.SetBounds(18, 78, 344, 18);
+        Controls.Add(lblCapDesc);
 
-        panelAgentCards = new DoubleBufferedPanel();
-        panelAgentCards.SetBounds(1, 1, 335, 78);
-        panelAgentCards.AutoScroll = false;
-        panelAgentCards.BackColor = Color.White;
-        panelAgentCards.BorderStyle = BorderStyle.None;
-        panelAgentBox.Controls.Add(panelAgentCards);
-
-        agentScrollBar = new SlimScrollBar();
-        agentScrollBar.SetBounds(336, 4, 6, 72);
-        agentScrollBar.Visible = false;
-        agentScrollBar.ValueChanged += OnAgentScrollBarValueChanged;
-        panelAgentBox.Controls.Add(agentScrollBar);
-
-        panelAgentCards.MouseWheel += OnAgentCardMouseWheel;
-        panelAgentBox.MouseWheel += OnAgentCardMouseWheel;
-
-        lblMcpTitle = new Label();
-        lblMcpTitle.Text = en ? "Agent Capabilities" : "智能体赋能";
-        lblMcpTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
-        lblMcpTitle.ForeColor = AppContext.Win11TextPrimary;
-        lblMcpTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpTitle.SetBounds(18, 268, 224, 22);
-        Controls.Add(lblMcpTitle);
-
-        lblMcpDesc = new Label();
-        lblMcpDesc.UseMnemonic = false;
-        lblMcpDesc.Text = en
-            ? "Toggle MCP tools for connected agents"
-            : "为已连接智能体开启 MCP 工具能力";
-        lblMcpDesc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblMcpDesc.ForeColor = AppContext.Win11TextSecondary;
-        lblMcpDesc.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpDesc.SetBounds(18, 290, 344, 18);
-        Controls.Add(lblMcpDesc);
-
-        btnMcpCopyJson = new Button();
-        btnMcpCopyJson.Text = en ? "Copy Prompt" : "复制接入提示词";
-        btnMcpCopyJson.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpCopyJson.SetBounds(254, 265, 108, 26);
-        AppContext.StyleSecondaryButton(btnMcpCopyJson);
-        btnMcpCopyJson.Click += OnMcpCopyPromptClick;
-        Controls.Add(btnMcpCopyJson);
-
-        // Section 2: Agent Capabilities Card (middle) - reuse panelMcpBox as panelCapCard
         panelCapCard = new Panel();
-        panelCapCard.SetBounds(18, 312, 344, 136);
+        panelCapCard.SetBounds(18, 100, 344, 136);
         panelCapCard.BackColor = Color.White;
         panelCapCard.Paint += OnMcpBoxPaint;
         Controls.Add(panelCapCard);
@@ -2054,28 +2012,47 @@ internal sealed class SettingsDialog : Form
         toolTip.SetToolTip(lblTool4Name, mcpTip4);
         toolTip.SetToolTip(btnMcpDemoQuote, mcpTip4);
 
-        // Section 3: CLI Card (bottom)
-        panelCliCard = new Panel();
-        panelCliCard.SetBounds(18, 456, 344, 52);
-        panelCliCard.BackColor = Color.White;
-        panelCliCard.Paint += OnCardPaint;
-        Controls.Add(panelCliCard);
+        // Section 2: MCP Server (bottom)
+        lblMcpServerTitle = new Label();
+        lblMcpServerTitle.Text = "MCP Server";
+        lblMcpServerTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
+        lblMcpServerTitle.ForeColor = AppContext.Win11TextPrimary;
+        lblMcpServerTitle.TextAlign = ContentAlignment.MiddleLeft;
+        lblMcpServerTitle.SetBounds(18, 252, 200, 22);
+        Controls.Add(lblMcpServerTitle);
 
-        Label lblCliTitle = new Label();
-        lblCliTitle.Text = en ? "Command Line Interface" : "命令行终端 (CLI)";
-        lblCliTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f, FontStyle.Bold);
-        lblCliTitle.ForeColor = AppContext.Win11TextPrimary;
-        lblCliTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblCliTitle.SetBounds(12, 6, 200, 18);
-        panelCliCard.Controls.Add(lblCliTitle);
+        btnMcpCopyJson = new Button();
+        btnMcpCopyJson.Text = en ? "Connect" : "接入";
+        btnMcpCopyJson.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
+        btnMcpCopyJson.SetBounds(298, 250, 64, 26);
+        AppContext.StyleSecondaryButton(btnMcpCopyJson);
+        btnMcpCopyJson.Click += OnMcpCopyPromptClick;
+        Controls.Add(btnMcpCopyJson);
 
-        Label lblCliCmds = new Label();
-        lblCliCmds.Text = "iclock -h  |  iclock --install-cli";
-        lblCliCmds.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblCliCmds.ForeColor = AppContext.Win11TextSecondary;
-        lblCliCmds.TextAlign = ContentAlignment.MiddleLeft;
-        lblCliCmds.SetBounds(12, 26, 320, 18);
-        panelCliCard.Controls.Add(lblCliCmds);
+        panelMcpStatus = new Panel();
+        panelMcpStatus.SetBounds(18, 276, 344, 96);
+        panelMcpStatus.BackColor = Color.White;
+        panelMcpStatus.Paint += OnCardPaint;
+        Controls.Add(panelMcpStatus);
+
+        lblMcpStatusDot = new Label();
+        lblMcpStatusDot.SetBounds(14, 14, 12, 12);
+        lblMcpStatusDot.Paint += OnStatusDotPaint;
+        panelMcpStatus.Controls.Add(lblMcpStatusDot);
+
+        lblMcpStatusText = new Label();
+        lblMcpStatusText.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
+        lblMcpStatusText.ForeColor = AppContext.Win11TextPrimary;
+        lblMcpStatusText.TextAlign = ContentAlignment.MiddleLeft;
+        lblMcpStatusText.SetBounds(32, 10, 200, 20);
+        panelMcpStatus.Controls.Add(lblMcpStatusText);
+
+        lblMcpStatusMeta = new Label();
+        lblMcpStatusMeta.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblMcpStatusMeta.ForeColor = AppContext.Win11TextSecondary;
+        lblMcpStatusMeta.TextAlign = ContentAlignment.TopLeft;
+        lblMcpStatusMeta.SetBounds(32, 32, 300, 56);
+        panelMcpStatus.Controls.Add(lblMcpStatusMeta);
 
         lblAgentCliTip = new StyledTipLabel("iclock --install-cli", "iclock -h");
         lblAgentCliTip.UseMnemonic = false;
@@ -2084,7 +2061,7 @@ internal sealed class SettingsDialog : Form
             : "提示：终端运行 iclock -h 查看指令，iclock --install-cli 写入 PATH。";
         lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
         lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentCliTip.SetBounds(16, 516, 348, 20);
+        lblAgentCliTip.SetBounds(16, 388, 348, 20);
         Controls.Add(lblAgentCliTip);
 
         AppContext.CenterFormOnScreen(this);
@@ -2137,24 +2114,19 @@ internal sealed class SettingsDialog : Form
         lblQuoteTip.Visible = isQuote;
 
         if (agentNotice != null) agentNotice.Visible = isAgent;
-        if (lblDetectedHeader != null) lblDetectedHeader.Visible = isAgent;
-        if (lblAgentDesc != null) lblAgentDesc.Visible = isAgent;
         if (btnAgentNoticeToggle != null) btnAgentNoticeToggle.Visible = isAgent;
         if (panelMcpStatus != null) panelMcpStatus.Visible = isAgent;
-        if (panelAgentBox != null) panelAgentBox.Visible = isAgent;
-        if (panelAgentCards != null) panelAgentCards.Visible = isAgent;
         if (lblMcpTitle != null) lblMcpTitle.Visible = isAgent;
-        if (lblMcpDesc != null) lblMcpDesc.Visible = isAgent;
+        if (lblCapDesc != null) lblCapDesc.Visible = isAgent;
+        if (lblMcpServerTitle != null) lblMcpServerTitle.Visible = isAgent;
         if (btnMcpCopyJson != null) btnMcpCopyJson.Visible = isAgent;
         if (panelCapCard != null) panelCapCard.Visible = isAgent;
-        if (panelCliCard != null) panelCliCard.Visible = isAgent;
         if (lblAgentCliTip != null) lblAgentCliTip.Visible = isAgent;
 
         UpdateTabButtons();
         TriggerQuotePreview();
         if (isAgent)
         {
-            RefreshAgentCards();
             RefreshMcpStatusSummary();
         }
         Update();
@@ -2529,197 +2501,6 @@ internal sealed class SettingsDialog : Form
         {
             btnAgentNoticeToggle.Text = enabled ? (en ? "On" : "开") : (en ? "Off" : "关");
         }
-        if (lblDetectedHeader != null) lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
-        if (lblAgentDesc != null)
-        {
-            lblAgentDesc.Text = en ? "Auto-alert when background task finishes" : "智能体后台任务完成时自动弹窗提醒";
-            lblAgentDesc.ForeColor = AppContext.Win11TextSecondary;
-        }
-    }
-
-    private void UpdateAgentBadges()
-    {
-        if (panelAgentCards == null) return;
-        bool en = language != null && language.SelectedIndex == 1;
-        bool alertEnabled = agentNotice != null && agentNotice.Checked;
-        HashSet<string> running = AppContext.GetRunningAgents();
-        foreach (Control c in panelAgentCards.Controls)
-        {
-            Panel card = c as Panel;
-            if (card == null) continue;
-            string name = card.Tag as string;
-            if (string.IsNullOrEmpty(name)) continue;
-            bool isRunning = running.Contains(name);
-            foreach (Control child in card.Controls)
-            {
-                if (child.Name == "lblBadge")
-                {
-                    string badgeText;
-                    Color bBg, bFg;
-                    if (!alertEnabled)
-                    {
-                        badgeText = en ? "Paused" : "未监听";
-                        bFg = Color.FromArgb(140, 140, 140);
-                        bBg = Color.FromArgb(242, 242, 242);
-                    }
-                    else if (isRunning)
-                    {
-                        badgeText = en ? "Running" : "运行中";
-                        bFg = Color.FromArgb(27, 94, 32);
-                        bBg = Color.FromArgb(232, 245, 233);
-                    }
-                    else
-                    {
-                        badgeText = en ? "Ready" : "已就绪";
-                        bFg = Color.FromArgb(90, 90, 90);
-                        bBg = Color.FromArgb(243, 244, 246);
-                    }
-                    child.Text = badgeText;
-                    child.Tag = new object[] { bBg, bFg, badgeText };
-                    child.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-                    child.Size = new Size(en ? 66 : 56, 22);
-                    child.Location = new Point(card.Width - child.Width - 12, 6);
-                    child.Invalidate();
-                    break;
-                }
-            }
-        }
-    }
-
-    internal void RefreshAgentCards()
-    {
-        if (panelAgentCards == null) return;
-        bool en = language.SelectedIndex == 1;
-        bool alertEnabled = agentNotice != null && agentNotice.Checked;
-        List<string> agents = AppContext.DetectAgents();
-        HashSet<string> running = AppContext.GetRunningAgents();
-        agents.Sort((a, b) =>
-        {
-            bool aRun = running.Contains(a);
-            bool bRun = running.Contains(b);
-            if (aRun != bRun) return aRun ? -1 : 1;
-            return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
-        });
-
-        if (lblDetectedHeader != null)
-        {
-            lblDetectedHeader.Text = en ? "AI Agent Alerts" : "智能体后台任务提醒";
-            lblDetectedHeader.ForeColor = AppContext.Win11TextPrimary;
-        }
-
-        // If controls already exist and match agent list, update badge states in-place without rebuilding
-        bool matches = (panelAgentCards.Controls.Count == agents.Count && agents.Count > 0);
-        if (matches)
-        {
-            for (int i = 0; i < agents.Count; i++)
-            {
-                Panel card = panelAgentCards.Controls[i] as Panel;
-                if (card == null || (card.Tag as string) != agents[i])
-                {
-                    matches = false;
-                    break;
-                }
-            }
-        }
-
-        if (matches)
-        {
-            UpdateAgentBadges();
-            return;
-        }
-
-        panelAgentCards.SuspendLayout();
-        while (panelAgentCards.Controls.Count > 0)
-        {
-            Control c = panelAgentCards.Controls[0];
-            panelAgentCards.Controls.RemoveAt(0);
-            c.Dispose();
-        }
-
-        if (agents.Count == 0)
-        {
-            Label empty = new Label();
-            empty.Text = en
-                ? "No supported AI agents detected.\n(Supports Antigravity, Cursor, Windsurf, Trae, Claude, Copilot, Tongyi Lingma, Comate, CodeGeeX, MiniMax, Kimi, etc.)"
-                : "未检测到支持的智能体。\n（支持 Antigravity、Cursor、Windsurf、Trae、Claude、Copilot、通义灵码、文心快码、CodeGeeX、MiniMax、Kimi 等）";
-            empty.ForeColor = AppContext.Win11TextSecondary;
-            empty.Font = AppContext.GetUiFont(en ? "en" : "zh", 9.0f);
-            empty.TextAlign = ContentAlignment.MiddleCenter;
-            empty.Dock = DockStyle.Fill;
-            panelAgentCards.Controls.Add(empty);
-            if (agentScrollBar != null) agentScrollBar.Visible = false;
-        }
-        else
-        {
-            int cardY = 0;
-            int cardPad = 0;
-            int cardW = panelAgentCards.Width;
-            for (int i = 0; i < agents.Count; i++)
-            {
-                string name = agents[i];
-                bool isRunning = running.Contains(name);
-                Panel card = CreateAgentCard(name, isRunning, alertEnabled, cardW, en);
-                card.Location = new Point(cardPad, cardY);
-                AttachAgentWheel(card);
-                panelAgentCards.Controls.Add(card);
-                cardY += card.Height;
-            }
-
-            int totalH = cardY;
-            int viewportH = panelAgentCards.Height;
-            if (agentScrollBar != null)
-            {
-                if (totalH > viewportH)
-                {
-                    agentScrollBar.Maximum = totalH;
-                    agentScrollBar.LargeChange = viewportH;
-                    agentScrollBar.Visible = true;
-                    agentScrollBar.Value = Math.Min(agentScrollBar.Value, totalH - viewportH);
-                }
-                else
-                {
-                    agentScrollBar.Visible = false;
-                    agentScrollBar.Value = 0;
-                }
-            }
-        }
-        UpdateCardsScroll();
-        panelAgentCards.ResumeLayout(true);
-    }
-
-    private void OnAgentCardMouseWheel(object s, MouseEventArgs e)
-    {
-        if (agentScrollBar != null && agentScrollBar.Visible)
-        {
-            agentScrollBar.Value += (e.Delta < 0 ? 34 : -34);
-        }
-    }
-
-    private void AttachAgentWheel(Control c)
-    {
-        c.MouseWheel += OnAgentCardMouseWheel;
-        foreach (Control child in c.Controls)
-        {
-            AttachAgentWheel(child);
-        }
-    }
-
-    private void UpdateCardsScroll()
-    {
-        if (panelAgentCards == null) return;
-        int scrollOffset = agentScrollBar != null ? agentScrollBar.Value : 0;
-        panelAgentCards.SuspendLayout();
-        int y = -scrollOffset;
-        for (int i = 0; i < panelAgentCards.Controls.Count; i++)
-        {
-            Control c = panelAgentCards.Controls[i];
-            if (c is Panel)
-            {
-                c.Top = y;
-                y += c.Height;
-            }
-        }
-        panelAgentCards.ResumeLayout(true);
     }
 
     private static void OnCardPaint(object sender, PaintEventArgs pe)
@@ -2813,19 +2594,11 @@ internal sealed class SettingsDialog : Form
             }
         }
     }
-    private void OnAgentNoticeToggleClick(object sender, EventArgs e)
-    {
-        Win11ToggleSwitch sw = btnAgentNoticeToggle as Win11ToggleSwitch;
-        if (sw != null) sw.Checked = !sw.Checked;
-        else if (agentNotice != null) agentNotice.Checked = !agentNotice.Checked;
-    }
     private void OnAgentNoticeCheckedChanged(object sender, EventArgs e)
     {
         UpdateAgentNoticeToggleState(language != null && language.SelectedIndex == 1);
-        RefreshAgentCards();
         TriggerPreview();
     }
-    private void OnAgentScrollBarValueChanged(object sender, EventArgs e) { UpdateCardsScroll(); }
     private void OnMcpCopyPromptClick(object sender, EventArgs e)
     {
         try
@@ -2857,15 +2630,32 @@ internal sealed class SettingsDialog : Form
     private void RefreshMcpStatusSummary()
     {
         if (lblMcpStatusText == null || lblMcpStatusMeta == null) return;
+        if (AppContext.IsSelfCheckRunning)
+        {
+            lblMcpStatusText.Text = "MCP Server";
+            lblMcpStatusMeta.Text = "-";
+            return;
+        }
         bool en = Value != null && Value.Language == "en";
-        List<string> agents = AppContext.DetectAgents();
-        HashSet<string> running = AppContext.GetRunningAgents();
-        int mcpCount = 0;
-        foreach (string a in agents) { if (running.Contains(a)) mcpCount++; }
+        List<string> configured = new List<string>();
+        foreach (string agent in McpConfigHelper.GetKnownAgents())
+        {
+            if (McpConfigHelper.IsAgentMcpConfigured(agent)) configured.Add(agent);
+        }
         lblMcpStatusText.Text = en ? "MCP Server Running" : "MCP Server 运行中";
-        lblMcpStatusMeta.Text = en
-            ? mcpCount + " agent(s) connected · Protocol: MCP 1.0"
-            : mcpCount + " 个智能体已连接 · 协议: MCP 1.0";
+        if (configured.Count > 0)
+        {
+            string names = string.Join(", ", configured.ToArray());
+            lblMcpStatusMeta.Text = en
+                ? "Connected: " + names
+                : "已接入: " + names;
+        }
+        else
+        {
+            lblMcpStatusMeta.Text = en
+                ? "No agents configured.\nClick [Connect] above to copy the setup prompt."
+                : "暂无已接入的智能体。\n点击右上角 [接入] 复制提示词，发送给智能体即可完成配置。";
+        }
         lblMcpStatusDot.Invalidate();
     }
     private void OnMcpDemoClick(object sender, EventArgs e)
@@ -2934,86 +2724,6 @@ internal sealed class SettingsDialog : Form
             pe.Graphics.DrawLine(divPen, 10, 68, pnl.Width - 10, 68);
             pe.Graphics.DrawLine(divPen, 10, 102, pnl.Width - 10, 102);
         }
-    }
-
-    private static void OnMcpBadgePaint(object sender, PaintEventArgs pe)
-    {
-        Label lbl = (Label)sender;
-        AppContext.PaintMcpBadge(pe.Graphics, lbl.ClientRectangle, lbl.Text);
-    }
-
-    private Panel CreateAgentCard(string name, bool isRunning, bool alertEnabled, int width, bool en)
-    {
-        Panel card = new Panel();
-        card.Size = new Size(width, 34);
-        card.BackColor = Color.White;
-        card.Tag = name;
-        card.Paint += (s, pe) =>
-        {
-            Panel p = (Panel)s;
-            using (Pen divPen = new Pen(Color.FromArgb(238, 240, 244), 1f))
-            {
-                pe.Graphics.DrawLine(divPen, 10, p.Height - 1, p.Width - 10, p.Height - 1);
-            }
-        };
-
-        Label lblBadge = new Label();
-        lblBadge.Name = "lblBadge";
-        string badgeText;
-        Color bBg, bFg;
-        if (!alertEnabled)
-        {
-            badgeText = en ? "Paused" : "未监听";
-            bFg = Color.FromArgb(140, 140, 140);
-            bBg = Color.FromArgb(242, 242, 242);
-        }
-        else if (isRunning)
-        {
-            badgeText = en ? "Running" : "运行中";
-            bFg = Color.FromArgb(27, 94, 32);
-            bBg = Color.FromArgb(232, 245, 233);
-        }
-        else
-        {
-            badgeText = en ? "Ready" : "已就绪";
-            bFg = Color.FromArgb(90, 90, 90);
-            bBg = Color.FromArgb(243, 244, 246);
-        }
-        lblBadge.Text = badgeText;
-        lblBadge.Tag = new object[] { bBg, bFg, badgeText };
-        lblBadge.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        lblBadge.Size = new Size(en ? 66 : 56, 22);
-        lblBadge.Location = new Point(card.Width - lblBadge.Width - 12, 6);
-        lblBadge.Paint += OnBadgePaint;
-        card.Controls.Add(lblBadge);
-
-        int leftLimit = lblBadge.Left;
-        bool isMcp = isRunning && McpConfigHelper.IsAgentMcpConfigured(name);
-        if (isMcp)
-        {
-            Label lblMcp = new Label();
-            lblMcp.Text = "⚡ MCP";
-            lblMcp.Font = new Font("Segoe UI", 8f, FontStyle.Bold);
-            lblMcp.Size = new Size(54, 22);
-            lblMcp.Location = new Point(lblBadge.Left - lblMcp.Width - 8, 6);
-            lblMcp.Paint += OnMcpBadgePaint;
-            if (toolTip == null) toolTip = new ToolTip();
-            toolTip.SetToolTip(lblMcp, en ? "MCP connected: Agent can call desktop decisions & timers" : "已接入 iClock MCP 协议，支持桌面决策门禁与状态投射");
-            card.Controls.Add(lblMcp);
-            leftLimit = lblMcp.Left;
-        }
-
-        Label lblName = new Label();
-        lblName.Text = name;
-        lblName.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
-        lblName.ForeColor = AppContext.Win11TextPrimary;
-        lblName.Location = new Point(14, 7);
-        lblName.AutoEllipsis = true;
-        lblName.MaximumSize = new Size(Math.Max(50, leftLimit - 14 - 6), 20);
-        lblName.AutoSize = true;
-        card.Controls.Add(lblName);
-
-        return card;
     }
 
     private void OnLanguageChanged(object sender, EventArgs e)
@@ -3091,14 +2801,14 @@ internal sealed class SettingsDialog : Form
 
         UpdateAgentNoticeToggleState(toEnglish);
         if (lblMcpTitle != null) lblMcpTitle.Text = toEnglish ? "Agent Capabilities" : "智能体赋能";
-        if (lblMcpDesc != null)
+        if (lblCapDesc != null)
         {
-            lblMcpDesc.Text = toEnglish
-                ? "Toggle MCP tools for connected agents"
-                : "为已连接智能体开启 MCP 工具能力";
-            lblMcpDesc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
+            lblCapDesc.Text = toEnglish
+                ? "Grant agents desktop collaboration capabilities"
+                : "为智能体开启桌面协作能力";
+            lblCapDesc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
         }
-        if (btnMcpCopyJson != null) btnMcpCopyJson.Text = toEnglish ? "Copy Prompt" : "复制接入提示词";
+        if (btnMcpCopyJson != null) btnMcpCopyJson.Text = toEnglish ? "Connect" : "接入";
         RefreshMcpStatusSummary();
         if (btnMcpDemo != null) btnMcpDemo.Text = toEnglish ? "Demo" : "演示";
         if (btnMcpDemoProgress != null) btnMcpDemoProgress.Text = toEnglish ? "Demo" : "演示";
@@ -3159,7 +2869,6 @@ internal sealed class SettingsDialog : Form
             updatingQuoteColorCombo = false;
         }
         UpdateQuoteColorPreview();
-        if (activeTab == 2) RefreshAgentCards();
         TriggerQuotePreview();
 
         int sel = format.SelectedIndex;
@@ -3412,15 +3121,6 @@ internal sealed class SettingsDialog : Form
 
     protected override void OnMouseWheel(MouseEventArgs e)
     {
-        if (activeTab == 2 && panelAgentBox != null && panelAgentBox.Visible && agentScrollBar != null && agentScrollBar.Visible)
-        {
-            Point pt = panelAgentBox.PointToClient(Cursor.Position);
-            if (panelAgentBox.ClientRectangle.Contains(pt))
-            {
-                agentScrollBar.Value += (e.Delta < 0 ? 36 : -36);
-                return;
-            }
-        }
         base.OnMouseWheel(e);
     }
 }
@@ -3771,6 +3471,11 @@ internal static class McpConfigHelper
         if (lower.Contains("cline")) return GetClineConfigPath();
         if (lower.Contains("roo")) return GetRooConfigPath();
         return null;
+    }
+
+    public static List<string> GetKnownAgents()
+    {
+        return new List<string> { "Cursor", "Claude", "Windsurf", "Antigravity", "Cline", "Roo" };
     }
 
     private static readonly Dictionary<string, bool> mcpConfigCache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
@@ -5110,7 +4815,25 @@ internal sealed class DailyQuoteDialog : Form
         base.OnMouseMove(e);
         if (isDragging)
         {
-            Location = new Point(formStart.X + (Cursor.Position.X - dragStart.X), formStart.Y + (Cursor.Position.Y - dragStart.Y));
+            int newX = formStart.X + (Cursor.Position.X - dragStart.X);
+            int newY = formStart.Y + (Cursor.Position.Y - dragStart.Y);
+
+            // Snap to screen center lines (real-time, with visual feedback)
+            Rectangle screen = GetCurrentScreen().WorkingArea;
+            int centerX = screen.Left + screen.Width / 2;
+            int centerY = screen.Top + screen.Height / 2;
+            int windowCenterX = newX + Width / 2;
+            int windowCenterY = newY + Height / 2;
+            const int snapThreshold = 24;
+
+            bool snapH = Math.Abs(windowCenterX - centerX) <= snapThreshold;
+            bool snapV = Math.Abs(windowCenterY - centerY) <= snapThreshold;
+
+            if (snapH) newX = centerX - Width / 2;
+            if (snapV) newY = centerY - Height / 2;
+
+            Location = new Point(newX, newY);
+            if (snapH || snapV) RenderLayeredQuoteWindow(); // redraw to show snap state
             return;
         }
 
@@ -5262,17 +4985,9 @@ internal sealed class DailyQuoteDialog : Form
                 Screen host = GetCurrentScreen();
                 Rectangle scr = host.WorkingArea;
                 int centerX = scr.Left + Math.Max(0, (scr.Width - Width) / 2);
-                if (Math.Abs(Location.X - centerX) <= 24)
+                if (host.Primary && Math.Abs(Location.X - centerX) <= 24)
                 {
-                    Location = new Point(centerX, Location.Y);
-                    if (host.Primary)
-                    {
-                        settings.QuoteX = -1;
-                    }
-                    else
-                    {
-                        settings.QuoteX = centerX;
-                    }
+                    settings.QuoteX = -1; // auto-center marker
                 }
                 else
                 {
@@ -7661,6 +7376,14 @@ internal sealed class AppContext : ApplicationContext
     private void Toggle()
     {
         UnhookMouse();
+        if (IsSelfCheckRunning)
+        {
+            // Headless test mode: toggle state only, skip UI side effects
+            if (running) { Pause(); return; }
+            if (sessionActive) { Resume(); return; }
+            StartWork();
+            return;
+        }
         if (overlay.IsPulsing) { overlay.StopBreathingPulse(); SetState(ClockState.Idle); return; }
         if (running) { Pause(); return; }
         if (sessionActive) { Resume(); return; }
@@ -8902,9 +8625,6 @@ internal sealed class AppContext : ApplicationContext
         return running;
     }
 
-    private static List<string> cachedDiskAgents = null;
-    private static DateTime lastDiskAgentsTime = DateTime.MinValue;
-
     internal static List<string> DetectAgents()
     {
         List<string> result = new List<string>();
@@ -8921,87 +8641,6 @@ internal sealed class AppContext : ApplicationContext
             }
         }
         catch { }
-
-        if (cachedDiskAgents != null && (DateTime.Now - lastDiskAgentsTime).TotalSeconds < 30)
-        {
-            foreach (string name in cachedDiskAgents)
-            {
-                if (!seen.Contains(name))
-                {
-                    seen.Add(name);
-                    result.Add(name);
-                }
-            }
-            return result;
-        }
-
-        List<string> diskFound = new List<string>();
-        List<string> dirsToCheck = new List<string>();
-        try
-        {
-            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            dirsToCheck.Add(Path.Combine(local, "Programs"));
-            dirsToCheck.Add(Path.Combine(local, "Microsoft", "WindowsApps"));
-            dirsToCheck.Add(Path.Combine(local, "OpenAI"));
-            dirsToCheck.Add(Path.Combine(local, "Programs", "@opencode-aidesktop"));
-
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            if (!string.IsNullOrEmpty(appData))
-            {
-                dirsToCheck.Add(appData);
-                dirsToCheck.Add(Path.Combine(appData, "Programs"));
-            }
-
-            string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-            if (!string.IsNullOrEmpty(pf)) dirsToCheck.Add(pf);
-
-            string pfx86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-            if (!string.IsNullOrEmpty(pfx86) && pfx86 != pf) dirsToCheck.Add(pfx86);
-
-            string pd = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-            if (!string.IsNullOrEmpty(pd)) dirsToCheck.Add(pd);
-
-            string prog = Environment.GetFolderPath(Environment.SpecialFolder.Programs);
-            if (!string.IsNullOrEmpty(prog)) dirsToCheck.Add(prog);
-
-            string cprog = Environment.GetFolderPath(Environment.SpecialFolder.CommonPrograms);
-            if (!string.IsNullOrEmpty(cprog)) dirsToCheck.Add(cprog);
-
-            string userProf = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            if (!string.IsNullOrEmpty(userProf))
-            {
-                dirsToCheck.Add(userProf);
-                dirsToCheck.Add(Path.Combine(userProf, ".vscode", "extensions"));
-                dirsToCheck.Add(Path.Combine(userProf, ".cursor", "extensions"));
-                dirsToCheck.Add(Path.Combine(userProf, ".windsurf", "extensions"));
-                dirsToCheck.Add(Path.Combine(userProf, ".trae", "extensions"));
-                dirsToCheck.Add(Path.Combine(userProf, ".antigravity", "extensions"));
-            }
-        }
-        catch { }
-
-        foreach (string baseDir in dirsToCheck)
-        {
-            try
-            {
-                if (!Directory.Exists(baseDir)) continue;
-                foreach (string entry in Directory.GetFileSystemEntries(baseDir))
-                {
-                    string fname = Path.GetFileName(entry);
-                    string name = MatchAgent(fname);
-                    if (name != null && !seen.Contains(name))
-                    {
-                        seen.Add(name);
-                        result.Add(name);
-                        diskFound.Add(name);
-                    }
-                }
-            }
-            catch { }
-        }
-
-        cachedDiskAgents = diskFound;
-        lastDiskAgentsTime = DateTime.Now;
         return result;
     }
 
@@ -10830,23 +10469,6 @@ internal sealed class AppContext : ApplicationContext
         btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(245, 245, 245);
         btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(235, 235, 235);
         btn.Cursor = Cursors.Hand;
-    }
-
-    internal static void PaintMcpBadge(Graphics g, Rectangle r, string text)
-    {
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-        using (SolidBrush bg = new SolidBrush(Color.FromArgb(229, 241, 251)))
-        using (GraphicsPath path = GetRoundedRectPath(new Rectangle(0, 0, r.Width - 1, r.Height - 1), 3))
-        {
-            g.FillPath(bg, path);
-        }
-        using (SolidBrush fg = new SolidBrush(Win11Accent))
-        using (Font f = new Font("Segoe UI", 8f, FontStyle.Bold))
-        using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap })
-        {
-            g.DrawString(text, f, fg, new Rectangle(0, 0, r.Width, r.Height), sf);
-        }
     }
 
     internal static void ForceTopMost(Form f)

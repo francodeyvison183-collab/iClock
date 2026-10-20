@@ -1239,14 +1239,16 @@ internal static class TestCheck
             Control minCtrl = (Control)settingsDialogType.GetField("minutes", bf).GetValue(tabDlg);
             CheckBox agNoticeBox = (CheckBox)settingsDialogType.GetField("agentNotice", bf).GetValue(tabDlg);
             Button btnProgDemo = (Button)settingsDialogType.GetField("btnMcpDemoProgress", bf).GetValue(tabDlg);
-            Panel cardPanel = (Panel)settingsDialogType.GetField("panelAgentCards", bf).GetValue(tabDlg);
+            Panel capCard = (Panel)settingsDialogType.GetField("panelCapCard", bf).GetValue(tabDlg);
+            Panel mcpStatus = (Panel)settingsDialogType.GetField("panelMcpStatus", bf).GetValue(tabDlg);
             Button btnToggle = (Button)settingsDialogType.GetField("btnAgentNoticeToggle", bf).GetValue(tabDlg);
+            Button btnConnect = (Button)settingsDialogType.GetField("btnMcpCopyJson", bf).GetValue(tabDlg);
             CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
             Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
 
-            if (btnTabTimer == null || btnTabAgent == null || cardPanel == null || btnToggle == null || btnProgDemo == null)
+            if (btnTabTimer == null || btnTabAgent == null || capCard == null || mcpStatus == null || btnToggle == null || btnProgDemo == null || btnConnect == null)
             {
-                Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Plan B-1 controls");
+                Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Agent tab controls");
                 return 33;
             }
 
@@ -1274,59 +1276,17 @@ internal static class TestCheck
                 return 33;
             }
 
-            // Verify only detected agents are listed in cardPanel
-            System.Collections.Generic.List<string> expectedAgents = (System.Collections.Generic.List<string>)detectAgents.Invoke(null, null);
-            int cardCount = 0;
-            foreach (Control c in cardPanel.Controls)
+            // Verify capabilities card and MCP status card are visible on Agent tab
+            if (!capCard.Visible || !mcpStatus.Visible || !btnConnect.Visible)
             {
-                if (c is Panel) cardCount++;
-            }
-            if (expectedAgents.Count > 0 && cardCount != expectedAgents.Count)
-            {
-                Console.WriteLine("FAIL: cardPanel should contain exactly the detected agents count (" + expectedAgents.Count + "), but found " + cardCount);
+                Console.WriteLine("FAIL: Agent tab should show capabilities card and MCP status card");
                 return 33;
             }
 
-            // Verify running agents are sorted before ready agents
-            bool seenReady = false;
-            foreach (Control c in cardPanel.Controls)
+            Label capDesc = (Label)settingsDialogType.GetField("lblCapDesc", bf).GetValue(tabDlg);
+            if (capDesc == null || capDesc.Text.Contains("\n") || !capDesc.Text.Contains("为智能体开启桌面协作能力"))
             {
-                if (c is Panel)
-                {
-                    Panel card = (Panel)c;
-                    foreach (Control child in card.Controls)
-                    {
-                        if (child is Label && (child.Text == "已就绪" || child.Text == "Ready"))
-                        {
-                            seenReady = true;
-                        }
-                        if (seenReady && child is Label && (child.Text == "运行中" || child.Text == "Running"))
-                        {
-                            Console.WriteLine("FAIL: Running agent appeared after a Ready agent in cardPanel list");
-                            return 33;
-                        }
-                    }
-                }
-            }
-
-            // Test refresh cards
-            MethodInfo refreshMethod = settingsDialogType.GetMethod("RefreshAgentCards", bf);
-            if (refreshMethod != null) refreshMethod.Invoke(tabDlg, null);
-            int refreshedCardCount = 0;
-            foreach (Control c in cardPanel.Controls)
-            {
-                if (c is Panel) refreshedCardCount++;
-            }
-            if (refreshedCardCount != cardCount)
-            {
-                Console.WriteLine("FAIL: Refreshing agent cards changed count unexpectedly");
-                return 33;
-            }
-
-            Label agDesc = (Label)settingsDialogType.GetField("lblAgentDesc", bf).GetValue(tabDlg);
-            if (agDesc == null || agDesc.Text.Contains("\n") || !agDesc.Text.Contains("智能体后台任务完成时自动弹窗提醒"))
-            {
-                Console.WriteLine("FAIL: lblAgentDesc should be concise single line without \\n");
+                Console.WriteLine("FAIL: lblCapDesc should be concise single line without \\n");
                 return 33;
             }
 
