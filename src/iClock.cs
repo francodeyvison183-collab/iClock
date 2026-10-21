@@ -1374,11 +1374,10 @@ internal sealed class SettingsDialog : Form
     private int activeTab = 0;
     private int hoveredTab = -1;
     private Button btnTabTimer, btnTabQuote, btnTabAgent;
-    private Button btnMcpDemo;
-    private Button btnMcpDemoProgress, btnMcpDemoNotify, btnMcpDemoQuote;
+    private Button btnMcpDemo, btnMcpDemoProgress, btnMcpDemoNotify;
     private Panel panelMcpBox;
     private Label lblMcpServerTitle;
-    private Label lblTool1Name, lblTool2Name, lblTool3Name, lblTool4Name;
+    private Label lblTool1Name, lblTool2Name, lblTool3Name;
     private StyledTipLabel lblAgentCliTip;
     // Two-section layout: MCP connection status first, capability previews second.
     private Panel panelMcpStatus, panelCapCard;
@@ -1498,7 +1497,7 @@ internal sealed class SettingsDialog : Form
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
         Text = en ? "iClock Settings" : "iClock 设置"; FormBorderStyle = FormBorderStyle.FixedDialog; StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 468);
+        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 402);
 
         btnTabTimer = new Button(); SetupTabButton(btnTabTimer, en ? "Timer" : "倒计时", 18, 0);
         btnTabQuote = new Button(); SetupTabButton(btnTabQuote, en ? "Daily Quotes" : "每日格言", 133, 1);
@@ -1871,7 +1870,7 @@ internal sealed class SettingsDialog : Form
         Controls.Add(lblCapabilityTitle);
 
         panelCapCard = new Panel();
-        panelCapCard.SetBounds(18, 218, 344, 136);
+        panelCapCard.SetBounds(18, 218, 344, 102);
         panelCapCard.BackColor = Color.White;
         panelCapCard.Paint += OnMcpBoxPaint;
         Controls.Add(panelCapCard);
@@ -1894,9 +1893,9 @@ internal sealed class SettingsDialog : Form
         btnMcpDemo.Click += OnMcpDemoClick;
         panelMcpBox.Controls.Add(btnMcpDemo);
 
-        // Row 2: Task Progress (iclock_progress)
+        // Row 2: Task Status (iclock_progress + iclock_quote)
         lblTool2Name = new Label();
-        lblTool2Name.Text = en ? "Task Progress" : "任务进度";
+        lblTool2Name.Text = en ? "Task Status" : "任务状态";
         lblTool2Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool2Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool2Name.TextAlign = ContentAlignment.MiddleLeft;
@@ -1928,44 +1927,24 @@ internal sealed class SettingsDialog : Form
         btnMcpDemoNotify.Click += OnMcpDemoNotifyClick;
         panelMcpBox.Controls.Add(btnMcpDemoNotify);
 
-        // Row 4: Pinned Status (iclock_quote)
-        lblTool4Name = new Label();
-        lblTool4Name.Text = en ? "Pinned Status" : "状态置顶";
-        lblTool4Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
-        lblTool4Name.ForeColor = AppContext.Win11TextPrimary;
-        lblTool4Name.TextAlign = ContentAlignment.MiddleLeft;
-        lblTool4Name.SetBounds(14, 108, 252, 22);
-        panelMcpBox.Controls.Add(lblTool4Name);
-
-        btnMcpDemoQuote = new Button();
-        btnMcpDemoQuote.Text = en ? "Preview" : "预览";
-        btnMcpDemoQuote.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpDemoQuote.SetBounds(274, 106, 58, 26);
-        AppContext.StyleSecondaryButton(btnMcpDemoQuote);
-        btnMcpDemoQuote.Click += OnMcpDemoQuoteClick;
-        panelMcpBox.Controls.Add(btnMcpDemoQuote);
-
         string mcpTip1 = en ? "Human-in-the-loop modal decision gate for critical operations (supports 1/2/Enter blind-typing)" : "关键高危操作置顶人机决策门禁，支持 1/2/Enter 盲打审批";
-        string mcpTip2 = en ? "2px hairline step progress meter on clock HUD during background tasks with hover milestone tooltip" : "后台多步任务在悬浮时钟底部投射 2px 发丝进度，悬停查看当前步骤";
-        string mcpTip3 = en ? "TopMost modal alert & sound chime on background task completion" : "后台耗时任务完成时全向弹窗与声音唤醒";
-        string mcpTip4 = en ? "Project task goals, thoughts and working status onto desktop note" : "智能体在桌面投射当前任务进展、思考目标与工作便签";
+        string mcpTip2 = en ? "Progress bar on the clock plus a pinned desktop note for current status" : "悬浮时钟显示任务进度，桌面置顶便签同步展示当前状态";
+        string mcpTip3 = en ? "Modal alert and sound chime when background tasks finish" : "后台耗时任务完成时弹窗与声音提醒";
         toolTip.SetToolTip(lblTool1Name, mcpTip1);
         toolTip.SetToolTip(btnMcpDemo, mcpTip1);
         toolTip.SetToolTip(lblTool2Name, mcpTip2);
         toolTip.SetToolTip(btnMcpDemoProgress, mcpTip2);
         toolTip.SetToolTip(lblTool3Name, mcpTip3);
         toolTip.SetToolTip(btnMcpDemoNotify, mcpTip3);
-        toolTip.SetToolTip(lblTool4Name, mcpTip4);
-        toolTip.SetToolTip(btnMcpDemoQuote, mcpTip4);
 
         lblAgentCliTip = new StyledTipLabel("iclock --install-cli", "iclock -h");
         lblAgentCliTip.UseMnemonic = false;
         lblAgentCliTip.Text = en
-            ? "Tip: Run iclock -h for commands, iclock --install-cli to add to PATH."
-            : "提示：终端运行 iclock -h 查看指令，iclock --install-cli 写入 PATH。";
+            ? "Tip: Run iclock_status for live agent status."
+            : "提示：终端运行 iclock_status 查看智能体状态。";
         lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
         lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentCliTip.SetBounds(16, 358, 348, 20);
+        lblAgentCliTip.SetBounds(16, 336, 348, 20);
         Controls.Add(lblAgentCliTip);
 
         AppContext.CenterFormOnScreen(this);
@@ -2369,7 +2348,7 @@ internal sealed class SettingsDialog : Form
         QuoteItem q = dialogQuoteList[dialogQuoteIndex % dialogQuoteList.Count];
         if (lblCardQuoteText != null)
         {
-            lblCardQuoteText.Text = "“ " + q.Text + " ”";
+            lblCardQuoteText.Text = "“" + q.Text + "”";
         }
         if (lblCardQuoteAuthor != null)
         {
@@ -2697,11 +2676,16 @@ internal sealed class SettingsDialog : Form
         if (AppContext.Current != null)
         {
             AppContext.Current.SetAgentProgress(0.65f, msg);
+            AppContext.Current.ShowCustomQuote(msg, "");
             Timer t = new Timer { Interval = 4000 };
             t.Tick += delegate {
                 t.Stop();
                 t.Dispose();
-                if (AppContext.Current != null) AppContext.Current.ClearAgentProgress();
+                if (AppContext.Current != null)
+                {
+                    AppContext.Current.ClearAgentProgress();
+                    AppContext.Current.ClearProjectedNote();
+                }
             };
             t.Start();
         }
@@ -2715,22 +2699,6 @@ internal sealed class SettingsDialog : Form
         );
         notifyDemo.Show();
     }
-    private void OnMcpDemoQuoteClick(object sender, EventArgs e)
-    {
-        bool en = Value != null && Value.Language == "en";
-        string text = en ? "Refactoring modules & running test suite, progress 85%..." : "正在执行代码重构与模块自检，当前进度 85%...";
-        string author = "Cursor Agent";
-        if (AppContext.Current != null)
-        {
-            AppContext.Current.ShowCustomQuote(text, author, "Cursor");
-        }
-        else
-        {
-            DailyQuoteDialog quoteDemo = new DailyQuoteDialog(Value, text, author, isProjected: true);
-            quoteDemo.Show();
-            AppContext.ForceTopMost(quoteDemo);
-        }
-    }
     private static void OnMcpBoxPaint(object sender, PaintEventArgs pe)
     {
         Control pnl = (Control)sender;
@@ -2740,7 +2708,6 @@ internal sealed class SettingsDialog : Form
         {
             pe.Graphics.DrawLine(divPen, 10, 34, pnl.Width - 10, 34);
             pe.Graphics.DrawLine(divPen, 10, 68, pnl.Width - 10, 68);
-            pe.Graphics.DrawLine(divPen, 10, 102, pnl.Width - 10, 102);
         }
     }
 
@@ -2831,33 +2798,28 @@ internal sealed class SettingsDialog : Form
         if (btnMcpDemo != null) btnMcpDemo.Text = toEnglish ? "Preview" : "预览";
         if (btnMcpDemoProgress != null) btnMcpDemoProgress.Text = toEnglish ? "Preview" : "预览";
         if (btnMcpDemoNotify != null) btnMcpDemoNotify.Text = toEnglish ? "Preview" : "预览";
-        if (btnMcpDemoQuote != null) btnMcpDemoQuote.Text = toEnglish ? "Preview" : "预览";
         if (lblTool1Name != null) { lblTool1Name.Text = toEnglish ? "Decision Gate" : "决策请示"; lblTool1Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
-        if (lblTool2Name != null) { lblTool2Name.Text = toEnglish ? "Task Progress" : "任务进度"; lblTool2Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
+        if (lblTool2Name != null) { lblTool2Name.Text = toEnglish ? "Task Status" : "任务状态"; lblTool2Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
         if (lblTool3Name != null) { lblTool3Name.Text = toEnglish ? "Completion Notice" : "完成提醒"; lblTool3Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
-        if (lblTool4Name != null) { lblTool4Name.Text = toEnglish ? "Pinned Status" : "状态置顶"; lblTool4Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
         if (toolTip != null)
         {
             string mcpTip1 = toEnglish ? "Human-in-the-loop modal decision gate for critical operations (supports 1/2/Enter blind-typing)" : "关键高危操作置顶人机决策门禁，支持 1/2/Enter 盲打审批";
-            string mcpTip2 = toEnglish ? "2px hairline step progress meter on clock HUD during background tasks with hover milestone tooltip" : "后台多步任务在悬浮时钟底部投射 2px 发丝进度，悬停查看当前步骤";
-            string mcpTip3 = toEnglish ? "TopMost modal alert & sound chime on background task completion" : "后台耗时任务完成时全向弹窗与声音唤醒";
-            string mcpTip4 = toEnglish ? "Project task goals, thoughts and working status onto desktop note" : "智能体在桌面投射当前任务进展、思考目标与工作便签";
+            string mcpTip2 = toEnglish ? "Progress bar on the clock plus a pinned desktop note for current status" : "悬浮时钟显示任务进度，桌面置顶便签同步展示当前状态";
+            string mcpTip3 = toEnglish ? "Modal alert and sound chime when background tasks finish" : "后台耗时任务完成时弹窗与声音提醒";
             if (lblTool1Name != null) toolTip.SetToolTip(lblTool1Name, mcpTip1);
             if (btnMcpDemo != null) toolTip.SetToolTip(btnMcpDemo, mcpTip1);
             if (lblTool2Name != null) toolTip.SetToolTip(lblTool2Name, mcpTip2);
             if (btnMcpDemoProgress != null) toolTip.SetToolTip(btnMcpDemoProgress, mcpTip2);
             if (lblTool3Name != null) toolTip.SetToolTip(lblTool3Name, mcpTip3);
             if (btnMcpDemoNotify != null) toolTip.SetToolTip(btnMcpDemoNotify, mcpTip3);
-            if (lblTool4Name != null) toolTip.SetToolTip(lblTool4Name, mcpTip4);
-            if (btnMcpDemoQuote != null) toolTip.SetToolTip(btnMcpDemoQuote, mcpTip4);
         }
         if (lblAgentCliTip != null)
         {
-            lblAgentCliTip.HighlightWords = new string[] { "iclock --install-cli", "iclock -h" };
+            lblAgentCliTip.HighlightWords = new string[] { "iclock_status" };
             lblAgentCliTip.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
             lblAgentCliTip.Text = toEnglish
-                ? "Tip: Run iclock -h for commands, iclock --install-cli to add to PATH."
-                : "提示：终端运行 iclock -h 查看指令，iclock --install-cli 写入 PATH。";
+                ? "Tip: Run iclock_status for live agent status."
+                : "提示：终端运行 iclock_status 查看智能体状态。";
         }
         if (panelQuoteCard != null) panelQuoteCard.Invalidate();
 
@@ -3477,6 +3439,7 @@ internal sealed class McpPipeConnection
     private int closed;
 
     internal string ClientName { get; set; }
+    internal int LastMessageTick = Environment.TickCount;
 
     internal McpPipeConnection(NamedPipeServerStream pipe)
     {
@@ -3543,6 +3506,7 @@ internal sealed class McpPipeServer
     private volatile bool running;
     private volatile bool stopping;
     private string lastError;
+    private System.Threading.Thread activityTimerThread;
 
     internal McpPipeServer(AppContext owner)
     {
@@ -3576,6 +3540,10 @@ internal sealed class McpPipeServer
             acceptThread.IsBackground = true;
             acceptThread.Name = "iClock.MCP.PipeServer";
             acceptThread.Start();
+            activityTimerThread = new System.Threading.Thread(PollConnectionActivity);
+            activityTimerThread.IsBackground = true;
+            activityTimerThread.Name = "iClock.MCP.PipeActivity";
+            activityTimerThread.Start();
         }
         catch (Exception ex)
         {
@@ -3679,6 +3647,7 @@ internal sealed class McpPipeServer
             {
                 line = line.Trim();
                 if (line.Length == 0) continue;
+                connection.LastMessageTick = Environment.TickCount;
                 Dictionary<string, object> message;
                 try
                 {
@@ -3705,6 +3674,24 @@ internal sealed class McpPipeServer
             AppContext.NotifyMcpConnectionStateChanged();
         }
     }
+
+    private void PollConnectionActivity()
+    {
+        while (running && !stopping)
+        {
+            foreach (McpPipeConnection connection in connections.Keys)
+            {
+                if ((Environment.TickCount - connection.LastMessageTick) > 30000)
+                {
+                    connection.Close();
+                    bool ignored;
+                    connections.TryRemove(connection, out ignored);
+                    AppContext.NotifyMcpConnectionStateChanged();
+                }
+            }
+            System.Threading.Thread.Sleep(5000);
+        }
+    }
 }
 
 
@@ -3720,6 +3707,7 @@ internal sealed class McpBridgeClient
     private StreamWriter writer;
     private volatile bool closed;
     private int startGuiAttempted;
+    private System.Threading.Thread reconnectThread;
 
     internal volatile string ClientName;
 
@@ -3765,10 +3753,57 @@ internal sealed class McpBridgeClient
                     last = ex;
                 }
 
-                if (attempt == 2) TryStartGui();
                 System.Threading.Thread.Sleep(100);
             }
+
+            if (reconnectThread == null || !reconnectThread.IsAlive)
+            {
+                reconnectThread = new System.Threading.Thread(ReconnectLoop);
+                reconnectThread.IsBackground = true;
+                reconnectThread.Name = "iClock.MCP.Reconnect";
+                reconnectThread.Start();
+            }
             throw new IOException("iClock GUI unavailable.", last);
+        }
+    }
+
+    private void ReconnectLoop()
+    {
+        TryStartGui();
+        while (!closed)
+        {
+            try
+            {
+                NamedPipeClientStream next = new NamedPipeClientStream(
+                    ".", McpBridgeProtocol.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+                try
+                {
+                    next.Connect(150);
+                    if (closed) { try { next.Close(); } catch { } return; }
+                    lock (connectLock)
+                    {
+                        if (pipe == next) return;
+                        ClosePipeLocked();
+                        pipe = next;
+                        reader = new StreamReader(next, new UTF8Encoding(false), false, 4096, true);
+                        writer = new StreamWriter(next, new UTF8Encoding(false), 4096, true);
+                        writer.AutoFlush = true;
+                        StreamReader connectedReader = reader;
+                        System.Threading.Thread readThread = new System.Threading.Thread(delegate() { ReadLoop(next, connectedReader); });
+                        readThread.IsBackground = true;
+                        readThread.Name = "iClock.MCP.StdioReader";
+                        readThread.Start();
+                        SendHello();
+                        return;
+                    }
+                }
+                catch
+                {
+                    try { next.Close(); } catch { }
+                }
+            }
+            catch { }
+            System.Threading.Thread.Sleep(5000);
         }
     }
 
@@ -4319,9 +4354,9 @@ internal static class McpConfigHelper
                 + "[Core Capabilities]\r\n"
                 + "Once connected, you will have access to iClock desktop tools:\r\n"
                 + "1. iclock_ask_human: Trigger a top-most modal gate for human-in-the-loop approvals on critical decisions;\r\n"
-                + "2. iclock_progress: Proactively report step progress (e.g. '3/5', '60%') and task descriptions to the user's floating clock HUD during long tasks; call with 'clear' when finished;\r\n"
-                + "3. iclock_notify: Pop up a desktop alert and sound notification when background tasks complete;\r\n"
-                + "4. iclock_quote: Project your current progress, task goal, or status sticky note directly onto my desktop.\r\n\r\n"
+                + "2. iclock_progress + iclock_quote: Proactively report step progress (e.g. '3/5', '60%') on the floating clock HUD and project your current status onto a pinned desktop note; call iclock_progress with 'clear' when finished;\r\n"
+                + "3. iclock_notify: Pop up a desktop alert and sound notification when background tasks complete.\r\n"
+                + "Use iclock_status anytime to query iClock's live state.\r\n\r\n"
                 + "[Instructions]\r\n"
                 + "1. Check current environment's MCP config file (e.g. Cursor's mcp.json, Claude Desktop config, or current workspace MCP config) and merge this server (preserve existing servers).\r\n"
                 + "2. Proactive Habit: Whenever executing multi-step tasks (testing, multi-file refactoring, batch build), call iclock_progress at key milestones so I can see progress on my clock HUD without switching back to your window. Call iclock_progress(progress='clear') upon completion.\r\n"
@@ -4338,9 +4373,9 @@ internal static class McpConfigHelper
                 + "【能力说明】\r\n"
                 + "接入后你将拥有 iClock 提供的桌面协作工具：\r\n"
                 + "1. iclock_ask_human: 遇到关键决策、高危操作或多选方案时，呼出桌面置顶阻断式人工审批卡片；\r\n"
-                + "2. iclock_progress: 执行多步骤耗时任务（如测试、重构、构建、代码审查）时，主动汇报步骤与进度（如 '3/5'、'60%'），在悬浮时钟底部投射发丝进度条；任务全部完成时调用 'clear' 清理；\r\n"
-                + "3. iclock_notify: 耗时或后台任务完成时，呼出桌面模态弹窗与提示音唤醒我；\r\n"
-                + "4. iclock_quote: 在我的桌面实时投射你当前的任务进展、思考要点或状态便签。\r\n\r\n"
+                + "2. iclock_progress + iclock_quote: 执行多步骤耗时任务时，在悬浮时钟投射进度条，并在桌面置顶便签同步展示当前状态；任务完成时调用 iclock_progress('clear') 清理；\r\n"
+                + "3. iclock_notify: 耗时或后台任务完成时，呼出桌面模态弹窗与提示音唤醒我。\r\n"
+                + "随时可用 iclock_status 查询 iClock 实时状态。\r\n\r\n"
                 + "【操作步骤】\r\n"
                 + "1. 请检查当前环境的 MCP 配置文件（例如 Claude Desktop 的 claude_desktop_config.json、Cursor 的 mcp.json 或当前项目/全局 MCP 配置），将上述 iclock 服务合并进去（保留我已有的其他服务）。\r\n"
                 + "2. 行为准则：在执行多步骤耗时任务时，请主动调用 iclock_progress 汇报节点进度，以便我在屏幕悬浮时钟上实时感知你的进展，任务完毕后清空进度条。\r\n"
@@ -5138,7 +5173,7 @@ internal sealed class DailyQuoteDialog : Form
         using (Bitmap bmp = new Bitmap(1, 1))
         using (Graphics g = Graphics.FromImage(bmp))
         {
-            string text = "“ " + q.Text + " ”";
+            string text = "“" + q.Text + "”";
             int padX = 18;
             int padTop = Math.Max(26, (int)Math.Round(currentFontSize * 1.0f) + 8);
             float gap = Math.Max(6f, currentFontSize * 0.35f);
@@ -5390,7 +5425,7 @@ internal sealed class DailyQuoteDialog : Form
         using (textFont)
         using (authorFont)
         {
-            string text = "“ " + q.Text + " ”";
+            string text = "“" + q.Text + "”";
             int padX = 18;
             int padTop = Math.Max(26, (int)Math.Round(currentFontSize * 1.0f) + 8);
             float gap = Math.Max(6f, currentFontSize * 0.35f);
@@ -6907,7 +6942,7 @@ internal sealed class AiQuoteDialog : Form
         lblCardMain.ForeColor = Color.FromArgb(16, 124, 65);
 
         string preview = (sample != null && !string.IsNullOrEmpty(sample.Text))
-            ? (string.IsNullOrEmpty(sample.Author) ? ("“ " + sample.Text + " ”") : ("“ " + sample.Text + " ”\r\n—— " + sample.Author))
+            ? (string.IsNullOrEmpty(sample.Author) ? ("“" + sample.Text + "”") : ("“" + sample.Text + "”\r\n—— " + sample.Author))
             : (en ? "New quotes have been added to the library." : "新格言已加入词库并刷新。");
         lblCardSub.Text = preview;
         lblCardSub.ForeColor = AppContext.Win11TextPrimary;
@@ -8518,6 +8553,7 @@ internal sealed class AppContext : ApplicationContext
 
         string op = message.ContainsKey("op") ? message["op"] as string : null;
         string requestId = message.ContainsKey("id") ? McpBridgeClient.ObjectIdToString(message["id"]) : null;
+        if (op != "hello") connection.LastMessageTick = Environment.TickCount;
         if (op == "hello")
         {
             connection.ClientName = message.ContainsKey("client")
@@ -9077,6 +9113,14 @@ internal sealed class AppContext : ApplicationContext
         else
         {
             ForceTopMost(dlg);
+        }
+    }
+
+    internal void ClearProjectedNote()
+    {
+        if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
+        {
+            try { activeProjectedNote.Close(); } catch { }
         }
     }
 

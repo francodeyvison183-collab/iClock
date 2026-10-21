@@ -1251,7 +1251,6 @@ internal static class TestCheck
             Label tool1 = (Label)settingsDialogType.GetField("lblTool1Name", bf).GetValue(tabDlg);
             Label tool2 = (Label)settingsDialogType.GetField("lblTool2Name", bf).GetValue(tabDlg);
             Label tool3 = (Label)settingsDialogType.GetField("lblTool3Name", bf).GetValue(tabDlg);
-            Label tool4 = (Label)settingsDialogType.GetField("lblTool4Name", bf).GetValue(tabDlg);
             Label capabilityTitle = null;
             foreach (Control control in tabDlg.Controls)
             {
@@ -1262,7 +1261,7 @@ internal static class TestCheck
                 }
             }
 
-            if (btnTabTimer == null || btnTabAgent == null || capCard == null || mcpStatus == null || btnProgDemo == null || lnkCopy == null || mcpServerTitle == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null || tool4 == null)
+            if (btnTabTimer == null || btnTabAgent == null || capCard == null || mcpStatus == null || btnProgDemo == null || lnkCopy == null || mcpServerTitle == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Agent tab controls");
                 return 33;
@@ -1302,7 +1301,7 @@ internal static class TestCheck
 
             if (mcpServerTitle.Text != "MCP 桌面协作" ||
                 capabilityTitle.Text != "常用桌面能力" ||
-                tool1.Text != "决策请示" || tool2.Text != "任务进度" || tool3.Text != "完成提醒" || tool4.Text != "状态置顶" ||
+                tool1.Text != "决策请示" || tool2.Text != "任务状态" || tool3.Text != "完成提醒" ||
                 btnProgDemo.Text != "预览" ||
                 mcpStatus.Top >= capCard.Top)
             {
@@ -1624,7 +1623,7 @@ internal static class TestCheck
             setDlgTab2.Show();
             setActiveTabMethod.Invoke(setDlgTab2, new object[] { 2 });
             Label cliTipCtrl = (Label)cliTipField.GetValue(setDlgTab2);
-            if (cliTipCtrl == null || !cliTipCtrl.Visible || !cliTipCtrl.Text.Contains("iclock -h") || !cliTipCtrl.Text.Contains("iclock --install-cli"))
+            if (cliTipCtrl == null || !cliTipCtrl.Visible || !cliTipCtrl.Text.Contains("iclock_status"))
             {
                 Console.WriteLine("FAIL: Tab 2 lblAgentCliTip invalid or not visible: " + (cliTipCtrl == null ? "null" : cliTipCtrl.Text));
                 setDlgTab2.Close();
@@ -2372,7 +2371,7 @@ internal static class TestCheck
             Form dlgZh = (Form)Activator.CreateInstance(settingsDlgType, new object[] { settings, true });
             setActiveTabMethod.Invoke(dlgZh, new object[] { 2 });
             Label tipZh = (Label)settingsDlgType.GetField("lblAgentCliTip", bf).GetValue(dlgZh);
-            if (tipZh == null || !tipZh.Text.Contains("iclock -h") || !tipZh.Text.Contains("iclock --install-cli"))
+            if (tipZh == null || !tipZh.Text.Contains("iclock_status"))
             {
                 Console.WriteLine("FAIL: Tab 2 CLI tip missing expected Chinese instructions");
                 dlgZh.Close();
@@ -2385,7 +2384,7 @@ internal static class TestCheck
             Form dlgEn = (Form)Activator.CreateInstance(settingsDlgType, new object[] { enSettings, true });
             setActiveTabMethod.Invoke(dlgEn, new object[] { 2 });
             Label tipEn = (Label)settingsDlgType.GetField("lblAgentCliTip", bf).GetValue(dlgEn);
-            if (tipEn == null || !tipEn.Text.Contains("iclock -h") || !tipEn.Text.Contains("iclock --install-cli"))
+            if (tipEn == null || !tipEn.Text.Contains("iclock_status"))
             {
                 Console.WriteLine("FAIL: Tab 2 CLI tip missing expected English instructions");
                 dlgEn.Close();
@@ -2408,7 +2407,7 @@ internal static class TestCheck
             object inProcessPipeServer = mcpPipeServerField.GetValue(app);
             if (inProcessPipeServer != null)
             {
-                MethodInfo stopPipeServer = inProcessPipeServer.GetType().GetMethod("Stop", BindingFlags.NonPublic | BindingFlags.Instance);
+                MethodInfo stopPipeServer = inProcessPipeServer.GetType().GetMethod("Stop", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
                 if (stopPipeServer != null) stopPipeServer.Invoke(inProcessPipeServer, null);
                 mcpPipeServerField.SetValue(app, null);
             }
@@ -2781,17 +2780,16 @@ internal static class TestCheck
             Button btnMcpDemo = (Button)setDialogType.GetField("btnMcpDemo", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
             Button btnMcpDemoProgress = (Button)setDialogType.GetField("btnMcpDemoProgress", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
             Button btnMcpDemoNotify = (Button)setDialogType.GetField("btnMcpDemoNotify", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
-            Button btnMcpDemoQuote = (Button)setDialogType.GetField("btnMcpDemoQuote", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
-            if (lnkMcpCopy == null || btnMcpDemo == null || btnMcpDemoProgress == null || btnMcpDemoNotify == null || btnMcpDemoQuote == null)
+            if (lnkMcpCopy == null || btnMcpDemo == null || btnMcpDemoProgress == null || btnMcpDemoNotify == null)
             {
-                Console.WriteLine("FAIL: SettingsDialog unified MCP controls missing (expected 4 demo buttons)");
+                Console.WriteLine("FAIL: SettingsDialog unified MCP controls missing (expected 3 demo buttons)");
                 mcpSetDlg.Close();
                 return 59;
             }
             mcpSetDlg.Show();
             MethodInfo setTabMethod = setDialogType.GetMethod("SetActiveTab", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
             if (setTabMethod != null) setTabMethod.Invoke(mcpSetDlg, new object[] { 2 });
-            if (lnkMcpCopy.Visible || !btnMcpDemo.Visible || !btnMcpDemoProgress.Visible || !btnMcpDemoNotify.Visible || !btnMcpDemoQuote.Visible)
+            if (lnkMcpCopy.Visible || !btnMcpDemo.Visible || !btnMcpDemoProgress.Visible || !btnMcpDemoNotify.Visible)
             {
                 Console.WriteLine("FAIL: SettingsDialog previews should be visible and copy link should stay hidden until setup is needed");
                 mcpSetDlg.Close();
