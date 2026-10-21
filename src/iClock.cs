@@ -7457,7 +7457,7 @@ internal sealed class AppContext : ApplicationContext
     private bool hudClearPending;
     private NotifyIcon tray;
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuAbout, menuExit, menuUpdate;
-    internal const string CURRENT_VERSION = "1.09";
+    internal const string CURRENT_VERSION = "1.10";
     private string updateUrl;
     private string latestVersion;
     private Timer timer;
