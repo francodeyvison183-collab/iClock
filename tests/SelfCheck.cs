@@ -1228,11 +1228,14 @@ internal static class TestCheck
             Control minCtrl = (Control)settingsDialogType.GetField("minutes", bf).GetValue(tabDlg);
             Button btnProgDemo = (Button)settingsDialogType.GetField("btnProgressDemo", bf).GetValue(tabDlg);
             Panel capCard = (Panel)settingsDialogType.GetField("panelCapCard", bf).GetValue(tabDlg);
-            Panel cliStatus = (Panel)settingsDialogType.GetField("panelCliStatus", bf).GetValue(tabDlg);
-            Label lnkCopy = (Label)settingsDialogType.GetField("lnkCliGuide", bf).GetValue(tabDlg);
+            Panel skillCard = (Panel)settingsDialogType.GetField("panelSkillCard", bf).GetValue(tabDlg);
+            Label skillGuidance = (Label)settingsDialogType.GetField("lblSkillGuidance", bf).GetValue(tabDlg);
+            Panel agentRows = (Panel)settingsDialogType.GetField("panelAgentRows", bf).GetValue(tabDlg);
+            Label agentEmpty = (Label)settingsDialogType.GetField("lblAgentEmpty", bf).GetValue(tabDlg);
+            Panel installFail = (Panel)settingsDialogType.GetField("panelInstallFail", bf).GetValue(tabDlg);
+            LinkLabel cliGuide = (LinkLabel)settingsDialogType.GetField("lnkCliGuide", bf).GetValue(tabDlg);
             CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
             Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
-            Label collaborationTitle = (Label)settingsDialogType.GetField("lblCollaborationTitle", bf).GetValue(tabDlg);
             Label tool1 = (Label)settingsDialogType.GetField("lblTool1Name", bf).GetValue(tabDlg);
             Label tool2 = (Label)settingsDialogType.GetField("lblTool2Name", bf).GetValue(tabDlg);
             Label tool3 = (Label)settingsDialogType.GetField("lblTool3Name", bf).GetValue(tabDlg);
@@ -1246,7 +1249,9 @@ internal static class TestCheck
                 }
             }
 
-            if (btnTabTimer == null || btnTabAgent == null || capCard == null || cliStatus == null || btnProgDemo == null || lnkCopy == null || collaborationTitle == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null)
+            if (btnTabTimer == null || btnTabAgent == null || capCard == null || skillCard == null || skillGuidance == null ||
+                agentRows == null || agentEmpty == null || installFail == null ||
+                cliGuide == null || btnProgDemo == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Agent tab controls");
                 return 33;
@@ -1276,21 +1281,22 @@ internal static class TestCheck
                 return 33;
             }
 
-            // Verify capabilities and CLI collaboration status are visible on Agent tab.
-            // CLI access instructions are available without detecting agent processes or server state.
-            if (!capCard.Visible || !cliStatus.Visible || !lnkCopy.Visible || lnkCopy.Text != "复制 CLI 协作说明")
+            // Agent rows list only running agents; empty-state shows the copy-guide fallback.
+            int runningCount = agentRows.Controls.Count / 3; // dot + name + button per agent
+            if (!capCard.Visible || !skillCard.Visible || skillGuidance.Text != "安装技能让智能体学会这些能力：" ||
+                (runningCount > 0 && agentEmpty.Visible) || (runningCount == 0 && !agentEmpty.Visible) ||
+                cliGuide.Visible != (runningCount == 0) || installFail.Visible)
             {
-                Console.WriteLine("FAIL: Agent tab should show CLI collaboration guidance independently of server state");
+                Console.WriteLine("FAIL: Agent tab should list running agents or show the empty-state fallback");
                 return 33;
             }
 
-            if (collaborationTitle.Text != "桌面协作" ||
-                capabilityTitle.Text != "常用桌面能力" ||
+            if (capabilityTitle.Text != "开启 AI 协作 给智能体赋能" ||
                 tool1.Text != "决策请示" || tool2.Text != "任务状态" || tool3.Text != "完成提醒" ||
                 btnProgDemo.Text != "预览" ||
-                cliStatus.Top >= capCard.Top)
+                skillCard.Top <= capCard.Top || !skillCard.AutoScroll || skillCard.HorizontalScroll.Visible)
             {
-                Console.WriteLine("FAIL: Agent tab layout/text mismatch: title=" + collaborationTitle.Text + ", capability=" + capabilityTitle.Text + ", tools=" + tool1.Text + "/" + tool2.Text + "/" + tool3.Text + ", preview=" + btnProgDemo.Text + ", statusTop=" + cliStatus.Top + ", capabilityTop=" + capCard.Top);
+                Console.WriteLine("FAIL: Agent tab layout/text mismatch: capability=" + capabilityTitle.Text + ", tools=" + tool1.Text + "/" + tool2.Text + "/" + tool3.Text + ", preview=" + btnProgDemo.Text + ", skillTop=" + skillCard.Top + ", capabilityTop=" + capCard.Top);
                 return 33;
             }
 
@@ -2418,14 +2424,35 @@ internal static class TestCheck
             MethodInfo cliPromptMethod = cliPromptType != null ? cliPromptType.GetMethod("GenerateCliAgentPrompt", BindingFlags.Public | BindingFlags.Static) : null;
             string cliPromptZh = cliPromptMethod != null ? (string)cliPromptMethod.Invoke(null, new object[] { false }) : "";
             string cliPromptEn = cliPromptMethod != null ? (string)cliPromptMethod.Invoke(null, new object[] { true }) : "";
-            if (!cliPromptZh.Contains("--ask") || !cliPromptZh.Contains("--progress") || !cliPromptZh.Contains("--notice") || !cliPromptZh.Contains("--json") || cliPromptZh.Contains("MCP") ||
-                !cliPromptEn.Contains("--ask") || !cliPromptEn.Contains("--progress") || !cliPromptEn.Contains("--notice") || !cliPromptEn.Contains("--json") || cliPromptEn.Contains("MCP"))
+            if (!cliPromptZh.Contains("--ask") || !cliPromptZh.Contains("--progress") || !cliPromptZh.Contains("--notice") || !cliPromptZh.Contains("--json") ||
+                !cliPromptZh.Contains("首次工具调用验证") || !cliPromptZh.Contains("本次会话") || !cliPromptZh.Contains("后台继续工作") ||
+                !cliPromptZh.Contains("--progress clear") || cliPromptZh.Contains("MCP") ||
+                !cliPromptEn.Contains("--ask") || !cliPromptEn.Contains("--progress") || !cliPromptEn.Contains("--notice") || !cliPromptEn.Contains("--json") ||
+                !cliPromptEn.Contains("Initial tool-call verification") || !cliPromptEn.Contains("this conversation") || cliPromptEn.Contains("MCP"))
             {
-                Console.WriteLine("FAIL: CLI guide should contain CLI collaboration commands only");
+                Console.WriteLine("FAIL: CLI guide should explain usage, session persistence, and safe tool-call verification");
+                return 59;
+            }
+            Type cliSkillType = asm.GetType("CliSkillInstaller");
+            MethodInfo skillPathMethod = cliSkillType != null ? cliSkillType.GetMethod("GetSkillPath", BindingFlags.Public | BindingFlags.Static) : null;
+            MethodInfo skillMarkdownMethod = cliSkillType != null ? cliSkillType.GetMethod("GetSkillMarkdown", BindingFlags.Public | BindingFlags.Static) : null;
+            string skillPath = skillPathMethod != null ? (string)skillPathMethod.Invoke(null, new object[] { null }) : "";
+            string codexSkillPath = skillPathMethod != null ? (string)skillPathMethod.Invoke(null, new object[] { "Codex" }) : "";
+            string antigravitySkillPath = skillPathMethod != null ? (string)skillPathMethod.Invoke(null, new object[] { "Antigravity" }) : "";
+            string skillMarkdown = skillMarkdownMethod != null ? (string)skillMarkdownMethod.Invoke(null, null) : "";
+            if (!skillPath.EndsWith(System.IO.Path.Combine(".agents", "skills", "iclock-desktop-collaboration", "SKILL.md"), StringComparison.OrdinalIgnoreCase) ||
+                !codexSkillPath.EndsWith(System.IO.Path.Combine(".codex", "skills", "iclock-desktop-collaboration", "SKILL.md"), StringComparison.OrdinalIgnoreCase) ||
+                !antigravitySkillPath.EndsWith(System.IO.Path.Combine(".gemini", "antigravity-cli", "skills", "iclock-desktop-collaboration", "SKILL.md"), StringComparison.OrdinalIgnoreCase) ||
+                !skillMarkdown.Contains("name: iclock-desktop-collaboration") || !skillMarkdown.Contains("--progress clear") ||
+                !skillMarkdown.Contains("--notice") || !skillMarkdown.Contains("## Verification") ||
+                !skillMarkdown.Contains("Do not run synthetic verification on every ordinary task") ||
+                !skillMarkdown.Contains("cannot guarantee invocation"))
+            {
+                Console.WriteLine("FAIL: CLI Skill per-agent targets or persistent behavior guidance are invalid");
                 return 59;
             }
             MethodInfo quotePromptMethod = asm.GetType("AiAgentQuoteHelper").GetMethod("BuildAgentPrompt", BindingFlags.NonPublic | BindingFlags.Static);
-            string quotePrompt = (string)quotePromptMethod.Invoke(null, new object[] { new List<string> { "专注" }, "zh" });
+            string quotePrompt = (string)quotePromptMethod.Invoke(null, new object[] { new List<string> { "专注" }, 30, "zh" });
             if (!quotePrompt.Contains("--quote-add") || quotePrompt.Contains("MCP"))
             {
                 Console.WriteLine("FAIL: Agent quote prompt should import through the CLI");
@@ -2839,8 +2866,8 @@ internal static class TestCheck
 
             // Verify AiAgentQuoteHelper GetKeywords and BuildPrompt
             MethodInfo mGetKeywords = helperType.GetMethod("GetKeywords", BindingFlags.NonPublic | BindingFlags.Static);
-            MethodInfo mBuildPrompt = helperType.GetMethod("BuildPrompt", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(List<string>), typeof(string) }, null);
-            MethodInfo mBuildAgentPrompt = helperType.GetMethod("BuildAgentPrompt", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(List<string>), typeof(string) }, null);
+            MethodInfo mBuildPrompt = helperType.GetMethod("BuildPrompt", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(List<string>), typeof(int), typeof(string) }, null);
+            MethodInfo mBuildAgentPrompt = helperType.GetMethod("BuildAgentPrompt", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(List<string>), typeof(int), typeof(string) }, null);
             if (mGetKeywords == null || mBuildPrompt == null || mBuildAgentPrompt == null)
             {
                 Console.WriteLine("FAIL: AiAgentQuoteHelper GetKeywords, BuildPrompt, or BuildAgentPrompt method missing");
@@ -2852,16 +2879,16 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: GetKeywords did not return expected default ZH tags");
                 return 61;
             }
-            string generatedPrompt = (string)mBuildPrompt.Invoke(null, new object[] { new List<string> { "知行合一", "松弛感" }, "zh" });
-            if (!generatedPrompt.Contains("知行合一") || !generatedPrompt.Contains("松弛感") || !generatedPrompt.Contains("30"))
+            string generatedPrompt = (string)mBuildPrompt.Invoke(null, new object[] { new List<string> { "知行合一", "松弛感" }, 50, "zh" });
+            if (!generatedPrompt.Contains("知行合一") || !generatedPrompt.Contains("松弛感") || !generatedPrompt.Contains("50"))
             {
-                Console.WriteLine("FAIL: BuildPrompt did not include custom tags and 30 quotes request: " + generatedPrompt);
+                Console.WriteLine("FAIL: BuildPrompt did not include custom tags and 50 quotes request: " + generatedPrompt);
                 return 61;
             }
-            string generatedAgentPrompt = (string)mBuildAgentPrompt.Invoke(null, new object[] { new List<string> { "知行合一", "松弛感" }, "zh" });
-            if (!generatedAgentPrompt.Contains("30") || !generatedAgentPrompt.Contains("--quote-add") || !generatedAgentPrompt.Contains("add"))
+            string generatedAgentPrompt = (string)mBuildAgentPrompt.Invoke(null, new object[] { new List<string> { "知行合一", "松弛感" }, 50, "zh" });
+            if (!generatedAgentPrompt.Contains("50") || !generatedAgentPrompt.Contains("--quote-add") || !generatedAgentPrompt.Contains("add"))
             {
-                Console.WriteLine("FAIL: BuildAgentPrompt did not include 30 quotes and CLI quote import instruction: " + generatedAgentPrompt);
+                Console.WriteLine("FAIL: BuildAgentPrompt did not include 50 quotes and CLI quote import instruction: " + generatedAgentPrompt);
                 return 61;
             }
 
@@ -2878,28 +2905,34 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: AiQuoteDialog title missing AI");
                 return 61;
             }
-            if (aiDlg.ClientSize.Width != 410 || aiDlg.ClientSize.Height != 265)
+            if (aiDlg.ClientSize.Width != 410 || aiDlg.ClientSize.Height != 360)
             {
-                Console.WriteLine("FAIL: AiQuoteDialog size should be 410x265, got: " + aiDlg.ClientSize.Width + "x" + aiDlg.ClientSize.Height);
+                Console.WriteLine("FAIL: AiQuoteDialog size should be 410x360, got: " + aiDlg.ClientSize.Width + "x" + aiDlg.ClientSize.Height);
                 return 61;
             }
-            FieldInfo fPanelTags = aiDlgType.GetField("panelTags", BindingFlags.NonPublic | BindingFlags.Instance);
-            FieldInfo fTxtNewTag = aiDlgType.GetField("txtNewTag", BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo fTxtPreference = aiDlgType.GetField("txtPreference", BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo fNudQuoteCount = aiDlgType.GetField("nudQuoteCount", BindingFlags.NonPublic | BindingFlags.Instance);
             FieldInfo fCboAgent = aiDlgType.GetField("cboAgent", BindingFlags.NonPublic | BindingFlags.Instance);
             FieldInfo fPanelStatus = aiDlgType.GetField("panelStatus", BindingFlags.NonPublic | BindingFlags.Instance);
             FieldInfo fPanelSetup = aiDlgType.GetField("panelSetup", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (fPanelTags == null || fTxtNewTag == null || fCboAgent == null || fPanelStatus == null || fPanelSetup == null)
+            if (fTxtPreference == null || fNudQuoteCount == null || fCboAgent == null || fPanelStatus == null || fPanelSetup == null)
             {
-                Console.WriteLine("FAIL: AiQuoteDialog missing required UI fields (panelTags, txtNewTag, cboAgent, panelStatus, panelSetup)");
+                Console.WriteLine("FAIL: AiQuoteDialog missing required UI fields (txtPreference, nudQuoteCount, cboAgent, panelStatus, panelSetup)");
                 return 61;
             }
-            FlowLayoutPanel pnlTags = (FlowLayoutPanel)fPanelTags.GetValue(aiDlg);
+            TextBox txtPref = (TextBox)fTxtPreference.GetValue(aiDlg);
+            NumericUpDown nudCount = (NumericUpDown)fNudQuoteCount.GetValue(aiDlg);
             ComboBox cbAgent = (ComboBox)fCboAgent.GetValue(aiDlg);
             Panel pnlSetup = (Panel)fPanelSetup.GetValue(aiDlg);
             Panel pnlStatus = (Panel)fPanelStatus.GetValue(aiDlg);
-            if (pnlTags == null || pnlTags.Controls.Count == 0)
+            if (txtPref == null || !txtPref.Multiline || txtPref.Text.Length == 0 || !txtPref.Text.Contains("极客心流"))
             {
-                Console.WriteLine("FAIL: AiQuoteDialog panelTags was not populated with default tag pills");
+                Console.WriteLine("FAIL: AiQuoteDialog txtPreference was not populated with default preferences");
+                return 61;
+            }
+            if (nudCount == null || nudCount.Minimum != 5 || nudCount.Maximum != 100 || nudCount.Value != 30)
+            {
+                Console.WriteLine("FAIL: AiQuoteDialog nudQuoteCount should default to 30 with range 5-100");
                 return 61;
             }
             if (cbAgent == null || cbAgent.Items.Count == 0)

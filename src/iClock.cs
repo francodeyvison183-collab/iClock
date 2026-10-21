@@ -52,9 +52,16 @@ internal sealed class Settings
     public string QuoteColor = "";
     public string QuoteFont = "";
     public bool QuotePinTopMost;
+    public int TaskStatusX = -99999;
+    public int TaskStatusY = -99999;
+    public float TaskStatusFontSize = 9.5f;
+    public string TaskStatusTextColor = "";
+    public string TaskStatusBarColor = "";
+    public int TaskStatusWidth = 300;
     public string AiAgentType = "Auto";
     public string AiAgentCustomCmd = "";
     public string AiQuoteKeywords = "";
+    public int AiQuoteCount = 30;
 
     public void CopyFrom(Settings src)
     {
@@ -69,8 +76,13 @@ internal sealed class Settings
         QuoteX = src.QuoteX; QuoteY = src.QuoteY; QuoteWidth = src.QuoteWidth;
         QuoteFontSize = src.QuoteFontSize; QuoteColor = src.QuoteColor; QuoteFont = src.QuoteFont;
         QuotePinTopMost = src.QuotePinTopMost;
+        TaskStatusX = src.TaskStatusX; TaskStatusY = src.TaskStatusY;
+        TaskStatusFontSize = src.TaskStatusFontSize > 0 ? src.TaskStatusFontSize : 9.5f;
+        TaskStatusTextColor = src.TaskStatusTextColor; TaskStatusBarColor = src.TaskStatusBarColor;
+        TaskStatusWidth = src.TaskStatusWidth > 0 ? Math.Max(160, Math.Min(800, src.TaskStatusWidth)) : 300;
         AiAgentType = src.AiAgentType; AiAgentCustomCmd = src.AiAgentCustomCmd;
         AiQuoteKeywords = src.AiQuoteKeywords;
+        AiQuoteCount = src.AiQuoteCount > 0 ? src.AiQuoteCount : 30;
     }
 
     public static string FilePath
@@ -144,9 +156,16 @@ internal sealed class Settings
                 else if (k == "QuoteColor") s.QuoteColor = v;
                 else if (k == "QuoteFont") s.QuoteFont = v;
                 else if (k == "QuotePinTopMost" && bool.TryParse(v, out b)) s.QuotePinTopMost = b;
+                else if (k == "TaskStatusX" && int.TryParse(v, out n)) s.TaskStatusX = n;
+                else if (k == "TaskStatusY" && int.TryParse(v, out n)) s.TaskStatusY = n;
+                else if (k == "TaskStatusFontSize" && float.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out f)) s.TaskStatusFontSize = f > 0 ? Math.Max(7.0f, Math.Min(16.0f, f)) : 9.5f;
+                else if (k == "TaskStatusTextColor") s.TaskStatusTextColor = v;
+                else if (k == "TaskStatusBarColor") s.TaskStatusBarColor = v;
+                else if (k == "TaskStatusWidth" && int.TryParse(v, out n)) s.TaskStatusWidth = n > 0 ? Math.Max(160, Math.Min(800, n)) : 300;
                 else if (k == "AiAgentType") s.AiAgentType = v;
                 else if (k == "AiAgentCustomCmd") s.AiAgentCustomCmd = v;
                 else if (k == "AiQuoteKeywords") s.AiQuoteKeywords = v;
+                else if (k == "AiQuoteCount" && int.TryParse(v, out n)) s.AiQuoteCount = n > 0 ? n : 30;
             }
             if ((s.X == 80 && s.Y == 80) || (s.X == -1 && s.Y == 90)) { s.X = -1; s.Y = 60; }
         }
@@ -167,9 +186,14 @@ internal sealed class Settings
             "DesktopCollaborationEnabled=" + DesktopCollaborationEnabled,
             "DailyQuote=" + DailyQuote, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
             "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuotePinTopMost=" + QuotePinTopMost,
+            "TaskStatusX=" + TaskStatusX, "TaskStatusY=" + TaskStatusY,
+            "TaskStatusFontSize=" + (TaskStatusFontSize > 0 ? TaskStatusFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "9.5"),
+            "TaskStatusTextColor=" + TaskStatusTextColor, "TaskStatusBarColor=" + TaskStatusBarColor,
+            "TaskStatusWidth=" + TaskStatusWidth,
             "AiAgentType=" + AiAgentType,
             "AiAgentCustomCmd=" + AiAgentCustomCmd,
             "AiQuoteKeywords=" + AiQuoteKeywords
+            , "AiQuoteCount=" + AiQuoteCount
         };
         string tmp = Path.Combine(dir, "settings.ini.tmp");
         try
@@ -928,9 +952,32 @@ internal sealed class AgentTaskStatus
 
 internal sealed class AgentTaskStatusHud : Form
 {
-    private const int HudWidth = 300;
+    private const int DefaultHudWidth = 300;
+    private const int MinHudWidth = 160;
+    private const int MaxHudWidth = 800;
+    private const byte AC_SRC_OVER_HUD = 0x00;
+    private const byte AC_SRC_ALPHA_HUD = 0x01;
+    private const uint ULW_ALPHA_HUD = 0x02;
     private readonly Settings settings;
     private List<AgentTaskStatus> tasks = new List<AgentTaskStatus>();
+    private bool moving;
+    private bool resizingWidth;
+    private Point dragStart;
+    private Point formStart;
+    private int dragStartWidth;
+    private bool snapV;
+    private Form snapGuideForm;
+    private Bitmap renderBitmap;
+    private byte[] premulBuffer;
+    private Rectangle btnTextColorRect = Rectangle.Empty;
+    private Rectangle btnBarColorRect = Rectangle.Empty;
+    private Timer altWatchTimer;
+    private bool lastAltState;
+
+    private int CurrentWidth
+    {
+        get { return settings != null && settings.TaskStatusWidth > 0 ? settings.TaskStatusWidth : DefaultHudWidth; }
+    }
 
     internal AgentTaskStatusHud(Settings settings)
     {
@@ -939,11 +986,47 @@ internal sealed class AgentTaskStatusHud : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         TopMost = true;
-        BackColor = AppContext.Win11Bg;
-        Opacity = 0.96;
-        DoubleBuffered = true;
-        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
-        Size = new Size(HudWidth, 48);
+        Size = new Size(CurrentWidth, 24);
+        MouseDown += OnHudMouseDown;
+        MouseMove += OnHudMouseMove;
+        MouseUp += OnHudMouseUp;
+        MouseWheel += OnHudMouseWheel;
+        LocationChanged += delegate { RenderLayeredWindow(); };
+        SizeChanged += delegate { RenderLayeredWindow(); };
+        altWatchTimer = new Timer();
+        altWatchTimer.Interval = 120;
+        altWatchTimer.Tick += delegate
+        {
+            bool alt = (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
+            if (alt != lastAltState)
+            {
+                lastAltState = alt;
+                SetTasks(tasks); // height changes between alt / normal modes
+            }
+            else
+            {
+                RenderLayeredWindow();
+            }
+        };
+        altWatchTimer.Start();
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        base.OnFormClosed(e);
+        if (altWatchTimer != null) { altWatchTimer.Stop(); altWatchTimer.Dispose(); altWatchTimer = null; }
+    }
+
+    private void OnHudMouseWheel(object sender, MouseEventArgs e)
+    {
+        bool ctrlAlt = (Control.ModifierKeys & Keys.Control) != 0 && (Control.ModifierKeys & Keys.Alt) != 0;
+        if (!ctrlAlt) return;
+        float delta = e.Delta > 0 ? 0.5f : -0.5f;
+        float next = Math.Max(7.0f, Math.Min(16.0f, settings.TaskStatusFontSize + delta));
+        if (Math.Abs(next - settings.TaskStatusFontSize) < 0.01f) return;
+        settings.TaskStatusFontSize = next;
+        settings.Save();
+        SetTasks(tasks); // recompute height and re-render
     }
 
     protected override bool ShowWithoutActivation { get { return true; } }
@@ -953,35 +1036,375 @@ internal sealed class AgentTaskStatusHud : Form
         get
         {
             CreateParams cp = base.CreateParams;
-            cp.ExStyle |= 0x80 | 0x08000000;
+            cp.ExStyle |= 0x80 | 0x08000000 | 0x00080000; // WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_LAYERED
             return cp;
         }
     }
 
+    protected override void OnPaintBackground(PaintEventArgs e) { }
+    protected override void OnPaint(PaintEventArgs e) { }
+
     protected override void WndProc(ref Message m)
     {
-        if (m.Msg == 0x84) { m.Result = (IntPtr)(-1); return; }
+        if (m.Msg == 0x84)
+        {
+            bool alt = (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
+            m.Result = (IntPtr)(alt ? 1 : -1); // HTCLIENT when Alt held (draggable), HTTRANSPARENT otherwise
+            return;
+        }
         base.WndProc(ref m);
     }
 
-    protected override void OnSizeChanged(EventArgs e)
+    private void OnHudMouseDown(object sender, MouseEventArgs e)
     {
-        base.OnSizeChanged(e);
-        using (GraphicsPath path = AppContext.GetRoundedRectPath(new Rectangle(0, 0, Width - 1, Height - 1), 8))
-            Region = new Region(path);
+        if (e.Button != MouseButtons.Left) return;
+        bool alt = (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
+        if (!alt) return;
+        if (btnTextColorRect.Contains(e.Location))
+        {
+            PickColor(true);
+            return;
+        }
+        if (btnBarColorRect.Contains(e.Location))
+        {
+            PickColor(false);
+            return;
+        }
+        // Right edge (last 8px) resizes width; elsewhere starts move.
+        if (e.X >= Width - 8)
+        {
+            resizingWidth = true;
+            dragStart = Cursor.Position;
+            dragStartWidth = Width;
+            return;
+        }
+        moving = true; dragStart = Cursor.Position; formStart = Location;
+    }
+
+    private void PickColor(bool forText)
+    {
+        Color init;
+        try
+        {
+            string hex = forText ? settings.TaskStatusTextColor : settings.TaskStatusBarColor;
+            init = !string.IsNullOrEmpty(hex) ? ColorTranslator.FromHtml(hex) : (forText ? Color.White : AppContext.Win11Accent);
+        }
+        catch { init = forText ? Color.White : AppContext.Win11Accent; }
+
+        // Pause the Alt watcher while the dialog is up so the HUD doesn't tear down mid-pick.
+        if (altWatchTimer != null) altWatchTimer.Stop();
+        using (ColorDialog cd = new ColorDialog())
+        {
+            cd.Color = init;
+            cd.FullOpen = true;
+            // No owner: keeps the HUD top-most and avoids focus-steal side-effects.
+            if (cd.ShowDialog() != DialogResult.OK)
+            {
+                if (altWatchTimer != null) altWatchTimer.Start();
+                return;
+            }
+            string hex = ColorTranslator.ToHtml(cd.Color);
+            if (forText) settings.TaskStatusTextColor = hex;
+            else settings.TaskStatusBarColor = hex;
+            settings.Save();
+            if (altWatchTimer != null) altWatchTimer.Start();
+            RenderLayeredWindow();
+        }
+    }
+
+    private void OnHudMouseMove(object sender, MouseEventArgs e)
+    {
+        // Cursor hint over the right resize edge while Alt is held.
+        if (!moving && !resizingWidth)
+        {
+            bool alt = (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
+            if (alt && e.X >= Width - 8)
+            {
+                if (Cursor.Current != Cursors.SizeWE) Cursor.Current = Cursors.SizeWE;
+            }
+            else if (alt)
+            {
+                if (Cursor.Current != Cursors.SizeAll) Cursor.Current = Cursors.SizeAll;
+            }
+        }
+        if (resizingWidth)
+        {
+            int newWidth = Math.Max(MinHudWidth, Math.Min(MaxHudWidth, dragStartWidth + Cursor.Position.X - dragStart.X));
+            if (newWidth != Width)
+            {
+                Width = newWidth;
+                RenderLayeredWindow();
+            }
+            return;
+        }
+        if (!moving) return;
+        int newX = formStart.X + Cursor.Position.X - dragStart.X;
+        int newY = formStart.Y + Cursor.Position.Y - dragStart.Y;
+
+        // Snap window horizontal center to the screen's vertical center line.
+        Rectangle screen = Screen.FromPoint(Cursor.Position).WorkingArea;
+        int centerX = screen.Left + screen.Width / 2;
+        int windowCenterX = newX + Width / 2;
+        const int snapThreshold = 16;
+        snapV = Math.Abs(windowCenterX - centerX) <= snapThreshold;
+        if (snapV) newX = centerX - Width / 2;
+        Location = new Point(newX, newY);
+
+        if (snapV)
+        {
+            if (snapGuideForm == null)
+            {
+                snapGuideForm = new Form();
+                snapGuideForm.FormBorderStyle = FormBorderStyle.None;
+                snapGuideForm.ShowInTaskbar = false;
+                snapGuideForm.TopMost = true;
+                snapGuideForm.BackColor = Color.Black;
+                snapGuideForm.TransparencyKey = Color.Black;
+                snapGuideForm.StartPosition = FormStartPosition.Manual;
+                snapGuideForm.Paint += OnSnapGuidePaint;
+            }
+            snapGuideForm.Bounds = screen;
+            if (!snapGuideForm.Visible) snapGuideForm.Show();
+            snapGuideForm.Invalidate();
+        }
+        else if (snapGuideForm != null && snapGuideForm.Visible)
+        {
+            snapGuideForm.Hide();
+        }
+    }
+
+    private void OnHudMouseUp(object sender, MouseEventArgs e)
+    {
+        if (resizingWidth)
+        {
+            resizingWidth = false;
+            settings.TaskStatusWidth = Width;
+            settings.Save();
+            return;
+        }
+        if (!moving) return;
+        moving = false;
+        snapV = false;
+        if (snapGuideForm != null) snapGuideForm.Hide();
+        settings.TaskStatusX = Location.X;
+        settings.TaskStatusY = Location.Y;
+        settings.Save();
+    }
+
+    private void OnSnapGuidePaint(object sender, PaintEventArgs e)
+    {
+        if (!snapV) return;
+        Form f = (Form)sender;
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using (Pen pen = new Pen(Color.FromArgb(180, 0, 180, 255), 1.0f))
+        {
+            pen.DashStyle = DashStyle.Dash;
+            int x = f.Width / 2;
+            e.Graphics.DrawLine(pen, x, 0, x, f.Height);
+        }
     }
 
     internal void SetTasks(IList<AgentTaskStatus> values)
     {
         tasks = values != null ? new List<AgentTaskStatus>(values) : new List<AgentTaskStatus>();
-        int height = 20;
+        float fs = settings != null && settings.TaskStatusFontSize > 0 ? settings.TaskStatusFontSize : 9.5f;
+        int progressRowH = (int)Math.Ceiling(fs * 1.9) + 12;   // bar + gap + message
+        int messageRowH = (int)Math.Ceiling(fs * 1.9) + 3;     // message only
+        int height = 6;
         for (int i = 0; i < tasks.Count; i++)
         {
-            height += tasks[i].HasProgress ? 58 : 42;
-            if (i > 0) height += 10;
+            height += tasks[i].HasProgress ? progressRowH : messageRowH;
+            if (i > 0) height += 6;
         }
-        Size = new Size(HudWidth, Math.Max(48, height));
-        Invalidate();
+        // Alt-mode: double the height so the hover card breathes, content stays vertically centered.
+        bool alt = (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
+        if (alt) height *= 2;
+        Size = new Size(CurrentWidth, Math.Max(24, height));
+        RenderLayeredWindow();
+    }
+
+    private void RenderLayeredWindow()
+    {
+        if (!IsHandleCreated || IsDisposed || Width <= 0 || Height <= 0) return;
+        if (renderBitmap == null || renderBitmap.Width != Width || renderBitmap.Height != Height)
+        {
+            if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
+            renderBitmap = new Bitmap(Width, Height, PixelFormat.Format32bppArgb);
+        }
+        using (Graphics g = Graphics.FromImage(renderBitmap))
+        {
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            g.Clear(Color.FromArgb(0, 0, 0, 0));
+            DrawTasks(g);
+        }
+
+        // Premultiply alpha so semi-transparent pixels blend correctly.
+        BitmapData data = renderBitmap.LockBits(new Rectangle(0, 0, Width, Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+        int byteCount = data.Stride * data.Height;
+        if (premulBuffer == null || premulBuffer.Length < byteCount) premulBuffer = new byte[byteCount];
+        Marshal.Copy(data.Scan0, premulBuffer, 0, byteCount);
+        for (int i = 0; i < byteCount; i += 4)
+        {
+            byte a = premulBuffer[i + 3];
+            if (a > 0)
+            {
+                premulBuffer[i] = (byte)(premulBuffer[i] * a / 255);
+                premulBuffer[i + 1] = (byte)(premulBuffer[i + 1] * a / 255);
+                premulBuffer[i + 2] = (byte)(premulBuffer[i + 2] * a / 255);
+            }
+        }
+        Marshal.Copy(premulBuffer, 0, data.Scan0, byteCount);
+        renderBitmap.UnlockBits(data);
+
+        IntPtr screenDc = IntPtr.Zero;
+        IntPtr memDc = NativeMethods.CreateCompatibleDC(screenDc);
+        IntPtr hBitmap = renderBitmap.GetHbitmap(Color.FromArgb(0));
+        IntPtr oldBitmap = NativeMethods.SelectObject(memDc, hBitmap);
+        POINT ptDst = new POINT(Left, Top);
+        SIZE size = new SIZE(Width, Height);
+        POINT ptSrc = new POINT(0, 0);
+        BLENDFUNCTION blend = new BLENDFUNCTION { BlendOp = AC_SRC_OVER_HUD, BlendFlags = 0, SourceConstantAlpha = 255, AlphaFormat = AC_SRC_ALPHA_HUD };
+        NativeMethods.UpdateLayeredWindow(Handle, screenDc, ref ptDst, ref size, memDc, ref ptSrc, 0, ref blend, ULW_ALPHA_HUD);
+        NativeMethods.SelectObject(memDc, oldBitmap);
+        NativeMethods.DeleteObject(hBitmap);
+        NativeMethods.DeleteDC(memDc);
+    }
+
+    private void DrawTasks(Graphics g)
+    {
+        if (tasks.Count == 0) return;
+        bool alt = (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
+
+        // Alt-mode hover card: same look as the desktop quote's hover state.
+        if (alt)
+        {
+            Rectangle cardRect = new Rectangle(0, 0, Width - 1, Height - 1);
+            using (GraphicsPath path = AppContext.GetRoundedRectPath(cardRect, 10))
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(51, 20, 22, 28)))
+            using (Pen borderPen = new Pen(Color.FromArgb(60, 255, 255, 255), 1.0f))
+            {
+                g.FillPath(bgBrush, path);
+                g.DrawPath(borderPen, path);
+            }
+        }
+
+        // Text color: explicit TaskStatusTextColor wins; else follow quote color rule (QuoteColor or white).
+        Color textColor;
+        if (!string.IsNullOrEmpty(settings.TaskStatusTextColor))
+        {
+            try { textColor = ColorTranslator.FromHtml(settings.TaskStatusTextColor); }
+            catch { textColor = Color.White; }
+        }
+        else
+        {
+            try { textColor = !string.IsNullOrEmpty(settings.QuoteColor) ? ColorTranslator.FromHtml(settings.QuoteColor) : Color.White; }
+            catch { textColor = Color.White; }
+        }
+        // Bar color: explicit TaskStatusBarColor wins; else theme accent.
+        Color barColor;
+        if (!string.IsNullOrEmpty(settings.TaskStatusBarColor))
+        {
+            try { barColor = ColorTranslator.FromHtml(settings.TaskStatusBarColor); }
+            catch { barColor = AppContext.Win11Accent; }
+        }
+        else
+        {
+            barColor = AppContext.Win11Accent;
+        }
+
+        float fs = settings != null && settings.TaskStatusFontSize > 0 ? settings.TaskStatusFontSize : 9.5f;
+        using (Font messageFont = new Font("Microsoft YaHei UI", fs, FontStyle.Regular, GraphicsUnit.Point))
+        using (SolidBrush textBrush = new SolidBrush(textColor))
+        using (SolidBrush track = new SolidBrush(Color.FromArgb(90, 255, 255, 255)))
+        using (SolidBrush fill = new SolidBrush(Color.FromArgb(200, barColor)))
+        using (Pen divider = new Pen(Color.FromArgb(120, 200, 200, 210)))
+        using (StringFormat messageFormat = new StringFormat())
+        {
+            messageFormat.Alignment = StringAlignment.Center;
+            messageFormat.Trimming = StringTrimming.EllipsisWord;
+            messageFormat.FormatFlags = StringFormatFlags.LineLimit;
+            float progressRowH = (float)Math.Ceiling(fs * 1.9) + 12f;
+            float messageRowH = (float)Math.Ceiling(fs * 1.9) + 3f;
+            // Compute content height, then center it vertically inside the (possibly doubled) Alt card.
+            float contentH = 0;
+            for (int i = 0; i < tasks.Count; i++)
+            {
+                contentH += tasks[i].HasProgress ? progressRowH : messageRowH;
+                if (i > 0) contentH += 6f;
+            }
+            float y = Math.Max(3f, (Height - contentH) / 2f);
+            for (int i = 0; i < tasks.Count; i++)
+            {
+                AgentTaskStatus task = tasks[i];
+                float rowTop = y;
+                float rowHeight = task.HasProgress ? progressRowH : messageRowH;
+                float messageTop;
+                if (task.HasProgress)
+                {
+                    float barY = y + 1f;
+                    float barWidth = Width - 16f;
+                    g.FillRectangle(track, 8f, barY, barWidth, 3f);
+                    g.FillRectangle(fill, 8f, barY, barWidth * Math.Max(0f, Math.Min(1f, task.Progress)), 3f);
+                    messageTop = barY + 6f;
+                }
+                else
+                {
+                    messageTop = y;
+                }
+
+                string message = string.IsNullOrEmpty(task.Message)
+                    ? (settings.Language == "en" ? "Task in progress" : "任务进行中")
+                    : task.Message;
+                float messageHeight = Math.Max(messageFont.GetHeight(g), rowHeight - (messageTop - rowTop) - 2f);
+                g.DrawString(message, messageFont, textBrush, new RectangleF(8f, messageTop, Width - 16f, messageHeight), messageFormat);
+                y = rowTop + rowHeight;
+                if (i + 1 < tasks.Count)
+                {
+                    y += 2f;
+                    g.DrawLine(divider, 8f, y, Width - 8f, y);
+                    y += 4f;
+                }
+            }
+        }
+
+        // Alt-mode action buttons in the top-right corner, matching quote card's style.
+        if (alt)
+        {
+            int btnSz = 18;
+            int btnGap = 4;
+            int btnY = 6;
+            btnBarColorRect = new Rectangle(Width - 6 - btnSz, btnY, btnSz, btnSz);
+            btnTextColorRect = new Rectangle(Width - 6 - btnSz - btnGap - btnSz, btnY, btnSz, btnSz);
+            DrawColorButton(g, btnTextColorRect, textColor, true);
+            DrawColorButton(g, btnBarColorRect, barColor, false);
+        }
+        else
+        {
+            btnTextColorRect = Rectangle.Empty;
+            btnBarColorRect = Rectangle.Empty;
+        }
+    }
+
+    private static void DrawColorButton(Graphics g, Rectangle rect, Color fill, bool isText)
+    {
+        using (GraphicsPath path = AppContext.GetRoundedRectPath(rect, 4))
+        using (SolidBrush bg = new SolidBrush(Color.FromArgb(200, 255, 255, 255)))
+        using (Pen border = new Pen(Color.FromArgb(140, 100, 100, 110), 1f))
+        {
+            g.FillPath(bg, path);
+            g.DrawPath(border, path);
+        }
+        // Inner swatch: square for text color, horizontal bar for bar color.
+        Rectangle inner = isText
+            ? new Rectangle(rect.X + 4, rect.Y + 4, rect.Width - 8, rect.Height - 8)
+            : new Rectangle(rect.X + 4, rect.Y + 7, rect.Width - 8, rect.Height - 11);
+        using (SolidBrush sw = new SolidBrush(fill))
+        using (Pen swBorder = new Pen(Color.FromArgb(120, 60, 60, 70), 1f))
+        {
+            g.FillRectangle(sw, inner);
+            g.DrawRectangle(swBorder, inner);
+        }
     }
 
     internal void UpdatePosition(Rectangle clockBounds)
@@ -994,74 +1417,6 @@ internal sealed class AgentTaskStatusHud : Form
         x = Math.Max(work.Left, Math.Min(work.Right - Width, x));
         y = Math.Max(work.Top, Math.Min(work.Bottom - Height, y));
         Location = new Point(x, y);
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        base.OnPaint(e);
-        if (tasks.Count == 0) return;
-        Graphics g = e.Graphics;
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
-        using (GraphicsPath path = AppContext.GetRoundedRectPath(new Rectangle(0, 0, Width - 1, Height - 1), 8))
-        using (SolidBrush bg = new SolidBrush(AppContext.Win11Bg))
-        using (Pen border = new Pen(AppContext.Win11Border))
-        {
-            g.FillPath(bg, path);
-            g.DrawPath(border, path);
-        }
-
-        using (Font headerFont = AppContext.GetUiFont(settings.Language, 8.5f, FontStyle.Bold))
-        using (Font messageFont = AppContext.GetUiFont(settings.Language, 8f))
-        using (SolidBrush primary = new SolidBrush(AppContext.Win11TextPrimary))
-        using (SolidBrush secondary = new SolidBrush(AppContext.Win11TextSecondary))
-        using (SolidBrush track = new SolidBrush(Color.FromArgb(56, AppContext.Win11Accent)))
-        using (SolidBrush fill = new SolidBrush(AppContext.Win11Accent))
-        using (Pen divider = new Pen(AppContext.Win11Border))
-        using (StringFormat messageFormat = new StringFormat())
-        {
-            messageFormat.Trimming = StringTrimming.EllipsisWord;
-            messageFormat.FormatFlags = StringFormatFlags.LineLimit;
-            float y = 10f;
-            for (int i = 0; i < tasks.Count; i++)
-            {
-                AgentTaskStatus task = tasks[i];
-                string agent = task.AgentName == "Claude Code" ? "Claude" : task.AgentName;
-                if (string.IsNullOrEmpty(agent)) agent = settings.Language == "en" ? "AI agent" : "智能体";
-                float rowTop = y;
-                float rowHeight = task.HasProgress ? 58f : 42f;
-                RectangleF headerRect = new RectangleF(12f, y, Width - 76f, headerFont.GetHeight(g) + 2f);
-                g.DrawString(agent, headerFont, primary, headerRect, messageFormat);
-                float messageTop;
-                if (task.HasProgress)
-                {
-                    string pct = ((int)Math.Round(task.Progress * 100f)).ToString() + "%";
-                    g.DrawString(pct, headerFont, primary, new RectangleF(Width - 56f, y, 44f, headerRect.Height), messageFormat);
-                    float barY = y + headerRect.Height + 3f;
-                    float barWidth = Width - 24f;
-                    g.FillRectangle(track, 12f, barY, barWidth, 3f);
-                    g.FillRectangle(fill, 12f, barY, barWidth * Math.Max(0f, Math.Min(1f, task.Progress)), 3f);
-                    messageTop = barY + 7f;
-                }
-                else
-                {
-                    messageTop = y + headerRect.Height + 2f;
-                }
-
-                string message = string.IsNullOrEmpty(task.Message)
-                    ? (settings.Language == "en" ? "Task in progress" : "任务进行中")
-                    : task.Message;
-                float messageHeight = Math.Max(messageFont.GetHeight(g), rowHeight - (messageTop - rowTop) - 4f);
-                g.DrawString(message, messageFont, secondary, new RectangleF(12f, messageTop, Width - 24f, messageHeight), messageFormat);
-                y = rowTop + rowHeight;
-                if (i + 1 < tasks.Count)
-                {
-                    y += 4f;
-                    g.DrawLine(divider, 12f, y, Width - 12f, y);
-                    y += 6f;
-                }
-            }
-        }
     }
 }
 
@@ -1429,19 +1784,28 @@ internal sealed class SettingsDialog : Form
     private Button btnTabTimer, btnTabQuote, btnTabAgent;
     private Button btnAskDemo, btnProgressDemo, btnNotifyDemo;
     private Panel panelCapabilityCard;
-    private Label lblCollaborationTitle, lblDesktopCollaborationState;
     private ToggleSwitch chkDesktopCollaboration;
     private Label lblTool1Name, lblTool2Name, lblTool3Name;
     private Label lblTool1Desc, lblTool2Desc, lblTool3Desc;
     private StyledTipLabel lblAgentCliTip;
     // Two-section layout: collaboration readiness first, capability previews second.
-    private Panel panelCliStatus, panelCapCard;
-    private Label lblCliStatusDot, lblCliStatusText, lblCliStatusMeta;
-    private string desktopCollaborationState = "unknown";
+    private Panel panelSkillCard, panelCapCard;
+    private Label lblSkillGuidance, lblSkillFeedback;
     private LinkLabel lnkCliGuide;
-    private Label lblCliGuideHint;
     private string cliCopyFeedback;
+    private string agentRowsFingerprint;
     private System.Windows.Forms.Timer cliCopyFeedbackTimer;
+    private System.Windows.Forms.Timer agentListTimer;
+    // Dynamic per-agent rows (running agents only), rebuilt by RefreshSkillInstallUi.
+    private Panel panelAgentRows;
+    private Label lblAgentEmpty;
+    // Install failure closure: reason, human self-help, retry, overwrite, agent-assist copy.
+    private Panel panelInstallFail;
+    private Label lblFailReason, lblFailHint;
+    private Button btnRetryInstall, btnOverwriteInstall, btnCopyFixPrompt;
+    private string lastInstallError;
+    private bool lastInstallConflict;
+    private string lastInstallAgent;
 
     private NumericUpDown quoteFontSize;
     private bool isSyncingQuoteFontSize;
@@ -1552,7 +1916,7 @@ internal sealed class SettingsDialog : Form
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
         Text = en ? "iClock Settings" : "iClock 设置"; FormBorderStyle = FormBorderStyle.FixedDialog; StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 452);
+        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 470);
 
         btnTabTimer = new Button(); SetupTabButton(btnTabTimer, en ? "Timer" : "倒计时", 18, 0);
         btnTabQuote = new Button(); SetupTabButton(btnTabQuote, en ? "Daily Quotes" : "每日格言", 133, 1);
@@ -1861,101 +2225,151 @@ internal sealed class SettingsDialog : Form
             : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
 
 
-        // Section: local CLI desktop collaboration
-        lblCollaborationTitle = new Label();
-        lblCollaborationTitle.Text = en ? "Desktop Collaboration" : "桌面协作";
-        lblCollaborationTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
-        lblCollaborationTitle.ForeColor = AppContext.Win11TextPrimary;
-        lblCollaborationTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblCollaborationTitle.SetBounds(18, 56, 200, 22);
-        Controls.Add(lblCollaborationTitle);
-
-        lblDesktopCollaborationState = new Label();
-        lblDesktopCollaborationState.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblDesktopCollaborationState.ForeColor = AppContext.Win11TextSecondary;
-        lblDesktopCollaborationState.TextAlign = ContentAlignment.MiddleRight;
-        lblDesktopCollaborationState.SetBounds(254, 56, 58, 22);
-        Controls.Add(lblDesktopCollaborationState);
+        // Main title row: title + master switch.
+        Label lblCapabilityTitle = new Label();
+        lblCapabilityTitle.Name = "lblCapabilityTitle";
+        lblCapabilityTitle.Text = en ? "Enable AI collaboration" : "开启 AI 协作 给智能体赋能";
+        lblCapabilityTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
+        lblCapabilityTitle.ForeColor = AppContext.Win11TextPrimary;
+        lblCapabilityTitle.TextAlign = ContentAlignment.MiddleLeft;
+        lblCapabilityTitle.SetBounds(18, 56, 280, 22);
+        Controls.Add(lblCapabilityTitle);
 
         chkDesktopCollaboration = new ToggleSwitch();
         chkDesktopCollaboration.SetBounds(322, 56, 40, 22);
-        chkDesktopCollaboration.AccessibleName = en ? "Desktop collaboration" : "桌面协作开关";
+        chkDesktopCollaboration.AccessibleName = en ? "AI collaboration" : "AI 协作开关";
         chkDesktopCollaboration.Checked = Value.DesktopCollaborationEnabled;
-        lblDesktopCollaborationState.Text = Value.DesktopCollaborationEnabled ? (en ? "Enabled" : "已启用") : (en ? "Disabled" : "已停用");
         chkDesktopCollaboration.CheckedChanged += OnDesktopCollaborationChanged;
         Controls.Add(chkDesktopCollaboration);
         if (toolTip == null) toolTip = new ToolTip();
         toolTip.SetToolTip(chkDesktopCollaboration, en
-            ? "Enable or disable iClock desktop collaboration commands."
-            : "启用或停用 iClock 命令行桌面协作能力。");
+            ? "Enable or disable iClock desktop collaboration."
+            : "启用或停用 iClock 桌面协作。");
 
-        panelCliStatus = new Panel();
-        panelCliStatus.SetBounds(18, 80, 344, 120);
-        panelCliStatus.BackColor = Color.White;
-        panelCliStatus.AutoScroll = true;
-        panelCliStatus.HorizontalScroll.Enabled = false;
-        panelCliStatus.Paint += OnCardPaint;
-        Controls.Add(panelCliStatus);
+        // Subtitle: scenario description.
+        Label lblCapabilitySub = new Label();
+        lblCapabilitySub.Name = "lblCapabilitySub";
+        lblCapabilitySub.Text = en
+            ? "iClock brings you back with pinned alerts while agents run in background."
+            : "智能体后台运行时，通过 iClock 置顶提醒重要进展。";
+        lblCapabilitySub.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblCapabilitySub.ForeColor = AppContext.Win11TextSecondary;
+        lblCapabilitySub.TextAlign = ContentAlignment.MiddleLeft;
+        lblCapabilitySub.SetBounds(18, 80, 344, 16);
+        Controls.Add(lblCapabilitySub);
 
-        lblCliStatusDot = new Label();
-        lblCliStatusDot.SetBounds(14, 14, 12, 12);
-        lblCliStatusDot.Paint += OnStatusDotPaint;
-        panelCliStatus.Controls.Add(lblCliStatusDot);
+        panelCapCard = new Panel();
+        panelCapCard.SetBounds(18, 100, 344, 150);
+        panelCapCard.BackColor = Color.White;
+        panelCapCard.Paint += OnCapabilityCardPaint;
+        Controls.Add(panelCapCard);
+        panelCapabilityCard = panelCapCard; // Keep legacy reference for compatibility
 
-        lblCliStatusText = new Label();
-        lblCliStatusText.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
-        lblCliStatusText.ForeColor = AppContext.Win11TextPrimary;
-        lblCliStatusText.TextAlign = ContentAlignment.MiddleLeft;
-        lblCliStatusText.SetBounds(32, 10, 280, 20);
-        panelCliStatus.Controls.Add(lblCliStatusText);
+        // Section title: teach agents the capabilities.
+        lblSkillGuidance = new Label();
+        lblSkillGuidance.Name = "lblSkillGuidance";
+        lblSkillGuidance.Text = en
+            ? "Install the skill to teach your agent:"
+            : "安装技能让智能体学会这些能力：";
+        lblSkillGuidance.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblSkillGuidance.ForeColor = AppContext.Win11TextSecondary;
+        lblSkillGuidance.SetBounds(18, 264, 344, 18);
+        Controls.Add(lblSkillGuidance);
 
-        lblCliStatusMeta = new Label();
-        lblCliStatusMeta.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblCliStatusMeta.ForeColor = AppContext.Win11TextSecondary;
-        lblCliStatusMeta.TextAlign = ContentAlignment.TopLeft;
-        lblCliStatusMeta.AutoSize = true;
-        lblCliStatusMeta.MaximumSize = new Size(280, 0);
-        lblCliStatusMeta.SetBounds(32, 31, 280, 20);
-        panelCliStatus.Controls.Add(lblCliStatusMeta);
+        // Skill card: dynamic per-agent rows + empty-state fallback + install-failure closure.
+        panelSkillCard = new Panel();
+        panelSkillCard.SetBounds(18, 286, 344, 110);
+        panelSkillCard.BackColor = Color.White;
+        panelSkillCard.AutoScroll = true;
+        panelSkillCard.HorizontalScroll.Enabled = false;
+        panelSkillCard.Paint += OnCardPaint;
+        Controls.Add(panelSkillCard);
+
+        panelAgentRows = new Panel();
+        panelAgentRows.SetBounds(0, 0, 344, 10);
+        panelAgentRows.BackColor = Color.Transparent;
+        panelSkillCard.Controls.Add(panelAgentRows);
+
+        lblAgentEmpty = new Label();
+        lblAgentEmpty.Name = "lblAgentEmpty";
+        lblAgentEmpty.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblAgentEmpty.ForeColor = AppContext.Win11TextSecondary;
+        lblAgentEmpty.SetBounds(14, 12, 316, 40);
+        lblAgentEmpty.Visible = false;
+        panelSkillCard.Controls.Add(lblAgentEmpty);
 
         lnkCliGuide = new LinkLabel();
-        lnkCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Underline);
+        lnkCliGuide.Name = "lnkCliGuide";
+        lnkCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lnkCliGuide.ForeColor = AppContext.Win11TextSecondary;
         lnkCliGuide.LinkColor = AppContext.Win11Accent;
         lnkCliGuide.ActiveLinkColor = AppContext.Win11Accent;
         lnkCliGuide.VisitedLinkColor = AppContext.Win11Accent;
         lnkCliGuide.LinkBehavior = LinkBehavior.AlwaysUnderline;
         lnkCliGuide.AutoSize = false;
         lnkCliGuide.TextAlign = ContentAlignment.MiddleLeft;
-        lnkCliGuide.SetBounds(32, 36, 1, 18);
+        lnkCliGuide.SetBounds(14, 52, 316, 20);
         lnkCliGuide.Cursor = Cursors.Hand;
         lnkCliGuide.Visible = false;
         lnkCliGuide.LinkClicked += OnCliGuideClick;
-        panelCliStatus.Controls.Add(lnkCliGuide);
+        panelSkillCard.Controls.Add(lnkCliGuide);
 
-        lblCliGuideHint = new Label();
-        lblCliGuideHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblCliGuideHint.ForeColor = AppContext.Win11TextSecondary;
-        lblCliGuideHint.AutoSize = false;
-        lblCliGuideHint.TextAlign = ContentAlignment.MiddleLeft;
-        lblCliGuideHint.SetBounds(32, 36, 1, 18);
-        lblCliGuideHint.Visible = false;
-        panelCliStatus.Controls.Add(lblCliGuideHint);
+        // Install-failure closure panel (hidden until an install fails).
+        panelInstallFail = new Panel();
+        panelInstallFail.SetBounds(10, 76, 324, 76);
+        panelInstallFail.BackColor = Color.FromArgb(255, 250, 243);
+        panelInstallFail.Visible = false;
+        panelSkillCard.Controls.Add(panelInstallFail);
 
-        Label lblCapabilityTitle = new Label();
-        lblCapabilityTitle.Name = "lblCapabilityTitle";
-        lblCapabilityTitle.Text = en ? "Common Desktop Capabilities" : "常用桌面能力";
-        lblCapabilityTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
-        lblCapabilityTitle.ForeColor = AppContext.Win11TextPrimary;
-        lblCapabilityTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblCapabilityTitle.SetBounds(18, 216, 344, 22);
-        Controls.Add(lblCapabilityTitle);
+        lblFailReason = new Label();
+        lblFailReason.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblFailReason.ForeColor = Color.FromArgb(180, 83, 9);
+        lblFailReason.SetBounds(8, 6, 308, 16);
+        panelInstallFail.Controls.Add(lblFailReason);
 
-        panelCapCard = new Panel();
-        panelCapCard.SetBounds(18, 240, 344, 150);
-        panelCapCard.BackColor = Color.White;
-        panelCapCard.Paint += OnCapabilityCardPaint;
-        Controls.Add(panelCapCard);
-        panelCapabilityCard = panelCapCard; // Keep legacy reference for compatibility
+        lblFailHint = new Label();
+        lblFailHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblFailHint.ForeColor = AppContext.Win11TextSecondary;
+        lblFailHint.SetBounds(8, 24, 308, 26);
+        panelInstallFail.Controls.Add(lblFailHint);
+
+        btnRetryInstall = new Button();
+        btnRetryInstall.Text = en ? "Retry" : "重试";
+        btnRetryInstall.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        btnRetryInstall.SetBounds(8, 52, 70, 22);
+        AppContext.StyleSecondaryButton(btnRetryInstall);
+        btnRetryInstall.Click += OnRetryInstallClick;
+        panelInstallFail.Controls.Add(btnRetryInstall);
+
+        btnOverwriteInstall = new Button();
+        btnOverwriteInstall.Text = en ? "Overwrite" : "覆盖安装";
+        btnOverwriteInstall.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        btnOverwriteInstall.SetBounds(84, 52, 70, 22);
+        AppContext.StyleSecondaryButton(btnOverwriteInstall);
+        btnOverwriteInstall.Click += OnOverwriteInstallClick;
+        panelInstallFail.Controls.Add(btnOverwriteInstall);
+
+        btnCopyFixPrompt = new Button();
+        btnCopyFixPrompt.Text = en ? "Copy fix prompt" : "复制修复指令";
+        btnCopyFixPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        btnCopyFixPrompt.SetBounds(160, 52, 96, 22);
+        AppContext.StyleSecondaryButton(btnCopyFixPrompt);
+        btnCopyFixPrompt.Click += OnCopyFixPromptClick;
+        panelInstallFail.Controls.Add(btnCopyFixPrompt);
+
+        lblSkillFeedback = new Label();
+        lblSkillFeedback.Name = "lblSkillFeedback";
+        lblSkillFeedback.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblSkillFeedback.ForeColor = AppContext.Win11TextSecondary;
+        lblSkillFeedback.AutoSize = false;
+        lblSkillFeedback.SetBounds(14, 156, 316, 18);
+        lblSkillFeedback.Visible = false;
+        panelSkillCard.Controls.Add(lblSkillFeedback);
+
+        // Rebuild agent rows so the new language's button text applies (fingerprint includes language,
+        // but force it anyway in case the cache still holds the old DetectAgents list).
+        agentRowsFingerprint = null;
+        RefreshSkillInstallUi();
 
         // Row 1: decision approval
         lblTool1Name = new Label();
@@ -2046,7 +2460,7 @@ internal sealed class SettingsDialog : Form
             : "提示：终端运行 iclock -h 查看命令，iclock --install-cli 写入 PATH。";
         lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
         lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentCliTip.SetBounds(16, 408, 348, 20);
+        lblAgentCliTip.SetBounds(16, 410, 348, 20);
         Controls.Add(lblAgentCliTip);
 
         AppContext.CenterFormOnScreen(this);
@@ -2098,20 +2512,34 @@ internal sealed class SettingsDialog : Form
         if (btnAiQuotes != null) btnAiQuotes.Visible = isQuote;
         lblQuoteTip.Visible = isQuote;
 
-        if (panelCliStatus != null) panelCliStatus.Visible = isAgent;
-        if (lblCollaborationTitle != null) lblCollaborationTitle.Visible = isAgent;
-        if (lblDesktopCollaborationState != null) lblDesktopCollaborationState.Visible = isAgent;
-        if (chkDesktopCollaboration != null) chkDesktopCollaboration.Visible = isAgent;
+        if (panelSkillCard != null) panelSkillCard.Visible = isAgent;
         if (panelCapCard != null) panelCapCard.Visible = isAgent;
         if (lblAgentCliTip != null) lblAgentCliTip.Visible = isAgent;
+        if (chkDesktopCollaboration != null) chkDesktopCollaboration.Visible = isAgent;
+        if (lblSkillGuidance != null) lblSkillGuidance.Visible = isAgent;
         foreach (Control control in Controls)
         {
-            if (control != null && control.Name == "lblCapabilityTitle") control.Visible = isAgent;
+            if (control != null && (control.Name == "lblCapabilityTitle" || control.Name == "lblCapabilitySub")) control.Visible = isAgent;
         }
 
         UpdateTabButtons();
         TriggerQuotePreview();
-        if (isAgent) RefreshDesktopCollaborationSummary();
+        if (isAgent)
+        {
+            bool collabEnabled = chkDesktopCollaboration != null && chkDesktopCollaboration.Checked;
+            if (panelCapCard != null) panelCapCard.Enabled = collabEnabled;
+            if (panelSkillCard != null) panelSkillCard.Enabled = collabEnabled;
+            if (lblSkillGuidance != null) lblSkillGuidance.Enabled = collabEnabled;
+            RefreshSkillInstallUi();
+            if (agentListTimer == null)
+            {
+                agentListTimer = new System.Windows.Forms.Timer();
+                agentListTimer.Interval = 3000;
+                agentListTimer.Tick += delegate { RefreshSkillInstallUi(); };
+            }
+            agentListTimer.Start();
+        }
+        else if (agentListTimer != null) agentListTimer.Stop();
         Update();
     }
 
@@ -2217,7 +2645,7 @@ internal sealed class SettingsDialog : Form
 
     private Color GetEffectiveQuoteColor()
     {
-        string col = !string.IsNullOrEmpty(selectedQuoteColor) ? selectedQuoteColor : selectedColor;
+        string col = !string.IsNullOrEmpty(selectedQuoteColor) ? selectedQuoteColor : "#FFFFFF";
         try { return ColorTranslator.FromHtml(col); }
         catch { return Color.White; }
     }
@@ -2262,7 +2690,7 @@ internal sealed class SettingsDialog : Form
     }
     private void PopulateQuoteColorCombo(bool en)
     {
-        PopulateColorCombo(quoteColorCombo, en ? "Follow Timer" : "跟随倒计时", en);
+        PopulateColorCombo(quoteColorCombo, en ? "Classic White (Default)" : "经典白 (默认)", en);
     }
 
     private void DrawColorItem(DrawItemEventArgs e, ComboBox cb, string[] presets, string currentHex, bool isQuote)
@@ -2275,14 +2703,7 @@ internal sealed class SettingsDialog : Form
         Color chipCol;
         if (e.Index == 0)
         {
-            if (isQuote)
-            {
-                try { chipCol = ColorTranslator.FromHtml(selectedColor); } catch { chipCol = Color.Red; }
-            }
-            else
-            {
-                chipCol = Color.Red;
-            }
+            chipCol = isQuote ? Color.White : Color.Red;
         }
         else if (e.Index >= 1 && e.Index <= 8)
         {
@@ -2478,21 +2899,6 @@ internal sealed class SettingsDialog : Form
         }
     }
 
-    private static void OnStatusDotPaint(object sender, PaintEventArgs pe)
-    {
-        Label dot = (Label)sender;
-        pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        string state = dot.Tag as string;
-        Color dotColor = Color.FromArgb(134, 134, 134);
-        if (state == "connected" || state == "ready") dotColor = Color.FromArgb(22, 163, 74);
-        else if (state == "configured") dotColor = Color.FromArgb(202, 138, 4);
-        else if (state == "error") dotColor = Color.FromArgb(220, 38, 38);
-        using (SolidBrush brush = new SolidBrush(dotColor))
-        {
-            pe.Graphics.FillEllipse(brush, 0, 0, dot.Width - 1, dot.Height - 1);
-        }
-    }
-
     private static void OnBadgePaint(object sender, PaintEventArgs pe)
     {
         Label lbl = (Label)sender;
@@ -2571,8 +2977,8 @@ internal sealed class SettingsDialog : Form
             bool en = Value != null && Value.Language == "en";
             string prompt = CliPromptHelper.GenerateCliAgentPrompt(en);
             Clipboard.SetText(prompt);
-            cliCopyFeedback = en ? "Copied!" : "已复制 ✓";
-            RefreshDesktopCollaborationSummary();
+            cliCopyFeedback = en ? "Copied (current conversation only)" : "已复制（仅当前会话有效）";
+            RefreshSkillInstallUi();
             if (cliCopyFeedbackTimer == null)
             {
                 cliCopyFeedbackTimer = new System.Windows.Forms.Timer();
@@ -2581,7 +2987,7 @@ internal sealed class SettingsDialog : Form
                 {
                     cliCopyFeedbackTimer.Stop();
                     cliCopyFeedback = null;
-                    RefreshDesktopCollaborationSummary();
+                    RefreshSkillInstallUi();
                 };
             }
             cliCopyFeedbackTimer.Stop();
@@ -2589,8 +2995,121 @@ internal sealed class SettingsDialog : Form
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ((Value != null && Value.Language == "en") ? "Failed to copy to clipboard: " : "复制到剪贴板失败：") + ex.Message, "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            ShowSkillFeedback(((Value != null && Value.Language == "en") ? "Copy failed: " : "复制失败：") + ex.Message);
         }
+    }
+
+    private void OnInstallCliSkillClick(object sender, EventArgs e)
+    {
+        Button btn = sender as Button;
+        AttemptInstall(btn != null ? btn.Tag as string : null, false);
+    }
+
+    private void OnRetryInstallClick(object sender, EventArgs e)
+    {
+        AttemptInstall(lastInstallAgent, false);
+    }
+
+    private void OnOverwriteInstallClick(object sender, EventArgs e)
+    {
+        AttemptInstall(lastInstallAgent, true);
+    }
+
+    private void AttemptInstall(string agentName, bool overwrite)
+    {
+        try
+        {
+            string path;
+            string result = overwrite ? CliSkillInstaller.Overwrite(agentName, out path) : CliSkillInstaller.Install(agentName, out path);
+            lastInstallAgent = agentName;
+            if (result == "conflict")
+            {
+                ShowInstallFailure(agentName, true, null);
+            }
+            else
+            {
+                HideInstallFailure();
+                lblSkillFeedback.Text = "";
+                agentRowsFingerprint = null;
+                RefreshSkillInstallUi();
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowInstallFailure(agentName, false, ex);
+        }
+    }
+
+    private void ShowInstallFailure(string agentName, bool conflict, Exception ex)
+    {
+        bool en = Value != null && Value.Language == "en";
+        lastInstallAgent = agentName;
+        lastInstallConflict = conflict;
+        lastInstallError = conflict ? null : (ex != null ? ex.Message : "");
+        if (lblFailReason == null) return;
+        if (conflict)
+        {
+            lblFailReason.Text = en ? "A different Skill already exists." : "已存在内容不同的 Skill。";
+            lblFailHint.Text = en
+                ? "Review and overwrite, or copy a fix prompt for your agent to compare and resolve."
+                : "可确认后覆盖安装，或复制修复指令让智能体比对差异后处理。";
+            btnOverwriteInstall.Visible = true;
+        }
+        else
+        {
+            string msg = ex != null ? ex.Message : "";
+            string lower = msg.ToLowerInvariant();
+            string target = string.IsNullOrEmpty(agentName) ? "" : (en ? " [" + agentName + "]" : "（" + agentName + "）");
+            lblFailReason.Text = (en ? "Install failed: " : "安装失败：") + Truncate(msg, 60) + target;
+            if (ex is UnauthorizedAccessException)
+                lblFailHint.Text = en ? "Permission denied. Try running iClock as administrator, then retry." : "权限不足。请以管理员身份运行 iClock 后重试。";
+            else if (lower.Contains("being used") || lower.Contains("占用") || lower.Contains("lock"))
+                lblFailHint.Text = en ? "The file is in use by another program. Close it, then retry." : "文件被其他程序占用。请关闭占用程序后重试。";
+            else
+                lblFailHint.Text = en ? "Check the path is writable and disk is available, then retry." : "请确认路径可写、磁盘可用后重试。";
+            btnOverwriteInstall.Visible = false;
+        }
+        panelInstallFail.Visible = true;
+        RefreshSkillInstallUi();
+        panelSkillCard.ScrollControlIntoView(panelInstallFail);
+    }
+
+    private void HideInstallFailure()
+    {
+        if (panelInstallFail != null) panelInstallFail.Visible = false;
+        lastInstallError = null;
+        lastInstallConflict = false;
+    }
+
+    private static string Truncate(string s, int max)
+    {
+        if (string.IsNullOrEmpty(s) || s.Length <= max) return s;
+        return s.Substring(0, max) + "…";
+    }
+
+    private void OnCopyFixPromptClick(object sender, EventArgs e)
+    {
+        try
+        {
+            bool en = Value != null && Value.Language == "en";
+            string prompt = CliPromptHelper.GenerateSkillFixPrompt(en, lastInstallAgent, lastInstallConflict, lastInstallError);
+            Clipboard.SetText(prompt);
+            ShowSkillFeedback(en ? "Fix prompt copied. Paste it to your agent." : "修复指令已复制，请粘贴给智能体。");
+        }
+        catch (Exception ex)
+        {
+            ShowSkillFeedback(((Value != null && Value.Language == "en") ? "Copy failed: " : "复制失败：") + ex.Message);
+        }
+    }
+
+    private void ShowSkillFeedback(string message)
+    {
+        if (lblSkillFeedback == null) return;
+        lblSkillFeedback.Text = message;
+        lblSkillFeedback.ForeColor = Color.FromArgb(180, 83, 9);
+        lblSkillFeedback.Visible = true;
+        RefreshSkillInstallUi();
+        panelSkillCard.ScrollControlIntoView(lblSkillFeedback);
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -2604,88 +3123,121 @@ internal sealed class SettingsDialog : Form
         base.OnFormClosed(e);
     }
 
-    private void RefreshDesktopCollaborationSummary()
+    private void RefreshSkillInstallUi()
     {
-        if (lblCliStatusText == null || lblCliStatusMeta == null) return;
-        if (AppContext.IsSelfCheckRunning)
-        {
-            bool selfCheckEn = Value != null && Value.Language == "en";
-            lblCliStatusText.Text = selfCheckEn ? "iClock CLI Ready" : "iClock 命令行已就绪";
-            lblCliStatusMeta.Text = selfCheckEn
-                ? "Use the local CLI for desktop collaboration."
-                : "通过本机命令行使用桌面协作。";
-            desktopCollaborationState = "ready";
-            if (lblCliStatusDot != null) lblCliStatusDot.Tag = desktopCollaborationState;
-            if (lnkCliGuide != null) lnkCliGuide.Text = selfCheckEn ? "Copy CLI Guide" : "复制 CLI 协作说明";
-            UpdateCliGuideVisibility(Value != null && Value.DesktopCollaborationEnabled);
-            return;
-        }
+        if (lblSkillGuidance == null || panelSkillCard == null) return;
         bool en = Value != null && Value.Language == "en";
-        bool collaborationEnabled = Value.DesktopCollaborationEnabled;
-        bool cliAvailable = File.Exists(CliPromptHelper.GetCliExePath());
-        if (!collaborationEnabled)
+        lblSkillGuidance.Text = en
+            ? "Install the skill to teach your agent:"
+            : "安装技能让智能体学会这些能力：";
+        lblSkillGuidance.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+
+        BuildAgentRows(en, false);
+
+        bool hasAgents = panelAgentRows.Controls.Count > 0;
+        lblAgentEmpty.Visible = !hasAgents;
+        if (!hasAgents)
         {
-            desktopCollaborationState = "disabled";
-            lblCliStatusText.Text = en ? "Desktop Collaboration Disabled" : "桌面协作已停用";
-            lblCliStatusMeta.Text = en ? "Enable desktop collaboration to let agents use the local CLI." : "启用桌面协作后，智能体即可调用本机命令行。";
+            lblAgentEmpty.Text = en
+                ? "No running agent detected. Start one (e.g. Codex, Cursor), or copy the guide for this session:"
+                : "未检测到运行中的智能体。请先启动（如 Codex、Cursor），或复制指引到当前会话临时使用：";
+            lblAgentEmpty.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         }
-        else if (cliAvailable)
+        lnkCliGuide.Visible = !hasAgents;
+        if (!string.IsNullOrEmpty(cliCopyFeedback))
         {
-            desktopCollaborationState = "ready";
-            lblCliStatusText.Text = en ? "iClock CLI Ready" : "iClock 命令行已就绪";
-            lblCliStatusMeta.Text = en
-                ? "Decision requests, task progress, and completion alerts use the local CLI."
-                : "决策请示、任务进度和完成提醒通过本机命令行调用。";
+            lnkCliGuide.Text = cliCopyFeedback;
+            lnkCliGuide.Enabled = false;
+            lnkCliGuide.LinkArea = new LinkArea(0, 0);
         }
         else
         {
-            desktopCollaborationState = "error";
-            lblCliStatusText.Text = en ? "iClock CLI Not Found" : "未找到 iClock 命令行程序";
-            lblCliStatusMeta.Text = en ? "The CLI executable is missing from the application folder." : "应用程序目录中缺少命令行程序。";
-        }
-        lblCliStatusMeta.Visible = true;
-        if (!string.IsNullOrEmpty(cliCopyFeedback))
-        {
-            if (lnkCliGuide != null)
-            {
-                lnkCliGuide.Enabled = false;
-                lnkCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-                lnkCliGuide.LinkColor = AppContext.Win11TextSecondary;
-                lnkCliGuide.Cursor = Cursors.Default;
-                lnkCliGuide.Text = cliCopyFeedback;
-                lnkCliGuide.LinkArea = new LinkArea(0, lnkCliGuide.Text.Length);
-                int promptTop = 72;
-                lnkCliGuide.SetBounds(32, promptTop, 280, 18);
-            }
-            if (lblCliGuideHint != null) lblCliGuideHint.Text = "";
-        }
-        else if (lnkCliGuide != null)
-        {
+            string prefix = en ? "Can't install Skill? " : "无法安装 Skill？";
+            string linkText = en ? "Copy this session guide" : "复制本次会话指引";
+            lnkCliGuide.Text = prefix + linkText;
+            lnkCliGuide.LinkArea = new LinkArea(prefix.Length, linkText.Length);
             lnkCliGuide.Enabled = true;
-            lnkCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Underline);
-            lnkCliGuide.LinkColor = AppContext.Win11Accent;
-            lnkCliGuide.Cursor = Cursors.Hand;
-            if (collaborationEnabled)
-            {
-                lnkCliGuide.Text = en ? "Copy CLI Guide" : "复制 CLI 协作说明";
-                lnkCliGuide.LinkArea = new LinkArea(0, lnkCliGuide.Text.Length);
-                if (lblCliGuideHint != null) lblCliGuideHint.Text = en
-                    ? ", copy and share with your agent"
-                    : "，复制后发送给智能体";
-                int contentWidth = 280;
-                int promptTop = 72;
-                Size linkSize = TextRenderer.MeasureText(lnkCliGuide.Text, lnkCliGuide.Font, new Size(contentWidth, 18), TextFormatFlags.NoPadding);
-                int linkWidth = Math.Min(contentWidth, linkSize.Width + 2);
-                lnkCliGuide.SetBounds(32, promptTop, linkWidth, 18);
-                if (lblCliGuideHint != null) lblCliGuideHint.SetBounds(32 + linkWidth, promptTop, contentWidth - linkWidth, 18);
-            }
         }
-        UpdateCliGuideVisibility(collaborationEnabled);
-        if (lblCliStatusDot != null)
+        lnkCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lnkCliGuide.ForeColor = AppContext.Win11TextSecondary;
+        lnkCliGuide.LinkColor = AppContext.Win11Accent;
+        lnkCliGuide.LinkBehavior = LinkBehavior.AlwaysUnderline;
+        lnkCliGuide.Cursor = lnkCliGuide.Enabled ? Cursors.Hand : Cursors.Default;
+
+        bool showFail = panelInstallFail != null && panelInstallFail.Visible;
+        int contentBottom = hasAgents ? panelAgentRows.Bottom : lnkCliGuide.Bottom;
+        if (showFail)
         {
-            lblCliStatusDot.Tag = desktopCollaborationState;
-            lblCliStatusDot.Invalidate();
+            panelInstallFail.Top = contentBottom + 6;
+            lblSkillFeedback.Visible = false;
         }
+        else
+        {
+            lblSkillFeedback.Top = contentBottom + 6;
+            lblSkillFeedback.Visible = !string.IsNullOrEmpty(lblSkillFeedback.Text);
+        }
+        lblSkillFeedback.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        int minHeight = (showFail ? panelInstallFail.Bottom : (lblSkillFeedback.Visible ? lblSkillFeedback.Bottom : contentBottom)) + 8;
+        panelSkillCard.AutoScrollMinSize = new Size(0, minHeight);
+    }
+
+    private void BuildAgentRows(bool en, bool force)
+    {
+        // Fingerprint = agent names + per-agent install state + language.
+        // Skip the rebuild entirely when nothing changed so the list doesn't flicker.
+        List<string> running = AppContext.DetectAgents();
+        StringBuilder fps = new StringBuilder(en ? "en|" : "zh|");
+        foreach (string a in running) { fps.Append(a); fps.Append('='); fps.Append(CliSkillInstaller.IsInstalled(a)); fps.Append(';'); }
+        string fp = fps.ToString();
+        if (!force && fp == agentRowsFingerprint && panelAgentRows.Controls.Count == running.Count * 3)
+            return;
+        agentRowsFingerprint = fp;
+
+        panelAgentRows.SuspendLayout();
+        foreach (Control c in panelAgentRows.Controls) c.Dispose();
+        panelAgentRows.Controls.Clear();
+        int y = 8;
+        foreach (string agent in running)
+        {
+            bool rowInstalled = CliSkillInstaller.IsInstalled(agent);
+
+            Label dot = new Label();
+            dot.Text = "●";
+            dot.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+            dot.ForeColor = Color.FromArgb(22, 163, 74);
+            dot.TextAlign = ContentAlignment.MiddleCenter;
+            dot.SetBounds(14, y, 16, 24);
+            panelAgentRows.Controls.Add(dot);
+
+            Label name = new Label();
+            name.Text = agent;
+            name.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
+            name.ForeColor = AppContext.Win11TextPrimary;
+            name.TextAlign = ContentAlignment.MiddleLeft;
+            name.SetBounds(34, y, 200, 24);
+            panelAgentRows.Controls.Add(name);
+
+            Button btn = new Button();
+            btn.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+            btn.SetBounds(246, y, 82, 24);
+            btn.Tag = agent;
+            if (rowInstalled)
+            {
+                btn.Text = en ? "Installed ✓" : "已安装 ✓";
+                btn.Enabled = false;
+                AppContext.StyleSecondaryButton(btn);
+            }
+            else
+            {
+                btn.Text = en ? "Install" : "安装技能";
+                AppContext.StyleSecondaryButton(btn);
+                btn.Click += OnInstallCliSkillClick;
+            }
+            panelAgentRows.Controls.Add(btn);
+            y += 28;
+        }
+        panelAgentRows.Height = running.Count > 0 ? y : 0;
+        panelAgentRows.ResumeLayout();
     }
 
     private void OnDesktopCollaborationChanged(object sender, EventArgs e)
@@ -2706,17 +3258,14 @@ internal sealed class SettingsDialog : Form
             }
         }
         Value.DesktopCollaborationEnabled = enabled;
-        lblDesktopCollaborationState.Text = enabled ? (en ? "Enabled" : "已启用") : (en ? "Disabled" : "已停用");
         Value.Save();
         if (!enabled && AppContext.Current != null) AppContext.Current.CancelDesktopCollaboration();
-        RefreshDesktopCollaborationSummary();
+        if (panelCapCard != null) panelCapCard.Enabled = enabled;
+        if (panelSkillCard != null) panelSkillCard.Enabled = enabled;
+        if (lblSkillGuidance != null) lblSkillGuidance.Enabled = enabled;
+        RefreshSkillInstallUi();
     }
 
-    private void UpdateCliGuideVisibility(bool visible)
-    {
-        if (lnkCliGuide != null) lnkCliGuide.Visible = visible;
-        if (lblCliGuideHint != null) lblCliGuideHint.Visible = visible;
-    }
     private void OnAskDemoClick(object sender, EventArgs e)
     {
         bool en = Value != null && Value.Language == "en";
@@ -2844,17 +3393,20 @@ internal sealed class SettingsDialog : Form
             lblCardQuoteAuthor.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.5f, FontStyle.Italic);
         }
 
-        if (lblCollaborationTitle != null) lblCollaborationTitle.Text = toEnglish ? "Desktop Collaboration" : "桌面协作";
-        if (lblDesktopCollaborationState != null) lblDesktopCollaborationState.Text = Value.DesktopCollaborationEnabled
-            ? (toEnglish ? "Enabled" : "已启用") : (toEnglish ? "Disabled" : "已停用");
-        RefreshDesktopCollaborationSummary();
+        RefreshSkillInstallUi();
         foreach (Control control in Controls)
         {
             if (control != null && control.Name == "lblCapabilityTitle")
             {
-                control.Text = toEnglish ? "Common Desktop Capabilities" : "常用桌面能力";
+                control.Text = toEnglish ? "Enable AI collaboration" : "开启 AI 协作 给智能体赋能";
                 control.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Bold);
-                break;
+            }
+            else if (control != null && control.Name == "lblCapabilitySub")
+            {
+                control.Text = toEnglish
+                    ? "iClock brings you back with pinned alerts while agents run in background."
+                    : "智能体后台运行时，通过 iClock 置顶提醒重要进展。";
+                control.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
             }
         }
         if (btnAskDemo != null) btnAskDemo.Text = toEnglish ? "Preview" : "预览";
@@ -3475,29 +4027,158 @@ internal static class CliPromptHelper
         string invoke = "& '" + exePath + "'";
         if (en)
         {
-            return "Use iClock's Windows CLI for desktop collaboration.\r\n\r\n"
-                + "Prefer `iclock` from PATH when available. Otherwise invoke this executable from PowerShell:\r\n"
+            return "Treat these as standing instructions for this conversation and follow them throughout the task. They do not persist automatically into future conversations.\r\n\r\n"
+                + "Use iClock desktop collaboration only when you are continuing work in the background or the user is not actively watching. Avoid interrupting the user during a live session unless they explicitly ask. Skip desktop updates for short, immediate tasks. Run the Windows CLI from PowerShell:\r\n"
                 + invoke + "\r\n\r\n"
-                + "Core actions:\r\n"
-                + "- Ask for a blocking human decision: " + invoke + " --ask \"Deploy now?\" --options \"Deploy,Cancel\" --agent-name \"Codex\" --json. Wait for the command result before continuing.\r\n"
-                + "- Report task progress at meaningful milestones: " + invoke + " --progress \"3/5\" \"Running tests\" --agent-name \"Codex\" --json. Clear your progress when done using the same name: " + invoke + " --progress clear --agent-name \"Codex\" --json.\r\n"
-                + "- Notify me when a background task finishes: " + invoke + " --notice \"Build finished\" --agent-name \"Codex\" --json.\r\n\r\n"
-                + "Use a stable unique agent name (for example, Codex, Claude, or WorkBuddy) on every call so concurrent agents keep separate task-status rows.\r\n"
-                + "With --json, parse the JSON response and treat only ok=true as accepted; for progress/notice, accepted means iClock handled the command, not that the user has seen it.\r\n"
-                + "If a CLI command fails, report the error instead of claiming the desktop action was completed. Do not change PATH or install anything without my approval.";
+                + "Initial tool-call verification (required after receiving this guide):\r\n"
+                + "1. Send one harmless progress update: " + invoke + " --progress \"1/1\" \"Verifying iClock CLI\" --agent-name \"Codex\" --json.\r\n"
+                + "2. Parse the JSON response, then clear that same row: " + invoke + " --progress clear --agent-name \"Codex\" --json. Treat the check as passed only if both responses have ok=true; report any error honestly. This verifies command acceptance, not that the user saw the display.\r\n"
+                + "3. Do not use --ask or --notice as a test unless the user explicitly requests it; they can interrupt or block.\r\n\r\n"
+                + "When collaborating:\r\n"
+                + "- Use --ask only when a consequential decision blocks progress or a risky action needs approval. Wait for the user's answer; if declined or cancelled, do not proceed with that action. Example: " + invoke + " --ask \"Deploy now?\" --options \"Deploy,Cancel\" --agent-name \"Codex\" --json.\r\n"
+                + "- Use --progress at meaningful milestones of multi-step or long-running background work, not for every action. Always clear your row on success, failure, or cancellation with the same agent name. Example: " + invoke + " --progress \"3/5\" \"Running tests\" --agent-name \"Codex\" --json.\r\n"
+                + "- Use --notice for a completed background task only when the user is not already attending to the result; make the message state success or failure. Example: " + invoke + " --notice \"Build finished successfully\" --agent-name \"Codex\" --json.\r\n\r\n"
+                + "Use a stable agent name on every call; add a short distinguishing suffix if concurrent instances of the same agent run. With --json, parse the response and treat only ok=true as accepted. Acceptance does not prove a popup was seen. If a command fails, report the error and do not claim success. Never change PATH or install software without approval.\r\n\r\n"
+                + "This pasted guide applies to this conversation only. For future conversations, use the installed iClock Skill if the agent supports and loads it; otherwise the user must provide these instructions again. Do not claim cross-session memory unless that Skill is available.";
         }
-        return "请优先使用 iClock 命令行执行桌面协作。\r\n\r\n"
-            + "先尝试使用 PATH 中的 `iclock`。若命令不可用，请在 PowerShell 中调用以下程序：\r\n"
+        return "请将本说明作为本次会话的持续协作规则，在整个任务过程中遵守；它不会自动延续到未来会话。\r\n\r\n"
+            + "仅当你需要在后台继续工作，或用户没有实时关注工作过程时，才使用 iClock 桌面协作；用户正在实时查看时避免打扰，除非用户明确要求。短小、即时的任务无需发送桌面状态。请在 Windows PowerShell 中调用：\r\n"
             + invoke + "\r\n\r\n"
-            + "常用操作：\r\n"
-            + "- 关键决策时阻断等待人工确认：" + invoke + " --ask \"现在部署吗？\" --options \"部署,取消\" --agent-name \"Codex\" --json。必须等待命令返回后再继续。\r\n"
-            + "- 在重要节点汇报任务进度：" + invoke + " --progress \"3/5\" \"正在运行测试\" --agent-name \"Codex\" --json；任务结束后使用相同名称清除：" + invoke + " --progress clear --agent-name \"Codex\" --json。\r\n"
-            + "- 后台任务完成时通知我：" + invoke + " --notice \"构建已完成\" --agent-name \"Codex\" --json。\r\n\r\n"
-            + "每个智能体请使用稳定且唯一的名称（如 Codex、Claude、WorkBuddy），以便多个智能体同时运行时分别显示任务状态。\r\n"
-            + "使用 --json 时请解析 JSON；只有 ok=true 才表示命令已被接受。进度/通知返回 accepted 表示 iClock 已处理命令，不代表用户已看到通知。\r\n"
-            + "命令执行失败时，请如实报告错误，不要宣称桌面操作已完成。未经我同意，不要修改 PATH 或安装任何内容。";
+            + "首次工具调用验证（收到本说明后必须执行）：\r\n"
+            + "1. 发送一次无阻断的进度测试：" + invoke + " --progress \"1/1\" \"验证 iClock CLI\" --agent-name \"Codex\" --json。\r\n"
+            + "2. 解析 JSON 后，用相同名称清除测试状态：" + invoke + " --progress clear --agent-name \"Codex\" --json。两次返回都为 ok=true 才算命令调用验证通过；如有错误，准确报告。此验证只说明命令已被 iClock 接受，不代表用户看到了界面。\r\n"
+            + "3. 未经用户明确要求，不要用 --ask 或 --notice 做测试；它们可能阻断或弹窗打扰用户。\r\n\r\n"
+            + "实际协作规则：\r\n"
+            + "- 只有关键决策确实阻塞后续工作，或高风险操作需要批准时才用 --ask；等待用户明确答复，若用户拒绝或取消，不得继续该操作。示例：" + invoke + " --ask \"现在部署吗？\" --options \"部署,取消\" --agent-name \"Codex\" --json。\r\n"
+            + "- 对多步骤或耗时的后台任务，只在重要节点用 --progress 汇报，不要每做一步都更新。任务成功、失败或取消时，都用相同智能体名称清除自己的进度。示例：" + invoke + " --progress \"3/5\" \"正在运行测试\" --agent-name \"Codex\" --json。\r\n"
+            + "- 仅当后台任务完成且用户没有关注结果时使用 --notice；消息应明确说明成功或失败。示例：" + invoke + " --notice \"构建已成功完成\" --agent-name \"Codex\" --json。\r\n\r\n"
+            + "每次调用使用稳定的智能体名称；同类智能体有多个并发实例时，加简短后缀区分。使用 --json 并解析结果，只有 ok=true 才表示 iClock 接受命令；接受不代表用户已看到弹窗。命令失败时如实报告，不得宣称成功。未经同意，不修改 PATH 或安装软件。\r\n\r\n"
+            + "本说明只对当前会话有效。后续会话需由支持并加载 iClock Skill 的智能体遵循；若没有可用 Skill，用户需要再次提供说明。未确认 Skill 可用前，不要声称已跨会话记住。";
     }
 
+    public static string GenerateSkillFixPrompt(bool en, string agentName, bool conflict, string error)
+    {
+        string path = CliSkillInstaller.GetSkillPath(agentName);
+        string content = CliSkillInstaller.GetSkillMarkdown();
+        if (en)
+        {
+            string p = "Help me finish installing the iClock desktop collaboration Skill.\r\n\r\n"
+                + "Target file: " + path + "\r\n\r\n";
+            if (conflict)
+                p += "A different Skill already exists at that path and was not overwritten. Read the existing file, compare it with the intended content below, and if the existing one is not the iClock Skill, back it up (rename to .bak) and write the intended content. If it already matches, do nothing and tell me.\r\n\r\n";
+            else
+                p += "The automatic install failed with this error: " + (error ?? "unknown") + "\r\n"
+                    + "Resolve the cause (e.g. create the directory, close a program locking the file, or adjust permissions), then write the intended content below to the target file.\r\n\r\n";
+            return p + "Intended SKILL.md content:\r\n\r\n" + content + "\r\n\r\nAfter writing, confirm by telling me the file exists and its size. Do not modify anything else.";
+        }
+        string zh = "请帮我完成 iClock 桌面协作 Skill 的安装。\r\n\r\n目标文件：" + path + "\r\n\r\n";
+        if (conflict)
+            zh += "该路径已存在一个内容不同的 Skill，未被覆盖。请读取现有文件，与下面的目标内容比对；若现有文件不是 iClock Skill，请先备份（重命名为 .bak）再写入目标内容；若已一致则无需操作并告诉我。\r\n\r\n";
+        else
+            zh += "自动安装失败，错误信息：" + (error ?? "未知") + "\r\n"
+                + "请解决原因（如创建目录、关闭占用文件的程序、调整权限），然后将下面的目标内容写入该文件。\r\n\r\n";
+        return zh + "目标 SKILL.md 内容：\r\n\r\n" + content + "\r\n\r\n写入完成后，请确认文件存在并告知大小。不要修改其他任何内容。";
+    }
+
+}
+
+internal static class CliSkillInstaller
+{
+    // Per-agent skill directory mapping. Each agent scans its own skills dir;
+    // ~/.agents/skills is the shared fallback for agents without a dedicated dir.
+    private static string GetSkillDirectory(string agentName)
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        switch (agentName)
+        {
+            case "Codex":
+                return Path.Combine(home, ".codex", "skills");
+            case "Antigravity":
+            case "Gemini":
+                return Path.Combine(home, ".gemini", "antigravity-cli", "skills");
+            case "Claude Code":
+                return Path.Combine(home, ".claude", "skills");
+            case "Cursor":
+                return Path.Combine(home, ".cursor", "skills");
+            case "Windsurf":
+                return Path.Combine(home, ".codeium", "windsurf", "skills");
+            case "GitHub Copilot":
+                return Path.Combine(home, ".copilot", "skills");
+            default:
+                return Path.Combine(home, ".agents", "skills");
+        }
+    }
+
+    public static bool IsInstalled(string agentName)
+    {
+        return File.Exists(GetSkillPath(agentName));
+    }
+
+    public static string GetSkillPath(string agentName)
+    {
+        return Path.Combine(GetSkillDirectory(agentName), "iclock-desktop-collaboration", "SKILL.md");
+    }
+
+    public static string GetSkillMarkdown()
+    {
+        string exe = CliPromptHelper.GetCliExePath().Replace("\\", "/");
+        return "---\r\n"
+            + "name: iclock-desktop-collaboration\r\n"
+            + "description: Use iClock's local CLI to coordinate important decisions, meaningful task progress, and completion alerts with the user.\r\n"
+            + "---\r\n\r\n"
+            + "# iClock desktop collaboration\r\n\r\n"
+            + "Use this skill when iClock desktop collaboration is relevant. Invoke the local Windows CLI with PowerShell; executable: `" + exe + "`. Use `--json` and parse its response.\r\n\r\n"
+            + "## When to use\r\n"
+            + "- Use desktop collaboration only for background work or when the user is not actively watching; avoid interruptions during a live session unless the user explicitly asks. Short, immediate tasks do not need status updates.\r\n"
+            + "- Use `--ask` only for a consequential decision that blocks progress or a risky action needing approval. Wait for the answer; if declined or cancelled, do not proceed with that action.\r\n"
+            + "- Use `--progress` only at meaningful milestones of multi-step or long-running work. Keep the same agent name and always clear your row on success, failure, or cancellation.\r\n"
+            + "- Use `--notice` only when a background task finishes and the user is not already attending to the result; state clearly whether it succeeded or failed.\r\n\r\n"
+            + "## Verification\r\n"
+            + "When the user asks to set up or verify iClock CLI collaboration, make a real, non-blocking tool call: send `--progress \"1/1\" \"Verify iClock CLI\" --agent-name \"Codex\" --json`, parse the JSON, then call `--progress clear` with the same name. Pass only if both return `ok: true`; report failures honestly. This checks command acceptance, not whether the user saw the UI. Never use `--ask` or `--notice` for a test without explicit user approval because they can interrupt. Do not run synthetic verification on every ordinary task.\r\n\r\n"
+            + "## Examples\r\n\r\n"
+            + "```powershell\r\n"
+            + "& '" + CliPromptHelper.GetCliExePath().Replace("'", "''") + "' --ask \"Deploy now?\" --options \"Deploy,Cancel\" --agent-name \"Codex\" --json\r\n"
+            + "& '" + CliPromptHelper.GetCliExePath().Replace("'", "''") + "' --progress \"2/4\" \"Running tests\" --agent-name \"Codex\" --json\r\n"
+            + "& '" + CliPromptHelper.GetCliExePath().Replace("'", "''") + "' --progress clear --agent-name \"Codex\" --json\r\n"
+            + "& '" + CliPromptHelper.GetCliExePath().Replace("'", "''") + "' --notice \"Background task finished\" --agent-name \"Codex\" --json\r\n"
+            + "```\r\n\r\n"
+            + "Only `ok: true` means iClock accepted a command. Acceptance does not prove the user saw a notification. If a command fails, report the error and do not claim the action succeeded. Never change PATH or install software without the user's approval.\r\n\r\n"
+            + "When loaded, follow this Skill across relevant conversations, but never claim it is available if the agent has not loaded it. The Skill guides behavior and cannot guarantee invocation; current user instructions take precedence.\r\n";
+    }
+
+    public static string Install(string agentName, out string path)
+    {
+        path = GetSkillPath(agentName);
+        string content = GetSkillMarkdown();
+        string directory = Path.GetDirectoryName(path);
+        Directory.CreateDirectory(directory);
+        if (File.Exists(path))
+            return string.Equals(File.ReadAllText(path), content, StringComparison.Ordinal) ? "current" : "conflict";
+
+        try
+        {
+            using (FileStream stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            using (StreamWriter writer = new StreamWriter(stream, new UTF8Encoding(false)))
+                writer.Write(content);
+            return "installed";
+        }
+        catch (IOException)
+        {
+            if (File.Exists(path))
+                return string.Equals(File.ReadAllText(path), content, StringComparison.Ordinal) ? "current" : "conflict";
+            throw;
+        }
+    }
+
+    public static string Overwrite(string agentName, out string path)
+    {
+        path = GetSkillPath(agentName);
+        string content = GetSkillMarkdown();
+        string directory = Path.GetDirectoryName(path);
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(path, content, new UTF8Encoding(false));
+        return "installed";
+    }
 }
 
 internal sealed class AskHumanDialog : Form
@@ -5225,19 +5906,20 @@ internal static class AiAgentQuoteHelper
         s.Save();
     }
 
-    internal static string BuildAgentPrompt(List<string> keywords, string lang)
+    internal static string BuildAgentPrompt(List<string> keywords, int count, string lang)
     {
         bool en = (lang == "en");
+        if (count <= 0) count = 30;
         string t = (keywords != null && keywords.Count > 0)
             ? string.Join(en ? ", " : "、", keywords.ToArray())
             : (en ? "Deep focus, craftsmanship and tranquility" : "极客心流、斯多葛与深度专注");
         string cliPath = CliPromptHelper.GetCliExePath().Replace("'", "''");
         if (en)
         {
-            return "Please curate and compose 30 inspiring desk quotes based on the preference topics: [" + t + "].\r\n" +
+            return "Please curate and compose " + count + " inspiring desk quotes based on the preference topics: [" + t + "].\r\n" +
                    "Save one quote per line in a UTF-8 text file, each line exactly `Quote text | Author or Source`. Then import it using this PowerShell command:\r\n" +
                    "$quotesPath = Join-Path $env:TEMP 'iclock-quotes.txt'\r\n" +
-                   "@'\r\n<put all 30 quote lines here>\r\n'@ | Set-Content -Encoding UTF8 $quotesPath\r\n" +
+                   "@'\r\n<put all " + count + " quote lines here>\r\n'@ | Set-Content -Encoding UTF8 $quotesPath\r\n" +
                    "& '" + cliPath + "' --quote-add $quotesPath --json\r\n" +
                    "Parse the JSON and report success only if `ok` is true; include `result.added_count`.\r\n\r\n" +
                    "STRICT RULES:\r\n" +
@@ -5247,10 +5929,10 @@ internal static class AiAgentQuoteHelper
         }
         else
         {
-            return "请围绕偏好标签【" + t + "】精选创作 30 条高质量桌面格言短句。\r\n" +
+            return "请围绕偏好标签【" + t + "】精选创作 " + count + " 条高质量桌面格言短句。\r\n" +
                    "请将格言保存为 UTF-8 文本文件，每行一条，严格使用 `格言内容 | 作者或出处` 格式，然后在 PowerShell 执行以下命令导入：\r\n" +
                    "$quotesPath = Join-Path $env:TEMP 'iclock-quotes.txt'\r\n" +
-                   "@'\r\n<在此放入全部 30 行格言>\r\n'@ | Set-Content -Encoding UTF8 $quotesPath\r\n" +
+                   "@'\r\n<在此放入全部 " + count + " 行格言>\r\n'@ | Set-Content -Encoding UTF8 $quotesPath\r\n" +
                    "& '" + cliPath + "' --quote-add $quotesPath --json\r\n" +
                    "解析 JSON；只有 `ok` 为 true 才表示导入成功，并报告 `result.added_count`。\r\n\r\n" +
                    "严格规范：\r\n" +
@@ -5260,15 +5942,16 @@ internal static class AiAgentQuoteHelper
         }
     }
 
-    internal static string BuildPrompt(List<string> keywords, string lang)
+    internal static string BuildPrompt(List<string> keywords, int count, string lang)
     {
         bool en = (lang == "en");
+        if (count <= 0) count = 30;
         string t = (keywords != null && keywords.Count > 0)
             ? string.Join(en ? ", " : "、", keywords.ToArray())
             : (en ? "Deep focus and craftsmanship" : "极客心流与深度专注");
         if (en)
         {
-            return "Please create 30 inspiring desk quotes based on the topics: [" + t + "]. " +
+            return "Please create " + count + " inspiring desk quotes based on the topics: [" + t + "]. " +
                    "STRICT OUTPUT RULES: " +
                    "1. Each quote on its own line in the exact format: 'Quote text | Author or Source'. " +
                    "2. Maximum 35 words per quote. " +
@@ -5276,7 +5959,7 @@ internal static class AiAgentQuoteHelper
         }
         else
         {
-            return "请围绕主题【" + t + "】精选创作30条桌面格言短句。严格规范：1.每行严格格式为'格言内容 | 作者或出处'；2.每条不超过35字，语言精炼有力；3.严禁输出序号、引号、打招呼、前言或任何多余废话。";
+            return "请围绕主题【" + t + "】精选创作" + count + "条桌面格言短句。严格规范：1.每行严格格式为'格言内容 | 作者或出处'；2.每条不超过35字，语言精炼有力；3.严禁输出序号、引号、打招呼、前言或任何多余废话。";
         }
     }
 
@@ -5459,14 +6142,14 @@ internal static class AiAgentQuoteHelper
         return false;
     }
 
-    internal static bool RunAgentCli(string agentName, Settings settings, List<string> keywords, out string stdout, out string error)
+    internal static bool RunAgentCli(string agentName, Settings settings, List<string> keywords, int count, out string stdout, out string error)
     {
         stdout = null;
         error = null;
         string actualAgent = !string.IsNullOrEmpty(agentName) ? agentName : (settings != null ? settings.AiAgentType : "Auto");
 
         string lang = settings != null ? settings.Language : "zh";
-        string prompt = BuildPrompt(keywords, lang);
+        string prompt = BuildPrompt(keywords, count, lang);
 
         string exe, args;
         if (!TryGetCliCommand(actualAgent, prompt, out exe, out args))
@@ -5525,12 +6208,12 @@ internal sealed class AiQuoteDialog : Form
     private List<string> detectedAgents;
     private string selectedAgent;
     private string currentPrompt;
+    private int currentQuoteCount = 30;
 
     // View panels
     private Panel panelSetup;
-    private FlowLayoutPanel panelTags;
-    private TextBox txtNewTag;
-    private Button btnAddTag;
+    private TextBox txtPreference;
+    private NumericUpDown nudQuoteCount;
     private ComboBox cboAgent;
     private Label lblAgentHint;
     private Button btnCancel;
@@ -5574,7 +6257,7 @@ internal sealed class AiQuoteDialog : Form
         MinimizeBox = false;
         ShowInTaskbar = false;
         ShowIcon = false;
-        ClientSize = new Size(410, 265);
+        ClientSize = new Size(410, 360);
 
         // Register event for realtime quote expansion callback
         AiAgentQuoteHelper.OnQuotesAdded += HandleQuotesAddedCallback;
@@ -5631,53 +6314,58 @@ internal sealed class AiQuoteDialog : Form
         panelSetup.Controls.Add(lblHeader);
 
         Label lblTags = new Label();
-        lblTags.Text = en ? "Quote preference tags:" : "格言偏好标签：";
+        lblTags.Text = en ? "Preference description or keywords:" : "偏好描述或关键词：";
         lblTags.Font = AppContext.GetUiFont(lang, 9f);
         lblTags.ForeColor = AppContext.Win11TextPrimary;
         lblTags.SetBounds(18, 36, 374, 18);
         panelSetup.Controls.Add(lblTags);
 
-        panelTags = new FlowLayoutPanel();
-        panelTags.SetBounds(18, 56, 374, 56);
-        panelTags.AutoScroll = true;
-        panelTags.BackColor = Color.FromArgb(246, 248, 250);
-        panelTags.BorderStyle = BorderStyle.None;
-        panelTags.WrapContents = true;
-        panelTags.Padding = new Padding(3, 3, 3, 3);
-        panelSetup.Controls.Add(panelTags);
+        txtPreference = new TextBox();
+        txtPreference.Multiline = true;
+        txtPreference.AcceptsReturn = true;
+        txtPreference.ScrollBars = ScrollBars.Vertical;
+        txtPreference.Font = AppContext.GetUiFont(lang, 9f);
+        txtPreference.SetBounds(18, 56, 374, 92);
+        txtPreference.Text = currentKeywords != null && currentKeywords.Count > 0
+            ? string.Join(Environment.NewLine, currentKeywords.ToArray())
+            : "";
+        panelSetup.Controls.Add(txtPreference);
 
-        txtNewTag = new TextBox();
-        txtNewTag.Font = AppContext.GetUiFont(lang, 9f);
-        txtNewTag.SetBounds(18, 118, 286, 25);
-        txtNewTag.KeyDown += delegate(object sender, KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.Enter)
-            {
-                e.SuppressKeyPress = true;
-                AddTagFromInput();
-            }
-        };
-        panelSetup.Controls.Add(txtNewTag);
+        Label lblCount = new Label();
+        lblCount.Text = en ? "Quotes to generate:" : "扩充数量：";
+        lblCount.Font = AppContext.GetUiFont(lang, 9f);
+        lblCount.ForeColor = AppContext.Win11TextPrimary;
+        lblCount.SetBounds(18, 156, 90, 18);
+        panelSetup.Controls.Add(lblCount);
 
-        btnAddTag = new Button();
-        btnAddTag.Text = en ? "➕ Add" : "➕ 添加";
-        btnAddTag.Font = AppContext.GetUiFont(lang, 9f);
-        btnAddTag.SetBounds(310, 117, 82, 27);
-        AppContext.StyleSecondaryButton(btnAddTag);
-        btnAddTag.Click += delegate { AddTagFromInput(); };
-        panelSetup.Controls.Add(btnAddTag);
+        nudQuoteCount = new NumericUpDown();
+        nudQuoteCount.Minimum = 5;
+        nudQuoteCount.Maximum = 100;
+        nudQuoteCount.Increment = 5;
+        nudQuoteCount.Font = AppContext.GetUiFont(lang, 9f);
+        int savedCount = settings != null && settings.AiQuoteCount > 0 ? settings.AiQuoteCount : 30;
+        nudQuoteCount.Value = Math.Max(5, Math.Min(100, savedCount));
+        nudQuoteCount.SetBounds(112, 154, 80, 24);
+        panelSetup.Controls.Add(nudQuoteCount);
+
+        Label lblCountUnit = new Label();
+        lblCountUnit.Text = en ? "per run (5–100)" : "条 / 次（5–100）";
+        lblCountUnit.Font = AppContext.GetUiFont(lang, 8.5f);
+        lblCountUnit.ForeColor = AppContext.Win11TextSecondary;
+        lblCountUnit.SetBounds(198, 156, 194, 18);
+        panelSetup.Controls.Add(lblCountUnit);
 
         Label lblAgent = new Label();
         lblAgent.Text = en ? "AI Collaboration Agent:" : "AI 协作智能体：";
         lblAgent.Font = AppContext.GetUiFont(lang, 9f);
         lblAgent.ForeColor = AppContext.Win11TextPrimary;
-        lblAgent.SetBounds(18, 150, 374, 18);
+        lblAgent.SetBounds(18, 186, 374, 18);
         panelSetup.Controls.Add(lblAgent);
 
         cboAgent = new ComboBox();
         cboAgent.DropDownStyle = ComboBoxStyle.DropDownList;
         cboAgent.Font = AppContext.GetUiFont(lang, 9f);
-        cboAgent.SetBounds(18, 170, 374, 25);
+        cboAgent.SetBounds(18, 206, 374, 25);
         panelSetup.Controls.Add(cboAgent);
 
         // Show agents currently available on this computer.
@@ -5723,20 +6411,20 @@ internal sealed class AiQuoteDialog : Form
         lblAgentHint.Text = "";
         lblAgentHint.ForeColor = AppContext.Win11TextSecondary;
         lblAgentHint.Font = AppContext.GetUiFont(lang, 8.5f);
-        lblAgentHint.SetBounds(18, 198, 374, 20);
+        lblAgentHint.SetBounds(18, 234, 374, 20);
         lblAgentHint.AutoEllipsis = true;
         panelSetup.Controls.Add(lblAgentHint);
 
         btnCancel = new Button();
         btnCancel.Text = en ? "Cancel" : "取消";
-        btnCancel.SetBounds(210, 222, 80, 30);
+        btnCancel.SetBounds(210, 314, 80, 30);
         AppContext.StyleSecondaryButton(btnCancel);
         btnCancel.Click += delegate { DialogResult = DialogResult.Cancel; Close(); };
         panelSetup.Controls.Add(btnCancel);
 
         btnGenerate = new Button();
         btnGenerate.Text = en ? "✨ Expand" : "✨ 立即扩充";
-        btnGenerate.SetBounds(296, 222, 96, 30);
+        btnGenerate.SetBounds(296, 314, 96, 30);
         AppContext.StylePrimaryButton(btnGenerate);
         btnGenerate.Click += OnGenerateClick;
         panelSetup.Controls.Add(btnGenerate);
@@ -5757,8 +6445,6 @@ internal sealed class AiQuoteDialog : Form
             cboAgent.SelectedIndexChanged += delegate { UpdateAgentSelection(); };
             UpdateAgentSelection();
         }
-
-        RenderTags();
     }
 
     private void UpdateAgentSelection()
@@ -5866,67 +6552,6 @@ internal sealed class AiQuoteDialog : Form
         AppContext.StylePrimaryButton(btnStatusDone);
         btnStatusDone.Click += OnStatusDoneClick;
         panelStatus.Controls.Add(btnStatusDone);
-    }
-
-    private void RenderTags()
-    {
-        if (panelTags == null) return;
-        panelTags.SuspendLayout();
-        while (panelTags.Controls.Count > 0)
-        {
-            Control c = panelTags.Controls[0];
-            panelTags.Controls.RemoveAt(0);
-            c.Dispose();
-        }
-
-        string lang = settings != null ? settings.Language : "zh";
-        for (int i = 0; i < currentKeywords.Count; i++)
-        {
-            string tag = currentKeywords[i];
-            Button pill = new Button();
-            pill.Text = tag + "  ✕";
-            pill.Font = AppContext.GetUiFont(lang, 8.5f);
-            pill.Height = 24;
-            pill.AutoSize = true;
-            pill.Cursor = Cursors.Hand;
-            pill.Margin = new Padding(2, 2, 4, 2);
-            AppContext.StyleSecondaryButton(pill);
-            pill.Click += delegate
-            {
-                currentKeywords.Remove(tag);
-                AiAgentQuoteHelper.SaveKeywords(settings, currentKeywords);
-                RenderTags();
-            };
-            panelTags.Controls.Add(pill);
-        }
-
-        panelTags.ResumeLayout(true);
-    }
-
-    private void AddTagFromInput()
-    {
-        if (txtNewTag == null) return;
-        string text = txtNewTag.Text.Trim();
-        if (string.IsNullOrEmpty(text)) return;
-
-        string[] parts = text.Split(new char[] { ',', '，', '、', ';' }, StringSplitOptions.RemoveEmptyEntries);
-        bool changed = false;
-        foreach (string part in parts)
-        {
-            string clean = part.Trim();
-            if (clean.Length > 0 && !currentKeywords.Contains(clean))
-            {
-                currentKeywords.Add(clean);
-                changed = true;
-            }
-        }
-        if (changed)
-        {
-            AiAgentQuoteHelper.SaveKeywords(settings, currentKeywords);
-            RenderTags();
-        }
-        txtNewTag.Clear();
-        txtNewTag.Focus();
     }
 
     private void ShowSetupView()
@@ -6185,17 +6810,16 @@ internal sealed class AiQuoteDialog : Form
         bool en = settings != null && settings.Language == "en";
         string lang = settings != null ? settings.Language : "zh";
 
-        // Auto-add any pending text in txtNewTag
-        if (txtNewTag != null && !string.IsNullOrEmpty(txtNewTag.Text.Trim()))
+        // Persist preference text (GetKeywords splits newlines/commas on next open).
+        string rawPreference = txtPreference != null ? txtPreference.Text.Trim() : "";
+        if (settings != null)
         {
-            AddTagFromInput();
+            settings.AiQuoteKeywords = rawPreference;
+            settings.AiQuoteCount = nudQuoteCount != null ? (int)nudQuoteCount.Value : 30;
         }
-
-        if (currentKeywords.Count == 0)
-        {
-            currentKeywords = AiAgentQuoteHelper.GetKeywords(settings);
-            RenderTags();
-        }
+        currentKeywords = AiAgentQuoteHelper.GetKeywords(settings);
+        int quoteCount = settings != null && settings.AiQuoteCount > 0 ? settings.AiQuoteCount : 30;
+        currentQuoteCount = quoteCount;
 
         int selIdx = cboAgent != null ? cboAgent.SelectedIndex : -1;
         if (selIdx < 0 || detectedAgents == null || selIdx >= detectedAgents.Count)
@@ -6212,7 +6836,7 @@ internal sealed class AiQuoteDialog : Form
             settings.Save();
         }
 
-        currentPrompt = AiAgentQuoteHelper.BuildAgentPrompt(currentKeywords, lang);
+        currentPrompt = AiAgentQuoteHelper.BuildAgentPrompt(currentKeywords, quoteCount, lang);
 
         bool hasCli = AiAgentQuoteHelper.HasCliSupport(selectedAgent);
         if (hasCli)
@@ -6244,7 +6868,7 @@ internal sealed class AiQuoteDialog : Form
         {
             string stdout;
             string error;
-            bool ok = AiAgentQuoteHelper.RunAgentCli(agentName, settings, currentKeywords, out stdout, out error);
+            bool ok = AiAgentQuoteHelper.RunAgentCli(agentName, settings, currentKeywords, currentQuoteCount, out stdout, out error);
             if (!isExecutingCli) return; // User cancelled or closed
 
             if (ok && !string.IsNullOrEmpty(stdout))
@@ -6829,6 +7453,8 @@ internal sealed class AppContext : ApplicationContext
     private Overlay overlay;
     private AgentTaskStatusHud taskStatusHud;
     private readonly List<AgentTaskStatus> agentTaskStatuses = new List<AgentTaskStatus>();
+    private Timer hudClearDeferTimer;
+    private bool hudClearPending;
     private NotifyIcon tray;
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuAbout, menuExit, menuUpdate;
     internal const string CURRENT_VERSION = "1.09";
@@ -7705,6 +8331,14 @@ internal sealed class AppContext : ApplicationContext
     private void UpdateTaskStatusHudPosition()
     {
         if (taskStatusHud == null || taskStatusHud.IsDisposed || overlay == null || agentTaskStatuses.Count == 0) return;
+        // If the user dragged the HUD somewhere, keep that spot instead of chasing the clock.
+        if (settings != null && (settings.TaskStatusX != -99999 || settings.TaskStatusY != -99999))
+        {
+            int x = settings.TaskStatusX != -99999 ? settings.TaskStatusX : taskStatusHud.Location.X;
+            int y = settings.TaskStatusY != -99999 ? settings.TaskStatusY : taskStatusHud.Location.Y;
+            taskStatusHud.Location = new Point(x, y);
+            return;
+        }
         taskStatusHud.UpdatePosition(overlay.Bounds);
     }
 
@@ -7753,6 +8387,16 @@ internal sealed class AppContext : ApplicationContext
             overlay.BeginInvoke(new Action<string>(ClearAgentProgress), agentName);
             return;
         }
+
+        // While Alt is held (user is tweaking HUD settings), defer the clear so the HUD stays visible.
+        bool altHeld = (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
+        if (altHeld)
+        {
+            hudClearPending = true;
+            StartHudClearDeferTimer();
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(agentName))
         {
             agentTaskStatuses.Clear();
@@ -7768,11 +8412,58 @@ internal sealed class AppContext : ApplicationContext
         RefreshTaskStatusHud();
     }
 
+    private void StartHudClearDeferTimer()
+    {
+        if (hudClearDeferTimer == null)
+        {
+            hudClearDeferTimer = new Timer();
+            hudClearDeferTimer.Interval = 200;
+            hudClearDeferTimer.Tick += OnHudClearDeferTick;
+        }
+        hudClearDeferTimer.Stop();
+        hudClearDeferTimer.Start();
+    }
+
+    private DateTime altReleasedAt = DateTime.MinValue;
+    private bool wasAltHeld;
+
+    private void OnHudClearDeferTick(object sender, EventArgs e)
+    {
+        bool alt = (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
+        if (alt)
+        {
+            wasAltHeld = true;
+            altReleasedAt = DateTime.MinValue;
+            return;
+        }
+        if (wasAltHeld && altReleasedAt == DateTime.MinValue)
+        {
+            altReleasedAt = DateTime.UtcNow;
+            wasAltHeld = false;
+        }
+        if (!hudClearPending)
+        {
+            hudClearDeferTimer.Stop();
+            return;
+        }
+        if (altReleasedAt == DateTime.MinValue) return;
+        if ((DateTime.UtcNow - altReleasedAt).TotalSeconds >= 60)
+        {
+            hudClearPending = false;
+            hudClearDeferTimer.Stop();
+            agentTaskStatuses.Clear();
+            RefreshTaskStatusHud();
+        }
+    }
+
     internal void TriggerCliNotice(string message, string agentName = null)
     {
         if (string.IsNullOrEmpty(message)) message = settings.Language == "en" ? "Task completed!" : "任务已完成！";
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
-        if (settings.EndSound) PlaySoundStyle(settings.EndSoundStyle);
+        // Only interrupt (force topmost + chime) when the agent is in the background;
+        // if the user is already watching the agent window, show quietly without stealing focus.
+        bool isFg = AppContext.IsAgentInForeground();
+        if (settings.EndSound && !isFg) PlaySoundStyle(settings.EndSoundStyle);
         CliNoticeDialog dlg = new CliNoticeDialog(settings, message, agentName);
         activeNotice = dlg;
         dlg.FormClosed += delegate
@@ -7781,7 +8472,19 @@ internal sealed class AppContext : ApplicationContext
             if (isOneShot) Exit();
         };
         dlg.Show();
-        ForceTopMost(dlg);
+        if (isFg)
+        {
+            try
+            {
+                dlg.TopMost = true;
+                NativeMethods.SetWindowPos(dlg.Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0053);
+            }
+            catch { }
+        }
+        else
+        {
+            ForceTopMost(dlg);
+        }
     }
 
     internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile, string agentName = null, Action<string> resultCallback = null)
