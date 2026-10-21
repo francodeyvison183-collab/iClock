@@ -3,18 +3,17 @@
 # <img src="docs/icon-64.png" width="36" height="36" style="vertical-align: -6px;" alt="iClock Logo" /> iClock
 
 ### 专为开发者与效率玩家打造的 Windows 原生极简效率中枢 (300 KB)
-**⏱ 极简悬浮倒计时 · 💬 桌面每日格言 · 🤖 AI 智能体协同 & 原生 MCP 服务器**
+**⏱ 极简悬浮倒计时 · 💬 桌面每日格言 · 🤖 AI 智能体命令行协同**
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Size](https://img.shields.io/badge/Size-300%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
-[![MCP Protocol](https://img.shields.io/badge/MCP-Native%20Stdio-8A2BE2)](https://github.com/francodeyvison183-collab/iClock)
 [![Author](https://img.shields.io/badge/Author-gujiangwen-blue.svg)](mailto:francodeyvison183@gmail.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>单文件 300 KB · 运行内存 &lt; 15 MB · 0.0% CPU 占用 · 鼠标点击穿透 · 零轮询桌面格言 · 原生 MCP 智能体协同</b>
+  <b>单文件原生应用 · 运行内存 &lt; 15 MB · 0.0% CPU 占用 · 鼠标点击穿透 · 零轮询桌面格言 · CLI 智能体协同</b>
 </p>
 
 <p align="center">
@@ -36,7 +35,7 @@
 
 市面上的桌面工具往往走向两个极端：要么功能单一粗糙，要么动辄 **100MB+**（Electron 臃肿应用），常驻后台持续消耗 CPU 与数百兆内存，甚至带有弹窗广告和后台遥测；而传统窗口还会死死遮挡桌面，严重干扰鼠标操作与编辑视线。
 
-**iClock 坚持极致的工程师极简克制哲学**：基于 Windows 原生底层 Win32 与 GDI+ API 构建，不含任何第三方依赖或庞大运行时，单文件仅 **300 KB**，运行内存稳定在 **15 MB** 以内。它不仅是一个支持点击穿透的极简悬浮倒计时，更是融合了**零轮询桌面灵感格言**与**原生 MCP 智能体长任务协同**的桌面效率中枢。
+**iClock 坚持极致的工程师极简克制哲学**：基于 Windows 原生底层 Win32 与 GDI+ API 构建，不含任何第三方依赖或庞大运行时，运行内存稳定在 **15 MB** 以内。它不仅是一个支持点击穿透的极简悬浮倒计时，更是融合了**零轮询桌面灵感格言**与**命令行驱动的智能体桌面协同**的桌面效率中枢。
 
 ---
 
@@ -52,18 +51,12 @@
 * 🌅 **晨间唤醒与常驻桌面**：开机/解锁晨间唤醒居中优雅浮现；支持一键将格言钉在桌面背景或悬浮常驻。
 * ⚡ **0-Polling 零轮询极致节能**：基于 Windows 原生消息驱动架构，彻底剔除了后台循环轮询定时器，桌面常驻时 **0 唤醒、0.0% CPU 占用**。
 * 🎨 **桌面随心微交互**：在桌面格言文字上**按住 `Alt` + 拖拽调整位置**，拖动右边缘调节文本换行宽度，**`Alt + Ctrl + 滚轮` 快速缩放字号**，双击快速换一句。
-* 📚 **海量词库与 AI 智能体批量扩充**：内置 300+ 离线中英文精选格言，支持在记事本中自定义编辑 `quotes.txt`；更可在设置中一键调用本地 AI 智能体 / MCP **批量精选扩充 30 条格言**，全自动执行去重合并与 `quotes.txt.bak` 安全备份。
+* 📚 **海量词库与 AI 智能体批量扩充**：内置 300+ 离线中英文精选格言，支持在记事本中自定义编辑 `quotes.txt`；AI 智能体可生成格言文件，再通过 CLI 导入，自动去重并创建 `quotes.txt.bak` 安全备份。
 
-### 3. 🤖 AI 智能体长任务协同 & 原生 MCP 服务器
+### 3. 🤖 AI 智能体长任务命令行协同
 * 👁 **20+ 款主流编程智能体任务感知矩阵**：全面覆盖 Cursor、Antigravity、Claude Code、GitHub Copilot、Windsurf、Trae、通义灵码、CodeGeeX、文心快码、MiniMax、CodeBuddy、Aider 等主流智能体。采用四级感知矩阵（Windows Toast 拦截、`HSHELL_FLASH` 窗口闪烁、窗口标题变化、多进程生命周期），智能体跑长任务完毕 **0ms 零误报即时提醒**，支持一键点击还原智能体窗口。
-* 🔌 **内置原生 stdio MCP Server (`iClock.exe --mcp`)**：GUI 与 MCP 桥接进程共用同一个单文件；桥接进程通过 Named Pipe 连接桌面端，GUI 未启动时会自动拉起。零额外环境依赖，原生支持 Anthropic Model Context Protocol 标准 JSON-RPC 2.0 协议，向智能体开放 6 大核心工具：
-  - `iclock_ask_human`：**极速桌面授权门禁 (Flash Approval HUD / Human-in-the-Loop)**。智能体执行高危操作（如 `git push --force`、生产发布、删除数据）时，置顶唤醒 HUD 门禁卡片，支持 `Enter`/`1-9` 盲打秒级通过、`Esc` 拒绝，毫秒级回传智能体；默认无超时自动兜底，等待人类明确决断。支持命令行直接调用：`iclock -a "Deploy to prod?" --options "Approve,Reject"`；
-  - `iclock_progress`：**多智能体任务状态卡**。进度条与步骤文字合并在同一行；倒计时运行时显示在时钟下方，无倒计时时独立显示。不同智能体各占一行，`clear` 只移除调用者自己的状态（支持 `agent_name` 区分共享同一 MCP 连接的并行智能体）；
-  - `iclock_timer`：智能体自主为用户设定、控制与查询专注倒计时；
-  - `iclock_notify`：智能体长任务完成或阶段汇报时触发桌面强置顶/轻提醒与铃声；
-  - `iclock_quote`：智能体更新自己的任务状态文字，也可查询或切换桌面励志格言；
-  - `iclock_status`：智能体获取系统与 iClock 运行状态。
-* 💻 **极简命令行与脚本自动化 (CLI & IPC Pipeline)**：内置 `WM_COPYDATA` 超轻量 IPC 管道，支持 `iclock --install-cli` 一键写入环境变量，像 `claude` / `git` 一样免 `.exe` 全局调用；支持 CI/CD 与构建脚本一行命令触发桌面提醒（如 `npm run build && iclock -n "生产构建完成"`）。
+* 💻 **结构化 CLI 桌面协作**：智能体通过 `--ask` 请求人工决策、`--progress` 更新任务状态、`--notice` 发送完成提醒；加 `--json` 获取结构化结果。`--agent-name` 支持区分并行智能体，`--quote-add` 可导入 AI 生成的格言。
+* 🔗 **轻量 IPC 与脚本自动化**：通过 `WM_COPYDATA` 将命令发送给已运行的 iClock；`iclock --install-cli` 可将程序目录加入用户 PATH，供智能体、CI/CD 和脚本调用。
 
 ---
 
@@ -75,7 +68,7 @@
 | **常驻内存** | ⚡ **~15 MB** (物理基线) | 150 MB ~ 300 MB | ~30 MB | 80 MB ~ 200 MB (浏览器标签) |
 | **CPU 占用** | ⚡ **0.0%** (动态心跳对齐) | 0.5% ~ 3.0% (后台轮询) | 0.0% | 0.3% ~ 1.5% |
 | **交互阻碍** | ⚡ **完全点击穿透，不挡鼠标** | 实体窗口遮挡代码与网页 | 最小化或占用全屏 | 必须切出浏览器查看 |
-| **原生 MCP 支持** | ⚡ **内置 stdio MCP Server (6工具)** | ❌ 无 | ❌ 无 | ❌ 无 |
+| **智能体桌面协同** | ⚡ **CLI + 结构化 JSON** | ❌ 无 | ❌ 无 | ❌ 无 |
 | **AI 任务监听** | ⚡ **20+ 款智能体任务结束感知** | ❌ 无 | ❌ 无 | ❌ 无 |
 | **桌面灵感格言** | ⚡ **0-Polling 悬浮 + AI 扩充** | ❌ 无 | ❌ 无 | ❌ 仅限网页内显示 |
 | **网络行为** | ⚡ **0 联网请求，纯本地隐私** | 多数携带统计与更新上报 | 绑定微软在线账户 | 数据上报云端服务器 |
@@ -106,38 +99,19 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 ---
 
-## 🔌 30 秒配置 Claude Desktop / Cursor 原生 MCP 服务
+## 🤖 AI 智能体 CLI 协同
 
-iClock 内置了无需 Node.js、无需 Python 的原生 Windows stdio MCP Server（`iClock.exe --mcp`）。GUI 与 `--mcp` 模式是同一个可执行文件；MCP 桥接进程通过本机 Named Pipe 连接 GUI，因此发布包中只有一个可执行文件。
+在「设置 → AI 协作」复制命令行协作说明并提供给智能体。先运行 `iclock --install-cli` 配置 PATH，然后智能体即可调用以下桌面能力；`--json` 提供结构化结果：
 
-### 1. Claude Desktop 配置
-编辑 `%APPDATA%\Claude\claude_desktop_config.json`，在 `mcpServers` 中添加：
-```json
-{
-  "mcpServers": {
-    "iclock": {
-      "command": "C:\\Path\\To\\iClock\\iClock.exe",
-      "args": ["--mcp"]
-    }
-  }
-}
+```powershell
+iclock --ask "是否继续部署？" --options "继续,取消" --json
+iclock --progress 3/5 "正在运行测试" --agent-name "Codex" --json
+iclock --progress clear --agent-name "Codex" --json
+iclock --notice "任务已完成" --agent-name "Codex" --json
+iclock --quote-add "quotes.txt" --json
 ```
 
-### 2. Cursor / Windsurf 配置
-在 `.cursor/mcp.json` 或设置面板的 MCP 模块中添加：
-```json
-{
-  "mcpServers": {
-    "iclock": {
-      "command": "C:/Path/To/iClock/iClock.exe",
-      "args": ["--mcp"]
-    }
-  }
-}
-```
-
-### 3. 一键配置提示词 (Prompt)
-你也可以在 iClock 的「设置 ➔ AI 协作」中点击 **`[ 复制接入提示词 ]`**，直接发给任意支持 MCP 的智能体，让它自主完成配置连接！
+旧版智能体 MCP 配置不会由 iClock 自动修改；请在对应智能体设置中手动删除旧的 `iclock` 服务条目。`--mcp` 等旧参数已停用。
 
 ---
 
@@ -260,21 +234,21 @@ harness.notify("✨ 自动化测试全部通过，耗时 3 分 20 秒！")
 * **自定义配置**：右键托盘图标 $\rightarrow$ **“设置”**，原生 Win11 资源管理器风格 3 标签页：
   - **⏱ 倒计时**：配置时长、字号、颜色、字体、显示格式、提示声音（QQ提示音/机械电话铃/闹铃）、提醒方式、开机自启。
   - **💬 每日格言**：开启/关闭每日格言、桌面常驻显示、层级、10 色预设卡、`[ 自定义… ]` 编辑与 `[ ✨ AI 扩充 ]` 批量扩充。
-  - **🤖 AI 协作**：智能体后台任务监控开关、MCP 协议状态与直连提示词、终端 `iclock -h` 与 `iclock --install-cli` 快捷指令指引。
+  - **🤖 AI 协作**：智能体后台任务监控开关、CLI 协作提示词与终端 `iclock -h` / `iclock --install-cli` 指引。
 
 ---
 
 ## ❓ 常见问题解答
 
-* **Q: 为什么打游戏或写代码时不挡鼠标操作？**  
+* **Q: 为什么打游戏或写代码时不挡鼠标操作？**
   **A**: iClock 深度利用了 Windows 底层 `WS_EX_TRANSPARENT` 穿透特性。倒计时浮层浮现在所有窗口最顶层，但所有鼠标点击与滚轮事件均直接穿透到底层的编辑器、终端或全屏游戏，绝不抢占焦点。
 * **Q: 为什么软件体积只有 300 KB？**
   **A**: 坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 15 MB 以内。
-* **Q: 为什么桌面格言常驻后台不耗电？**  
+* **Q: 为什么桌面格言常驻后台不耗电？**
   **A**: iClock 采用原生 Windows 消息驱动与 0-Polling 架构，没有后台死循环轮询。静止常驻时 CPU 占用为 0.0%，唤醒开销降至极限，笔记本长驻运行零耗电。
-* **Q: 原生 MCP 服务支持哪些智能体？**  
-  **A**: 凡是支持 Anthropic Model Context Protocol 标准的工具（Claude Desktop、Cursor、Windsurf、Antigravity 等）均可无缝对接；同时通过 CLI 管道可支持任意脚本及命令行 Agent（如 Aider、AutoGPT 等）。
-* **Q: 软件是否安全、纯净无广告？**  
+* **Q: 智能体如何使用桌面协作？**
+  **A**: 让智能体通过 CLI 调用 iClock 的 `--ask`、`--progress`、`--notice` 等命令；`--json` 可获得机器可读的返回结果。
+* **Q: 软件是否安全、纯净无广告？**
   **A**: 100% 开源（MIT 协议），零流氓广告，零捆绑插件，零后台常驻守护进程，退出即彻底释放。详见 [PRIVACY.md](docs/PRIVACY.md)。
 
 ---

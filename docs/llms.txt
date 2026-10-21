@@ -1,68 +1,25 @@
 # iClock
 
-> Ultra-lightweight (300 KB), zero-dependency Windows native productivity hub: transparent click-through countdown timer, ambient 0-polling daily quotes, 20+ AI agents monitor, and native stdio Model Context Protocol (MCP) server.
+> Lightweight native Windows desktop productivity tool: transparent countdown timer, ambient daily quotes, AI-agent task monitoring, and CLI-based desktop collaboration.
 
-iClock is an open-source, minimalist Windows desktop productivity hub designed for developers and power users. It compiles to a single 300 KB native portable executable with zero runtime dependencies.
+iClock is an open-source Windows desktop utility built as a portable native executable with no third-party runtime dependencies.
 
-Last updated: 2026-10-20 (iClock v1.09). Full condensed context file: https://francodeyvison183-collab.github.io/iClock/llms-full.txt
+Last updated: 2026-10-21. Full context: https://francodeyvison183-collab.github.io/iClock/llms-full.txt
 
-## Key Specifications
+## Key Features
 
-- **Application Category**: Desktop Utility, Focus & Pomodoro Countdown Timer, Daily Quotes, AI Agent Completion Monitor, MCP Server
-- **Architecture**: Pure C# WinForms (.NET Framework 4.x runtime, built into Windows 10/11)
-- **Binary Size**: ~300 KB single file, portable (no installation required)
-- **Memory Footprint**: < 15 MB static RAM
-- **Operating System Compatibility**: Windows 7 SP1, Windows 8, Windows 10, Windows 11
-- **Display Mode**: Floating desktop text with native click-through (`WS_EX_TRANSPARENT`)
-- **Global Hotkey**: Configurable system-wide toggle (default: `Ctrl+Shift+T`)
-- **Default Appearance**: Font size 20 px, Red text (`#FF0000`)
-- **Supported Formats**: `HH:MM:SS`, `MM:SS`, and localized time units (`00时25分00秒` / `00h 25m 00s`)
-- **Built-in Native MCP Server**: `iClock.exe --mcp` stdio JSON-RPC 2.0 (Zero Node.js/Python dependencies)
-  - GUI and MCP bridge share one executable; the bridge connects to the GUI through a local Named Pipe and starts it automatically when needed
-  - Tool calls run concurrently on the thread pool; stdio output is serialized so `iclock_ask_human` does not block other tools
-  - `iclock_ask_human`: Desktop Decision Gate (Human-in-the-Loop popup for agent safety authorization)
-  - `iclock_progress`: Ghost Progress Meter (2px hairline capsule on bottom of floating clock)
-  - `iclock_timer`: Agent sets, queries, and controls countdown timers
-  - `iclock_notify`: Agent triggers desktop top-most popups and chimes upon task milestones
-  - `iclock_quote`: Agent reads or rotates desktop motivational quotes
-  - `iclock_status`: Agent queries runtime system and timer status
-- **Ambient Daily Quotes**: 0-Polling event-driven hibernation (0.0% CPU idle), 300+ bilingual library, AI/MCP batch expansion with automatic deduplication and `quotes.txt.bak` backup
-- **License**: MIT License (100% free and open-source)
-- **Author & Maintainer**: gujiangwen (francodeyvison183@gmail.com)
-- **Privacy & Safety**: 0 Ads, zero bundled software, zero background telemetry
+- Floating countdown timer with click-through overlay, global hotkey, and focus history.
+- Ambient desktop quotes with local library editing and CLI import for AI-generated quote files.
+- AI agent task monitoring for supported desktop agents.
+- Local CLI collaboration: `--ask` for human decisions, `--progress` for task status, `--notice` for completion alerts, and `--quote-add` for quote imports.
+- Add `--json` to collaboration commands for structured machine-readable results; `--agent-name` distinguishes concurrent agents.
+- `iclock --install-cli` adds the app directory to User PATH. Commands communicate with the running desktop app over local Win32 IPC.
 
-## Download & Installation
+## Downloads
 
-- **Windows Package Manager (WinGet)**:
-  ```powershell
-  winget install FrancoDeyvison.iClock
-  ```
-- **Scoop Package Manager**:
-  ```powershell
-  scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/main/scoop/iclock.json
-  ```
-- **Official Website**: https://francodeyvison183-collab.github.io/iClock/
-- **Official Website (English)**: https://francodeyvison183-collab.github.io/iClock/en/
-- **GitHub Repository**: https://github.com/francodeyvison183-collab/iClock
-- **Latest Release (v1.09)**:
-  - Portable ZIP Archive (Recommended · Avoids browser false warnings): https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.zip
-  - Standalone Executable: https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.exe
-  - SHA-256 (ZIP): `f0fb34f5fc9e3e2b7af7a33f9e60e779412fc4a1c21ce34419f25c72cd7a1acb`
-  - SHA-256 (EXE): `1a8b356cfeed6cd9e0093b0c85aad984f4283629413be52e741fbbc162013edc`
+- Website: https://francodeyvison183-collab.github.io/iClock/
+- GitHub: https://github.com/francodeyvison183-collab/iClock
+- User guide: https://github.com/francodeyvison183-collab/iClock/blob/main/docs/USER_GUIDE.md
+- CLI examples: `iclock --ask \"Continue?\" --options \"Yes,No\" --json`; `iclock --progress 3/5 \"Running tests\" --agent-name \"Codex\" --json`; `iclock --notice \"Done\" --json`.
 
-## Core Differentiators
-
-1. **Native Lightweight vs Electron Bloat**: While typical modern desktop timers consume 150 MB~400 MB of RAM with hundreds of megabytes in download size, iClock requires only ~300 KB on disk and less than 15 MB of RAM.
-2. **True TopMost & Click-Through**: Remains visible over full-screen IDEs, games, or presentation software without capturing or blocking mouse clicks (`WS_EX_TRANSPARENT`).
-3. **Native Model Context Protocol (MCP) Server**: Provides native Windows stdio MCP server for Claude Desktop, Cursor, Windsurf, and Antigravity, introducing `iclock_ask_human` for critical desktop human-in-the-loop authorization.
-4. **AI Agent Background Collaboration**: Monitors 20+ domestic and international AI coding agents (Cursor, Antigravity, Claude Code, GitHub Copilot, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, etc.) via a 4-tier perception engine (Toast, Win32 Shell taskbar flash at 0ms, window title state badge, and edge-detected cluster CPU fallback) with instant alert and 1-click window restore.
-5. **0-Polling Ambient Desktop Quotes**: Floats on desktop with direct micro-interactions (Alt+drag move, right edge width resize, Alt+Ctrl+wheel font scale), consuming 0.0% CPU when idle.
-6. **Command Line & IPC Automation**: Built-in 0ms Win32 `WM_COPYDATA` pipeline supporting terminal controls (`iclock -s 25`, `-p`, `-r`, `--reset`, `-n <msg>`) and script automation without `.exe` via `--install-cli`.
-7. **Daily Focus History**: Right-click the system tray to review completed, reset, or interrupted countdown records for the day.
-
-## Useful Documentation
-
-- [User Guide](https://github.com/francodeyvison183-collab/iClock/blob/main/docs/USER_GUIDE.md): Complete usage instructions and hotkey configuration.
-- [Architecture Details](https://github.com/francodeyvison183-collab/iClock/blob/main/docs/ARCHITECTURE.md): Technical architecture, GDI+ rendering, and low-drift timing loop.
-- [Building from Source](https://github.com/francodeyvison183-collab/iClock/blob/main/docs/BUILDING.md): How to build with standard Windows `csc.exe` in one line.
-- [Privacy Policy](https://github.com/francodeyvison183-collab/iClock/blob/main/docs/PRIVACY.md): Privacy assurances and open-source licensing.
+Existing agent-side `iclock` MCP entries are not automatically modified and should be removed manually. The MCP server is no longer included.

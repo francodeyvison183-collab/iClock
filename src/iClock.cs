@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.Drawing;
 using System.Drawing.Text;
 using System.Drawing.Drawing2D;
 using System.Diagnostics;
 using System.IO;
-using System.IO.Pipes;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.Reflection;
@@ -44,6 +42,7 @@ internal sealed class Settings
     public string NoticeStyle = "Popup";
     public bool FullscreenDnd = true;
     public bool AgentProgress;
+    public bool DesktopCollaborationEnabled = true;
     public bool DailyQuote = true;
     public bool QuoteDesktopVisible { get { return DailyQuote; } set { DailyQuote = value; } }
     public int QuoteX = -99999;
@@ -66,7 +65,7 @@ internal sealed class Settings
         EndMessage = src.EndMessage; Language = src.Language; AutoStart = src.AutoStart;
         EndSound = src.EndSound; EndSoundStyle = src.EndSoundStyle; EndNotice = src.EndNotice;
         FirstRun = src.FirstRun; NoticeStyle = src.NoticeStyle; FullscreenDnd = src.FullscreenDnd;
-        AgentProgress = src.AgentProgress; DailyQuote = src.DailyQuote;
+        AgentProgress = src.AgentProgress; DesktopCollaborationEnabled = src.DesktopCollaborationEnabled; DailyQuote = src.DailyQuote;
         QuoteX = src.QuoteX; QuoteY = src.QuoteY; QuoteWidth = src.QuoteWidth;
         QuoteFontSize = src.QuoteFontSize; QuoteColor = src.QuoteColor; QuoteFont = src.QuoteFont;
         QuotePinTopMost = src.QuotePinTopMost;
@@ -136,6 +135,7 @@ internal sealed class Settings
                 else if (k == "NoticeStyle" && (v == "Popup" || v == "Pulse")) s.NoticeStyle = v;
                 else if (k == "FullscreenDnd" && bool.TryParse(v, out b)) s.FullscreenDnd = b;
                 else if (k == "AgentProgress" && bool.TryParse(v, out b)) s.AgentProgress = b;
+                else if (k == "DesktopCollaborationEnabled" && bool.TryParse(v, out b)) s.DesktopCollaborationEnabled = b;
                 else if (k == "DailyQuote" && bool.TryParse(v, out b)) s.DailyQuote = b;
                 else if (k == "QuoteX" && int.TryParse(v, out n)) s.QuoteX = n;
                 else if (k == "QuoteY" && int.TryParse(v, out n)) s.QuoteY = n;
@@ -164,6 +164,7 @@ internal sealed class Settings
             "Color=" + Color, "FontFamily=" + FontFamily, "Format=" + Format, "EndMessage=" + EndMessage, "Language=" + Language, "AutoStart=" + AutoStart,
             "EndSound=" + EndSound, "EndSoundStyle=" + EndSoundStyle, "EndNotice=" + EndNotice, "FirstRun=" + FirstRun, "NoticeStyle=" + NoticeStyle, "FullscreenDnd=" + FullscreenDnd,
             "AgentProgress=" + AgentProgress,
+            "DesktopCollaborationEnabled=" + DesktopCollaborationEnabled,
             "DailyQuote=" + DailyQuote, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
             "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuotePinTopMost=" + QuotePinTopMost,
             "AiAgentType=" + AiAgentType,
@@ -1356,6 +1357,46 @@ internal sealed class StyledTipLabel : Label
     }
 }
 
+internal sealed class ToggleSwitch : CheckBox
+{
+    public ToggleSwitch()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        AccessibleRole = AccessibleRole.CheckButton;
+        Text = "";
+        Size = new Size(40, 22);
+        TabStop = true;
+    }
+
+    protected override void OnCheckedChanged(EventArgs e)
+    {
+        base.OnCheckedChanged(e);
+        Invalidate();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        e.Graphics.Clear(Parent != null ? Parent.BackColor : BackColor);
+        Rectangle track = new Rectangle(1, 2, Width - 3, Height - 5);
+        int diameter = track.Height;
+        using (GraphicsPath path = new GraphicsPath())
+        {
+            path.AddArc(track.X, track.Y, diameter, diameter, 90, 180);
+            path.AddArc(track.Right - diameter, track.Y, diameter, diameter, 270, 180);
+            path.CloseFigure();
+            Color trackColor = !Enabled ? Color.FromArgb(220, 222, 226)
+                : Checked ? AppContext.Win11Accent : Color.FromArgb(190, 196, 204);
+            using (SolidBrush brush = new SolidBrush(trackColor)) e.Graphics.FillPath(brush, path);
+        }
+        int knobSize = diameter - 4;
+        int knobX = Checked ? track.Right - knobSize - 2 : track.X + 2;
+        using (SolidBrush knob = new SolidBrush(Enabled ? Color.White : Color.FromArgb(245, 245, 245)))
+            e.Graphics.FillEllipse(knob, knobX, track.Y + 2, knobSize, knobSize);
+        if (Focused) ControlPaint.DrawFocusRectangle(e.Graphics, ClientRectangle);
+    }
+}
+
 internal sealed class SettingsDialog : Form
 {
     private NumericUpDown minutes, size;
@@ -1386,21 +1427,21 @@ internal sealed class SettingsDialog : Form
     private int activeTab = 0;
     private int hoveredTab = -1;
     private Button btnTabTimer, btnTabQuote, btnTabAgent;
-    private Button btnMcpDemo, btnMcpDemoProgress, btnMcpDemoNotify;
-    private Panel panelMcpBox;
-    private Label lblMcpServerTitle;
+    private Button btnAskDemo, btnProgressDemo, btnNotifyDemo;
+    private Panel panelCapabilityCard;
+    private Label lblCollaborationTitle, lblDesktopCollaborationState;
+    private ToggleSwitch chkDesktopCollaboration;
     private Label lblTool1Name, lblTool2Name, lblTool3Name;
     private Label lblTool1Desc, lblTool2Desc, lblTool3Desc;
     private StyledTipLabel lblAgentCliTip;
-    // Two-section layout: MCP connection status first, capability previews second.
-    private Panel panelMcpStatus, panelCapCard;
-    private Label lblMcpStatusDot, lblMcpStatusText, lblMcpStatusMeta;
-    private string mcpStatusState = "unknown";
-    private LinkLabel lnkMcpCopyPrompt;
-    private Label lblMcpCopyHint;
-    private string mcpCopyFeedback;
-    private System.Windows.Forms.Timer mcpStatusTimer;
-    private System.Windows.Forms.Timer mcpCopyFeedbackTimer;
+    // Two-section layout: collaboration readiness first, capability previews second.
+    private Panel panelCliStatus, panelCapCard;
+    private Label lblCliStatusDot, lblCliStatusText, lblCliStatusMeta;
+    private string desktopCollaborationState = "unknown";
+    private LinkLabel lnkCliGuide;
+    private Label lblCliGuideHint;
+    private string cliCopyFeedback;
+    private System.Windows.Forms.Timer cliCopyFeedbackTimer;
 
     private NumericUpDown quoteFontSize;
     private bool isSyncingQuoteFontSize;
@@ -1799,7 +1840,7 @@ internal sealed class SettingsDialog : Form
         btnAiQuotes.SetBounds(270, 356, 90, 28);
         AppContext.StyleSecondaryButton(btnAiQuotes);
         btnAiQuotes.Click += OnAiQuotesClick;
-        toolTip.SetToolTip(btnAiQuotes, en ? "Generate quotes with AI Agent / MCP" : "通过 AI 智能体 / MCP 批量创作并扩充词库");
+        toolTip.SetToolTip(btnAiQuotes, en ? "Generate quotes with AI Agent" : "通过 AI 智能体批量创作并扩充词库");
         Controls.Add(btnAiQuotes);
 
         // Section 4: Tip (Y = 416)
@@ -1820,164 +1861,183 @@ internal sealed class SettingsDialog : Form
             : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
 
 
-        // Section: MCP desktop collaboration status
-        lblMcpServerTitle = new Label();
-        lblMcpServerTitle.Text = en ? "MCP Desktop Collaboration" : "MCP 桌面协作";
-        lblMcpServerTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
-        lblMcpServerTitle.ForeColor = AppContext.Win11TextPrimary;
-        lblMcpServerTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpServerTitle.SetBounds(18, 56, 200, 22);
-        Controls.Add(lblMcpServerTitle);
+        // Section: local CLI desktop collaboration
+        lblCollaborationTitle = new Label();
+        lblCollaborationTitle.Text = en ? "Desktop Collaboration" : "桌面协作";
+        lblCollaborationTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
+        lblCollaborationTitle.ForeColor = AppContext.Win11TextPrimary;
+        lblCollaborationTitle.TextAlign = ContentAlignment.MiddleLeft;
+        lblCollaborationTitle.SetBounds(18, 56, 200, 22);
+        Controls.Add(lblCollaborationTitle);
 
-        panelMcpStatus = new Panel();
-        panelMcpStatus.SetBounds(18, 80, 344, 108);
-        panelMcpStatus.BackColor = Color.White;
-        panelMcpStatus.AutoScroll = true;
-        panelMcpStatus.HorizontalScroll.Enabled = false;
-        panelMcpStatus.Paint += OnCardPaint;
-        Controls.Add(panelMcpStatus);
+        lblDesktopCollaborationState = new Label();
+        lblDesktopCollaborationState.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblDesktopCollaborationState.ForeColor = AppContext.Win11TextSecondary;
+        lblDesktopCollaborationState.TextAlign = ContentAlignment.MiddleRight;
+        lblDesktopCollaborationState.SetBounds(254, 56, 58, 22);
+        Controls.Add(lblDesktopCollaborationState);
 
-        lblMcpStatusDot = new Label();
-        lblMcpStatusDot.SetBounds(14, 14, 12, 12);
-        lblMcpStatusDot.Paint += OnStatusDotPaint;
-        panelMcpStatus.Controls.Add(lblMcpStatusDot);
+        chkDesktopCollaboration = new ToggleSwitch();
+        chkDesktopCollaboration.SetBounds(322, 56, 40, 22);
+        chkDesktopCollaboration.AccessibleName = en ? "Desktop collaboration" : "桌面协作开关";
+        chkDesktopCollaboration.Checked = Value.DesktopCollaborationEnabled;
+        lblDesktopCollaborationState.Text = Value.DesktopCollaborationEnabled ? (en ? "Enabled" : "已启用") : (en ? "Disabled" : "已停用");
+        chkDesktopCollaboration.CheckedChanged += OnDesktopCollaborationChanged;
+        Controls.Add(chkDesktopCollaboration);
+        if (toolTip == null) toolTip = new ToolTip();
+        toolTip.SetToolTip(chkDesktopCollaboration, en
+            ? "Enable or disable iClock desktop collaboration commands."
+            : "启用或停用 iClock 命令行桌面协作能力。");
 
-        lblMcpStatusText = new Label();
-        lblMcpStatusText.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
-        lblMcpStatusText.ForeColor = AppContext.Win11TextPrimary;
-        lblMcpStatusText.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpStatusText.SetBounds(32, 10, 280, 20);
-        panelMcpStatus.Controls.Add(lblMcpStatusText);
+        panelCliStatus = new Panel();
+        panelCliStatus.SetBounds(18, 80, 344, 120);
+        panelCliStatus.BackColor = Color.White;
+        panelCliStatus.AutoScroll = true;
+        panelCliStatus.HorizontalScroll.Enabled = false;
+        panelCliStatus.Paint += OnCardPaint;
+        Controls.Add(panelCliStatus);
 
-        lblMcpStatusMeta = new Label();
-        lblMcpStatusMeta.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblMcpStatusMeta.ForeColor = AppContext.Win11TextSecondary;
-        lblMcpStatusMeta.TextAlign = ContentAlignment.TopLeft;
-        lblMcpStatusMeta.AutoSize = true;
-        lblMcpStatusMeta.MaximumSize = new Size(280, 0);
-        lblMcpStatusMeta.SetBounds(32, 31, 280, 20);
-        panelMcpStatus.Controls.Add(lblMcpStatusMeta);
+        lblCliStatusDot = new Label();
+        lblCliStatusDot.SetBounds(14, 14, 12, 12);
+        lblCliStatusDot.Paint += OnStatusDotPaint;
+        panelCliStatus.Controls.Add(lblCliStatusDot);
 
-        lnkMcpCopyPrompt = new LinkLabel();
-        lnkMcpCopyPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Underline);
-        lnkMcpCopyPrompt.LinkColor = AppContext.Win11Accent;
-        lnkMcpCopyPrompt.ActiveLinkColor = AppContext.Win11Accent;
-        lnkMcpCopyPrompt.VisitedLinkColor = AppContext.Win11Accent;
-        lnkMcpCopyPrompt.LinkBehavior = LinkBehavior.AlwaysUnderline;
-        lnkMcpCopyPrompt.AutoSize = false;
-        lnkMcpCopyPrompt.TextAlign = ContentAlignment.MiddleLeft;
-        lnkMcpCopyPrompt.SetBounds(32, 36, 1, 18);
-        lnkMcpCopyPrompt.Cursor = Cursors.Hand;
-        lnkMcpCopyPrompt.Visible = false;
-        lnkMcpCopyPrompt.LinkClicked += OnMcpCopyPromptClick;
-        panelMcpStatus.Controls.Add(lnkMcpCopyPrompt);
+        lblCliStatusText = new Label();
+        lblCliStatusText.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
+        lblCliStatusText.ForeColor = AppContext.Win11TextPrimary;
+        lblCliStatusText.TextAlign = ContentAlignment.MiddleLeft;
+        lblCliStatusText.SetBounds(32, 10, 280, 20);
+        panelCliStatus.Controls.Add(lblCliStatusText);
 
-        lblMcpCopyHint = new Label();
-        lblMcpCopyHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblMcpCopyHint.ForeColor = AppContext.Win11TextSecondary;
-        lblMcpCopyHint.AutoSize = false;
-        lblMcpCopyHint.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpCopyHint.SetBounds(32, 36, 1, 18);
-        lblMcpCopyHint.Visible = false;
-        panelMcpStatus.Controls.Add(lblMcpCopyHint);
+        lblCliStatusMeta = new Label();
+        lblCliStatusMeta.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblCliStatusMeta.ForeColor = AppContext.Win11TextSecondary;
+        lblCliStatusMeta.TextAlign = ContentAlignment.TopLeft;
+        lblCliStatusMeta.AutoSize = true;
+        lblCliStatusMeta.MaximumSize = new Size(280, 0);
+        lblCliStatusMeta.SetBounds(32, 31, 280, 20);
+        panelCliStatus.Controls.Add(lblCliStatusMeta);
+
+        lnkCliGuide = new LinkLabel();
+        lnkCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Underline);
+        lnkCliGuide.LinkColor = AppContext.Win11Accent;
+        lnkCliGuide.ActiveLinkColor = AppContext.Win11Accent;
+        lnkCliGuide.VisitedLinkColor = AppContext.Win11Accent;
+        lnkCliGuide.LinkBehavior = LinkBehavior.AlwaysUnderline;
+        lnkCliGuide.AutoSize = false;
+        lnkCliGuide.TextAlign = ContentAlignment.MiddleLeft;
+        lnkCliGuide.SetBounds(32, 36, 1, 18);
+        lnkCliGuide.Cursor = Cursors.Hand;
+        lnkCliGuide.Visible = false;
+        lnkCliGuide.LinkClicked += OnCliGuideClick;
+        panelCliStatus.Controls.Add(lnkCliGuide);
+
+        lblCliGuideHint = new Label();
+        lblCliGuideHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblCliGuideHint.ForeColor = AppContext.Win11TextSecondary;
+        lblCliGuideHint.AutoSize = false;
+        lblCliGuideHint.TextAlign = ContentAlignment.MiddleLeft;
+        lblCliGuideHint.SetBounds(32, 36, 1, 18);
+        lblCliGuideHint.Visible = false;
+        panelCliStatus.Controls.Add(lblCliGuideHint);
 
         Label lblCapabilityTitle = new Label();
         lblCapabilityTitle.Name = "lblCapabilityTitle";
-        lblCapabilityTitle.Text = en ? "Desktop Collaboration" : "桌面协作能力";
+        lblCapabilityTitle.Text = en ? "Common Desktop Capabilities" : "常用桌面能力";
         lblCapabilityTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblCapabilityTitle.ForeColor = AppContext.Win11TextPrimary;
         lblCapabilityTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblCapabilityTitle.SetBounds(18, 204, 344, 22);
+        lblCapabilityTitle.SetBounds(18, 216, 344, 22);
         Controls.Add(lblCapabilityTitle);
 
         panelCapCard = new Panel();
-        panelCapCard.SetBounds(18, 228, 344, 150);
+        panelCapCard.SetBounds(18, 240, 344, 150);
         panelCapCard.BackColor = Color.White;
-        panelCapCard.Paint += OnMcpBoxPaint;
+        panelCapCard.Paint += OnCapabilityCardPaint;
         Controls.Add(panelCapCard);
-        panelMcpBox = panelCapCard; // Keep legacy reference for compatibility
+        panelCapabilityCard = panelCapCard; // Keep legacy reference for compatibility
 
-        // Row 1: Decision Gate (iclock_ask_human)
+        // Row 1: decision approval
         lblTool1Name = new Label();
         lblTool1Name.Text = en ? "Decision Gate" : "决策请示";
         lblTool1Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool1Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool1Name.TextAlign = ContentAlignment.MiddleLeft;
         lblTool1Name.SetBounds(14, 5, 252, 18);
-        panelMcpBox.Controls.Add(lblTool1Name);
+        panelCapabilityCard.Controls.Add(lblTool1Name);
 
         lblTool1Desc = new Label();
         lblTool1Desc.Text = en ? "Pause for your approval before critical actions" : "关键操作前暂停，等待你确认";
         lblTool1Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblTool1Desc.ForeColor = AppContext.Win11TextSecondary;
         lblTool1Desc.SetBounds(14, 22, 252, 16);
-        panelMcpBox.Controls.Add(lblTool1Desc);
+        panelCapabilityCard.Controls.Add(lblTool1Desc);
 
-        btnMcpDemo = new Button();
-        btnMcpDemo.Text = en ? "Preview" : "预览";
-        btnMcpDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpDemo.SetBounds(274, 12, 58, 26);
-        AppContext.StyleSecondaryButton(btnMcpDemo);
-        btnMcpDemo.Click += OnMcpDemoClick;
-        panelMcpBox.Controls.Add(btnMcpDemo);
+        btnAskDemo = new Button();
+        btnAskDemo.Text = en ? "Preview" : "预览";
+        btnAskDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
+        btnAskDemo.SetBounds(274, 12, 58, 26);
+        AppContext.StyleSecondaryButton(btnAskDemo);
+        btnAskDemo.Click += OnAskDemoClick;
+        panelCapabilityCard.Controls.Add(btnAskDemo);
 
-        // Row 2: Task Status (iclock_progress + iclock_quote)
+        // Row 2: task status
         lblTool2Name = new Label();
         lblTool2Name.Text = en ? "Task Status" : "任务状态";
         lblTool2Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool2Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool2Name.TextAlign = ContentAlignment.MiddleLeft;
         lblTool2Name.SetBounds(14, 55, 252, 18);
-        panelMcpBox.Controls.Add(lblTool2Name);
+        panelCapabilityCard.Controls.Add(lblTool2Name);
 
         lblTool2Desc = new Label();
         lblTool2Desc.Text = en ? "Show task progress and current status together" : "同时显示任务进度与当前状态";
         lblTool2Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblTool2Desc.ForeColor = AppContext.Win11TextSecondary;
         lblTool2Desc.SetBounds(14, 72, 252, 16);
-        panelMcpBox.Controls.Add(lblTool2Desc);
+        panelCapabilityCard.Controls.Add(lblTool2Desc);
 
-        btnMcpDemoProgress = new Button();
-        btnMcpDemoProgress.Text = en ? "Preview" : "预览";
-        btnMcpDemoProgress.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpDemoProgress.SetBounds(274, 62, 58, 26);
-        AppContext.StyleSecondaryButton(btnMcpDemoProgress);
-        btnMcpDemoProgress.Click += OnMcpDemoProgressClick;
-        panelMcpBox.Controls.Add(btnMcpDemoProgress);
+        btnProgressDemo = new Button();
+        btnProgressDemo.Text = en ? "Preview" : "预览";
+        btnProgressDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
+        btnProgressDemo.SetBounds(274, 62, 58, 26);
+        AppContext.StyleSecondaryButton(btnProgressDemo);
+        btnProgressDemo.Click += OnProgressDemoClick;
+        panelCapabilityCard.Controls.Add(btnProgressDemo);
 
-        // Row 3: Completion Notice (iclock_notify)
+        // Row 3: completion reminder
         lblTool3Name = new Label();
         lblTool3Name.Text = en ? "Completion Notice" : "完成提醒";
         lblTool3Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool3Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool3Name.TextAlign = ContentAlignment.MiddleLeft;
         lblTool3Name.SetBounds(14, 105, 252, 18);
-        panelMcpBox.Controls.Add(lblTool3Name);
+        panelCapabilityCard.Controls.Add(lblTool3Name);
 
         lblTool3Desc = new Label();
         lblTool3Desc.Text = en ? "Popup and sound when the agent reports completion" : "智能体报告完成后弹窗并提示音";
         lblTool3Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblTool3Desc.ForeColor = AppContext.Win11TextSecondary;
         lblTool3Desc.SetBounds(14, 122, 252, 16);
-        panelMcpBox.Controls.Add(lblTool3Desc);
+        panelCapabilityCard.Controls.Add(lblTool3Desc);
 
-        btnMcpDemoNotify = new Button();
-        btnMcpDemoNotify.Text = en ? "Preview" : "预览";
-        btnMcpDemoNotify.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpDemoNotify.SetBounds(274, 112, 58, 26);
-        AppContext.StyleSecondaryButton(btnMcpDemoNotify);
-        btnMcpDemoNotify.Click += OnMcpDemoNotifyClick;
-        panelMcpBox.Controls.Add(btnMcpDemoNotify);
+        btnNotifyDemo = new Button();
+        btnNotifyDemo.Text = en ? "Preview" : "预览";
+        btnNotifyDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
+        btnNotifyDemo.SetBounds(274, 112, 58, 26);
+        AppContext.StyleSecondaryButton(btnNotifyDemo);
+        btnNotifyDemo.Click += OnNotifyDemoClick;
+        panelCapabilityCard.Controls.Add(btnNotifyDemo);
 
-        string mcpTip1 = en ? "Human-in-the-loop modal decision gate for critical operations (supports 1/2/Enter blind-typing)" : "关键高危操作置顶人机决策门禁，支持 1/2/Enter 盲打审批";
-        string mcpTip2 = en ? "Progress and status share a task card below the countdown" : "任务进度与状态显示在倒计时下方的任务卡片中";
-        string mcpTip3 = en ? "Modal alert and sound chime when background tasks finish" : "后台耗时任务完成时弹窗与声音提醒";
-        toolTip.SetToolTip(lblTool1Name, mcpTip1);
-        toolTip.SetToolTip(btnMcpDemo, mcpTip1);
-        toolTip.SetToolTip(lblTool2Name, mcpTip2);
-        toolTip.SetToolTip(btnMcpDemoProgress, mcpTip2);
-        toolTip.SetToolTip(lblTool3Name, mcpTip3);
-        toolTip.SetToolTip(btnMcpDemoNotify, mcpTip3);
+        string capabilityTip1 = en ? "Human-in-the-loop decision gate for critical operations (supports 1/2/Enter shortcuts)" : "关键高危操作置顶人工决策卡片，支持 1/2/Enter 快捷选择";
+        string capabilityTip2 = en ? "Progress and status share a task card below the countdown" : "任务进度与状态显示在倒计时下方的任务卡片中";
+        string capabilityTip3 = en ? "Modal alert and sound chime when background tasks finish" : "后台耗时任务完成时弹窗与声音提醒";
+        toolTip.SetToolTip(lblTool1Name, capabilityTip1);
+        toolTip.SetToolTip(btnAskDemo, capabilityTip1);
+        toolTip.SetToolTip(lblTool2Name, capabilityTip2);
+        toolTip.SetToolTip(btnProgressDemo, capabilityTip2);
+        toolTip.SetToolTip(lblTool3Name, capabilityTip3);
+        toolTip.SetToolTip(btnNotifyDemo, capabilityTip3);
 
         lblAgentCliTip = new StyledTipLabel("iclock --install-cli", "iclock -h");
         lblAgentCliTip.UseMnemonic = false;
@@ -1986,7 +2046,7 @@ internal sealed class SettingsDialog : Form
             : "提示：终端运行 iclock -h 查看命令，iclock --install-cli 写入 PATH。";
         lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
         lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentCliTip.SetBounds(16, 396, 348, 20);
+        lblAgentCliTip.SetBounds(16, 408, 348, 20);
         Controls.Add(lblAgentCliTip);
 
         AppContext.CenterFormOnScreen(this);
@@ -2038,8 +2098,10 @@ internal sealed class SettingsDialog : Form
         if (btnAiQuotes != null) btnAiQuotes.Visible = isQuote;
         lblQuoteTip.Visible = isQuote;
 
-        if (panelMcpStatus != null) panelMcpStatus.Visible = isAgent;
-        if (lblMcpServerTitle != null) lblMcpServerTitle.Visible = isAgent;
+        if (panelCliStatus != null) panelCliStatus.Visible = isAgent;
+        if (lblCollaborationTitle != null) lblCollaborationTitle.Visible = isAgent;
+        if (lblDesktopCollaborationState != null) lblDesktopCollaborationState.Visible = isAgent;
+        if (chkDesktopCollaboration != null) chkDesktopCollaboration.Visible = isAgent;
         if (panelCapCard != null) panelCapCard.Visible = isAgent;
         if (lblAgentCliTip != null) lblAgentCliTip.Visible = isAgent;
         foreach (Control control in Controls)
@@ -2049,17 +2111,7 @@ internal sealed class SettingsDialog : Form
 
         UpdateTabButtons();
         TriggerQuotePreview();
-        if (isAgent)
-        {
-            AppContext.McpConnectionStateChanged += OnMcpConnectionStateChanged;
-            StartMcpStatusTimer();
-            RefreshMcpStatusSummary();
-        }
-        else
-        {
-            StopMcpStatusTimer();
-            AppContext.McpConnectionStateChanged -= OnMcpConnectionStateChanged;
-        }
+        if (isAgent) RefreshDesktopCollaborationSummary();
         Update();
     }
 
@@ -2432,7 +2484,7 @@ internal sealed class SettingsDialog : Form
         pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         string state = dot.Tag as string;
         Color dotColor = Color.FromArgb(134, 134, 134);
-        if (state == "connected") dotColor = Color.FromArgb(22, 163, 74);
+        if (state == "connected" || state == "ready") dotColor = Color.FromArgb(22, 163, 74);
         else if (state == "configured") dotColor = Color.FromArgb(202, 138, 4);
         else if (state == "error") dotColor = Color.FromArgb(220, 38, 38);
         using (SolidBrush brush = new SolidBrush(dotColor))
@@ -2512,28 +2564,28 @@ internal sealed class SettingsDialog : Form
             }
         }
     }
-    private void OnMcpCopyPromptClick(object sender, LinkLabelLinkClickedEventArgs e)
+    private void OnCliGuideClick(object sender, LinkLabelLinkClickedEventArgs e)
     {
         try
         {
             bool en = Value != null && Value.Language == "en";
-            string prompt = McpConfigHelper.GenerateAgentPrompt(en);
+            string prompt = CliPromptHelper.GenerateCliAgentPrompt(en);
             Clipboard.SetText(prompt);
-            mcpCopyFeedback = en ? "Copied!" : "已复制 ✓";
-            RefreshMcpStatusSummary();
-            if (mcpCopyFeedbackTimer == null)
+            cliCopyFeedback = en ? "Copied!" : "已复制 ✓";
+            RefreshDesktopCollaborationSummary();
+            if (cliCopyFeedbackTimer == null)
             {
-                mcpCopyFeedbackTimer = new System.Windows.Forms.Timer();
-                mcpCopyFeedbackTimer.Interval = 2000;
-                mcpCopyFeedbackTimer.Tick += delegate
+                cliCopyFeedbackTimer = new System.Windows.Forms.Timer();
+                cliCopyFeedbackTimer.Interval = 2000;
+                cliCopyFeedbackTimer.Tick += delegate
                 {
-                    mcpCopyFeedbackTimer.Stop();
-                    mcpCopyFeedback = null;
-                    RefreshMcpStatusSummary();
+                    cliCopyFeedbackTimer.Stop();
+                    cliCopyFeedback = null;
+                    RefreshDesktopCollaborationSummary();
                 };
             }
-            mcpCopyFeedbackTimer.Stop();
-            mcpCopyFeedbackTimer.Start();
+            cliCopyFeedbackTimer.Stop();
+            cliCopyFeedbackTimer.Start();
         }
         catch (Exception ex)
         {
@@ -2541,181 +2593,131 @@ internal sealed class SettingsDialog : Form
         }
     }
 
-    private void OnMcpConnectionStateChanged()
-    {
-        if (IsDisposed) return;
-        if (InvokeRequired)
-        {
-            try { BeginInvoke(new Action(OnMcpConnectionStateChanged)); } catch { }
-            return;
-        }
-        RefreshMcpStatusSummary();
-    }
-
-    private void StartMcpStatusTimer()
-    {
-        if (AppContext.IsSelfCheckRunning) return;
-        if (mcpStatusTimer == null)
-        {
-            mcpStatusTimer = new System.Windows.Forms.Timer();
-            mcpStatusTimer.Interval = 2000;
-            mcpStatusTimer.Tick += delegate { RefreshMcpStatusSummary(); };
-        }
-        mcpStatusTimer.Start();
-    }
-
-    private void StopMcpStatusTimer()
-    {
-        if (mcpStatusTimer != null) mcpStatusTimer.Stop();
-    }
-
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
-        StopMcpStatusTimer();
-        if (mcpStatusTimer != null)
+        if (cliCopyFeedbackTimer != null)
         {
-            mcpStatusTimer.Dispose();
-            mcpStatusTimer = null;
-        }
-        if (mcpCopyFeedbackTimer != null)
-        {
-            mcpCopyFeedbackTimer.Stop();
-            mcpCopyFeedbackTimer.Dispose();
-            mcpCopyFeedbackTimer = null;
+            cliCopyFeedbackTimer.Stop();
+            cliCopyFeedbackTimer.Dispose();
+            cliCopyFeedbackTimer = null;
         }
         base.OnFormClosed(e);
     }
 
-    private void RefreshMcpStatusSummary()
+    private void RefreshDesktopCollaborationSummary()
     {
-        if (lblMcpStatusText == null || lblMcpStatusMeta == null) return;
+        if (lblCliStatusText == null || lblCliStatusMeta == null) return;
         if (AppContext.IsSelfCheckRunning)
         {
-            lblMcpStatusText.Text = "MCP";
-            lblMcpStatusMeta.Text = "-";
-            mcpStatusState = "unknown";
-            if (lblMcpStatusDot != null) lblMcpStatusDot.Tag = mcpStatusState;
-            UpdateMcpCopyLinkVisibility(false);
+            bool selfCheckEn = Value != null && Value.Language == "en";
+            lblCliStatusText.Text = selfCheckEn ? "iClock CLI Ready" : "iClock 命令行已就绪";
+            lblCliStatusMeta.Text = selfCheckEn
+                ? "Use the local CLI for desktop collaboration."
+                : "通过本机命令行使用桌面协作。";
+            desktopCollaborationState = "ready";
+            if (lblCliStatusDot != null) lblCliStatusDot.Tag = desktopCollaborationState;
+            if (lnkCliGuide != null) lnkCliGuide.Text = selfCheckEn ? "Copy CLI Guide" : "复制 CLI 协作说明";
+            UpdateCliGuideVisibility(Value != null && Value.DesktopCollaborationEnabled);
             return;
         }
         bool en = Value != null && Value.Language == "en";
-        List<string> connected = AppContext.Current != null
-            ? AppContext.Current.GetMcpConnectedClientNames()
-            : new List<string>();
-        List<string> runningAgents = AppContext.DetectAgents();
-        HashSet<string> connectedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        List<string> allAgents = new List<string>();
-        HashSet<string> seenAgents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (string agent in runningAgents)
+        bool collaborationEnabled = Value.DesktopCollaborationEnabled;
+        bool cliAvailable = File.Exists(CliPromptHelper.GetCliExePath());
+        if (!collaborationEnabled)
         {
-            if (seenAgents.Add(agent)) allAgents.Add(agent);
+            desktopCollaborationState = "disabled";
+            lblCliStatusText.Text = en ? "Desktop Collaboration Disabled" : "桌面协作已停用";
+            lblCliStatusMeta.Text = en ? "Enable desktop collaboration to let agents use the local CLI." : "启用桌面协作后，智能体即可调用本机命令行。";
         }
-        foreach (string client in connected)
+        else if (cliAvailable)
         {
-            string name = AppContext.MatchAgent(client);
-            if (string.IsNullOrEmpty(name)) name = McpBridge.NormalizeClientName(client);
-            if (string.IsNullOrEmpty(name)) continue;
-            connectedSet.Add(name);
-            if (seenAgents.Add(name)) allAgents.Add(name);
-        }
-        allAgents.Sort(StringComparer.OrdinalIgnoreCase);
-        List<string> unconfigured = new List<string>();
-        foreach (string agent in allAgents)
-        {
-            if (connectedSet.Contains(agent)) continue;
-            unconfigured.Add(agent);
-        }
-        bool running = AppContext.Current != null && AppContext.Current.IsMcpServerRunning;
-        string lastError = AppContext.Current != null ? AppContext.Current.McpServerLastError : null;
-        bool showCopyLink = false;
-        if (!running)
-        {
-            mcpStatusState = "error";
-            lblMcpStatusText.Text = en ? "Bridge Error" : "桥接异常";
-            lblMcpStatusMeta.Text = en
-                ? "MCP bridge is not running." + (string.IsNullOrEmpty(lastError) ? "" : "\n" + lastError) + "\nRestart iClock and try again."
-                : "MCP 桥接未运行。" + (string.IsNullOrEmpty(lastError) ? "" : "\n" + lastError) + "\n请重启 iClock 后重试。";
-        }
-        else if (!string.IsNullOrEmpty(lastError))
-        {
-            mcpStatusState = "error";
-            lblMcpStatusText.Text = en ? "Bridge Error" : "桥接异常";
-            lblMcpStatusMeta.Text = lastError + (en ? "\nRestart iClock and try again." : "\n请重启 iClock 后重试。");
-        }
-        else if (allAgents.Count > 0)
-        {
-            mcpStatusState = connectedSet.Count > 0 ? "connected" : "configured";
-            lblMcpStatusText.Text = en ? "iClock MCP Server Running" : "iClock MCP 服务运行中";
-            List<string> agentLines = new List<string>();
-            foreach (string name in allAgents)
-            {
-                string displayName = name == "Claude Code" ? "Claude" : name;
-                bool isConnected = connectedSet.Contains(name);
-                agentLines.Add(en
-                    ? displayName + (isConnected ? " · Connected" : " · Not connected")
-                    : displayName + (isConnected ? " · 已连接" : " · 未连接 iClock"));
-            }
-            lblMcpStatusMeta.Text = string.Join("\n", agentLines.ToArray());
-            lblMcpStatusMeta.SetBounds(32, 31, 280, lblMcpStatusMeta.Height);
-            showCopyLink = unconfigured.Count > 0;
+            desktopCollaborationState = "ready";
+            lblCliStatusText.Text = en ? "iClock CLI Ready" : "iClock 命令行已就绪";
+            lblCliStatusMeta.Text = en
+                ? "Decision requests, task progress, and completion alerts use the local CLI."
+                : "决策请示、任务进度和完成提醒通过本机命令行调用。";
         }
         else
         {
-            mcpStatusState = "none";
-            lblMcpStatusText.Text = en ? "No Agent Running" : "未检测到运行中的智能体";
-            lblMcpStatusMeta.Text = en
-                ? "No running agent detected."
-                : "当前没有检测到运行中的智能体。";
+            desktopCollaborationState = "error";
+            lblCliStatusText.Text = en ? "iClock CLI Not Found" : "未找到 iClock 命令行程序";
+            lblCliStatusMeta.Text = en ? "The CLI executable is missing from the application folder." : "应用程序目录中缺少命令行程序。";
         }
-        if (!string.IsNullOrEmpty(mcpCopyFeedback))
+        lblCliStatusMeta.Visible = true;
+        if (!string.IsNullOrEmpty(cliCopyFeedback))
         {
-            if (lnkMcpCopyPrompt != null)
+            if (lnkCliGuide != null)
             {
-                lnkMcpCopyPrompt.Enabled = false;
-                lnkMcpCopyPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-                lnkMcpCopyPrompt.LinkColor = AppContext.Win11TextSecondary;
-                lnkMcpCopyPrompt.Cursor = Cursors.Default;
-                lnkMcpCopyPrompt.Text = mcpCopyFeedback;
-                lnkMcpCopyPrompt.LinkArea = new LinkArea(0, lnkMcpCopyPrompt.Text.Length);
-                showCopyLink = true;
+                lnkCliGuide.Enabled = false;
+                lnkCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+                lnkCliGuide.LinkColor = AppContext.Win11TextSecondary;
+                lnkCliGuide.Cursor = Cursors.Default;
+                lnkCliGuide.Text = cliCopyFeedback;
+                lnkCliGuide.LinkArea = new LinkArea(0, lnkCliGuide.Text.Length);
+                int promptTop = 72;
+                lnkCliGuide.SetBounds(32, promptTop, 280, 18);
             }
-            if (lblMcpCopyHint != null) lblMcpCopyHint.Text = "";
+            if (lblCliGuideHint != null) lblCliGuideHint.Text = "";
         }
-        else if (lnkMcpCopyPrompt != null)
+        else if (lnkCliGuide != null)
         {
-            lnkMcpCopyPrompt.Enabled = true;
-            lnkMcpCopyPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Underline);
-            lnkMcpCopyPrompt.LinkColor = AppContext.Win11Accent;
-            lnkMcpCopyPrompt.Cursor = Cursors.Hand;
-            if (showCopyLink && unconfigured.Count > 0)
+            lnkCliGuide.Enabled = true;
+            lnkCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Underline);
+            lnkCliGuide.LinkColor = AppContext.Win11Accent;
+            lnkCliGuide.Cursor = Cursors.Hand;
+            if (collaborationEnabled)
             {
-                lnkMcpCopyPrompt.Text = en ? "Copy Setup Prompt" : "复制接入提示词";
-                lnkMcpCopyPrompt.LinkArea = new LinkArea(0, lnkMcpCopyPrompt.Text.Length);
-                if (lblMcpCopyHint != null) lblMcpCopyHint.Text = en
-                    ? ", send it to " + unconfigured[0] + (unconfigured.Count > 1 ? " or another agent" : "")
-                    : "，发送给 " + (unconfigured[0] == "Claude Code" ? "Claude" : unconfigured[0]) + (unconfigured.Count > 1 ? " 等任一智能体" : " 完成接入");
+                lnkCliGuide.Text = en ? "Copy CLI Guide" : "复制 CLI 协作说明";
+                lnkCliGuide.LinkArea = new LinkArea(0, lnkCliGuide.Text.Length);
+                if (lblCliGuideHint != null) lblCliGuideHint.Text = en
+                    ? ", copy and share with your agent"
+                    : "，复制后发送给智能体";
                 int contentWidth = 280;
-                int promptTop = Math.Max(75, lblMcpStatusMeta.Bottom + 4);
-                Size linkSize = TextRenderer.MeasureText(lnkMcpCopyPrompt.Text, lnkMcpCopyPrompt.Font, new Size(contentWidth, 18), TextFormatFlags.NoPadding);
+                int promptTop = 72;
+                Size linkSize = TextRenderer.MeasureText(lnkCliGuide.Text, lnkCliGuide.Font, new Size(contentWidth, 18), TextFormatFlags.NoPadding);
                 int linkWidth = Math.Min(contentWidth, linkSize.Width + 2);
-                lnkMcpCopyPrompt.SetBounds(32, promptTop, linkWidth, 18);
-                if (lblMcpCopyHint != null) lblMcpCopyHint.SetBounds(32 + linkWidth, promptTop, contentWidth - linkWidth, 18);
+                lnkCliGuide.SetBounds(32, promptTop, linkWidth, 18);
+                if (lblCliGuideHint != null) lblCliGuideHint.SetBounds(32 + linkWidth, promptTop, contentWidth - linkWidth, 18);
             }
         }
-        UpdateMcpCopyLinkVisibility(showCopyLink);
-        if (lblMcpStatusDot != null)
+        UpdateCliGuideVisibility(collaborationEnabled);
+        if (lblCliStatusDot != null)
         {
-            lblMcpStatusDot.Tag = mcpStatusState;
-            lblMcpStatusDot.Invalidate();
+            lblCliStatusDot.Tag = desktopCollaborationState;
+            lblCliStatusDot.Invalidate();
         }
     }
 
-    private void UpdateMcpCopyLinkVisibility(bool visible)
+    private void OnDesktopCollaborationChanged(object sender, EventArgs e)
     {
-        if (lnkMcpCopyPrompt != null) lnkMcpCopyPrompt.Visible = visible;
-        if (lblMcpCopyHint != null) lblMcpCopyHint.Visible = visible;
+        bool enabled = chkDesktopCollaboration.Checked;
+        bool en = Value.Language == "en";
+        if (!enabled && AppContext.Current != null && AppContext.Current.HasActiveDesktopCollaboration)
+        {
+            DialogResult result = MessageBox.Show(this,
+                en ? "Disabling desktop collaboration will cancel the active approval and clear agent task status. Continue?"
+                   : "停用桌面协作会取消当前审批并清除智能体任务状态。是否继续？",
+                en ? "Disable Desktop Collaboration?" : "停用桌面协作？",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (result != DialogResult.Yes)
+            {
+                chkDesktopCollaboration.Checked = true;
+                return;
+            }
+        }
+        Value.DesktopCollaborationEnabled = enabled;
+        lblDesktopCollaborationState.Text = enabled ? (en ? "Enabled" : "已启用") : (en ? "Disabled" : "已停用");
+        Value.Save();
+        if (!enabled && AppContext.Current != null) AppContext.Current.CancelDesktopCollaboration();
+        RefreshDesktopCollaborationSummary();
     }
-    private void OnMcpDemoClick(object sender, EventArgs e)
+
+    private void UpdateCliGuideVisibility(bool visible)
+    {
+        if (lnkCliGuide != null) lnkCliGuide.Visible = visible;
+        if (lblCliGuideHint != null) lblCliGuideHint.Visible = visible;
+    }
+    private void OnAskDemoClick(object sender, EventArgs e)
     {
         bool en = Value != null && Value.Language == "en";
         List<string> agents = AppContext.DetectAgents();
@@ -2729,7 +2731,7 @@ internal sealed class SettingsDialog : Form
             demo.ShowDialog(this);
         }
     }
-    private void OnMcpDemoProgressClick(object sender, EventArgs e)
+    private void OnProgressDemoClick(object sender, EventArgs e)
     {
         bool en = Value != null && Value.Language == "en";
         string msg = en ? "Running SelfCheck test suite (Step 3/5)..." : "正在执行完整自检套件 (步骤 3/5)...";
@@ -2748,7 +2750,7 @@ internal sealed class SettingsDialog : Form
             t.Start();
         }
     }
-    private void OnMcpDemoNotifyClick(object sender, EventArgs e)
+    private void OnNotifyDemoClick(object sender, EventArgs e)
     {
         bool en = Value != null && Value.Language == "en";
         NoticeDialog notifyDemo = new NoticeDialog(
@@ -2757,7 +2759,7 @@ internal sealed class SettingsDialog : Form
         );
         notifyDemo.Show();
     }
-    private static void OnMcpBoxPaint(object sender, PaintEventArgs pe)
+    private static void OnCapabilityCardPaint(object sender, PaintEventArgs pe)
     {
         Control pnl = (Control)sender;
         using (Pen p = new Pen(AppContext.Win11Border, 1f))
@@ -2830,7 +2832,7 @@ internal sealed class SettingsDialog : Form
         {
             if (btnNextQuote != null) toolTip.SetToolTip(btnNextQuote, toEnglish ? "Next quote (↻)" : "换一句 (↻)");
             toolTip.SetToolTip(btnEditQuotes, toEnglish ? "Open and edit quotes.txt in notepad" : "在记事本中自定义编辑名言 (quotes.txt)");
-            if (btnAiQuotes != null) toolTip.SetToolTip(btnAiQuotes, toEnglish ? "Generate quotes with AI Agent / MCP" : "通过 AI 智能体 / MCP 批量创作并扩充词库");
+            if (btnAiQuotes != null) toolTip.SetToolTip(btnAiQuotes, toEnglish ? "Generate quotes with AI Agent" : "通过 AI 智能体批量创作并扩充词库");
             if (dailyQuote != null) toolTip.SetToolTip(dailyQuote, toEnglish ? "Display ambient quote note on desktop; hold Alt + drag to move, drag edge to resize" : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
         }
         if (lblCardQuoteText != null)
@@ -2842,20 +2844,22 @@ internal sealed class SettingsDialog : Form
             lblCardQuoteAuthor.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.5f, FontStyle.Italic);
         }
 
-        if (lblMcpServerTitle != null) lblMcpServerTitle.Text = toEnglish ? "MCP Desktop Collaboration" : "MCP 桌面协作";
-        RefreshMcpStatusSummary();
+        if (lblCollaborationTitle != null) lblCollaborationTitle.Text = toEnglish ? "Desktop Collaboration" : "桌面协作";
+        if (lblDesktopCollaborationState != null) lblDesktopCollaborationState.Text = Value.DesktopCollaborationEnabled
+            ? (toEnglish ? "Enabled" : "已启用") : (toEnglish ? "Disabled" : "已停用");
+        RefreshDesktopCollaborationSummary();
         foreach (Control control in Controls)
         {
             if (control != null && control.Name == "lblCapabilityTitle")
             {
-                control.Text = toEnglish ? "Desktop Collaboration" : "桌面协作能力";
+                control.Text = toEnglish ? "Common Desktop Capabilities" : "常用桌面能力";
                 control.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Bold);
                 break;
             }
         }
-        if (btnMcpDemo != null) btnMcpDemo.Text = toEnglish ? "Preview" : "预览";
-        if (btnMcpDemoProgress != null) btnMcpDemoProgress.Text = toEnglish ? "Preview" : "预览";
-        if (btnMcpDemoNotify != null) btnMcpDemoNotify.Text = toEnglish ? "Preview" : "预览";
+        if (btnAskDemo != null) btnAskDemo.Text = toEnglish ? "Preview" : "预览";
+        if (btnProgressDemo != null) btnProgressDemo.Text = toEnglish ? "Preview" : "预览";
+        if (btnNotifyDemo != null) btnNotifyDemo.Text = toEnglish ? "Preview" : "预览";
         if (lblTool1Name != null) { lblTool1Name.Text = toEnglish ? "Decision Gate" : "决策请示"; lblTool1Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
         if (lblTool1Desc != null) { lblTool1Desc.Text = toEnglish ? "Pause for your approval before critical actions" : "关键操作前暂停，等待你确认"; lblTool1Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
         if (lblTool2Name != null) { lblTool2Name.Text = toEnglish ? "Task Status" : "任务状态"; lblTool2Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
@@ -2864,15 +2868,15 @@ internal sealed class SettingsDialog : Form
         if (lblTool3Desc != null) { lblTool3Desc.Text = toEnglish ? "Popup and sound when the agent reports completion" : "智能体报告完成后弹窗并提示音"; lblTool3Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
         if (toolTip != null)
         {
-            string mcpTip1 = toEnglish ? "Human-in-the-loop modal decision gate for critical operations (supports 1/2/Enter blind-typing)" : "关键高危操作置顶人机决策门禁，支持 1/2/Enter 盲打审批";
-            string mcpTip2 = toEnglish ? "Progress and status share a task card below the countdown" : "任务进度与状态显示在倒计时下方的任务卡片中";
-            string mcpTip3 = toEnglish ? "Modal alert and sound chime when background tasks finish" : "后台耗时任务完成时弹窗与声音提醒";
-            if (lblTool1Name != null) toolTip.SetToolTip(lblTool1Name, mcpTip1);
-            if (btnMcpDemo != null) toolTip.SetToolTip(btnMcpDemo, mcpTip1);
-            if (lblTool2Name != null) toolTip.SetToolTip(lblTool2Name, mcpTip2);
-            if (btnMcpDemoProgress != null) toolTip.SetToolTip(btnMcpDemoProgress, mcpTip2);
-            if (lblTool3Name != null) toolTip.SetToolTip(lblTool3Name, mcpTip3);
-            if (btnMcpDemoNotify != null) toolTip.SetToolTip(btnMcpDemoNotify, mcpTip3);
+            string capabilityTip1 = toEnglish ? "Human-in-the-loop decision gate for critical operations (supports 1/2/Enter shortcuts)" : "关键高危操作置顶人工决策卡片，支持 1/2/Enter 快捷选择";
+            string capabilityTip2 = toEnglish ? "Progress and status share a task card below the countdown" : "任务进度与状态显示在倒计时下方的任务卡片中";
+            string capabilityTip3 = toEnglish ? "Modal alert and sound chime when background tasks finish" : "后台耗时任务完成时弹窗与声音提醒";
+            if (lblTool1Name != null) toolTip.SetToolTip(lblTool1Name, capabilityTip1);
+            if (btnAskDemo != null) toolTip.SetToolTip(btnAskDemo, capabilityTip1);
+            if (lblTool2Name != null) toolTip.SetToolTip(lblTool2Name, capabilityTip2);
+            if (btnProgressDemo != null) toolTip.SetToolTip(btnProgressDemo, capabilityTip2);
+            if (lblTool3Name != null) toolTip.SetToolTip(lblTool3Name, capabilityTip3);
+            if (btnNotifyDemo != null) toolTip.SetToolTip(btnNotifyDemo, capabilityTip3);
         }
         if (lblAgentCliTip != null)
         {
@@ -3455,1012 +3459,46 @@ internal sealed class CliNoticeDialog : Form
 }
 
 
-internal static class McpBridgeProtocol
+internal static class CliPromptHelper
 {
-    internal const string PipeName = "iClock.McpBridge.v1";
-    private static int nextRequestId;
-
-    internal static string NewRequestId()
+    public static string GetCliExePath()
     {
-        return "r" + System.Threading.Interlocked.Increment(ref nextRequestId).ToString(CultureInfo.InvariantCulture);
-    }
-
-    internal static Dictionary<string, object> Parse(string json)
-    {
-        JavaScriptSerializer serializer = new JavaScriptSerializer();
-        serializer.MaxJsonLength = int.MaxValue;
-        return serializer.Deserialize<Dictionary<string, object>>(json);
-    }
-
-    internal static string Serialize(object value)
-    {
-        JavaScriptSerializer serializer = new JavaScriptSerializer();
-        serializer.MaxJsonLength = int.MaxValue;
-        return serializer.Serialize(value);
-    }
-
-    internal static Dictionary<string, object> Error(string code, string message)
-    {
-        return new Dictionary<string, object>
-        {
-            { "status", "error" },
-            { "code", code },
-            { "message", message ?? "" }
-        };
-    }
-}
-
-
-internal sealed class McpPipeConnection
-{
-    private readonly NamedPipeServerStream pipe;
-    private readonly StreamReader reader;
-    private readonly StreamWriter writer;
-    private readonly object writeLock = new object();
-    private int closed;
-
-    internal string ClientName { get; set; }
-
-    internal McpPipeConnection(NamedPipeServerStream pipe)
-    {
-        this.pipe = pipe;
-        reader = new StreamReader(pipe, new UTF8Encoding(false), false, 4096, true);
-        writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, true);
-        writer.AutoFlush = true;
-    }
-
-    internal string ReadLine()
-    {
-        return reader.ReadLine();
-    }
-
-    internal bool Send(Dictionary<string, object> message)
-    {
-        if (message == null || System.Threading.Volatile.Read(ref closed) != 0) return false;
-        try
-        {
-            string json = McpBridgeProtocol.Serialize(message);
-            lock (writeLock)
-            {
-                if (System.Threading.Volatile.Read(ref closed) != 0) return false;
-                writer.WriteLine(json);
-                writer.Flush();
-                return true;
-            }
-        }
-        catch
-        {
-            Close();
-            return false;
-        }
-    }
-
-    internal bool SendResponse(string id, bool ok, object result)
-    {
-        Dictionary<string, object> message = new Dictionary<string, object>
-        {
-            { "id", id },
-            { "ok", ok }
-        };
-        if (ok) message["result"] = result;
-        else message["error"] = result ?? McpBridgeProtocol.Error("INTERNAL_ERROR", "Unknown error");
-        return Send(message);
-    }
-
-    internal void Close()
-    {
-        if (System.Threading.Interlocked.Exchange(ref closed, 1) != 0) return;
-        try { reader.Close(); } catch { }
-        try { writer.Close(); } catch { }
-        try { pipe.Close(); } catch { }
-    }
-
-    internal bool IsConnected
-    {
-        get
-        {
-            try { return System.Threading.Volatile.Read(ref closed) == 0 && pipe.IsConnected; }
-            catch { return false; }
-        }
-    }
-}
-
-
-internal sealed class McpPipeServer
-{
-    private readonly AppContext owner;
-    private readonly ConcurrentDictionary<McpPipeConnection, bool> connections = new ConcurrentDictionary<McpPipeConnection, bool>();
-    private System.Threading.Thread acceptThread;
-    private NamedPipeServerStream listener;
-    private volatile bool running;
-    private volatile bool stopping;
-    private string lastError;
-    private System.Threading.Thread activityTimerThread;
-
-    internal McpPipeServer(AppContext owner)
-    {
-        this.owner = owner;
-    }
-
-    internal bool IsRunning { get { return running && !stopping; } }
-    internal string LastError { get { return lastError; } }
-    internal int ConnectionCount { get { return connections.Count; } }
-
-    internal List<string> GetConnectedClientNames()
-    {
-        List<string> names = new List<string>();
-        foreach (McpPipeConnection connection in connections.Keys)
-        {
-            string name = connection.ClientName;
-            if (string.IsNullOrEmpty(name) || names.Contains(name)) continue;
-            names.Add(name);
-        }
-        if (names.Count == 0 && connections.Count > 0) names.Add("MCP Client");
-        return names;
-    }
-
-    internal void Start()
-    {
-        if (running || stopping) return;
-        try
-        {
-            running = true;
-            acceptThread = new System.Threading.Thread(AcceptLoop);
-            acceptThread.IsBackground = true;
-            acceptThread.Name = "iClock.MCP.PipeServer";
-            acceptThread.Start();
-            activityTimerThread = new System.Threading.Thread(PollConnectionActivity);
-            activityTimerThread.IsBackground = true;
-            activityTimerThread.Name = "iClock.MCP.PipeActivity";
-            activityTimerThread.Start();
-        }
-        catch (Exception ex)
-        {
-            lastError = ex.Message;
-            running = false;
-            try { if (listener != null) listener.Close(); } catch { }
-            listener = null;
-        }
-    }
-
-    internal void Stop()
-    {
-        stopping = true;
-        running = false;
-        NamedPipeServerStream current = listener;
-        listener = null;
-        if (current != null)
-        {
-            try { current.Close(); } catch { }
-        }
-        foreach (McpPipeConnection connection in connections.Keys)
-        {
-            connection.Close();
-        }
-    }
-
-    private static NamedPipeServerStream CreateListener()
-    {
-        PipeSecurity security = new PipeSecurity();
-        try
-        {
-            using (WindowsIdentity identity = WindowsIdentity.GetCurrent())
-            {
-                if (identity != null && identity.User != null)
-                {
-                    security.AddAccessRule(new PipeAccessRule(
-                        identity.User,
-                        PipeAccessRights.ReadWrite | PipeAccessRights.CreateNewInstance,
-                        AccessControlType.Allow));
-                }
-            }
-        }
-        catch { }
-
-        return new NamedPipeServerStream(
-            McpBridgeProtocol.PipeName,
-            PipeDirection.InOut,
-            NamedPipeServerStream.MaxAllowedServerInstances,
-            PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous,
-            4096,
-            4096,
-            security);
-    }
-
-    private void AcceptLoop()
-    {
-        while (!stopping)
-        {
-            NamedPipeServerStream pipe = null;
-            try
-            {
-                pipe = CreateListener();
-                listener = pipe;
-                pipe.WaitForConnection();
-                if (stopping)
-                {
-                    try { pipe.Close(); } catch { }
-                    break;
-                }
-
-                listener = null;
-                McpPipeConnection connection = new McpPipeConnection(pipe);
-                connections[connection] = true;
-                System.Threading.Thread clientThread = new System.Threading.Thread(delegate() { HandleClient(connection); });
-                clientThread.IsBackground = true;
-                clientThread.Name = "iClock.MCP.PipeClient";
-                clientThread.Start();
-                AppContext.NotifyMcpConnectionStateChanged();
-            }
-            catch (Exception ex)
-            {
-                listener = null;
-                if (pipe != null)
-                {
-                    try { pipe.Close(); } catch { }
-                }
-                if (stopping) break;
-                lastError = ex.Message;
-                System.Threading.Thread.Sleep(150);
-            }
-        }
-    }
-
-    private void HandleClient(McpPipeConnection connection)
-    {
-        try
-        {
-            string line;
-            while (!stopping && (line = connection.ReadLine()) != null)
-            {
-                line = line.Trim();
-                if (line.Length == 0) continue;
-                Dictionary<string, object> message;
-                try
-                {
-                    message = McpBridgeProtocol.Parse(line);
-                }
-                catch (Exception ex)
-                {
-                    connection.Send(new Dictionary<string, object>
-                    {
-                        { "ok", false },
-                        { "error", McpBridgeProtocol.Error("BAD_REQUEST", ex.Message) }
-                    });
-                    continue;
-                }
-                if (message != null) owner.HandleMcpMessage(connection, message);
-            }
-        }
-        catch { }
-        finally
-        {
-            bool ignored;
-            connections.TryRemove(connection, out ignored);
-            connection.Close();
-            AppContext.NotifyMcpConnectionStateChanged();
-        }
-    }
-
-    private void PollConnectionActivity()
-    {
-        while (running && !stopping)
-        {
-            foreach (McpPipeConnection connection in connections.Keys)
-            {
-                if (!connection.IsConnected)
-                {
-                    connection.Close();
-                    bool ignored;
-                    connections.TryRemove(connection, out ignored);
-                    AppContext.NotifyMcpConnectionStateChanged();
-                }
-            }
-            System.Threading.Thread.Sleep(5000);
-        }
-    }
-}
-
-
-internal sealed class McpBridgeClient
-{
-    private readonly object connectLock = new object();
-    private readonly object writeLock = new object();
-    private readonly ConcurrentDictionary<string, TaskCompletionSource<Dictionary<string, object>>> pending =
-        new ConcurrentDictionary<string, TaskCompletionSource<Dictionary<string, object>>>();
-    private readonly ConcurrentDictionary<string, string> requestMap = new ConcurrentDictionary<string, string>();
-    private NamedPipeClientStream pipe;
-    private StreamReader reader;
-    private StreamWriter writer;
-    private volatile bool closed;
-    private int startGuiAttempted;
-    private System.Threading.Thread reconnectThread;
-
-    internal volatile string ClientName;
-
-    internal void EnsureConnected()
-    {
-        if (closed) throw new InvalidOperationException("MCP bridge is closed.");
-        lock (connectLock)
-        {
-            if (pipe != null && pipe.IsConnected) return;
-            ClosePipeLocked();
-
-            Exception last = null;
-            for (int attempt = 0; attempt < 60; attempt++)
-            {
-                if (closed) throw new InvalidOperationException("MCP bridge is closed.");
-                try
-                {
-                    NamedPipeClientStream next = new NamedPipeClientStream(
-                        ".", McpBridgeProtocol.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
-                    try
-                    {
-                        next.Connect(150);
-                        pipe = next;
-                        reader = new StreamReader(next, new UTF8Encoding(false), false, 4096, true);
-                        writer = new StreamWriter(next, new UTF8Encoding(false), 4096, true);
-                        writer.AutoFlush = true;
-                        StreamReader connectedReader = reader;
-                        System.Threading.Thread readThread = new System.Threading.Thread(delegate() { ReadLoop(next, connectedReader); });
-                        readThread.IsBackground = true;
-                        readThread.Name = "iClock.MCP.StdioReader";
-                        readThread.Start();
-                        SendHello();
-                        return;
-                    }
-                    catch
-                    {
-                        try { next.Close(); } catch { }
-                        throw;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    last = ex;
-                }
-
-                System.Threading.Thread.Sleep(100);
-            }
-
-            if (reconnectThread == null || !reconnectThread.IsAlive)
-            {
-                reconnectThread = new System.Threading.Thread(ReconnectLoop);
-                reconnectThread.IsBackground = true;
-                reconnectThread.Name = "iClock.MCP.Reconnect";
-                reconnectThread.Start();
-            }
-            throw new IOException("iClock GUI unavailable.", last);
-        }
-    }
-
-    private void ReconnectLoop()
-    {
-        TryStartGui();
-        while (!closed)
-        {
-            try
-            {
-                NamedPipeClientStream next = new NamedPipeClientStream(
-                    ".", McpBridgeProtocol.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
-                try
-                {
-                    next.Connect(150);
-                    if (closed) { try { next.Close(); } catch { } return; }
-                    lock (connectLock)
-                    {
-                        if (pipe == next) return;
-                        ClosePipeLocked();
-                        pipe = next;
-                        reader = new StreamReader(next, new UTF8Encoding(false), false, 4096, true);
-                        writer = new StreamWriter(next, new UTF8Encoding(false), 4096, true);
-                        writer.AutoFlush = true;
-                        StreamReader connectedReader = reader;
-                        System.Threading.Thread readThread = new System.Threading.Thread(delegate() { ReadLoop(next, connectedReader); });
-                        readThread.IsBackground = true;
-                        readThread.Name = "iClock.MCP.StdioReader";
-                        readThread.Start();
-                        SendHello();
-                        return;
-                    }
-                }
-                catch
-                {
-                    try { next.Close(); } catch { }
-                }
-            }
-            catch { }
-            System.Threading.Thread.Sleep(5000);
-        }
-    }
-
-    private void SendHello()
-    {
-        Send(new Dictionary<string, object>
-        {
-            { "id", McpBridgeProtocol.NewRequestId() },
-            { "op", "hello" },
-            { "client", ClientName ?? "" }
-        });
-    }
-
-    internal void Cancel(string requestId)
-    {
-        string pipeRequestId;
-        if (string.IsNullOrEmpty(requestId) || !requestMap.TryGetValue(requestId, out pipeRequestId)) return;
-        Send(new Dictionary<string, object>
-        {
-            { "id", McpBridgeProtocol.NewRequestId() },
-            { "op", "cancel" },
-            { "target", pipeRequestId }
-        });
-    }
-
-    internal Dictionary<string, object> CallTool(string mcpRequestId, string toolName, Dictionary<string, object> args)
-    {
-        string pipeRequestId = McpBridgeProtocol.NewRequestId();
-        TaskCompletionSource<Dictionary<string, object>> completion =
-            new TaskCompletionSource<Dictionary<string, object>>();
-        pending[pipeRequestId] = completion;
-        requestMap[mcpRequestId ?? ""] = pipeRequestId;
-
-        try
-        {
-            EnsureConnected();
-            if (!Send(new Dictionary<string, object>
-            {
-                { "id", pipeRequestId },
-                { "op", "call" },
-                { "tool", toolName ?? "" },
-                { "args", args ?? new Dictionary<string, object>() }
-            }))
-            {
-                return Failure("PIPE_WRITE_FAILED", "Failed to send request to iClock GUI.");
-            }
-
-            bool waitForever = string.Equals(toolName, "iclock_ask_human", StringComparison.Ordinal);
-            bool completed = waitForever ? completion.Task.Wait(-1) : completion.Task.Wait(10000);
-            if (!completed)
-            {
-                TaskCompletionSource<Dictionary<string, object>> ignored;
-                pending.TryRemove(pipeRequestId, out ignored);
-                Send(new Dictionary<string, object>
-                {
-                    { "id", McpBridgeProtocol.NewRequestId() },
-                    { "op", "cancel" },
-                    { "target", pipeRequestId }
-                });
-                return Failure("GUI_TIMEOUT", "iClock GUI did not respond in time.");
-            }
-            return completion.Task.Result;
-        }
-        catch (Exception ex)
-        {
-            return Failure("GUI_UNAVAILABLE", ex.Message);
-        }
-        finally
-        {
-            TaskCompletionSource<Dictionary<string, object>> ignored;
-            pending.TryRemove(pipeRequestId, out ignored);
-            string mappedId;
-            requestMap.TryRemove(mcpRequestId ?? "", out mappedId);
-        }
-    }
-
-    private bool Send(Dictionary<string, object> message)
-    {
-        lock (writeLock)
-        {
-            if (closed || writer == null) return false;
-            try
-            {
-                writer.WriteLine(McpBridgeProtocol.Serialize(message));
-                writer.Flush();
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-    }
-
-    private void ReadLoop(NamedPipeClientStream currentPipe, StreamReader currentReader)
-    {
-        try
-        {
-            string line;
-            while (!closed && (line = currentReader.ReadLine()) != null)
-            {
-                Dictionary<string, object> message;
-                try { message = McpBridgeProtocol.Parse(line); }
-                catch { continue; }
-                if (message == null) continue;
-                string id = message.ContainsKey("id") ? ObjectIdToString(message["id"]) : null;
-                if (string.IsNullOrEmpty(id)) continue;
-
-                TaskCompletionSource<Dictionary<string, object>> completion;
-                if (pending.TryRemove(id, out completion))
-                {
-                    completion.TrySetResult(message);
-                }
-            }
-        }
-        catch { }
-        finally
-        {
-            HandleDisconnected(currentPipe);
-        }
-    }
-
-    private void HandleDisconnected(NamedPipeClientStream currentPipe)
-    {
-        lock (connectLock)
-        {
-            if (pipe != currentPipe) return;
-            ClosePipeLocked();
-        }
-        foreach (KeyValuePair<string, TaskCompletionSource<Dictionary<string, object>>> entry in pending)
-        {
-            TaskCompletionSource<Dictionary<string, object>> ignored;
-            if (pending.TryRemove(entry.Key, out ignored))
-            {
-                entry.Value.TrySetResult(Failure("PIPE_CLOSED", "iClock GUI connection closed."));
-            }
-        }
-    }
-
-    private void ClosePipeLocked()
-    {
-        try { if (writer != null) writer.Close(); } catch { }
-        try { if (reader != null) reader.Close(); } catch { }
-        try { if (pipe != null) pipe.Close(); } catch { }
-        writer = null;
-        reader = null;
-        pipe = null;
-    }
-
-    internal void Close()
-    {
-        closed = true;
-        lock (connectLock) { ClosePipeLocked(); }
-        foreach (KeyValuePair<string, TaskCompletionSource<Dictionary<string, object>>> entry in pending)
-        {
-            TaskCompletionSource<Dictionary<string, object>> ignored;
-            if (pending.TryRemove(entry.Key, out ignored))
-            {
-                entry.Value.TrySetResult(Failure("PIPE_CLOSED", "MCP bridge stopped."));
-            }
-        }
-    }
-
-    private static Dictionary<string, object> Failure(string code, string message)
-    {
-        return new Dictionary<string, object>
-        {
-            { "ok", false },
-            { "error", McpBridgeProtocol.Error(code, message) }
-        };
-    }
-
-    private void TryStartGui()
-    {
-        if (System.Threading.Interlocked.Exchange(ref startGuiAttempted, 1) != 0) return;
-        try
-        {
-            string exe = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "iClock.exe");
-            if (!File.Exists(exe)) return;
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = exe,
-                WorkingDirectory = Path.GetDirectoryName(exe),
-                UseShellExecute = true
-            });
-        }
-        catch { }
-    }
-
-    internal static string ObjectIdToString(object id)
-    {
-        return id == null ? "" : Convert.ToString(id, CultureInfo.InvariantCulture);
-    }
-}
-
-
-internal static class McpBridge
-{
-    private static readonly object stdoutLock = new object();
-
-    internal static int RunMcpServer()
-    {
-        StreamReader stdin;
-        StreamWriter stdout;
-        try
-        {
-            stdin = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false), false);
-            stdout = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
-        }
-        catch (Exception ex)
-        {
-            try { Console.Error.WriteLine("[iClock] MCP stdio unavailable: " + ex.Message); } catch { }
-            return 1;
-        }
-
-        McpBridgeClient bridge = new McpBridgeClient();
-        try
-        {
-            string line;
-            while ((line = stdin.ReadLine()) != null)
-            {
-                line = line.Trim();
-                if (line.Length == 0) continue;
-
-                Dictionary<string, object> request;
-                try
-                {
-                    request = McpBridgeProtocol.Parse(line);
-                }
-                catch (Exception ex)
-                {
-                    Write(stdout, ProtocolError(null, -32700, "Parse error: " + ex.Message));
-                    continue;
-                }
-                if (request == null) continue;
-
-                object rpcId = request.ContainsKey("id") ? request["id"] : null;
-                string method = request.ContainsKey("method") ? request["method"] as string : null;
-                string requestId = McpBridgeClient.ObjectIdToString(rpcId);
-                Dictionary<string, object> parameters = request.ContainsKey("params")
-                    ? request["params"] as Dictionary<string, object>
-                    : null;
-
-                if (method == "initialize")
-                {
-                    if (parameters != null && parameters.ContainsKey("clientInfo"))
-                    {
-                        Dictionary<string, object> clientInfo = parameters["clientInfo"] as Dictionary<string, object>;
-                        if (clientInfo != null && clientInfo.ContainsKey("name") && clientInfo["name"] != null)
-                        {
-                            bridge.ClientName = NormalizeClientName(clientInfo["name"].ToString());
-                        }
-                    }
-                    System.Threading.ThreadPool.QueueUserWorkItem(delegate
-                    {
-                        try { bridge.EnsureConnected(); } catch { }
-                    });
-                    Write(stdout, new Dictionary<string, object>
-                    {
-                        { "jsonrpc", "2.0" },
-                        { "id", rpcId },
-                        { "result", new Dictionary<string, object>
-                            {
-                                { "protocolVersion", "2024-11-05" },
-                                { "capabilities", new Dictionary<string, object> { { "tools", new Dictionary<string, object>() } } },
-                                { "serverInfo", new Dictionary<string, object> { { "name", "iclock" }, { "version", "1.09" } } }
-                            }
-                        }
-                    });
-                }
-                else if (method == "notifications/initialized" || method == "initialized")
-                {
-                    // Notifications have no response.
-                }
-                else if (method == "ping")
-                {
-                    Write(stdout, new Dictionary<string, object>
-                    {
-                        { "jsonrpc", "2.0" },
-                        { "id", rpcId },
-                        { "result", new Dictionary<string, object>() }
-                    });
-                }
-                else if (method == "tools/list")
-                {
-                    Write(stdout, new Dictionary<string, object>
-                    {
-                        { "jsonrpc", "2.0" },
-                        { "id", rpcId },
-                        { "result", new Dictionary<string, object> { { "tools", BuildToolsList() } } }
-                    });
-                }
-                else if (method == "tools/call")
-                {
-                    Dictionary<string, object> callParameters = parameters;
-                    object workId = rpcId;
-                    string workRequestId = requestId;
-                    System.Threading.ThreadPool.QueueUserWorkItem(delegate
-                    {
-                        string toolName = callParameters != null && callParameters.ContainsKey("name")
-                            ? Convert.ToString(callParameters["name"], CultureInfo.InvariantCulture)
-                            : "";
-                        Dictionary<string, object> args = callParameters != null && callParameters.ContainsKey("arguments")
-                            ? callParameters["arguments"] as Dictionary<string, object>
-                            : null;
-                        if (args == null) args = new Dictionary<string, object>();
-                        Dictionary<string, object> result = bridge.CallTool(workRequestId, toolName, args);
-                        WriteToolResult(stdout, workId, result);
-                    });
-                }
-                else if (method == "notifications/cancelled" || method == "cancelled")
-                {
-                    if (parameters != null && parameters.ContainsKey("requestId"))
-                    {
-                        bridge.Cancel(McpBridgeClient.ObjectIdToString(parameters["requestId"]));
-                    }
-                }
-                else if (rpcId != null)
-                {
-                    Write(stdout, ProtocolError(rpcId, -32601, "Method not found: " + method));
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            try { Console.Error.WriteLine("[iClock] MCP server error: " + ex.Message); } catch { }
-        }
-        finally
-        {
-            bridge.Close();
-            try { stdin.Close(); } catch { }
-        }
-        return 0;
-    }
-
-    private static void WriteToolResult(StreamWriter stdout, object rpcId, Dictionary<string, object> result)
-    {
-        bool ok = result != null && result.ContainsKey("ok") && result["ok"] is bool && (bool)result["ok"];
-        object textValue = null;
-        if (result != null)
-        {
-            if (ok && result.ContainsKey("result")) textValue = result["result"];
-            else if (!ok && result.ContainsKey("error")) textValue = result["error"];
-        }
-        if (textValue == null) textValue = McpBridgeProtocol.Error("INTERNAL_ERROR", "Empty GUI response.");
-        string text = textValue as string;
-        if (text == null) text = McpBridgeProtocol.Serialize(textValue);
-
-        Write(stdout, new Dictionary<string, object>
-        {
-            { "jsonrpc", "2.0" },
-            { "id", rpcId },
-            { "result", new Dictionary<string, object>
-                {
-                    { "content", new object[]
-                        {
-                            new Dictionary<string, object> { { "type", "text" }, { "text", text } }
-                        }
-                    },
-                    { "isError", !ok }
-                }
-            }
-        });
-    }
-
-    private static Dictionary<string, object> ProtocolError(object id, int code, string message)
-    {
-        return new Dictionary<string, object>
-        {
-            { "jsonrpc", "2.0" },
-            { "id", id },
-            { "error", new Dictionary<string, object> { { "code", code }, { "message", message ?? "" } } }
-        };
-    }
-
-    private static void Write(StreamWriter stdout, Dictionary<string, object> message)
-    {
-        try
-        {
-            lock (stdoutLock)
-            {
-                stdout.WriteLine(McpBridgeProtocol.Serialize(message));
-                stdout.Flush();
-            }
-        }
-        catch { }
-    }
-
-    internal static string NormalizeClientName(string raw)
-    {
-        if (string.IsNullOrEmpty(raw)) return null;
-        string lower = raw.Trim().ToLowerInvariant();
-        if (lower.Contains("antigravity")) return "Antigravity";
-        if (lower.Contains("cursor")) return "Cursor";
-        if (lower.Contains("claude")) return "Claude Code";
-        if (lower.Contains("codex")) return "Codex";
-        if (lower.Contains("windsurf")) return "Windsurf";
-        if (lower.Contains("cline")) return "Cline";
-        if (lower.Contains("roo")) return "Roo Code";
-        if (lower.Contains("trae")) return "Trae";
-        if (lower.Contains("code") || lower.Contains("vscode")) return "VS Code";
-        if (lower.Contains("pycharm")) return "PyCharm";
-        if (lower.Contains("idea") || lower.Contains("intellij")) return "IntelliJ IDEA";
-        if (lower.Contains("webstorm")) return "WebStorm";
-        return raw.Trim();
-    }
-
-    private static List<Dictionary<string, object>> BuildToolsList()
-    {
-        List<Dictionary<string, object>> list = new List<Dictionary<string, object>>();
-
-        list.Add(new Dictionary<string, object>
-        {
-            { "name", "iclock_ask_human" },
-            { "description", "Flash Approval HUD: Pop up an interactive desktop authorization gate on the user's screen for critical decision approvals and choices (Human-in-the-Loop, Enter/1-9/Esc shortcuts, infinite wait by default)." },
-            { "inputSchema", new Dictionary<string, object>
-                {
-                    { "type", "object" },
-                    { "properties", new Dictionary<string, object>
-                        {
-                            { "action", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "ask", "cancel" } }, { "description", "Action to perform: 'ask' (default) prompts user on screen; 'cancel' immediately closes active pending approval card." } } },
-                            { "question", new Dictionary<string, object> { { "type", "string" }, { "description", "The question, prompt, or approval details to display" } } },
-                            { "options", new Dictionary<string, object> { { "type", "array" }, { "items", new Dictionary<string, object> { { "type", "string" } } }, { "description", "List of clickable option buttons. If omitted, a text input box is presented." } } },
-                            { "timeout_seconds", new Dictionary<string, object> { { "type", "integer" }, { "description", "Optional auto-timeout duration in seconds (default: 0 = infinite wait)." } } },
-                            { "background_only", new Dictionary<string, object> { { "type", "boolean" }, { "description", "If true, only pop up when the agent host is in the background." } } },
-                            { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional agent display name." } } }
-                        }
-                    }
-                }
-            }
-        });
-
-        list.Add(new Dictionary<string, object>
-        {
-            { "name", "iclock_timer" },
-            { "description", "Control the desktop countdown timer (start, pause, resume, reset) with optional task label." },
-            { "inputSchema", new Dictionary<string, object>
-                {
-                    { "type", "object" },
-                    { "properties", new Dictionary<string, object>
-                        {
-                            { "action", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "start", "pause", "resume", "reset" } }, { "description", "Action to perform" } } },
-                            { "minutes", new Dictionary<string, object> { { "type", "integer" }, { "description", "Countdown duration in minutes (default: 25)" } } },
-                            { "label", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional task name or label" } } }
-                        }
-                    },
-                    { "required", new string[] { "action" } }
-                }
-            }
-        });
-
-        list.Add(new Dictionary<string, object>
-        {
-            { "name", "iclock_notify" },
-            { "description", "Display an immediate desktop popup notification and sound chime to alert the user." },
-            { "inputSchema", new Dictionary<string, object>
-                {
-                    { "type", "object" },
-                    { "properties", new Dictionary<string, object>
-                        {
-                            { "message", new Dictionary<string, object> { { "type", "string" }, { "description", "Notification message content" } } },
-                            { "sound", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "agent", "doorbell", "telephone", "qq", "knock", "alarm", "none" } }, { "description", "Chime sound style" } } },
-                            { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional agent display name." } } }
-                        }
-                    },
-                    { "required", new string[] { "message" } }
-                }
-            }
-        });
-
-        list.Add(new Dictionary<string, object>
-        {
-            { "name", "iclock_quote" },
-            { "description", "Update your row in the shared desktop task-status card, rotate quotes, or add quotes to the library. Task status rows are independent per agent." },
-            { "inputSchema", new Dictionary<string, object>
-                {
-                    { "type", "object" },
-                    { "properties", new Dictionary<string, object>
-                        {
-                            { "action", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "show", "add", "next", "clear", "hide" } }, { "description", "Action to perform" } } },
-                            { "text", new Dictionary<string, object> { { "type", "string" }, { "description", "Current task status shown below your progress bar; when no countdown is active, the status card appears on its own" } } },
-                            { "author", new Dictionary<string, object> { { "type", "string" }, { "description", "Author or attribution" } } },
-                            { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional agent display name." } } },
-                            { "quotes", new Dictionary<string, object> { { "type", "array" }, { "items", new Dictionary<string, object> { { "type", "string" } } }, { "description", "Optional list of quotes in 'text | author' format for batch add." } } }
-                        }
-                    }
-                }
-            }
-        });
-
-        list.Add(new Dictionary<string, object>
-        {
-            { "name", "iclock_status" },
-            { "description", "Query current iClock status (running state, remaining seconds, duration settings, active label, and progress)." },
-            { "inputSchema", new Dictionary<string, object>
-                {
-                    { "type", "object" },
-                    { "properties", new Dictionary<string, object>() }
-                }
-            }
-        });
-
-        list.Add(new Dictionary<string, object>
-        {
-            { "name", "iclock_progress" },
-            { "description", "Report your task progress in a shared desktop status card. Each agent gets an independent row; use 'clear' to remove only your own row. The card appears with or without a countdown." },
-            { "inputSchema", new Dictionary<string, object>
-                {
-                    { "type", "object" },
-                    { "properties", new Dictionary<string, object>
-                        {
-                            { "progress", new Dictionary<string, object> { { "type", "string" }, { "description", "Percentage ('60' or '60%'), fraction ('3/5'), float ('0.6'), or 'clear'" } } },
-                            { "message", new Dictionary<string, object> { { "type", "string" }, { "description", "Brief status description of the current step" } } },
-                            { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional identity for concurrent agents sharing one MCP client; use the same name when clearing" } } }
-                        }
-                    },
-                    { "required", new string[] { "progress" } }
-                }
-            }
-        });
-
-        return list;
-    }
-}
-
-
-internal static class McpConfigHelper
-{
-    public static string GetMcpExePath()
-    {
-        string dir = "";
-        try { dir = Path.GetDirectoryName(typeof(McpConfigHelper).Assembly.Location); } catch { }
+        string dir = null;
+        try { dir = Path.GetDirectoryName(typeof(CliPromptHelper).Assembly.Location); } catch { }
         if (string.IsNullOrEmpty(dir)) dir = AppDomain.CurrentDomain.BaseDirectory;
-        string exePath = Path.Combine(dir, "iClock.exe");
-        if (File.Exists(exePath)) return exePath;
-        return "iClock";
+        return Path.Combine(dir, "iClock.exe");
     }
 
-    public static string GenerateAgentPrompt(bool en)
+    public static string GenerateCliAgentPrompt(bool en)
     {
-        string exePath = GetMcpExePath();
+        string exePath = GetCliExePath().Replace("'", "''");
+        string invoke = "& '" + exePath + "'";
         if (en)
         {
-            return "Please configure iClock (desktop clock & status collaboration tool) as an MCP server for this environment.\r\n\r\n"
-                + "[Configuration]\r\n"
-                + "- Server Name: iclock\r\n"
-                + "- Command: " + exePath + "\r\n"
-                + "- Args: [\"--mcp\"]\r\n\r\n"
-                + "[Core Capabilities]\r\n"
-                + "Once connected, you will have access to iClock desktop tools:\r\n"
-                + "1. iclock_ask_human: Trigger a top-most modal gate for human-in-the-loop approvals on critical decisions;\r\n"
-                + "2. iclock_progress + iclock_quote: Update your row in the desktop task-status card with progress and status text. It appears below an active countdown or on its own when no countdown is running. Concurrent agents have separate rows; if multiple agents share one MCP client, give each a distinct agent_name and reuse it for both tools and clear only that row.\r\n"
-                + "3. iclock_notify: Pop up a desktop alert and sound notification when background tasks complete.\r\n"
-                + "Use iclock_status anytime to query iClock's live state.\r\n\r\n"
-                + "[Instructions]\r\n"
-                + "1. Check current environment's MCP config file (e.g. Cursor's mcp.json, Claude Desktop config, or current workspace MCP config) and merge this server (preserve existing servers).\r\n"
-                + "2. Proactive Habit: For multi-step work, update your row at key milestones and call iclock_progress(progress='clear') when your task is complete. If sharing one MCP client, pass the same unique agent_name on each update and clear. Do not clear other agents' rows.\r\n"
-                + "3. Once saved, prompt me to reload the window (e.g. 'Developer: Reload Window' in Cursor) so the MCP server takes effect.\r\n"
-                + "4. After reload, immediately call the iclock_notify tool to send a desktop greeting (e.g. 'iClock MCP connected successfully!') to verify connectivity.";
+            return "Use iClock's Windows CLI for desktop collaboration.\r\n\r\n"
+                + "Prefer `iclock` from PATH when available. Otherwise invoke this executable from PowerShell:\r\n"
+                + invoke + "\r\n\r\n"
+                + "Core actions:\r\n"
+                + "- Ask for a blocking human decision: " + invoke + " --ask \"Deploy now?\" --options \"Deploy,Cancel\" --agent-name \"Codex\" --json. Wait for the command result before continuing.\r\n"
+                + "- Report task progress at meaningful milestones: " + invoke + " --progress \"3/5\" \"Running tests\" --agent-name \"Codex\" --json. Clear your progress when done using the same name: " + invoke + " --progress clear --agent-name \"Codex\" --json.\r\n"
+                + "- Notify me when a background task finishes: " + invoke + " --notice \"Build finished\" --agent-name \"Codex\" --json.\r\n\r\n"
+                + "Use a stable unique agent name (for example, Codex, Claude, or WorkBuddy) on every call so concurrent agents keep separate task-status rows.\r\n"
+                + "With --json, parse the JSON response and treat only ok=true as accepted; for progress/notice, accepted means iClock handled the command, not that the user has seen it.\r\n"
+                + "If a CLI command fails, report the error instead of claiming the desktop action was completed. Do not change PATH or install anything without my approval.";
         }
-        else
-        {
-            return "请帮我将本机的 iClock (桌面时钟与工作状态协同工具) 接入为当前环境的 MCP Server。\r\n\r\n"
-                + "【配置参数】\r\n"
-                + "- 服务名称：iclock\r\n"
-                + "- 启动命令：" + exePath + "\r\n"
-                + "- 启动参数：[\"--mcp\"]\r\n\r\n"
-                + "【能力说明】\r\n"
-                + "接入后你将拥有 iClock 提供的桌面协作工具：\r\n"
-                + "1. iclock_ask_human: 遇到关键决策、高危操作或多选方案时，呼出桌面置顶阻断式人工审批卡片；\r\n"
-                + "2. iclock_progress + iclock_quote: 将进度与当前状态显示在桌面任务状态卡的同一行；倒计时运行时显示在时钟下方，无倒计时时独立显示。多个智能体各占一行；若多个智能体共用一个 MCP 客户端，请为每个智能体设置不同的 agent_name，并在更新与清除时保持一致；\r\n"
-                + "3. iclock_notify: 耗时或后台任务完成时，呼出桌面模态弹窗与提示音唤醒我。\r\n"
-                + "随时可用 iclock_status 查询 iClock 实时状态。\r\n\r\n"
-                + "【操作步骤】\r\n"
-                + "1. 请检查当前环境的 MCP 配置文件（例如 Claude Desktop 的 claude_desktop_config.json、Cursor 的 mcp.json 或当前项目/全局 MCP 配置），将上述 iclock 服务合并进去（保留我已有的其他服务）。\r\n"
-                + "2. 行为准则：执行多步骤任务时，请在关键节点更新自己的状态行；完成后调用 iclock_progress(progress='clear')，不要清除其他智能体的状态。\r\n"
-                + "3. 写入配置后，请提醒我重载窗口生效（如 Cursor 执行 Reload Window 或重启客户端）。\r\n"
-                + "4. 重载后，请立即调用 iclock_notify 工具向我发送一条测试通知（例如：'iClock MCP 协同接入成功！'），以验证桌面联通性。";
-        }
+        return "请优先使用 iClock 命令行执行桌面协作。\r\n\r\n"
+            + "先尝试使用 PATH 中的 `iclock`。若命令不可用，请在 PowerShell 中调用以下程序：\r\n"
+            + invoke + "\r\n\r\n"
+            + "常用操作：\r\n"
+            + "- 关键决策时阻断等待人工确认：" + invoke + " --ask \"现在部署吗？\" --options \"部署,取消\" --agent-name \"Codex\" --json。必须等待命令返回后再继续。\r\n"
+            + "- 在重要节点汇报任务进度：" + invoke + " --progress \"3/5\" \"正在运行测试\" --agent-name \"Codex\" --json；任务结束后使用相同名称清除：" + invoke + " --progress clear --agent-name \"Codex\" --json。\r\n"
+            + "- 后台任务完成时通知我：" + invoke + " --notice \"构建已完成\" --agent-name \"Codex\" --json。\r\n\r\n"
+            + "每个智能体请使用稳定且唯一的名称（如 Codex、Claude、WorkBuddy），以便多个智能体同时运行时分别显示任务状态。\r\n"
+            + "使用 --json 时请解析 JSON；只有 ok=true 才表示命令已被接受。进度/通知返回 accepted 表示 iClock 已处理命令，不代表用户已看到通知。\r\n"
+            + "命令执行失败时，请如实报告错误，不要宣称桌面操作已完成。未经我同意，不要修改 PATH 或安装任何内容。";
     }
 
-    public static string GenerateJsonSnippet(bool absolutePath)
-    {
-        string cmd = absolutePath ? GetMcpExePath() : "iclock";
-        string escapedCmd = cmd.Replace("\\", "\\\\");
-        return "{\r\n  \"mcpServers\": {\r\n    \"iclock\": {\r\n      \"command\": \"" + escapedCmd + "\",\r\n      \"args\": [\r\n        \"--mcp\"\r\n      ]\r\n    }\r\n  }\r\n}";
-    }
 }
-
 
 internal sealed class AskHumanDialog : Form
 {
@@ -6187,43 +5225,38 @@ internal static class AiAgentQuoteHelper
         s.Save();
     }
 
-    internal static string BuildMcpPrompt(List<string> keywords, string lang)
+    internal static string BuildAgentPrompt(List<string> keywords, string lang)
     {
         bool en = (lang == "en");
         string t = (keywords != null && keywords.Count > 0)
             ? string.Join(en ? ", " : "、", keywords.ToArray())
             : (en ? "Deep focus, craftsmanship and tranquility" : "极客心流、斯多葛与深度专注");
+        string cliPath = CliPromptHelper.GetCliExePath().Replace("'", "''");
         if (en)
         {
             return "Please curate and compose 30 inspiring desk quotes based on the preference topics: [" + t + "].\r\n" +
-                   "After creating them, please call iClock's MCP tool `iclock_quote` to add them in batch into my quotes library and project onto desktop:\r\n" +
-                   "Tool call parameters:\r\n" +
-                   "- action: \"add\"\r\n" +
-                   "- quotes: [\r\n" +
-                   "    \"Quote text 1 | Author 1\",\r\n" +
-                   "    \"Quote text 2 | Author 2\",\r\n" +
-                   "    ...\r\n" +
-                   "  ]\r\n\r\n" +
+                   "Save one quote per line in a UTF-8 text file, each line exactly `Quote text | Author or Source`. Then import it using this PowerShell command:\r\n" +
+                   "$quotesPath = Join-Path $env:TEMP 'iclock-quotes.txt'\r\n" +
+                   "@'\r\n<put all 30 quote lines here>\r\n'@ | Set-Content -Encoding UTF8 $quotesPath\r\n" +
+                   "& '" + cliPath + "' --quote-add $quotesPath --json\r\n" +
+                   "Parse the JSON and report success only if `ok` is true; include `result.added_count`.\r\n\r\n" +
                    "STRICT RULES:\r\n" +
                    "1. Maximum 35 words per quote, inspiring, timeless and concise.\r\n" +
                    "2. Every quote MUST include authentic author or source attribution.\r\n" +
-                   "3. Call the `iclock_quote` tool with action: 'add' directly. No introductory explanations.";
+                   "3. Execute the import command and wait for its result. No introductory explanations.";
         }
         else
         {
             return "请围绕偏好标签【" + t + "】精选创作 30 条高质量桌面格言短句。\r\n" +
-                   "创作完成后，请直接调用 iClock 的 MCP 工具 `iclock_quote` 将这 30 条格言批量收录至名言词库并投射到桌面：\r\n" +
-                   "工具调用参数：\r\n" +
-                   "- action: \"add\"\r\n" +
-                   "- quotes: [\r\n" +
-                   "    \"格言内容 1 | 作者或出处 1\",\r\n" +
-                   "    \"格言内容 2 | 作者或出处 2\",\r\n" +
-                   "    ...\r\n" +
-                   "  ]\r\n\r\n" +
+                   "请将格言保存为 UTF-8 文本文件，每行一条，严格使用 `格言内容 | 作者或出处` 格式，然后在 PowerShell 执行以下命令导入：\r\n" +
+                   "$quotesPath = Join-Path $env:TEMP 'iclock-quotes.txt'\r\n" +
+                   "@'\r\n<在此放入全部 30 行格言>\r\n'@ | Set-Content -Encoding UTF8 $quotesPath\r\n" +
+                   "& '" + cliPath + "' --quote-add $quotesPath --json\r\n" +
+                   "解析 JSON；只有 `ok` 为 true 才表示导入成功，并报告 `result.added_count`。\r\n\r\n" +
                    "严格规范：\r\n" +
                    "1. 每条格言控制在 35 字以内，语言精练有力，富有启发与哲理；\r\n" +
                    "2. 每条格言必须附带真实作者或典籍出处（若佚名请注明佚名）；\r\n" +
-                   "3. 请直接调用 `iclock_quote` 工具（action 设为 'add'），严禁多余的打招呼或寒暄废话。";
+                   "3. 必须执行导入命令并等待返回结果，严禁多余的打招呼或寒暄废话。";
         }
     }
 
@@ -6519,7 +5552,7 @@ internal sealed class AiQuoteDialog : Form
     private int elapsedSeconds = 0;
     private int waitingDots = 0;
 
-    private enum ViewMode { Setup, WaitingMcp, RunningCli, Completed, Error }
+    private enum ViewMode { Setup, WaitingAgent, RunningCli, Completed, Error }
     private ViewMode currentMode = ViewMode.Setup;
     private bool isExecutingCli = false;
 
@@ -6572,7 +5605,7 @@ internal sealed class AiQuoteDialog : Form
     {
         if (keyData == Keys.Escape)
         {
-            if (currentMode == ViewMode.WaitingMcp || currentMode == ViewMode.Error)
+            if (currentMode == ViewMode.WaitingAgent || currentMode == ViewMode.Error)
             {
                 ShowSetupView();
                 return true;
@@ -6635,7 +5668,7 @@ internal sealed class AiQuoteDialog : Form
         panelSetup.Controls.Add(btnAddTag);
 
         Label lblAgent = new Label();
-        lblAgent.Text = en ? "AI Collaboration Agent (MCP):" : "AI 协作智能体（基于 MCP）：";
+        lblAgent.Text = en ? "AI Collaboration Agent:" : "AI 协作智能体：";
         lblAgent.Font = AppContext.GetUiFont(lang, 9f);
         lblAgent.ForeColor = AppContext.Win11TextPrimary;
         lblAgent.SetBounds(18, 150, 374, 18);
@@ -6647,20 +5680,13 @@ internal sealed class AiQuoteDialog : Form
         cboAgent.SetBounds(18, 170, 374, 25);
         panelSetup.Controls.Add(cboAgent);
 
-        // Show agents connected via MCP or currently running
+        // Show agents currently available on this computer.
         List<string> allDetected = AppContext.DetectAgents();
         HashSet<string> running = AppContext.GetRunningAgents();
-        List<string> mcpConnected = AppContext.Current != null
-            ? AppContext.Current.GetMcpConnectedClientNames()
-            : new List<string>();
         detectedAgents = new List<string>();
         foreach (string name in allDetected)
         {
             detectedAgents.Add(name);
-        }
-        foreach (string name in mcpConnected)
-        {
-            if (!detectedAgents.Contains(name)) detectedAgents.Add(name);
         }
         detectedAgents.Sort(delegate(string a, string b)
         {
@@ -6684,8 +5710,8 @@ internal sealed class AiQuoteDialog : Form
                 ? (en ? "Running" : "运行中")
                 : (en ? "Ready" : "已就绪");
             string display = en
-                ? string.Format("⚡ {0} (MCP Connected · {1} · {2})", name, stateStr, modeStr)
-                : string.Format("⚡ {0} (已接入 MCP · {1} · {2})", name, stateStr, modeStr);
+                ? string.Format("⚡ {0} ({1} · {2})", name, stateStr, modeStr)
+                : string.Format("⚡ {0} ({1} · {2})", name, stateStr, modeStr);
             cboAgent.Items.Add(display);
             if (!string.IsNullOrEmpty(savedAgent) && name.Equals(savedAgent, StringComparison.OrdinalIgnoreCase))
             {
@@ -6717,11 +5743,11 @@ internal sealed class AiQuoteDialog : Form
 
         if (detectedAgents.Count == 0)
         {
-            cboAgent.Items.Add(en ? "⚪ No MCP agents connected" : "⚪ 未检测到已接入 MCP 的智能体");
+            cboAgent.Items.Add(en ? "⚪ No available agents detected" : "⚪ 未检测到可用智能体");
             cboAgent.SelectedIndex = 0;
             lblAgentHint.Text = en
-                ? "Tip: Go to [Settings ➔ AI Collaboration] to connect an agent via MCP."
-                : "提示：请前往【设置 ➔ AI 协作】中为智能体一键接入 MCP。";
+                ? "Tip: Start an AI agent to use this feature."
+                : "提示：启动一个智能体后即可使用此功能。";
             lblAgentHint.ForeColor = Color.FromArgb(180, 100, 20);
             btnGenerate.Enabled = false;
         }
@@ -6762,7 +5788,7 @@ internal sealed class AiQuoteDialog : Form
                     ? "✨ Chat collaboration: Click below to copy prompt, then press Ctrl+V in agent chat."
                     : "✨ 对话框协作：点击下方扩充将自动复制指令，在智能体对话框按 Ctrl+V 发送即可自动入库。";
                 lblAgentHint.ForeColor = AppContext.Win11TextSecondary;
-                btnGenerate.Text = en ? "✨ Expand via MCP" : "✨ 立即扩充";
+                btnGenerate.Text = en ? "✨ Chat Expand" : "✨ 对话扩充";
             }
             btnGenerate.Enabled = true;
         }
@@ -6914,10 +5940,10 @@ internal sealed class AiQuoteDialog : Form
         CancelButton = btnCancel;
     }
 
-    private void ShowWaitingMcpView(string agentName)
+    private void ShowWaitingAgentView(string agentName)
     {
         bool en = (settings != null && settings.Language == "en");
-        currentMode = ViewMode.WaitingMcp;
+        currentMode = ViewMode.WaitingAgent;
         isExecutingCli = false;
         panelSetup.Visible = false;
         panelStatus.Visible = true;
@@ -6926,10 +5952,10 @@ internal sealed class AiQuoteDialog : Form
         lblCardMain.Text = en ? "✓ 30-quote prompt copied to clipboard!" : "✓ 30 条格言扩充指令已复制到剪贴板！";
         lblCardMain.ForeColor = Color.FromArgb(16, 124, 65);
         lblCardSub.Text = en
-            ? string.Format("Please switch to [{0}] chat and press Ctrl+V to send.\nThe agent will automatically save 30 quotes via MCP.", agentName)
-            : string.Format("请切换至【{0}】对话框，按 Ctrl+V 发送。\n智能体创作完成后，将通过 MCP 自动将 30 条格言写入 iClock。", agentName);
+            ? string.Format("Switch to [{0}] chat and press Ctrl+V. The agent will import the quotes through iClock CLI.", agentName)
+            : string.Format("请切换至【{0}】对话框按 Ctrl+V 发送；智能体将通过 iClock 命令行导入格言。", agentName);
         lblCardSub.ForeColor = AppContext.Win11TextSecondary;
-        lblCardBadge.Text = en ? "• Waiting for agent to write quotes via MCP..." : "• 正在等待智能体通过 MCP 写入词库...";
+        lblCardBadge.Text = en ? "• Waiting for CLI import..." : "• 正在等待命令行导入...";
         lblCardBadge.ForeColor = AppContext.Win11Accent;
 
         btnStatusAction1.Visible = true;
@@ -7090,19 +6116,19 @@ internal sealed class AiQuoteDialog : Form
                 ? string.Format("• Generating in background... ({0}s)", elapsedSeconds)
                 : string.Format("• 正在后台生成中... (已耗时 {0} 秒)", elapsedSeconds);
         }
-        else if (currentMode == ViewMode.WaitingMcp)
+        else if (currentMode == ViewMode.WaitingAgent)
         {
             waitingDots = (waitingDots + 1) % 4;
             string dots = new string('.', waitingDots);
             lblCardBadge.Text = en
-                ? ("• Waiting for agent to write quotes via MCP" + dots)
-                : ("• 正在等待智能体通过 MCP 写入词库" + dots);
+                ? ("• Waiting for CLI import" + dots)
+                : ("• 正在等待命令行导入" + dots);
         }
     }
 
     private void OnStatusAction1Click(object sender, EventArgs e)
     {
-        if (currentMode == ViewMode.WaitingMcp)
+        if (currentMode == ViewMode.WaitingAgent)
         {
             AppContext.BringAgentToFront(selectedAgent);
         }
@@ -7112,14 +6138,14 @@ internal sealed class AiQuoteDialog : Form
         }
         else if (currentMode == ViewMode.Error)
         {
-            StartMcpCollaboration(selectedAgent);
+            StartAgentCollaboration(selectedAgent);
         }
     }
 
     private void OnStatusAction2Click(object sender, EventArgs e)
     {
         bool en = (settings != null && settings.Language == "en");
-        if (currentMode == ViewMode.WaitingMcp)
+        if (currentMode == ViewMode.WaitingAgent)
         {
             try
             {
@@ -7186,7 +6212,7 @@ internal sealed class AiQuoteDialog : Form
             settings.Save();
         }
 
-        currentPrompt = AiAgentQuoteHelper.BuildMcpPrompt(currentKeywords, lang);
+        currentPrompt = AiAgentQuoteHelper.BuildAgentPrompt(currentKeywords, lang);
 
         bool hasCli = AiAgentQuoteHelper.HasCliSupport(selectedAgent);
         if (hasCli)
@@ -7195,11 +6221,11 @@ internal sealed class AiQuoteDialog : Form
         }
         else
         {
-            StartMcpCollaboration(selectedAgent);
+            StartAgentCollaboration(selectedAgent);
         }
     }
 
-    private void StartMcpCollaboration(string agentName)
+    private void StartAgentCollaboration(string agentName)
     {
         try
         {
@@ -7208,7 +6234,7 @@ internal sealed class AiQuoteDialog : Form
         catch { }
 
         AppContext.BringAgentToFront(agentName);
-        ShowWaitingMcpView(agentName);
+        ShowWaitingAgentView(agentName);
     }
 
     private void StartCliGeneration(string agentName)
@@ -7795,7 +6821,6 @@ internal sealed class AppContext : ApplicationContext
     internal static AppContext Current { get { return currentInstance; } }
 
     internal static bool IsSelfCheckRunning = false;
-    internal static event Action McpConnectionStateChanged;
 
     private const int HOTKEY_ID = 0x4A10;
     private const int WM_HOTKEY = 0x0312;
@@ -7838,9 +6863,6 @@ internal sealed class AppContext : ApplicationContext
     private DailyQuoteDialog activeQuoteDialog;
     private DailyQuoteDialog activeProjectedNote;
     private AskHumanDialog activeAskHumanDialog;
-    private McpPipeServer mcpPipeServer;
-    private McpAskRequest activeMcpAsk;
-    private string currentTimerLabel;
     private bool dailyQuoteSuspendedForProjection;
     private Timer projectedAgentMonitorTimer;
     private string projectedAgentName;
@@ -7987,8 +7009,6 @@ internal sealed class AppContext : ApplicationContext
         overlay.TimeAdjustRequested += delegate(int delta) { AdjustMinutes(delta); };
         IntPtr forceOverlayHandle = overlay.Handle;
         messageWindow = new MessageWindow(this);
-        mcpPipeServer = new McpPipeServer(this);
-        mcpPipeServer.Start();
         activeHotkeyModifiers = settings.HotkeyModifiers; activeHotkeyKey = settings.HotkeyKey;
         int originalMods = settings.HotkeyModifiers, originalKey = settings.HotkeyKey;
         bool fallbackUsed = false;
@@ -8223,7 +7243,6 @@ internal sealed class AppContext : ApplicationContext
     {
         if (overlay.IsPulsing) overlay.StopBreathingPulse();
         ClearAgentProgress();
-        currentTimerLabel = null;
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
         if (running) remaining = ReadRemaining();
         timer.Stop();
@@ -8392,23 +7411,50 @@ internal sealed class AppContext : ApplicationContext
         StartWork();
     }
 
-    internal void HandleIpcCommand(string cmd)
+    internal bool HandleIpcCommand(string cmd)
     {
-        if (string.IsNullOrEmpty(cmd)) return;
+        if (string.IsNullOrEmpty(cmd)) return false;
         if (overlay != null && overlay.InvokeRequired)
         {
-            overlay.BeginInvoke(new Action(delegate { HandleIpcCommand(cmd); }));
-            return;
+            try { return (bool)overlay.Invoke(new Func<bool>(delegate { return HandleIpcCommand(cmd); })); }
+            catch { return false; }
         }
         cmd = cmd.Trim();
+        string cliAgentName = null;
+        const string agentNameArg = " --agent-name ";
+        int agentNameIndex = cmd.LastIndexOf(agentNameArg, StringComparison.OrdinalIgnoreCase);
+        if (agentNameIndex >= 0)
+        {
+            cliAgentName = cmd.Substring(agentNameIndex + agentNameArg.Length).Trim().Trim('"');
+            cmd = cmd.Substring(0, agentNameIndex).Trim();
+            if (cliAgentName.Length == 0) cliAgentName = null;
+        }
         if (cmd.IndexOf("--once", StringComparison.OrdinalIgnoreCase) >= 0 || cmd.IndexOf("-once", StringComparison.OrdinalIgnoreCase) >= 0)
         {
             cmd = System.Text.RegularExpressions.Regex.Replace(cmd, @"\s*--?once\b", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
         }
         string[] parts = cmd.Split(new char[] { ' ' }, 2, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 0) return;
+        if (parts.Length == 0) return false;
         string action = parts[0].ToLowerInvariant();
         string arg = parts.Length > 1 ? parts[1].Trim() : null;
+
+        if (!settings.DesktopCollaborationEnabled)
+        {
+            bool collaborationCommand = action == "notice" || action == "-n" || action == "--notice"
+                || action.StartsWith("notice:") || action == "quote" || action == "-q" || action == "--quote"
+                || action.StartsWith("quote:") || action == "progress" || action == "-pr" || action == "--progress"
+                || action.StartsWith("progress:") || action == "ask_human" || action.StartsWith("ask_human:");
+            string payload = action.StartsWith("quote:") ? cmd.Substring("quote:".Length).Trim()
+                : action.StartsWith("progress:") ? cmd.Substring("progress:".Length).Trim() : (arg ?? "");
+            bool cleanup = (action == "ask_human_cancel" || action.StartsWith("ask_human_cancel"))
+                || ((action == "quote" || action == "-q" || action == "--quote" || action.StartsWith("quote:"))
+                    && (payload.Equals("clear", StringComparison.OrdinalIgnoreCase) || payload.Equals("hide", StringComparison.OrdinalIgnoreCase)
+                        || payload.StartsWith("clear|", StringComparison.OrdinalIgnoreCase) || payload.StartsWith("hide|", StringComparison.OrdinalIgnoreCase)))
+                || (action == "progress" || action == "-pr" || action == "--progress" || action.StartsWith("progress:"))
+                    && (payload.Equals("clear", StringComparison.OrdinalIgnoreCase) || payload.Equals("off", StringComparison.OrdinalIgnoreCase)
+                        || payload.Equals("reset", StringComparison.OrdinalIgnoreCase));
+            if (collaborationCommand && !cleanup) return false;
+        }
 
         if (action == "start" || action == "-s" || action == "--start")
         {
@@ -8459,7 +7505,7 @@ internal sealed class AppContext : ApplicationContext
                 if (np.Length > 2 && !string.IsNullOrEmpty(np[2])) agentName = np[2];
             }
             if (!string.IsNullOrEmpty(snd)) PlaySoundStyle(snd);
-            TriggerCliNotice(raw, agentName);
+            TriggerCliNotice(raw, string.IsNullOrEmpty(agentName) ? cliAgentName : agentName);
         }
         else if (action == "quote" || action == "-q" || action == "--quote" || action.StartsWith("quote:"))
         {
@@ -8492,7 +7538,7 @@ internal sealed class AppContext : ApplicationContext
         }
         else if (action == "quote_add" || action.StartsWith("quote_add:"))
         {
-            string batchFile = action.StartsWith("quote_add:") ? cmd.Substring("quote_add:".Length).Trim() : (arg ?? "");
+            string batchFile = (action.StartsWith("quote_add:") ? cmd.Substring("quote_add:".Length).Trim() : (arg ?? "")).Trim('"');
             int addedCount = 0;
             if (!string.IsNullOrEmpty(batchFile) && File.Exists(batchFile))
             {
@@ -8531,7 +7577,7 @@ internal sealed class AppContext : ApplicationContext
                 string[] options = (p.Length > 3 && !string.IsNullOrEmpty(p[3]))
                     ? p[3].Split(new char[] { '~' }, StringSplitOptions.RemoveEmptyEntries)
                     : new string[0];
-                string agentName = (p.Length > 4 && !string.IsNullOrEmpty(p[4])) ? p[4] : null;
+                string agentName = (p.Length > 4 && !string.IsNullOrEmpty(p[4])) ? p[4] : cliAgentName;
                 string resFile = Path.Combine(Path.GetTempPath(), "iclock_ask_" + reqId + ".txt");
                 ShowAskHumanDialog(question, options, timeoutSec, resFile, agentName);
             }
@@ -8544,69 +7590,10 @@ internal sealed class AppContext : ApplicationContext
                 activeAskHumanDialog = null;
             }
         }
-        else if (action == "timer_label" || action.StartsWith("timer_label:"))
-        {
-            string lbl = action.StartsWith("timer_label:") ? cmd.Substring("timer_label:".Length).Trim() : (arg ?? "");
-            currentTimerLabel = !string.IsNullOrEmpty(lbl) ? lbl : null;
-        }
-        else if (action == "status" || action.StartsWith("status:"))
-        {
-            string statFile = action.StartsWith("status:") ? cmd.Substring("status:".Length).Trim() : (arg ?? "");
-            if (!string.IsNullOrEmpty(statFile))
-            {
-                int rem = (int)ReadRemaining().TotalSeconds;
-                bool progActive = agentTaskStatuses.Count > 0;
-                float progPct = 0f;
-                string progMsg = "";
-                List<object> taskStatuses = new List<object>();
-                for (int i = 0; i < agentTaskStatuses.Count; i++)
-                {
-                    AgentTaskStatus task = agentTaskStatuses[i];
-                    taskStatuses.Add(new Dictionary<string, object>
-                    {
-                        { "agent", task.AgentName },
-                        { "active", task.HasProgress },
-                        { "percent", (double)Math.Round(task.Progress, 4) },
-                        { "message", task.Message ?? "" }
-                    });
-                    if (task.HasProgress)
-                    {
-                        progPct = task.Progress;
-                        progMsg = task.Message ?? "";
-                    }
-                }
-                bool hasAsk = (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed);
-                string label = currentTimerLabel ?? "";
-
-                var statObj = new Dictionary<string, object>
-                {
-                    { "running", running },
-                    { "remaining_seconds", rem },
-                    { "total_minutes", settings.Minutes },
-                    { "current_label", label },
-                    { "progress", new Dictionary<string, object>
-                        {
-                            { "active", progActive },
-                            { "percent", (double)Math.Round(progPct, 4) },
-                            { "message", progMsg },
-                            { "tasks", taskStatuses }
-                        }
-                    },
-                    { "has_pending_ask", hasAsk },
-                    { "resident", true }
-                };
-                string json = new JavaScriptSerializer().Serialize(statObj);
-                try { File.WriteAllText(statFile, json, Encoding.UTF8); } catch { }
-            }
-        }
         else if (action == "progress" || action == "-pr" || action == "--progress" || action.StartsWith("progress:"))
         {
             string payload = action.StartsWith("progress:") ? cmd.Substring("progress:".Length).Trim() : (arg ?? "");
-            HandleProgressCommand(payload);
-        }
-        else if (action == "mcp-connected")
-        {
-            // Silent handshake compatibility
+            HandleProgressCommand(payload, cliAgentName);
         }
         else if (action == "activate" || action == "settings" || action == "config" || action == "open" || action == "--settings" || action == "-c")
         {
@@ -8616,486 +7603,22 @@ internal sealed class AppContext : ApplicationContext
         {
             Exit();
         }
+        return true;
     }
 
-    private sealed class McpAskRequest
+    internal bool HasActiveDesktopCollaboration
     {
-        internal readonly McpPipeConnection Connection;
-        internal readonly string RequestId;
-        internal bool Completed;
-
-        internal McpAskRequest(McpPipeConnection connection, string requestId)
-        {
-            Connection = connection;
-            RequestId = requestId;
-        }
+        get { return (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed) || agentTaskStatuses.Count > 0; }
     }
 
-    internal void HandleMcpMessage(McpPipeConnection connection, Dictionary<string, object> message)
+    internal void CancelDesktopCollaboration()
     {
-        if (connection == null || message == null) return;
-        if (overlay != null && overlay.InvokeRequired)
+        if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
         {
-            try
-            {
-                overlay.BeginInvoke(new Action(delegate { HandleMcpMessage(connection, message); }));
-            }
-            catch { connection.Close(); }
-            return;
-        }
-
-        string op = message.ContainsKey("op") ? message["op"] as string : null;
-        string requestId = message.ContainsKey("id") ? McpBridgeClient.ObjectIdToString(message["id"]) : null;
-        if (op == "hello")
-        {
-            connection.ClientName = message.ContainsKey("client")
-                ? McpBridge.NormalizeClientName(message["client"] as string)
-                : null;
-            connection.SendResponse(requestId, true, new Dictionary<string, object> { { "status", "connected" } });
-            NotifyMcpConnectionStateChanged();
-            return;
-        }
-
-        if (op == "cancel")
-        {
-            string target = message.ContainsKey("target")
-                ? McpBridgeClient.ObjectIdToString(message["target"])
-                : null;
-            CancelMcpAsk(connection, target);
-            return;
-        }
-
-        if (op != "call") return;
-        string toolName = message.ContainsKey("tool") ? message["tool"] as string : "";
-        Dictionary<string, object> args = message.ContainsKey("args")
-            ? message["args"] as Dictionary<string, object>
-            : new Dictionary<string, object>();
-        if (args == null) args = new Dictionary<string, object>();
-
-        if (string.Equals(toolName, "iclock_ask_human", StringComparison.Ordinal))
-        {
-            HandleMcpAsk(connection, requestId, args);
-            return;
-        }
-
-        try
-        {
-            string result = ExecuteMcpTool(toolName, args, connection.ClientName);
-            bool isError = false;
-            Dictionary<string, object> parsed = null;
-            try { parsed = McpBridgeProtocol.Parse(result); } catch { }
-            if (parsed != null && parsed.ContainsKey("status") &&
-                string.Equals(parsed["status"] as string, "error", StringComparison.OrdinalIgnoreCase))
-            {
-                isError = true;
-            }
-            connection.SendResponse(requestId, !isError, isError ? (object)parsed : result);
-        }
-        catch (Exception ex)
-        {
-            connection.SendResponse(requestId, false, McpBridgeProtocol.Error("TOOL_ERROR", ex.Message));
-        }
-    }
-
-    private void HandleMcpAsk(McpPipeConnection connection, string requestId, Dictionary<string, object> args)
-    {
-        string action = ArgString(args, "action", "ask").ToLowerInvariant();
-        if (action == "cancel" || action == "close")
-        {
-            CancelMcpAsk(connection, null);
-            connection.SendResponse(requestId, true, McpBridgeProtocol.Serialize(new Dictionary<string, object>
-            {
-                { "status", "ok" },
-                { "action", "cancel" },
-                { "message", "已通知桌面关闭人机审批弹窗" }
-            }));
-            return;
-        }
-
-        bool backgroundOnly = ArgBool(args, "background_only", false);
-        if (backgroundOnly && IsAgentInForeground())
-        {
-            connection.SendResponse(requestId, true, McpBridgeProtocol.Serialize(new Dictionary<string, object>
-            {
-                { "status", "in_foreground" },
-                { "in_foreground", true },
-                { "action", "ask_in_chat" },
-                { "message", "User is actively viewing your window. Please ask your question directly in the chat window." }
-            }));
-            return;
-        }
-
-        string question = ArgString(args, "question", "请确认：");
-        int timeoutSeconds = ArgInt(args, "timeout_seconds", 0);
-        if (timeoutSeconds < 0) timeoutSeconds = 0;
-        List<string> options = new List<string>();
-        if (args.ContainsKey("options") && args["options"] is IEnumerable)
-        {
-            foreach (object option in (IEnumerable)args["options"])
-            {
-                if (option != null && !string.IsNullOrEmpty(option.ToString())) options.Add(option.ToString());
-            }
-        }
-
-        string agentName = ResolveAgentName(args, connection.ClientName);
-        McpAskRequest request = new McpAskRequest(connection, requestId);
-        if (activeMcpAsk != null)
-        {
-            activeMcpAsk = null;
-            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
-            {
-                try { activeAskHumanDialog.Close(); } catch { }
-            }
+            try { activeAskHumanDialog.Close(); } catch { }
             activeAskHumanDialog = null;
         }
-        activeMcpAsk = request;
-        ShowAskHumanDialog(question, options.ToArray(), timeoutSeconds, null, agentName,
-            delegate(string result) { CompleteMcpAsk(request, result); });
-    }
-
-    private void CompleteMcpAsk(McpAskRequest request, string result)
-    {
-        if (request == null || request.Completed) return;
-        request.Completed = true;
-        if (activeMcpAsk == request) activeMcpAsk = null;
-
-        bool cancelled = result == "[用户取消 / Cancelled]" || result == "用户取消" || result == "Cancelled";
-        bool timedOut = result == "[超时未响应 / Timeout]";
-        Dictionary<string, object> response = new Dictionary<string, object>
-        {
-            { "status", timedOut ? "timeout" : (cancelled ? "cancelled" : "ok") },
-            { "action", timedOut ? "timeout" : (cancelled ? "cancelled" : "responded") },
-            { "result", result ?? "" },
-            { "cancelled", cancelled },
-            { "timed_out", timedOut }
-        };
-        request.Connection.SendResponse(request.RequestId, true, McpBridgeProtocol.Serialize(response));
-    }
-
-    private void CancelMcpAsk(McpPipeConnection requester, string target)
-    {
-        if (activeMcpAsk != null && (string.IsNullOrEmpty(target) || activeMcpAsk.RequestId == target))
-        {
-            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
-            {
-                try { activeAskHumanDialog.Close(); } catch { }
-            }
-            activeAskHumanDialog = null;
-            return;
-        }
-
-        if (requester != null && !string.IsNullOrEmpty(target))
-        {
-            requester.SendResponse(target, true, McpBridgeProtocol.Serialize(new Dictionary<string, object>
-            {
-                { "status", "cancelled" },
-                { "action", "cancelled" },
-                { "cancelled", true },
-                { "timed_out", false }
-            }));
-        }
-    }
-
-    private string ExecuteMcpTool(string toolName, Dictionary<string, object> args, string clientName)
-    {
-        if (string.Equals(toolName, "iclock_timer", StringComparison.Ordinal))
-        {
-            string action = ArgString(args, "action", "start").ToLowerInvariant();
-            if (action == "start")
-            {
-                int minutes = ArgInt(args, "minutes", 25);
-                if (minutes <= 0) minutes = 25;
-                string label = ArgString(args, "label", null);
-                StartWorkWithMinutes(minutes);
-                currentTimerLabel = string.IsNullOrEmpty(label) ? null : label;
-                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
-                {
-                    { "status", "ok" },
-                    { "action", "start" },
-                    { "minutes", minutes },
-                    { "label", label ?? "" },
-                    { "message", "已为用户启动倒计时：" + minutes + " 分钟" + (string.IsNullOrEmpty(label) ? "" : "（" + label + "）") }
-                });
-            }
-            if (action == "pause") { Pause(); return McpBridgeProtocol.Serialize(new Dictionary<string, object> { { "status", "ok" }, { "action", "pause" }, { "message", "已暂停倒计时" } }); }
-            if (action == "resume") { Resume(); return McpBridgeProtocol.Serialize(new Dictionary<string, object> { { "status", "ok" }, { "action", "resume" }, { "message", "已恢复倒计时" } }); }
-            if (action == "reset") { Reset(); return McpBridgeProtocol.Serialize(new Dictionary<string, object> { { "status", "ok" }, { "action", "reset" }, { "message", "已重置倒计时为初始就绪状态" } }); }
-            return McpBridgeProtocol.Serialize(McpBridgeProtocol.Error("INVALID_ACTION", "未知操作：" + action));
-        }
-
-        if (string.Equals(toolName, "iclock_notify", StringComparison.Ordinal))
-        {
-            string message = ArgString(args, "message", "任务完成");
-            string sound = ArgString(args, "sound", "agent");
-            string agentName = ResolveAgentName(args, clientName);
-            PlaySoundStyle(sound);
-            TriggerCliNotice(message, agentName);
-            return McpBridgeProtocol.Serialize(new Dictionary<string, object>
-            {
-                { "status", "ok" },
-                { "message", message },
-                { "sound", sound },
-                { "agent_name", agentName ?? "" }
-            });
-        }
-
-        if (string.Equals(toolName, "iclock_quote", StringComparison.Ordinal))
-        {
-            string action = ArgString(args, "action", "show").ToLowerInvariant();
-            if (action == "clear" || action == "hide")
-            {
-                ClearAgentProgress(GetTaskAgentName(ResolveAgentName(args, clientName), settings.Language == "en" ? "AI Agent" : "智能体"));
-                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
-                {
-                    { "status", "ok" },
-                    { "action", "clear" },
-                    { "message", "已清除当前智能体的任务状态" }
-                });
-            }
-            if (action == "next")
-            {
-                CheckDailyQuote(true);
-                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
-                {
-                    { "status", "ok" },
-                    { "action", "next" },
-                    { "message", "已为用户切换至下一句桌面格言" }
-                });
-            }
-
-            string agentName = ResolveAgentName(args, clientName);
-            if (action == "add")
-            {
-                List<string> quoteLines = new List<string>();
-                if (args.ContainsKey("quotes") && args["quotes"] is IEnumerable)
-                {
-                    foreach (object item in (IEnumerable)args["quotes"])
-                    {
-                        if (item == null) continue;
-                        if (item is string)
-                        {
-                            string text = ((string)item).Trim();
-                            if (text.Length > 0) quoteLines.Add(text);
-                        }
-                        else if (item is Dictionary<string, object>)
-                        {
-                            Dictionary<string, object> itemMap = (Dictionary<string, object>)item;
-                            string text = ArgString(itemMap, "text", "");
-                            string author = ArgString(itemMap, "author", "");
-                            if (!string.IsNullOrEmpty(text)) quoteLines.Add(string.IsNullOrEmpty(author) ? text : text + " | " + author);
-                        }
-                    }
-                }
-                if (quoteLines.Count == 0)
-                {
-                    string text = ArgString(args, "text", "");
-                    string author = ArgString(args, "author", "");
-                    if (!string.IsNullOrEmpty(text)) quoteLines.Add(string.IsNullOrEmpty(author) ? text : text + " | " + author);
-                }
-
-                List<QuoteItem> parsed = AiAgentQuoteHelper.ParseQuotes(string.Join("\n", quoteLines.ToArray()));
-                int addedCount;
-                string error = null;
-                if (parsed.Count == 0 || !AiAgentQuoteHelper.AppendQuotesToFile(parsed, out addedCount, out error))
-                {
-                    return McpBridgeProtocol.Serialize(McpBridgeProtocol.Error("QUOTE_ERROR", error ?? "未提供任何有效格言内容"));
-                }
-                AiAgentQuoteHelper.NotifyQuotesAdded(addedCount, parsed[0]);
-                if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed) activeQuoteDialog.ReloadQuotes();
-                ShowCustomQuote(parsed[0].Text, parsed[0].Author, agentName);
-                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
-                {
-                    { "status", "ok" },
-                    { "action", "add" },
-                    { "added_count", addedCount },
-                    { "message", "已成功为用户收录 " + addedCount + " 条格言至 iClock 词库（已去重并自动创建 .bak 备份），并已即时刷新桌面！" }
-                });
-            }
-
-            string quoteText = ArgString(args, "text", null);
-            string quoteAuthor = ArgString(args, "author", null);
-            if (!string.IsNullOrEmpty(quoteText))
-            {
-                SetAgentTaskMessage(quoteText, GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "智能体"));
-                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
-                {
-                    { "status", "ok" },
-                    { "action", "show" },
-                    { "text", quoteText },
-                    { "author", quoteAuthor ?? "" },
-                    { "agent_name", agentName ?? "" },
-                    { "message", "已更新任务状态卡：" + quoteText }
-                });
-            }
-            CheckDailyQuote(true);
-            return McpBridgeProtocol.Serialize(new Dictionary<string, object>
-            {
-                { "status", "ok" },
-                { "action", "next" },
-                { "message", "已为用户切换至下一句桌面格言" }
-            });
-        }
-
-        if (string.Equals(toolName, "iclock_status", StringComparison.Ordinal))
-        {
-            return McpBridgeProtocol.Serialize(BuildMcpStatus());
-        }
-
-        if (string.Equals(toolName, "iclock_progress", StringComparison.Ordinal))
-        {
-            string progress = ArgString(args, "progress", "clear").Trim();
-            string message = ArgString(args, "message", "");
-            if (string.Equals(progress, "clear", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(progress, "off", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(progress, "reset", StringComparison.OrdinalIgnoreCase))
-            {
-                ClearAgentProgress(GetTaskAgentName(ResolveAgentName(args, clientName), settings.Language == "en" ? "AI Agent" : "智能体"));
-                return McpBridgeProtocol.Serialize(new Dictionary<string, object>
-                {
-                    { "status", "ok" },
-                    { "action", "clear" },
-                    { "message", "已清除当前智能体的任务状态" }
-                });
-            }
-
-            float parsedPercent;
-            if (!TryParseProgress(progress, out parsedPercent))
-            {
-                return McpBridgeProtocol.Serialize(McpBridgeProtocol.Error(
-                    "INVALID_PROGRESS",
-                    "无效的进度格式，支持百分比(如 '60%')、分数(如 '3/5')、小数(如 '0.6')或 'clear'"));
-            }
-            HandleProgressCommand(string.IsNullOrEmpty(message) ? progress : progress + "|" + message,
-                GetTaskAgentName(ResolveAgentName(args, clientName), settings.Language == "en" ? "AI Agent" : "智能体"));
-            return McpBridgeProtocol.Serialize(new Dictionary<string, object>
-            {
-                { "status", "ok" },
-                { "action", "update" },
-                { "progress", progress },
-                { "percentage", Math.Round(parsedPercent, 4) },
-                { "message", message }
-            });
-        }
-
-        return McpBridgeProtocol.Serialize(McpBridgeProtocol.Error("UNKNOWN_TOOL", "Unknown tool: " + toolName));
-    }
-
-    private Dictionary<string, object> BuildMcpStatus()
-    {
-        if (overlay != null && overlay.InvokeRequired)
-            return (Dictionary<string, object>)overlay.Invoke(new Func<Dictionary<string, object>>(BuildMcpStatus));
-        int remainingSeconds = (int)ReadRemaining().TotalSeconds;
-        bool progressActive = false;
-        float progressPercent = 0f;
-        string progressMessage = "";
-        List<object> taskStatuses = new List<object>();
-        for (int i = 0; i < agentTaskStatuses.Count; i++)
-        {
-            AgentTaskStatus task = agentTaskStatuses[i];
-            taskStatuses.Add(new Dictionary<string, object>
-            {
-                { "agent", task.AgentName },
-                { "active", task.HasProgress },
-                { "percent", (double)Math.Round(task.Progress, 4) },
-                { "message", task.Message ?? "" }
-            });
-            if (task.HasProgress)
-            {
-                progressActive = true;
-                progressPercent = task.Progress;
-                progressMessage = task.Message ?? "";
-            }
-        }
-        bool hasAsk = activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed;
-        return new Dictionary<string, object>
-        {
-            { "running", running },
-            { "remaining_seconds", remainingSeconds },
-            { "total_minutes", settings.Minutes },
-            { "current_label", currentTimerLabel ?? "" },
-            { "progress", new Dictionary<string, object>
-                {
-                    { "active", progressActive },
-                    { "percent", (double)Math.Round(progressPercent, 4) },
-                    { "message", progressMessage },
-                    { "tasks", taskStatuses }
-                }
-            },
-            { "has_pending_ask", hasAsk },
-            { "resident", true }
-        };
-    }
-
-    internal bool IsMcpServerRunning
-    {
-        get { return mcpPipeServer != null && mcpPipeServer.IsRunning; }
-    }
-
-    internal string McpServerLastError
-    {
-        get { return mcpPipeServer != null ? mcpPipeServer.LastError : null; }
-    }
-
-    internal static void NotifyMcpConnectionStateChanged()
-    {
-        Action handler = McpConnectionStateChanged;
-        if (handler == null) return;
-        try { handler(); } catch { }
-    }
-
-    internal List<string> GetMcpConnectedClientNames()
-    {
-        return mcpPipeServer != null ? mcpPipeServer.GetConnectedClientNames() : new List<string>();
-    }
-
-    private static string ArgString(Dictionary<string, object> args, string key, string fallback)
-    {
-        if (args == null || !args.ContainsKey(key) || args[key] == null) return fallback;
-        string value = args[key] as string;
-        return value ?? args[key].ToString();
-    }
-
-    private static int ArgInt(Dictionary<string, object> args, string key, int fallback)
-    {
-        if (args == null || !args.ContainsKey(key) || args[key] == null) return fallback;
-        int value;
-        return int.TryParse(args[key].ToString(), out value) ? value : fallback;
-    }
-
-    private static bool ArgBool(Dictionary<string, object> args, string key, bool fallback)
-    {
-        if (args == null || !args.ContainsKey(key) || args[key] == null) return fallback;
-        bool value;
-        return bool.TryParse(args[key].ToString(), out value) ? value : fallback;
-    }
-
-    private static string ResolveAgentName(Dictionary<string, object> args, string clientName)
-    {
-        string name = ArgString(args, "agent_name", null);
-        if (string.IsNullOrEmpty(name)) name = ArgString(args, "agent", null);
-        if (string.IsNullOrEmpty(name)) name = clientName;
-        return name;
-    }
-
-    private static bool TryParseProgress(string value, out float parsed)
-    {
-        parsed = 0f;
-        if (string.IsNullOrEmpty(value)) return false;
-        value = value.Trim();
-        if (value.Contains("/"))
-        {
-            string[] parts = value.Split('/');
-            float numerator, denominator;
-            return parts.Length == 2 &&
-                float.TryParse(parts[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out numerator) &&
-                float.TryParse(parts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out denominator) &&
-                denominator > 0f && (parsed = numerator / denominator) >= 0f;
-        }
-        string clean = value.Replace("%", "").Trim();
-        float raw;
-        if (!float.TryParse(clean, NumberStyles.Float, CultureInfo.InvariantCulture, out raw)) return false;
-        parsed = value.Contains("%") || raw > 1.0f ? raw / 100.0f : raw;
-        return parsed >= 0f;
+        ClearAgentProgress();
     }
 
     internal void HandleProgressCommand(string payload, string agentName = null)
@@ -11313,8 +9836,6 @@ internal sealed class AppContext : ApplicationContext
         if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed) { activeQuoteDialog.Close(); activeQuoteDialog = null; }
         if (activeProjectedNote != null && !activeProjectedNote.IsDisposed) { activeProjectedNote.Close(); activeProjectedNote = null; }
         if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed) { activeAskHumanDialog.Close(); activeAskHumanDialog = null; }
-        activeMcpAsk = null;
-        if (mcpPipeServer != null) { mcpPipeServer.Stop(); mcpPipeServer = null; }
         StopProjectedAgentMonitor();
         if (running) remaining = ReadRemaining();
         if (sessionActive) { LogSession("Interrupted"); sessionActive = false; }
@@ -11881,10 +10402,11 @@ internal sealed class AppContext : ApplicationContext
                         string cmd = Marshal.PtrToStringUni(cds.lpData);
                         if (!string.IsNullOrEmpty(cmd))
                         {
-                            owner.HandleIpcCommand(cmd);
+                            m.Result = owner.HandleIpcCommand(cmd) ? (IntPtr)1 : IntPtr.Zero;
+                            return;
                         }
                     }
-                    m.Result = (IntPtr)1;
+                    m.Result = IntPtr.Zero;
                     return;
                 }
                 catch { }
@@ -11932,6 +10454,19 @@ internal static class Program
         {
             NativeMethods.FreeConsole();
         }
+    }
+
+    private static void WriteCliJson(bool ok, string action, string agentName, object result, string error)
+    {
+        Dictionary<string, object> response = new Dictionary<string, object>
+        {
+            { "ok", ok },
+            { "action", action },
+            { "agent_name", agentName ?? "" }
+        };
+        if (result != null) response["result"] = result;
+        if (!string.IsNullOrEmpty(error)) response["error"] = error;
+        WriteToConsole(new JavaScriptSerializer().Serialize(response));
     }
 
     internal static bool IsCliConfiguredInPath()
@@ -11993,7 +10528,7 @@ internal static class Program
 
     private static void PrintHelp()
     {
-        string help = 
+        string help =
 @"iClock - Desktop Focus Clock & CLI Pipeline
 
 Usage:
@@ -12008,27 +10543,25 @@ Options:
   --reset                         Reset countdown timer to idle
   --rest [mins]                   Start break timer (default: 5 minutes)
   -n, --notice <message>          Display popup notification and sound
+  --json                          Return structured JSON for collaboration commands
   -a, --ask <question>            Flash Approval HUD: request human decision
-                                  (options: --options ""A,B"", timeout: -t <sec>)
+                                   (options: --options ""A,B"", timeout: -t <sec>)
+  --agent-name <name>             Name this agent's collaboration status row
   -pr, --progress <val|clear>     Show hairline agent progress on HUD (e.g. 60, 3/5, clear)
   -q, --quote                     Show daily quote popup
   --once                          Single-run mode: exit automatically after completion
                                   (ignored if desktop instance is already running)
   --quit, --exit                  Gracefully exit running iClock instance
-  --mcp                           Start Model Context Protocol (MCP) stdio server
-  --mcp-prompt                    Print AI agent MCP setup prompt
-  --mcp-config                    Print MCP client JSON configuration snippet
   --install-cli                   Add iClock directory to User PATH
   -h, --help                      Show this help information
 
 Examples:
   iclock --start 25               Start a 25-minute Pomodoro timer
   iclock -s 25 --once             Run a 25-minute timer and exit upon completion
-  iclock -a ""Deploy to prod?"" --options ""Approve,Reject""
-  iclock -pr 60 ""Building...""     Update task progress on clock HUD
-  iclock -n ""Build finished!""     Trigger completion notice from script
-  iclock --mcp-prompt             Print setup prompt for AI agents
-  iclock --mcp-config             Output MCP JSON configuration snippet
+  iclock -a ""Deploy to prod?"" --options ""Approve,Reject"" --agent-name ""Codex""
+  iclock -pr 60 ""Building..."" --agent-name ""Codex""  Update task progress
+  iclock -n ""Build finished!"" --agent-name ""Codex"" Trigger completion notice
+  iclock --progress 3/5 ""Building..."" --agent-name ""Codex"" --json
   iclock --quit                   Close running iClock instance";
         WriteToConsole(help);
     }
@@ -12046,8 +10579,7 @@ Examples:
             cds.dwData = IntPtr.Zero;
             cds.cbData = bytes.Length;
             cds.lpData = ptr;
-            NativeMethods.SendMessage(hWnd, 0x004A, IntPtr.Zero, ref cds);
-            return true;
+            return NativeMethods.SendMessage(hWnd, 0x004A, IntPtr.Zero, ref cds) != IntPtr.Zero;
         }
         finally
         {
@@ -12079,11 +10611,12 @@ Examples:
         return IntPtr.Zero;
     }
 
-    private static int RunAskCommand(string[] args)
+    private static int RunAskCommand(string[] args, bool json)
     {
         string question = null;
         List<string> options = new List<string>();
         int timeoutSec = 0;
+        string agentName = null;
 
         for (int i = 1; i < args.Length; i++)
         {
@@ -12105,6 +10638,10 @@ Examples:
                 int parsed;
                 if (i + 1 < args.Length && int.TryParse(args[++i], out parsed) && parsed > 0) timeoutSec = parsed;
             }
+            else if (a == "--agent-name" && i + 1 < args.Length)
+            {
+                agentName = args[++i].Replace("|", "").Replace("~", "").Trim();
+            }
             else if (question == null && !a.StartsWith("-"))
             {
                 question = a;
@@ -12113,22 +10650,36 @@ Examples:
 
         if (string.IsNullOrEmpty(question))
         {
-            Console.Error.WriteLine("[iClock] Usage: iclock --ask <question> [--options <opt1,opt2>] [--timeout <sec>]");
+            string error = "Usage: iclock --ask <question> [--options <opt1,opt2>] [--timeout <sec>]";
+            if (json) WriteCliJson(false, "ask", agentName, null, error);
+            else Console.Error.WriteLine("[iClock] " + error);
+            return 1;
+        }
+
+        if (!Settings.Load().DesktopCollaborationEnabled)
+        {
+            string error = "Desktop collaboration is disabled in iClock settings.";
+            if (json) WriteCliJson(false, "ask", agentName, null, error);
+            else Console.Error.WriteLine("[iClock] " + error);
             return 1;
         }
 
         if (EnsureIpcWindow() == IntPtr.Zero)
         {
-            Console.Error.WriteLine("[iClock] Error: Failed to connect to iClock desktop instance.");
+            string error = "Failed to connect to iClock desktop instance.";
+            if (json) WriteCliJson(false, "ask", agentName, null, error);
+            else Console.Error.WriteLine("[iClock] Error: " + error);
             return 1;
         }
 
         string requestId = Guid.NewGuid().ToString("N").Substring(0, 8);
         string resultFile = Path.Combine(Path.GetTempPath(), "iclock_ask_" + requestId + ".txt");
-        string command = "ask_human:" + requestId + "|" + timeoutSec + "|" + question + "|" + string.Join("~", options.ToArray());
+        string command = "ask_human:" + requestId + "|" + timeoutSec + "|" + question + "|" + string.Join("~", options.ToArray()) + "|" + agentName;
         if (!SendIpcMessage(command))
         {
-            Console.Error.WriteLine("[iClock] Error: Failed to send decision request to iClock.");
+            string error = "Failed to send decision request to iClock.";
+            if (json) WriteCliJson(false, "ask", agentName, null, error);
+            else Console.Error.WriteLine("[iClock] Error: " + error);
             return 1;
         }
 
@@ -12145,22 +10696,104 @@ Examples:
                 File.Delete(resultFile);
                 if (result == "[用户取消 / Cancelled]" || result == "用户取消" || result == "Cancelled")
                 {
-                    Console.Error.WriteLine(result);
+                    if (json) WriteCliJson(false, "ask", agentName, null, result);
+                    else Console.Error.WriteLine(result);
                     return 1;
                 }
                 if (result == "[超时未响应 / Timeout]")
                 {
-                    Console.Error.WriteLine(result);
+                    if (json) WriteCliJson(false, "ask", agentName, null, result);
+                    else Console.Error.WriteLine(result);
                     return 2;
                 }
-                WriteToConsole(result);
+                if (json) WriteCliJson(true, "ask", agentName, result, null);
+                else WriteToConsole(result);
                 return 0;
             }
             catch { }
         }
 
-        Console.Error.WriteLine("[iClock] Timed out waiting for human decision.");
+        if (json) WriteCliJson(false, "ask", agentName, null, "Timed out waiting for human decision.");
+        else Console.Error.WriteLine("[iClock] Timed out waiting for human decision.");
         return 2;
+    }
+
+    private static int RunCliDesktopCommand(string[] args, string action, bool json)
+    {
+        string agentName = null;
+        for (int i = 1; i + 1 < args.Length; i++)
+            if (args[i] == "--agent-name") agentName = args[i + 1].Trim('"');
+
+        bool cleanup = action == "progress" && args.Length > 1
+            && (args[1].Equals("clear", StringComparison.OrdinalIgnoreCase)
+                || args[1].Equals("off", StringComparison.OrdinalIgnoreCase)
+                || args[1].Equals("reset", StringComparison.OrdinalIgnoreCase));
+        if (!Settings.Load().DesktopCollaborationEnabled && !cleanup)
+        {
+            string error = "Desktop collaboration is disabled in iClock settings.";
+            if (json) WriteCliJson(false, action, agentName, null, error);
+            else Console.Error.WriteLine("[iClock] " + error);
+            return 1;
+        }
+
+        if (EnsureIpcWindow() == IntPtr.Zero || !SendIpcMessage(string.Join(" ", args)))
+        {
+            string error = "Failed to connect to iClock desktop instance.";
+            if (json) WriteCliJson(false, action, agentName, null, error);
+            else Console.Error.WriteLine("[iClock] Error: " + error);
+            return 1;
+        }
+
+        if (json) WriteCliJson(true, action, agentName, "accepted", null);
+        else WriteToConsole("[iClock] Command accepted.");
+        return 0;
+    }
+
+    private static int RunQuoteImportCommand(string[] args, bool json)
+    {
+        string batchFile = args.Length > 1 ? args[1].Trim('"') : "";
+        if (string.IsNullOrWhiteSpace(batchFile) || !File.Exists(batchFile))
+        {
+            string error = "Usage: iclock --quote-add <quotes-file>";
+            if (json) WriteCliJson(false, "quote_add", null, null, error);
+            else Console.Error.WriteLine("[iClock] " + error);
+            return 1;
+        }
+
+        batchFile = Path.GetFullPath(batchFile);
+        string resultFile = batchFile + ".res";
+        try { if (File.Exists(resultFile)) File.Delete(resultFile); } catch { }
+        if (EnsureIpcWindow() == IntPtr.Zero || !SendIpcMessage("quote_add \"" + batchFile.Replace("\"", "") + "\""))
+        {
+            string error = "Failed to send quote import to iClock.";
+            if (json) WriteCliJson(false, "quote_add", null, null, error);
+            else Console.Error.WriteLine("[iClock] " + error);
+            return 1;
+        }
+
+        for (int i = 0; i < 100 && !File.Exists(resultFile); i++) System.Threading.Thread.Sleep(50);
+        int addedCount;
+        try
+        {
+            if (!File.Exists(resultFile) || !int.TryParse(File.ReadAllText(resultFile, Encoding.UTF8).Trim(), out addedCount))
+            {
+                string error = "iClock did not return the quote import result.";
+                if (json) WriteCliJson(false, "quote_add", null, null, error);
+                else Console.Error.WriteLine("[iClock] " + error);
+                return 1;
+            }
+        }
+        catch (Exception ex)
+        {
+            if (json) WriteCliJson(false, "quote_add", null, null, ex.Message);
+            else Console.Error.WriteLine("[iClock] " + ex.Message);
+            return 1;
+        }
+        try { File.Delete(resultFile); } catch { }
+        object result = new Dictionary<string, object> { { "added_count", addedCount } };
+        if (json) WriteCliJson(true, "quote_add", null, result, null);
+        else WriteToConsole("[iClock] Added " + addedCount + " quotes.");
+        return 0;
     }
 
     [STAThread]
@@ -12168,15 +10801,30 @@ Examples:
     {
         if (args != null && args.Length > 0)
         {
-            string first = args[0].ToLowerInvariant();
-            if (first == "--mcp" || first == "-mcp")
+            bool json = false;
+            List<string> commandArgs = new List<string>();
+            foreach (string arg in args)
             {
-                Environment.ExitCode = McpBridge.RunMcpServer();
+                if (string.Equals(arg, "--json", StringComparison.OrdinalIgnoreCase)) json = true;
+                else commandArgs.Add(arg);
+            }
+            if (json) args = commandArgs.ToArray();
+            if (args.Length == 0)
+            {
+                if (json) WriteCliJson(false, "", null, null, "Missing command.");
+                else PrintHelp();
+                return;
+            }
+            string first = args[0].ToLowerInvariant();
+            if (first == "--mcp" || first == "-mcp" || first == "--mcp-config" || first == "mcp-config" || first == "--mcp-prompt" || first == "mcp-prompt")
+            {
+                Console.Error.WriteLine("[iClock] The MCP server has been removed. Use the iClock CLI commands instead.");
+                Environment.ExitCode = 2;
                 return;
             }
             if (first == "--ask" || first == "-a" || first == "ask")
             {
-                Environment.ExitCode = RunAskCommand(args);
+                Environment.ExitCode = RunAskCommand(args, json);
                 return;
             }
             if (first == "-h" || first == "--help" || first == "/?" || first == "help")
@@ -12184,21 +10832,36 @@ Examples:
                 PrintHelp();
                 return;
             }
-            if (first == "--mcp-prompt" || first == "mcp-prompt")
-            {
-                string prompt = McpConfigHelper.GenerateAgentPrompt(false);
-                WriteToConsole(prompt);
-                return;
-            }
-            if (first == "--mcp-config" || first == "mcp-config")
-            {
-                string cfg = McpConfigHelper.GenerateJsonSnippet(false);
-                WriteToConsole(cfg);
-                return;
-            }
             if (first == "--install-cli" || first == "install-cli")
             {
                 InstallCli();
+                return;
+            }
+            if (first == "--quote-add" || first == "quote-add")
+            {
+                Environment.ExitCode = RunQuoteImportCommand(args, json);
+                return;
+            }
+            if (json && (first == "-n" || first == "--notice" || first == "notice" || first.StartsWith("notice:")))
+            {
+                Environment.ExitCode = RunCliDesktopCommand(args, "notice", true);
+                return;
+            }
+            if (json && (first == "-pr" || first == "--progress" || first == "progress" || first.StartsWith("progress:")))
+            {
+                Environment.ExitCode = RunCliDesktopCommand(args, "progress", true);
+                return;
+            }
+            bool isProgressCommand = first == "-pr" || first == "--progress" || first == "progress" || first.StartsWith("progress:");
+            string progressArg = first.StartsWith("progress:") ? first.Substring("progress:".Length)
+                : (args.Length > 1 ? args[1] : "");
+            bool isProgressCleanup = isProgressCommand && (progressArg.Equals("clear", StringComparison.OrdinalIgnoreCase)
+                || progressArg.Equals("off", StringComparison.OrdinalIgnoreCase) || progressArg.Equals("reset", StringComparison.OrdinalIgnoreCase));
+            if ((first == "-n" || first == "--notice" || first == "notice" || first.StartsWith("notice:")
+                || (isProgressCommand && !isProgressCleanup)) && !Settings.Load().DesktopCollaborationEnabled)
+            {
+                Console.Error.WriteLine("[iClock] Desktop collaboration is disabled in iClock settings.");
+                Environment.ExitCode = 1;
                 return;
             }
             if (first == "quit" || first == "--quit" || first == "exit" || first == "--exit" || first == "-x")

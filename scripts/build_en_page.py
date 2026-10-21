@@ -110,22 +110,6 @@ def main() -> None:
     src = src.replace('alt="iClock 真实桌面运行效果"', 'alt="iClock floating overlay on a real Windows desktop"')
     src = src.replace('alt="iClock 微信赞赏码"', 'alt="iClock WeChat sponsor QR code"')
 
-    # MCP setup prompt block
-    prompt_en = (
-        "Please connect my local desktop productivity tool iClock to the MCP Server list of the current environment.\n"
-        'The GUI and stdio MCP bridge are the same iClock.exe in this unzipped directory; launch it with arguments ["--mcp"]. The bridge connects to the GUI over a local Named Pipe.\n'
-        "The server natively provides 6 tools: iclock_ask_human (topmost desktop decision gate), iclock_progress (project task steps and progress onto the floating clock HUD), iclock_timer (set & query countdowns), iclock_notify (milestone desktop notifications with chime), iclock_quote (desktop quote rotation & expansion), and iclock_status (runtime status).\n"
-        "After configuration, please call the iclock_status tool directly to verify the connection."
-    )
-    src, n_prompt = re.subn(
-        r'(<pre><code id="codePrompt">).*?(</code></pre>)',
-        lambda m: m.group(1) + prompt_en + m.group(2),
-        src,
-        count=1,
-        flags=re.S,
-    )
-    if n_prompt == 0:
-        raise SystemExit("codePrompt block not found")
 
     # Static defaults that are not wired to data-i18n (most are runtime-relocalized by JS,
     # but crawlers without JS must still see English on the /en/ page)

@@ -85,10 +85,10 @@ iClock features an ultra-minimalist Daily Quotes popup designed to inspire your 
   - `Esc / 键盘退出`: Press `Esc` to dismiss and fade out immediately. / 按 `Esc` 键即刻渐隐关闭。
   - `Micro Buttons / 微按钮`: `↻ 换一句 / Next Quote`、`📌 固定 / Pin (永久钉在桌面)`、`✕ 关闭 / Close`。支持顶栏左侧平齐内联原生微胶囊提示（0ms 响应、与图标水平平齐并停靠于图标左侧，彻底消除对正文的遮挡并规避屏幕顶边截断）。
 - **Custom Quotes File / 自定义名言库**: Automatically loads `quotes.txt` from the application directory or `%APPDATA%\iClock\quotes.txt`. Supports both UTF-8 and ANSI/GBK encodings. Format: `Quote Text —— Author` (or simple text lines). Supports arbitrary leading sequence numbers in text (e.g. `1. `, `02、`, `[3]`, `(4)`, `5) `, `6: `, `No. 7 `, `#8 `, `①`, `1．`), which are automatically hidden when displayed on the desktop HUD and preview card. If no custom file is found, iClock provides 10 built-in classic quotes. / 自动加载程序同目录或 `%APPDATA%\iClock\quotes.txt`。自适应 UTF-8 及 ANSI/GBK 编码。格式为 `名言正文 —— 作者`（作者可省略）。支持在名言文本前添加任意格式的序号（如 `1. `、`02、`、`[3]`、`(4)`、`5) `、`6: `、`No.7 `、`#8 `、`①`、`1．` 等），在桌面卡片及设置预览中均会自动隐去序号展示。若无自定义名言文件，默认提供 10 条经典中英名言。
-- **AI Agent Quote Expansion / AI 智能体 MCP 原生自动扩充**: In Settings Tab 1, click **「✨ AI 扩充」** beside **「自定义…」** to invoke your local MCP AI agents (Cursor, Antigravity, Claude Desktop, Windsurf, Cline, Roo Code, Trae) to expand your quotes library with **30 curated quotes** per batch. Features an ultra-minimalist 410 × 265px dialog with unified tag pills (delete with `✕`, add custom tags with `➕ 添加` or Enter), pure MCP agent filtering (only agents with verified MCP integration are listed; unconfigured agents are completely excluded), zero auto-injection with clear guidance directing to 【AI Collaboration】 if no agent is configured, and a **Dual-Track In-Place Execution & Reporting Engine**:
+- **AI Agent Quote Expansion / AI 智能体命令行批量扩充**: In Settings Tab 1, click **「✨ AI 扩充」** beside **「自定义…」** to prepare a batch of **30 curated quotes**. The dialog supports tag selection, copies an instruction for the agent, and monitors CLI quote import; imported quotes are deduplicated and backed up. It provides a **Dual-Track In-Place Execution & Reporting Engine**:
   - **CLI Track (后台直接扩充)**: Agents supporting direct headless generation (e.g. Claude Code CLI, Ollama, Antigravity CLI) can be expanded directly in background (`⚡ 直接扩充`) without manual pasting, presenting live progress and reporting completion on the fly.
-  - **IDE Track (对话框协作扩充)**: IDE agents (e.g. Cursor, Windsurf) keep the dialog open with clear next-step guidance (`✓ 30 条格言扩充指令已复制到剪贴板！请切换至对话框按 Ctrl+V 发送`), window activation helper (`唤起窗口`), and live MCP callback listening (`• 正在等待智能体通过 MCP 写入词库...`).
-  - **Live In-Place Completion Report**: In either track, once quotes are added via `iclock_quote(action: "add")` or CLI parsing, the dialog immediately presents a celebratory success card (`✨ 格言扩充完成！`), reports the 30 new quotes, previews the first quote, and synchronizes to desktop display with automatic deduplication and `.bak` backup. / 在设置面板“每日格言”中，点击“自定义…”并排的“✨ AI 扩充”按钮，即可弹出 410 × 265px 极简扩充面板。采用统一标签池体系（支持 `✕` 随时删除默认标签，输入框与 `➕ 添加` 回车新增自定义标签，标签修改自动持久化记忆）；备选智能体严格过滤（仅展示实机已成功接入 MCP 的智能体，彻底剔除未配置项）；弹窗内不做自动注入，若未接入任何智能体则温和引导前往【AI 协作】一键接入；单次精选扩充 **30 条**高质量名言，独创**双轨就地执行与实时汇报反馈体系**：
+  - **IDE Track (对话框协作扩充)**: IDE agents (e.g. Cursor, Windsurf) keep the dialog open with clear next-step guidance (`✓ 30 条格言扩充指令已复制到剪贴板！请切换至对话框按 Ctrl+V 发送`), window activation helper (`唤起窗口`), and CLI import monitoring (`• 正在等待智能体通过命令行导入词库...`).
+  - **Live In-Place Completion Report**: In either track, once quotes are added via CLI import, the dialog immediately presents a celebratory success card (`✨ 格言扩充完成！`), reports the 30 new quotes, previews the first quote, and synchronizes to desktop display with automatic deduplication and `.bak` backup. / 在设置面板“每日格言”中，点击“自定义…”并排的“✨ AI 扩充”按钮，即可弹出 410 × 265px 极简扩充面板。采用统一标签池体系（支持 `✕` 随时删除默认标签，输入框与 `➕ 添加` 回车新增自定义标签，标签修改自动持久化记忆）；单次精选扩充 **30 条**高质量名言，独创**双轨就地执行与实时汇报反馈体系**：
   - **命令行直接执行轨**：对于支持命令行的智能体（如 Claude Code CLI、Ollama、Antigravity CLI），支持一键 `⚡ 直接扩充`，后台静默自动创作并直接入库，实时更新进度；
   - **IDE 对话框协作轨**：对于 Cursor 等 IDE，点击后弹窗就地进入协作与监听状态（指令已复制，指引切换至聊天框 Ctrl+V 发送，提供“唤起窗口”与“重新复制”快捷按钮，动态监听智能体写入）；
   - **统一当场汇报**：无论哪条轨道，一旦新格言入库成功，弹窗当场切换为“✨ 格言扩充完成！”成果汇报卡片，展示 30 条收录成果与最新格言预览，彻底告别“点了没反应/不知道成败”的体验盲区！
@@ -140,12 +140,13 @@ This appends iClock's directory to your User `PATH` environment variable. Open a
 | `--reset` | - | Reset timer to idle & hide overlay / 重置并隐藏倒计时 | `iclock --reset` |
 | `--rest [mins]` | - | Start rest break timer (default 5m) / 开启休息倒计时 | `iclock --rest 10` |
 | `-n <msg>` | `--notice` | Trigger TopMost alert & chime / 触发置顶弹窗与提示音 | `iclock -n "Task Done"` |
+| `--ask <question>` | `-a` | Request a desktop decision / 呼出桌面决策请示 | `iclock --ask "Continue?" --options "Yes,No" --json` |
+| `--progress <value>` | `-pr` | Project task status; use `clear` to remove / 投射任务进度，`clear` 清除 | `iclock --progress 3/5 "Testing" --agent-name "Codex" --json` |
+| `--json` | - | Return structured collaboration response / 返回结构化协作结果 | `iclock --notice "Done" --json` |
+| `--quote-add <file>` | - | Import quote lines from a UTF-8 file / 从 UTF-8 文件导入格言 | `iclock --quote-add "quotes.txt" --json` |
 | `-q` | `--quote` | Show Daily Quote popup / 弹出每日格言浮窗 | `iclock -q` |
 | `--once` | - | Single-run mode: exit automatically upon completion (ignored if desktop instance is running) / 单次运行模式：任务结束后自动完全退出（若桌面端已运行则不退出桌面端） | `iclock -s 25 --once` |
 | `--quit` / `--exit` | `quit` | Gracefully terminate running iClock instance / 干净安全地退出正在运行的 iClock 实例 | `iclock --quit` |
-| `--mcp` | - | Start Model Context Protocol stdio server / 启动 MCP stdio 服务 | `iclock --mcp` |
-| `--mcp-prompt` | - | Print AI agent MCP setup prompt / 输出发给智能体的 MCP 接入提示词 | `iclock --mcp-prompt` |
-| `--mcp-config` | - | Print MCP client JSON configuration snippet / 打印 MCP 客户端配置代码 | `iclock --mcp-config` |
 | `--install-cli` | - | Configure User PATH / 自动配置全局 PATH | `iclock --install-cli` |
 | `--help` | `-h` | Display help in terminal / 控制台打印帮助 | `iclock -h` |
 
@@ -162,53 +163,21 @@ pytest && iclock -n "All tests passed!"
 iclock -s 45
 ```
 
-## Model Context Protocol (MCP) Server / 智能体标准协议 (MCP) 服务
+## AI Agent CLI Collaboration / 智能体命令行协同
 
-iClock 内置原生的 **Model Context Protocol (MCP)** Server，通过标准 stdio 协议与任意现代 AI 智能体（Claude Desktop, Cursor, Antigravity, Cline, Roo Code 等）无缝握手。
+AI agents can call iClock's local CLI to request a decision, show task progress, and notify on completion. Run `iclock --install-cli` once to add the executable directory to User PATH, then give the agent the instructions from **Settings → AI Collaboration**. Add `--json` for structured machine-readable results.
 
-GUI 与 MCP 服务共用同一个 `iClock.exe`：智能体以 `iClock.exe --mcp` 启动桥接进程，桥接进程通过本机 Named Pipe 连接桌面 GUI；GUI 未运行时会自动拉起。工具调用由线程池并发处理，因此审批等待不会阻塞状态查询、进度或提醒。
+智能体通过本地 CLI 调用 iClock 的桌面协作能力：`--ask` 请求人工决策，`--progress` 投射任务状态，`--notice` 发送完成提醒；追加 `--json` 可获取结构化 JSON 返回。先运行 `iclock --install-cli` 配置 PATH，再将「设置 → AI 协作」中的命令行提示提供给智能体。
 
-通过 MCP，智能体不再受限于 IDE 内的文字窗口，而是在你的 Windows 物理桌面上拥有了**感知与交互实体**。
+```powershell
+iclock --ask "是否继续部署？" --options "继续,取消" --json
+iclock --progress 3/5 "正在运行测试" --agent-name "Codex" --json
+iclock --progress clear --agent-name "Codex" --json
+iclock --notice "任务已完成" --agent-name "Codex" --json
+iclock --quote-add "quotes.txt" --json
+```
 
-### Configuration & One-Click Setup / 客户端配置与一键提示词接入 (单页直达·零维护)
-
-iClock 采用 **单页直达·零弹窗·即改即存** 的一体化设计，所有 AI 协作与 MCP 功能均集中收拢在设置面板的 **「AI 协作」** 标签页内，去除了传统繁琐的底部保存/取消按钮，关闭窗口即可自动持久化：
-
-1. **智能体运行状态一目了然**：
-   - 打开 iClock 设置 $\rightarrow$ **「AI 协作」** 标签页；
-   - **上半板块（智能体后台任务提醒）**：清晰展示检测到的智能体进程数量及能力副标题，右上角配有 **`[ 重新检测 ]`** 与动态状态胶囊 **`[ ● 已开启 ]` / `[ ○ 已停用 ]`**；
-   - 列表以轻盈卡片展示检测到的智能体进程，右侧配有清晰的状态徽章（**`[ 运行中 ]`** / **`[ 已就绪 ]`** / **`[ 未监听 ]`**），纯净直观，零视觉干扰。
-2. **一键复制「接入提示词」（让智能体自主配置，零门槛·跨宿主）**：
-   - 在「AI 协作」下半板块「MCP 协议直连」区域，直接点击 **`[ 复制接入提示词 ]`** 按钮；
-   - 系统自动解析本机 `iClock.exe` 绝对物理路径，生成一段结构清晰的接入提示词并写入剪贴板；
-   - 用户只需将提示词粘贴发送给任意 AI 智能体（如 Antigravity、Cursor、Claude、Windsurf、Cline、Roo Code 等），智能体即可识别本机的宿主环境与配置格式，自主合并配置，省去手动找目录、改 JSON 的繁琐步骤！
-3. **三大核心能力一键「演示」体验 (精致纯白发丝线卡片)**：
-   - 在「AI 协作」底部功能列表中，汇聚三大高价值刚需场景：**决策请示门禁**、**任务完成提醒**、**桌面状态投射**；
-   - 采用精致统一的 Win11 纯白圆角卡片与微发丝线分割（彻底去除生硬的粗黑外框），每一项右侧均配有极简的 **`[ 演示 ]`** 按钮；
-   - 无需启动任何外部智能体即可一键亲身体验优雅置顶的决策门禁、全向声音唤醒与磨砂态势浮窗。
-4. **终端命令行极简辅助输出**：
-   - 控制台输出接入提示词：`iclock --mcp-prompt`
-   - 控制台打印标准 MCP JSON 配置代码：`iclock --mcp-config`
-
-### Native MCP Tools / 内置智能体工具
-
-| Tool Name / 工具名 | Parameters / 参数 | Description / 核心价值 |
-| :--- | :--- | :--- |
-| **`iclock_ask_human`** *(Killer Feature)* | `question` (string, required)<br>`options` (string[], optional)<br>`timeout_seconds` (int, default: 0)<br>`background_only` (bool, default: false) | **决策请示门禁 (Human-in-the-Loop)**：在用户屏幕中央唤起高优先级 Fluent 交互卡片，等待用户按键选择或输入。适合智能体在执行高风险命令（部署、删除库表、付费 API、冲突合并）前获取人类审批。默认永不超时、无倒计时催促，直到用户主动确认或按 Esc 取消。 |
-| **`iclock_progress`** | `progress` (string, required, e.g. "45" or "clear")<br>`message` (string, optional)<br>`agent_name` (string, optional) | **多智能体任务状态卡**：进度条与当前步骤文字在同一行；倒计时运行时显示在时钟下方，无倒计时时独立显示。每个智能体独立占一行，`clear` 只清除自己的行；同一 MCP 客户端内并行时用相同的 `agent_name` 更新和清除。 |
-| **`iclock_timer`** | `action` ("start"\|"pause"\|"resume"\|"reset")<br>`minutes` (int, default: 25)<br>`message` (string, optional) | **倒计时协同 (Timer Sync)**：智能体联动番茄钟，根据工作节奏自动启停倒计时或推送休息提示。 |
-| **`iclock_notify`** | `message` (string, required)<br>`sound` (bool, default: true) | **任务完成强提醒 (Task Notification)**：智能体长任务完成时在屏幕弹出置顶提醒卡片，播放提示音，将注意力拉回工作台。 |
-| **`iclock_quote`** | `text` (string, optional)<br>`author` (string, optional)<br>`agent_name` (string, optional) | **桌面状态文字**：更新任务状态卡中当前智能体对应行的状态文字；也可轮换或扩充桌面格言。 |
-| **`iclock_status`** | *(none)* | **桌面状态感知**：实时读取当前倒计时运行状态、剩余秒数与设定时长，帮助智能体智能避开用户专注高潮。 |
-
-### `iclock_ask_human` 交互体验亮点
-1. **永不超时，消除焦虑**：默认无时限耐心等待，彻底去除倒数秒表压迫感，从容阅读代码与深度思考；
-2. **智能前后台感知与免打扰 (Smart Focus Detection)**：当宿主（如 Cursor）正处于前台活跃状态时，卡片采用温和置顶呈现（不抢夺键盘焦点），不中断用户正在打字输入的代码；当宿主处于后台（切换至浏览器或全屏视频）时，才触发机械铃音与强聚焦唤醒；
-3. **支持 `background_only` 聊天窗降级**：支持传入 `background_only: true`。若宿主在前台，系统直接返回 `{ in_foreground: true }`，引导智能体直接在内置聊天窗口提问；
-4. **键盘直达**：提供数字选项时，用户直接按键盘 `1`..`9` 即可一键确认，按 `Esc` 随时主动取消；
-5. **文本自由输入**：当 `options` 为空时自动切换为输入框模式，按 `Enter` 快速提交；
-6. **全屏穿透强提醒**：无论用户正在全屏打代码、看文档还是播放视频，卡片均以置顶层级醒目呈现；
-7. **可选无人值守超时**：仅在无人值守自动化脚本或 CI 流水线中明确传入 `timeout_seconds > 0` 时才激活超时保护。
+旧版智能体 MCP 配置不会由 iClock 自动修改；请手动删除智能体设置中的旧 `iclock` 服务。
 
 ### 🛡️ Agent Runtime Harness 伴生实践 (DeepSeek / Pi / Python Agent)
 

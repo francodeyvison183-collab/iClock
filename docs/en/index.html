@@ -6,8 +6,8 @@
   <title data-i18n="page_title">
             iClock — Native Minimalist Productivity Hub for Windows
           </title>
-  <meta name="description" data-i18n-meta="description" content="Native Minimalist Productivity Hub for Windows: click-through transparent timer, 0-polling ambient quotes, 20+ AI agents monitor & native stdio MCP server.">
-  <meta name="keywords" content="iClock, 倒计时, 桌面倒计时, 悬浮倒计时, 番茄钟, 每日格言, MCP, Model Context Protocol, Windows 效率工具, 极简倒计时, countdown timer, desktop timer">
+  <meta name="description" data-i18n-meta="description" content="Native minimalist Windows productivity hub: click-through timer, 0-polling quotes, AI agent monitor and CLI desktop collaboration.">
+  <meta name="keywords" content="iClock, 倒计时, 桌面倒计时, 悬浮倒计时, 番茄钟, 每日格言, Windows 效率工具, 极简倒计时, countdown timer, desktop timer">
   <link rel="icon" type="image/png" sizes="32x32" href="../icon-32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="../icon-64.png">
   <link rel="icon" type="image/png" sizes="256x256" href="../icon-256.png">
@@ -27,7 +27,7 @@
   <meta property="og:locale:alternate" content="zh_CN">
   <meta property="og:url" content="https://francodeyvison183-collab.github.io/iClock/en/">
   <meta property="og:title" content="iClock — Native Minimalist Productivity Hub for Windows">
-  <meta property="og:description" content="Native Minimalist Productivity Hub for Windows: click-through transparent timer, 0-polling ambient quotes, 20+ AI agents monitor & native stdio MCP server.">
+  <meta property="og:description" content="Native minimalist Windows productivity hub: click-through timer, 0-polling quotes, AI agent monitor and CLI desktop collaboration.">
   <meta property="og:image" content="https://francodeyvison183-collab.github.io/iClock/og-preview.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -36,7 +36,7 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="iClock — Native Minimalist Productivity Hub for Windows">
-  <meta name="twitter:description" content="Native Minimalist Productivity Hub for Windows: click-through transparent timer, 0-polling ambient quotes, 20+ AI agents monitor & native stdio MCP server.">
+  <meta name="twitter:description" content="Native minimalist Windows productivity hub: click-through timer, 0-polling quotes, AI agent monitor and CLI desktop collaboration.">
   <meta name="twitter:image" content="https://francodeyvison183-collab.github.io/iClock/og-preview.jpg">
   <meta name="twitter:image:alt" content="iClock floating countdown timer over a Windows desktop">
 
@@ -59,11 +59,11 @@
         "zh-CN",
         "en"
       ],
-      "description": "Ultra-lightweight (300 KB), zero-dependency, click-through desktop countdown timer, ambient zero-polling daily quotes, and native stdio Model Context Protocol (MCP) server for Windows.",
+      "description": "Ultra-lightweight (300 KB), zero-dependency, click-through desktop countdown timer, ambient zero-polling daily quotes, and local CLI collaboration for AI agents on Windows.",
       "featureList": [
         "Click-through floating countdown timer (WS_EX_TRANSPARENT, never steals focus)",
         "Ambient zero-polling daily quotes (0.0% idle CPU, under 15 MB RAM)",
-        "Native stdio MCP server for AI agents (Claude Desktop, Cursor, Windsurf)"
+        "CLI desktop collaboration for AI agents"
       ],
       "offers": {
         "@type": "Offer",
@@ -126,10 +126,10 @@
         },
         {
           "@type": "Question",
-          "name": "Which agents work with the native MCP server?",
+          "name": "How can an AI agent use desktop collaboration?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Native stdio MCP server (iClock.exe --mcp) works out-of-the-box with Claude Desktop, Cursor, Windsurf, Antigravity, and any standard MCP client."
+            "text": "Any agent that can run local commands can call iClock CLI for human decisions, task progress, and completion alerts. Add --json for structured results."
           }
         },
         {
@@ -1159,56 +1159,6 @@
       gap: 12px;
     }
 
-    /* 章节 5：原生 MCP 服务配置 (MCP) */
-    .section-mcp {
-      padding: 88px 0;
-      background: var(--bg-secondary);
-      border-top: 1px solid var(--border-color);
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    .mcp-container {
-      max-width: 860px;
-      margin: 0 auto;
-      background: var(--card-bg);
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--card-shadow);
-      overflow: hidden;
-    }
-
-    .mcp-tabs {
-      display: flex;
-      background: var(--bg-secondary);
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    .mcp-tab-btn {
-      padding: 13px 22px;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-muted);
-      border-bottom: 2px solid transparent;
-      transition: all 0.15s ease;
-    }
-
-    .mcp-tab-btn.active {
-      color: var(--brand-blue);
-      background: var(--card-bg);
-      border-bottom-color: var(--brand-blue);
-      font-weight: 600;
-    }
-
-    .mcp-body {
-      padding: 24px 28px;
-    }
-
-    .mcp-desc {
-      font-size: 13.5px;
-      color: var(--text-muted);
-      margin-bottom: 14px;
-    }
-
     .code-block-wrapper {
       position: relative;
       background: #0B1120;
@@ -1565,9 +1515,6 @@
         <li><a href="#comparison" data-i18n="nav_comparison">
             Benchmarks
           </a></li>
-        <li><a href="#mcp" data-i18n="nav_mcp">
-            MCP Agent
-          </a></li>
         <li><a href="#shortcuts" data-i18n="nav_shortcuts">
             Shortcuts
           </a></li>
@@ -1619,7 +1566,7 @@
             Simply floating. Purely focused.
           </h1>
       <p class="hero-subtitle" data-i18n="hero_subtitle">
-            Single 300 KB binary, RAM strictly &lt; 15 MB. True click-through countdown timer, 0-polling ambient quotes, and native MCP agent collaboration.
+            Single-file native app, RAM under 15 MB. Click-through countdown timer, 0-polling ambient quotes, and CLI collaboration for AI agents.
           </p>
       <div class="hero-buttons">
         <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.09/iClock-1.09-windows.zip" class="btn-primary btn-large" id="heroDownloadBtn">
@@ -1799,7 +1746,7 @@
             Ambient Desktop Inspiration
           </h3>
             <p class="pillar-desc" data-i18n="p2_desc">
-            Morning unlock appearance, permanently pinned to desktop. Pure event-driven architecture eliminates polling loops: 0 wakeups and 0.0% CPU! Direct micro-interactions (drag, width adjust, font scale); batch expand 30 quotes via AI Agent / MCP with automatic deduplication.
+            Morning unlock appearance, permanently pinned to desktop. Pure event-driven architecture eliminates polling loops. Import AI-generated quote files through the CLI with automatic deduplication.
           </p>
           </div>
           <div class="pillar-tags">
@@ -1819,16 +1766,16 @@
         </div>
 
         <!-- 功能 3 -->
-        <div class="feature-pillar-card feat-card-mcp">
+        <div class="feature-pillar-card feat-card-agent">
           <div>
-            <div class="pillar-badge badge-mcp"><span>🤖</span> <span data-i18n="p3_num">
-            03 / AI AGENTS & MCP
+            <div class="pillar-badge badge-agent"><span>🤖</span> <span data-i18n="p3_num">
+            03 / AI AGENT CLI
           </span></div>
             <h3 class="pillar-title" data-i18n="p3_title">
-            AI Agent Collaboration & Native MCP
+            AI Agent CLI Collaboration
           </h3>
             <p class="pillar-desc" data-i18n="p3_desc">
-            Automated task completion monitoring for 20+ programming agents (Cursor, Antigravity, Claude Code, Trae, etc.) with 0ms instant alert; built-in native stdio MCP server (iClock.exe --mcp) offering 6 tools including Flash Approval HUD (iclock_ask_human) for instant human-in-the-loop decisions with Enter/1-9/Esc.
+            Automated task completion monitoring for 20+ programming agents. Agents can request human decisions, project task progress, and send completion alerts through the local CLI with structured JSON responses.
           </p>
           </div>
           <div class="pillar-tags">
@@ -1893,7 +1840,7 @@
             Native, Click-Through & 0-Polling
           </h3>
           <p class="why-card-text" data-i18n="why_sol_desc">
-            Engineered on Windows native Win32 and GDI+ APIs with zero external runtimes. Single 300 KB executable with active RAM strictly under 15 MB. Click-through overlay, 0-polling ambient quotes, and native MCP agent collaboration.
+            Engineered on Windows native Win32 and GDI+ APIs with zero external runtimes. Single portable executable with active RAM under 15 MB. Click-through overlay, 0-polling ambient quotes, and CLI agent collaboration.
           </p>
           <ul class="why-card-list">
             <li><span class="badge-check">✔</span> <span data-i18n="why_sol_1">
@@ -2021,10 +1968,10 @@
             </tr>
             <tr>
               <td><strong data-i18n="comp_r5_name">
-            Native MCP Server
+            Agent Desktop Collaboration
           </strong></td>
               <td class="highlight" data-i18n="comp_r5_iclock">
-            ⚡ Built-in stdio Server (6 Tools)
+            ⚡ CLI + structured JSON
           </td>
               <td><span class="badge-cross">✘</span> None</td>
               <td><span class="badge-cross">✘</span> None</td>
@@ -2184,104 +2131,7 @@
     </div>
   </section>
 
-  <!-- 章节 5：原生 MCP 服务配置 (MCP Configuration) -->
-  <section class="section-mcp" id="mcp">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-tag" data-i18n="mcp_tag">
-            Model Context Protocol
-          </span>
-        <h2 class="section-title" data-i18n="mcp_title">
-            Configure Native MCP Server in 30s
-          </h2>
-        <p class="section-subtitle" data-i18n="mcp_subtitle">
-            Native stdio MCP server (iClock.exe --mcp) with zero Node.js or Python dependencies.
-          </p>
-      </div>
-
-      <div class="mcp-container">
-        <div class="mcp-tabs">
-          <button class="mcp-tab-btn active" id="tabClaude" onclick="switchMcpTab('claude')">Claude Desktop</button>
-          <button class="mcp-tab-btn" id="tabCursor" onclick="switchMcpTab('cursor')">Cursor / Windsurf</button>
-          <button class="mcp-tab-btn" id="tabPrompt" onclick="switchMcpTab('prompt')">Agent Setup Prompt</button>
-        </div>
-        <div class="mcp-body">
-          <div id="mcpViewClaude">
-            <p class="mcp-desc" data-i18n="mcp_claude_desc">
-            Edit %APPDATA%\Claude\claude_desktop_config.json, add under mcpServers:
-          </p>
-            <div class="code-block-wrapper">
-              <div class="code-file-bar">
-                <span class="code-file-name">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  claude_desktop_config.json
-                </span>
-                <button class="code-copy-btn" onclick="copyMcpCode('codeClaude')" data-i18n="btn_copy">
-            Copy
-          </button>
-              </div>
-              <pre><code id="codeClaude"><span class="syn-punc">{</span>
-  <span class="syn-key">"mcpServers"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
-    <span class="syn-key">"iclock"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
-      <span class="syn-key">"command"</span><span class="syn-punc">:</span> <span class="syn-str">"C:\\Path\\To\\iClock\\iClock.exe"</span><span class="syn-punc">,</span>
-      <span class="syn-key">"args"</span><span class="syn-punc">:</span> <span class="syn-punc">[</span><span class="syn-arr">"--mcp"</span><span class="syn-punc">]</span>
-    <span class="syn-punc">}</span>
-  <span class="syn-punc">}</span>
-<span class="syn-punc">}</span></code></pre>
-            </div>
-          </div>
-
-          <div id="mcpViewCursor" style="display: none;">
-            <p class="mcp-desc" data-i18n="mcp_cursor_desc">
-            Add to .cursor/mcp.json in your workspace root, or Cursor MCP Settings:
-          </p>
-            <div class="code-block-wrapper">
-              <div class="code-file-bar">
-                <span class="code-file-name">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  .cursor/mcp.json
-                </span>
-                <button class="code-copy-btn" onclick="copyMcpCode('codeCursor')" data-i18n="btn_copy">
-            Copy
-          </button>
-              </div>
-              <pre><code id="codeCursor"><span class="syn-punc">{</span>
-  <span class="syn-key">"mcpServers"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
-    <span class="syn-key">"iclock"</span><span class="syn-punc">:</span> <span class="syn-punc">{</span>
-      <span class="syn-key">"command"</span><span class="syn-punc">:</span> <span class="syn-str">"C:/Path/To/iClock/iClock.exe"</span><span class="syn-punc">,</span>
-      <span class="syn-key">"args"</span><span class="syn-punc">:</span> <span class="syn-punc">[</span><span class="syn-arr">"--mcp"</span><span class="syn-punc">]</span>
-    <span class="syn-punc">}</span>
-  <span class="syn-punc">}</span>
-<span class="syn-punc">}</span></code></pre>
-            </div>
-          </div>
-
-          <div id="mcpViewPrompt" style="display: none;">
-            <p class="mcp-desc" data-i18n="mcp_prompt_desc">
-            Send the following prompt directly to any MCP-compatible agent (Cursor, Antigravity, Claude) to let it connect automatically:
-          </p>
-            <div class="code-block-wrapper">
-              <div class="code-file-bar">
-                <span class="code-file-name">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                  system_prompt.txt
-                </span>
-                <button class="code-copy-btn" onclick="copyMcpCode('codePrompt')" data-i18n="btn_copy">
-            Copy
-          </button>
-              </div>
-              <pre><code id="codePrompt">Please connect my local desktop productivity tool iClock to the MCP Server list of the current environment.
-The GUI and stdio MCP bridge are the same iClock.exe in this unzipped directory; launch it with arguments ["--mcp"]. The bridge connects to the GUI over a local Named Pipe.
-The server natively provides 6 tools: iclock_ask_human (topmost desktop decision gate), iclock_progress (project task steps and progress onto the floating clock HUD), iclock_timer (set & query countdowns), iclock_notify (milestone desktop notifications with chime), iclock_quote (desktop quote rotation & expansion), and iclock_status (runtime status).
-After configuration, please call the iclock_status tool directly to verify the connection.</code></pre>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 章节 6：命令行与脚本自动化 (CLI) -->
+  <!-- 章节 5：命令行与脚本自动化 (CLI) -->
   <section class="section-cli" id="cli">
     <div class="container">
       <div class="section-header">
@@ -2517,20 +2367,7 @@ After configuration, please call the iclock_status tool directly to verify the c
             Not at all. Pure event-driven message handling (0-Polling). Idle CPU consumption is 0.0%, preserving battery life throughout the day.
           </div>
         </div>
-
-        <div class="faq-card">
-          <div class="faq-question">
-            <span class="faq-q-icon">Q</span>
-            <span data-i18n="faq_q4">
-            Which agents work with the native MCP server?
-          </span>
-          </div>
-          <div class="faq-answer" data-i18n="faq_a4">
-            Native stdio MCP server (iClock.exe --mcp) works out-of-the-box with Claude Desktop, Cursor, Windsurf, Antigravity, and any standard MCP client.
-          </div>
-        </div>
-
-        <div class="faq-card">
+<div class="faq-card">
           <div class="faq-question">
             <span class="faq-q-icon">Q</span>
             <span data-i18n="faq_q5">
@@ -2571,7 +2408,7 @@ After configuration, please call the iclock_status tool directly to verify the c
         <div class="sponsor-author-box">
           <span data-i18n="spons_author">
             Designed & Built by <strong>gujiangwen</strong>
-          </span> · 
+          </span> ·
           <span data-i18n="spons_email">
             Feedback & Contact: 
           </span><a href="mailto:francodeyvison183@gmail.com" class="sponsor-email-link">francodeyvison183@gmail.com</a>
@@ -2636,12 +2473,12 @@ After configuration, please call the iclock_status tool directly to verify the c
     const i18n = {
       zh: {
         page_title: "iClock — Windows 原生极简效率中枢",
-        page_desc: "Windows 原生极简效率中枢：支持点击穿透悬浮倒计时、零轮询桌面每日金句、20+ 款 AI 智能体长任务协同与内置原生 MCP 服务器（含桌面请示门禁）。单文件、纯本地、解压即用。",
+        page_desc: "Windows 原生极简效率中枢：支持点击穿透悬浮倒计时、零轮询桌面每日金句、AI 智能体任务监控与命令行桌面协同。单文件、纯本地、解压即用。",
         nav_why: "设计初衷",
         nav_features: "功能特性",
         nav_comparison: "硬核对比",
         nav_download: "下载上手",
-        nav_mcp: "MCP 智能体",
+
         nav_cli: "CLI 自动化",
         nav_shortcuts: "快捷键",
         nav_faq: "常见问答",
@@ -2650,7 +2487,7 @@ After configuration, please call the iclock_status tool directly to verify the c
 
         hero_eyebrow: "iClock 1.09 · Windows 原生极简效率中枢",
         hero_title: "极简悬浮，纯粹专注。",
-        hero_subtitle: "单文件仅 300 KB，内存稳定小于 15 MB。完全鼠标穿透悬浮倒计时，零轮询桌面每日金句，与原生 MCP 智能体深度协同。",
+        hero_subtitle: "单文件仅 300 KB，内存稳定小于 15 MB。完全鼠标穿透悬浮倒计时，零轮询桌面每日金句，并可通过命令行与智能体协同。",
         hero_btn_dl: "下载便携压缩包 (ZIP · 推荐)",
         hero_btn_exe: "独立 .exe 版",
         hero_btn_gh: "GitHub 开源主页",
@@ -2660,7 +2497,7 @@ After configuration, please call the iclock_status tool directly to verify the c
         metric_offline: "离线纯本地隐私",
         hero_pill_timer: "悬浮穿透倒计时",
         hero_pill_quotes: "零轮询桌面金句",
-        hero_pill_mcp: "AI 智能体协同与原生 MCP",
+
         hero_spec_1: "📦 原生单文件免安装",
         hero_spec_2: "⚡ 0.0% 待机 CPU (0-Polling)",
         hero_spec_3: "💾 内存占用 &lt; 15 MB",
@@ -2685,7 +2522,7 @@ After configuration, please call the iclock_status tool directly to verify the c
         why_pain_3: "后台定时循环轮询，持续耗电与唤醒",
         why_sol_badge: "iClock 的极简哲学",
         why_sol_title: "原生、穿透与 0-Polling 协同",
-        why_sol_desc: "基于 Windows 原生底层 Win32 与 GDI+ 构建，无任何第三方依赖，单文件仅 300 KB，内存 < 15 MB。它不仅是支持完全点击穿透的悬浮倒计时，更融合了零轮询桌面灵感与原生 MCP 智能体长任务协同。",
+        why_sol_desc: "基于 Windows 原生底层 Win32 与 GDI+ 构建，无任何第三方依赖，单文件仅 300 KB，内存 < 15 MB。它不仅是支持完全点击穿透的悬浮倒计时，更融合了零轮询桌面灵感与命令行智能体长任务协同。",
         why_sol_1: "单文件 300 KB，纯原生，内存稳定 < 15 MB",
         why_sol_2: "完全点击穿透（WS_EX_TRANSPARENT），不挡鼠标",
         why_sol_3: "纯事件驱动消息机制，桌面常驻 0.0% CPU 占用",
@@ -2698,10 +2535,10 @@ After configuration, please call the iclock_status tool directly to verify the c
         p1_desc: "基于 Windows 原生 32 位 ARGB 渲染，消除毛刺平滑细腻，自适应微投影。默认鼠标完全点击穿透，不抢焦点不挡代码；按住 Alt 鼠标左键拖拽瞬时定位，托盘滚轮微调时长，智能识别全屏游戏与 PPT 降级原位呼吸免打扰，多维统计本地 TSV 自动归档。",
         p2_num: "02 / DAILY QUOTES",
         p2_title: "桌面每日格言与灵感常驻",
-        p2_desc: "开机/解锁晨间唤醒优雅浮现，支持一键钉在桌面背景常驻。纯事件消息驱动架构，彻底剔除死循环轮询，常驻 0 唤醒、0.0% CPU 占用！支持 Alt+拖拽位置、边缘调节折行、Alt+Ctrl+滚轮缩放字号；内置 300+ 双语精选词库，支持本地 AI / MCP 批量扩充 30 条格言并自动去重备份。",
-        p3_num: "03 / AI AGENTS & MCP",
-        p3_title: "AI 智能体协同 & 原生 MCP",
-        p3_desc: "自动感知国内外 20+ 款主流编程智能体（Cursor、Antigravity、Claude Code、GitHub Copilot、Trae 等）长任务完成，四级感知矩阵 0ms 零误报即时提醒；内置原生 stdio MCP Server (iClock.exe --mcp)，向智能体开放 6 大工具，包含独创的 iclock_ask_human 极速桌面授权门禁 (Flash Approval HUD，支持 1/2/Enter/Esc 盲打)。",
+        p2_desc: "开机/解锁晨间唤醒优雅浮现，支持一键钉在桌面背景常驻。纯事件消息驱动架构，彻底剔除死循环轮询，常驻 0 唤醒、0.0% CPU 占用！支持 Alt+拖拽位置、边缘调节折行、Alt+Ctrl+滚轮缩放字号；内置 300+ 双语精选词库，支持 AI 生成格言并通过命令行导入并自动去重备份。",
+        p3_num: "03 / AI AGENT CLI",
+        p3_title: "AI 智能体命令行协同",
+        p3_desc: "自动感知国内外 20+ 款主流编程智能体（Cursor、Antigravity、Claude Code、GitHub Copilot、Trae 等）长任务完成，四级感知矩阵 0ms 零误报即时提醒；智能体可通过 CLI 请求人工决策、投射任务进度、发送完成提醒；支持结构化 JSON 返回。",
         tag_drag: "Alt + 拖拽定位",
         tag_wheel: "托盘滚轮微调",
         tag_dnd: "全屏免打扰",
@@ -2741,8 +2578,8 @@ After configuration, please call the iclock_status tool directly to verify the c
         comp_r4_electron: "实体窗口遮挡代码与网页",
         comp_r4_win: "最小化或占用全屏",
         comp_r4_web: "必须切出浏览器查看",
-        comp_r5_name: "原生 MCP 支持",
-        comp_r5_iclock: "⚡ 内置 stdio Server (5 工具)",
+        comp_r5_name: "智能体桌面协作",
+        comp_r5_iclock: "⚡ CLI + 结构化 JSON",
         comp_r6_name: "AI 任务感知矩阵",
         comp_r6_iclock: "⚡ 20+ 款智能体任务结束感知",
         comp_r7_name: "桌面灵感格言",
@@ -2767,12 +2604,6 @@ After configuration, please call the iclock_status tool directly to verify the c
         dl_chk_title: "🔒 文件完整性 SHA-256 校验和",
         dl_chk_desc: "保障下载文件未被篡改",
 
-        mcp_tag: "Model Context Protocol",
-        mcp_title: "30 秒配置原生 MCP 服务",
-        mcp_subtitle: "内置原生 stdio MCP Server (iClock.exe --mcp)，无须 Node.js 或 Python 依赖。",
-        mcp_claude_desc: "编辑 %APPDATA%\\Claude\\claude_desktop_config.json，在 mcpServers 中填入：",
-        mcp_cursor_desc: "在项目根目录 .cursor/mcp.json 或编辑器 MCP 设置面板中填入：",
-        mcp_prompt_desc: "把以下提示词直接发给任意支持 MCP 的智能体（Cursor / Antigravity / Claude），它将自主配置并完成连接：",
 
         cli_tag: "CLI & Pipeline",
         cli_title: "命令行与脚本自动化",
@@ -2812,8 +2643,8 @@ After configuration, please call the iclock_status tool directly to verify the c
         faq_a2: "坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 15 MB 以内。",
         faq_q3: "桌面格言常驻后台会消耗笔记本电池吗？",
         faq_a3: "完全不会。iClock 采用纯事件消息驱动与 0-Polling 架构，静止常驻时 CPU 占用为 0.0%，彻底消除了后台定时器循环唤醒，笔记本全天候常驻零耗电。",
-        faq_q4: "原生 MCP 服务支持哪些智能体？",
-        faq_a4: "内置原生 stdio MCP Server (iClock.exe --mcp)，无须 Node.js 或 Python 环境，开箱支持 Claude Desktop、Cursor、Windsurf、Antigravity 等任意标准 MCP 客户端。",
+        faq_q4: "智能体如何使用桌面协作？",
+        faq_a4: "任何可运行本地命令的智能体都可调用 iClock CLI；`--json` 提供机器可读的结构化返回。",
         faq_q5: "软件是否安全、纯净无广告？",
         faq_a5: "100% 开源（MIT 协议），零流氓广告，零捆绑插件，零后台常驻守护进程，退出即彻底释放。",
 
@@ -2848,12 +2679,12 @@ After configuration, please call the iclock_status tool directly to verify the c
       },
       en: {
         page_title: "iClock — Native Minimalist Productivity Hub for Windows",
-        page_desc: "Native Minimalist Productivity Hub for Windows: click-through transparent timer, 0-polling ambient quotes, 20+ AI agents monitor & native stdio MCP server.",
+        page_desc: "Native minimalist Windows productivity hub: click-through timer, 0-polling quotes, AI agent monitor and CLI desktop collaboration.",
         nav_why: "Philosophy",
         nav_features: "Features",
         nav_comparison: "Benchmarks",
         nav_download: "Download",
-        nav_mcp: "MCP Agent",
+
         nav_cli: "CLI Pipeline",
         nav_shortcuts: "Shortcuts",
         nav_faq: "FAQ",
@@ -2862,7 +2693,7 @@ After configuration, please call the iclock_status tool directly to verify the c
 
         hero_eyebrow: "iClock 1.09 · Native Minimalist Productivity Hub",
         hero_title: "Simply floating. Purely focused.",
-        hero_subtitle: "Single 300 KB binary, RAM strictly &lt; 15 MB. True click-through countdown timer, 0-polling ambient quotes, and native MCP agent collaboration.",
+        hero_subtitle: "Single-file native app, RAM under 15 MB. Click-through countdown timer, 0-polling ambient quotes, and CLI collaboration for AI agents.",
         hero_btn_dl: "Download Portable (.zip · Recommended)",
         hero_btn_exe: "Standalone .exe",
         hero_btn_gh: "GitHub Repository",
@@ -2872,7 +2703,7 @@ After configuration, please call the iclock_status tool directly to verify the c
         metric_offline: "100% Offline & Private",
         hero_pill_timer: "Click-Through Transparent Timer",
         hero_pill_quotes: "0-Polling Ambient Quotes",
-        hero_pill_mcp: "AI Agent Collaboration & Native MCP",
+
         hero_spec_1: "📦 Single Portable Binary",
         hero_spec_2: "⚡ 0.0% Idle CPU (0-Polling)",
         hero_spec_3: "💾 Active RAM &lt; 15 MB",
@@ -2897,7 +2728,7 @@ After configuration, please call the iclock_status tool directly to verify the c
         why_pain_3: "Continuous polling loops drain laptop battery",
         why_sol_badge: "iClock's Minimalist Philosophy",
         why_sol_title: "Native, Click-Through & 0-Polling",
-        why_sol_desc: "Engineered on Windows native Win32 and GDI+ APIs with zero external runtimes. Single 300 KB executable with active RAM strictly under 15 MB. Click-through overlay, 0-polling ambient quotes, and native MCP agent collaboration.",
+        why_sol_desc: "Engineered on Windows native Win32 and GDI+ APIs with zero external runtimes. Single portable executable with active RAM under 15 MB. Click-through overlay, 0-polling ambient quotes, and CLI agent collaboration.",
         why_sol_1: "Single 300 KB binary, pure native, RAM < 15 MB",
         why_sol_2: "True click-through (WS_EX_TRANSPARENT) never steals focus",
         why_sol_3: "Pure event-driven message loop, 0.0% CPU when idle",
@@ -2910,10 +2741,10 @@ After configuration, please call the iclock_status tool directly to verify the c
         p1_desc: "Native 32-bit ARGB subpixel anti-aliasing with adaptive drop shadow. 100% click-through never steals focus or blocks clicks; direct Alt+drag repositioning, tray wheel duration tuning, auto-suppression during fullscreen games & presentations, and TSV analytics.",
         p2_num: "02 / DAILY QUOTES",
         p2_title: "Ambient Desktop Inspiration",
-        p2_desc: "Morning unlock appearance, permanently pinned to desktop. Pure event-driven architecture eliminates polling loops: 0 wakeups and 0.0% CPU! Direct micro-interactions (drag, width adjust, font scale); batch expand 30 quotes via AI Agent / MCP with automatic deduplication.",
-        p3_num: "03 / AI AGENTS & MCP",
-        p3_title: "AI Agent Collaboration & Native MCP",
-        p3_desc: "Automated task completion monitoring for 20+ programming agents (Cursor, Antigravity, Claude Code, Trae, etc.) with 0ms instant alert; built-in native stdio MCP server (iClock.exe --mcp) offering 6 tools including Flash Approval HUD (iclock_ask_human) for instant human-in-the-loop decisions with Enter/1-9/Esc.",
+        p2_desc: "Morning unlock appearance, permanently pinned to desktop. Pure event-driven architecture eliminates polling loops. Import AI-generated quote files through the CLI with automatic deduplication.",
+        p3_num: "03 / AI AGENT CLI",
+        p3_title: "AI Agent CLI Collaboration",
+        p3_desc: "Automated task completion monitoring for 20+ programming agents. Agents can request human decisions, project task progress, and send completion alerts through the local CLI with structured JSON responses.",
         tag_drag: "Alt + Drag Positioning",
         tag_wheel: "Tray Scroll Tuning",
         tag_dnd: "Fullscreen DND",
@@ -2953,8 +2784,8 @@ After configuration, please call the iclock_status tool directly to verify the c
         comp_r4_electron: "Opaque Window Blocks Code & Web",
         comp_r4_win: "Minimized or Fullscreen",
         comp_r4_web: "Must Switch Out to Browser",
-        comp_r5_name: "Native MCP Server",
-        comp_r5_iclock: "⚡ Built-in stdio Server (6 Tools)",
+        comp_r5_name: "Agent Desktop Collaboration",
+        comp_r5_iclock: "⚡ CLI + structured JSON",
         comp_r6_name: "AI Agents Perception",
         comp_r6_iclock: "⚡ 20+ Coding Agents Monitored",
         comp_r7_name: "Ambient Daily Quotes",
@@ -2979,12 +2810,6 @@ After configuration, please call the iclock_status tool directly to verify the c
         dl_chk_title: "🔒 File Integrity SHA-256 Checksums",
         dl_chk_desc: "Guarantees downloaded files are genuine and untampered.",
 
-        mcp_tag: "Model Context Protocol",
-        mcp_title: "Configure Native MCP Server in 30s",
-        mcp_subtitle: "Native stdio MCP server (iClock.exe --mcp) with zero Node.js or Python dependencies.",
-        mcp_claude_desc: "Edit %APPDATA%\\Claude\\claude_desktop_config.json, add under mcpServers:",
-        mcp_cursor_desc: "Add to .cursor/mcp.json in your workspace root, or Cursor MCP Settings:",
-        mcp_prompt_desc: "Send the following prompt directly to any MCP-compatible agent (Cursor, Antigravity, Claude) to let it connect automatically:",
 
         cli_tag: "CLI & Pipeline",
         cli_title: "Command Line & Script Automation",
@@ -3024,8 +2849,8 @@ After configuration, please call the iclock_status tool directly to verify the c
         faq_a2: "Pure native C# and GDI+ rendering. Zero Electron, zero Chromium runtime, zero bulky dependencies. Active memory stays strictly under 15 MB.",
         faq_q3: "Does ambient quote display drain laptop battery?",
         faq_a3: "Not at all. Pure event-driven message handling (0-Polling). Idle CPU consumption is 0.0%, preserving battery life throughout the day.",
-        faq_q4: "Which agents work with the native MCP server?",
-        faq_a4: "Native stdio MCP server (iClock.exe --mcp) works out-of-the-box with Claude Desktop, Cursor, Windsurf, Antigravity, and any standard MCP client.",
+        faq_q4: "How can an AI agent use desktop collaboration?",
+        faq_a4: "Any agent that can run local commands can call iClock CLI for human decisions, task progress, and completion alerts. Add --json for structured results.",
         faq_q5: "Is iClock safe, clean, and ad-free?",
         faq_a5: "100% open source under the MIT license. No ads, no bundled plugins, no background daemons — exit the app and every resource is released instantly.",
 
@@ -3293,22 +3118,6 @@ After configuration, please call the iclock_status tool directly to verify the c
       const q = qList[quoteIndex % qList.length];
       copyText(`${q.text} ${q.author}`);
     });
-
-    // MCP Tab 切换
-    function switchMcpTab(tab) {
-      document.getElementById('tabClaude').classList.toggle('active', tab === 'claude');
-      document.getElementById('tabCursor').classList.toggle('active', tab === 'cursor');
-      document.getElementById('tabPrompt').classList.toggle('active', tab === 'prompt');
-
-      document.getElementById('mcpViewClaude').style.display = tab === 'claude' ? 'block' : 'none';
-      document.getElementById('mcpViewCursor').style.display = tab === 'cursor' ? 'block' : 'none';
-      document.getElementById('mcpViewPrompt').style.display = tab === 'prompt' ? 'block' : 'none';
-    }
-
-    function copyMcpCode(elementId) {
-      const code = document.getElementById(elementId).innerText;
-      copyText(code);
-    }
 
     // 主题切换
     function getInitialTheme() {

@@ -17,21 +17,6 @@ internal static class TestCheck
         return (double)o.GetType().GetProperty("Opacity").GetValue(o, null);
     }
 
-    private static bool ReadMcpResponse(System.IO.StreamReader reader, int id, out string line)
-    {
-        string expected = "\"id\":" + id;
-        for (int i = 0; i < 20; i++)
-        {
-            line = reader.ReadLine();
-            if (line == null) return false;
-            if (line.Contains(expected)) return true;
-        }
-        line = null;
-        return false;
-    }
-
-
-
     [STAThread]
     private static int Main()
     {
@@ -40,7 +25,6 @@ internal static class TestCheck
         string todayHistoryPath = System.IO.Path.Combine(appDataDir, "history-" + DateTime.Now.ToString("yyyyMMdd") + ".tsv");
         string iniBackup = null;
         string historyBackup = null;
-        Process mcpGuiProc = null;
         if (System.IO.File.Exists(iniPath))
         {
             try { iniBackup = System.IO.File.ReadAllText(iniPath); System.IO.File.Delete(iniPath); } catch { }
@@ -76,15 +60,16 @@ internal static class TestCheck
             // 0. Verify default settings: FontSize = 20, Color = "#FF0000", X = -1 (center), Y = 60, Format = MM:SS
             Type settingsType = asm.GetType("Settings");
             object defaultSettings = Activator.CreateInstance(settingsType);
+            bool defaultCollaborationEnabled = (bool)settingsType.GetField("DesktopCollaborationEnabled").GetValue(defaultSettings);
             int defSize = (int)settingsType.GetField("FontSize").GetValue(defaultSettings);
             string defColor = (string)settingsType.GetField("Color").GetValue(defaultSettings);
             string defFont = (string)settingsType.GetField("FontFamily").GetValue(defaultSettings);
             int defX = (int)settingsType.GetField("X").GetValue(defaultSettings);
             int defY = (int)settingsType.GetField("Y").GetValue(defaultSettings);
             string defFormat = (string)settingsType.GetField("Format").GetValue(defaultSettings);
-            if (defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 60 || defFormat != "MM:SS")
+            if (!defaultCollaborationEnabled || defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 60 || defFormat != "MM:SS")
             {
-                Console.WriteLine("FAIL: Default FontSize (" + defSize + "), Color (" + defColor + "), FontFamily (" + defFont + "), X (" + defX + "), Y (" + defY + "), or Format (" + defFormat + ") incorrect");
+                Console.WriteLine("FAIL: Default collaboration setting or timer appearance settings are incorrect");
                 return 18;
             }
             Rectangle screen = Screen.PrimaryScreen.Bounds;
@@ -1241,13 +1226,13 @@ internal static class TestCheck
             Button btnTabTimer = (Button)settingsDialogType.GetField("btnTabTimer", bf).GetValue(tabDlg);
             Button btnTabAgent = (Button)settingsDialogType.GetField("btnTabAgent", bf).GetValue(tabDlg);
             Control minCtrl = (Control)settingsDialogType.GetField("minutes", bf).GetValue(tabDlg);
-            Button btnProgDemo = (Button)settingsDialogType.GetField("btnMcpDemoProgress", bf).GetValue(tabDlg);
+            Button btnProgDemo = (Button)settingsDialogType.GetField("btnProgressDemo", bf).GetValue(tabDlg);
             Panel capCard = (Panel)settingsDialogType.GetField("panelCapCard", bf).GetValue(tabDlg);
-            Panel mcpStatus = (Panel)settingsDialogType.GetField("panelMcpStatus", bf).GetValue(tabDlg);
-            Label lnkCopy = (Label)settingsDialogType.GetField("lnkMcpCopyPrompt", bf).GetValue(tabDlg);
+            Panel cliStatus = (Panel)settingsDialogType.GetField("panelCliStatus", bf).GetValue(tabDlg);
+            Label lnkCopy = (Label)settingsDialogType.GetField("lnkCliGuide", bf).GetValue(tabDlg);
             CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
             Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
-            Label mcpServerTitle = (Label)settingsDialogType.GetField("lblMcpServerTitle", bf).GetValue(tabDlg);
+            Label collaborationTitle = (Label)settingsDialogType.GetField("lblCollaborationTitle", bf).GetValue(tabDlg);
             Label tool1 = (Label)settingsDialogType.GetField("lblTool1Name", bf).GetValue(tabDlg);
             Label tool2 = (Label)settingsDialogType.GetField("lblTool2Name", bf).GetValue(tabDlg);
             Label tool3 = (Label)settingsDialogType.GetField("lblTool3Name", bf).GetValue(tabDlg);
@@ -1261,7 +1246,7 @@ internal static class TestCheck
                 }
             }
 
-            if (btnTabTimer == null || btnTabAgent == null || capCard == null || mcpStatus == null || btnProgDemo == null || lnkCopy == null || mcpServerTitle == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null)
+            if (btnTabTimer == null || btnTabAgent == null || capCard == null || cliStatus == null || btnProgDemo == null || lnkCopy == null || collaborationTitle == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Agent tab controls");
                 return 33;
@@ -1291,21 +1276,21 @@ internal static class TestCheck
                 return 33;
             }
 
-            // Verify capabilities card and MCP status card are visible on Agent tab.
-            // Copy setup action stays hidden until a running agent needs MCP configuration.
-            if (!capCard.Visible || !mcpStatus.Visible || lnkCopy.Visible)
+            // Verify capabilities and CLI collaboration status are visible on Agent tab.
+            // CLI access instructions are available without detecting agent processes or server state.
+            if (!capCard.Visible || !cliStatus.Visible || !lnkCopy.Visible || lnkCopy.Text != "复制 CLI 协作说明")
             {
-                Console.WriteLine("FAIL: Agent tab should show cards and hide copy link until setup is needed");
+                Console.WriteLine("FAIL: Agent tab should show CLI collaboration guidance independently of server state");
                 return 33;
             }
 
-            if (mcpServerTitle.Text != "MCP 桌面协作" ||
+            if (collaborationTitle.Text != "桌面协作" ||
                 capabilityTitle.Text != "常用桌面能力" ||
                 tool1.Text != "决策请示" || tool2.Text != "任务状态" || tool3.Text != "完成提醒" ||
                 btnProgDemo.Text != "预览" ||
-                mcpStatus.Top >= capCard.Top)
+                cliStatus.Top >= capCard.Top)
             {
-                Console.WriteLine("FAIL: Agent tab should put MCP status before capability previews and use explicit copy/preview wording");
+                Console.WriteLine("FAIL: Agent tab layout/text mismatch: title=" + collaborationTitle.Text + ", capability=" + capabilityTitle.Text + ", tools=" + tool1.Text + "/" + tool2.Text + "/" + tool3.Text + ", preview=" + btnProgDemo.Text + ", statusTop=" + cliStatus.Top + ", capabilityTop=" + capCard.Top);
                 return 33;
             }
 
@@ -1596,7 +1581,17 @@ internal static class TestCheck
             }
             cliNotice.Close();
 
-            Console.WriteLine("PASS: CLI IPC commands (--start, -p, -r, --reset, -n) successfully verified.");
+            handleIpc.Invoke(app, new object[] { "--progress 3/5 Running tests --agent-name Codex" });
+            IList cliTasks = (IList)appType.GetField("agentTaskStatuses", bf).GetValue(app);
+            FieldInfo taskAgentName = cliTasks.Count > 0 ? cliTasks[0].GetType().GetField("AgentName", bf) : null;
+            if (taskAgentName == null || !string.Equals(taskAgentName.GetValue(cliTasks[0]) as string, "Codex", StringComparison.Ordinal))
+            {
+                Console.WriteLine("FAIL: CLI progress should preserve the caller's --agent-name identity");
+                return 50;
+            }
+            handleIpc.Invoke(app, new object[] { "--progress clear --agent-name Codex" });
+
+            Console.WriteLine("PASS: CLI IPC commands and per-agent progress identity verified.");
 
             // 33. Verify CLI tray menu item eliminated and SettingsDialog Tab 2 terminal CLI guidance tip
             FieldInfo menuCliField = appType.GetField("menuCli", bf);
@@ -1623,7 +1618,7 @@ internal static class TestCheck
             setDlgTab2.Show();
             setActiveTabMethod.Invoke(setDlgTab2, new object[] { 2 });
             Label cliTipCtrl = (Label)cliTipField.GetValue(setDlgTab2);
-            if (cliTipCtrl == null || !cliTipCtrl.Visible || !cliTipCtrl.Text.Contains("iclock_status"))
+            if (cliTipCtrl == null || !cliTipCtrl.Visible || !cliTipCtrl.Text.Contains("iclock --install-cli"))
             {
                 Console.WriteLine("FAIL: Tab 2 lblAgentCliTip invalid or not visible: " + (cliTipCtrl == null ? "null" : cliTipCtrl.Text));
                 setDlgTab2.Close();
@@ -2371,7 +2366,7 @@ internal static class TestCheck
             Form dlgZh = (Form)Activator.CreateInstance(settingsDlgType, new object[] { settings, true });
             setActiveTabMethod.Invoke(dlgZh, new object[] { 2 });
             Label tipZh = (Label)settingsDlgType.GetField("lblAgentCliTip", bf).GetValue(dlgZh);
-            if (tipZh == null || !tipZh.Text.Contains("iclock_status"))
+            if (tipZh == null || !tipZh.Text.Contains("iclock --install-cli"))
             {
                 Console.WriteLine("FAIL: Tab 2 CLI tip missing expected Chinese instructions");
                 dlgZh.Close();
@@ -2384,7 +2379,7 @@ internal static class TestCheck
             Form dlgEn = (Form)Activator.CreateInstance(settingsDlgType, new object[] { enSettings, true });
             setActiveTabMethod.Invoke(dlgEn, new object[] { 2 });
             Label tipEn = (Label)settingsDlgType.GetField("lblAgentCliTip", bf).GetValue(dlgEn);
-            if (tipEn == null || !tipEn.Text.Contains("iclock_status"))
+            if (tipEn == null || !tipEn.Text.Contains("iclock --install-cli"))
             {
                 Console.WriteLine("FAIL: Tab 2 CLI tip missing expected English instructions");
                 dlgEn.Close();
@@ -2394,229 +2389,91 @@ internal static class TestCheck
 
             Console.WriteLine("PASS: Tool introductions modernization (AboutDialog Option 1, Settings Tab 0 tip, Tab 2 terminal CLI guidance & CliHelpDialog elimination) verified.");
 
-            // 41. Verify the single-file MCP bridge (iClock.exe --mcp stdio + Named Pipe GUI bridge)
-            string mcpBinary = exePath;
-            if (!System.IO.File.Exists(mcpBinary))
+            // Verify MCP server types are absent and CLI guidance/JSON remain available.
+            if (asm.GetType("McpBridge") != null || asm.GetType("McpPipeServer") != null || asm.GetType("McpConfigHelper") != null)
             {
-                Console.WriteLine("FAIL: iClock.exe binary missing for MCP bridge test");
+                Console.WriteLine("FAIL: Removed MCP server/configuration types are still present");
                 return 59;
             }
-
-            // The in-process harness has no message loop, so use a real GUI process for tool calls.
-            FieldInfo mcpPipeServerField = appType.GetField("mcpPipeServer", bf);
-            object inProcessPipeServer = mcpPipeServerField.GetValue(app);
-            if (inProcessPipeServer != null)
+            ProcessStartInfo removedMcpPsi = new ProcessStartInfo
             {
-                MethodInfo stopPipeServer = inProcessPipeServer.GetType().GetMethod("Stop", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (stopPipeServer != null) stopPipeServer.Invoke(inProcessPipeServer, null);
-                mcpPipeServerField.SetValue(app, null);
-            }
-            settings.GetType().GetField("FirstRun").SetValue(settings, false);
-            settings.GetType().GetMethod("Save").Invoke(settings, null);
-            mcpGuiProc = Process.Start(new ProcessStartInfo
-            {
-                FileName = mcpBinary,
-                WorkingDirectory = dir,
-                UseShellExecute = true
-            });
-            if (mcpGuiProc == null)
-            {
-                Console.WriteLine("FAIL: Could not start GUI process for MCP bridge test");
-                return 59;
-            }
-            System.Threading.Thread.Sleep(1200);
-
-            ProcessStartInfo mcpPsi = new ProcessStartInfo
-            {
-                FileName = mcpBinary,
+                FileName = exePath,
                 Arguments = "--mcp",
                 UseShellExecute = false,
-                RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 CreateNoWindow = true
             };
-
-            using (Process mcpProc = Process.Start(mcpPsi))
+            using (Process removedMcpProc = Process.Start(removedMcpPsi))
             {
-                mcpProc.StandardInput.AutoFlush = true;
-                // Test initialize
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"test-runner\",\"version\":\"1.0\"}}}");
-                string mcpInitLine = mcpProc.StandardOutput.ReadLine();
-                if (string.IsNullOrEmpty(mcpInitLine) || !mcpInitLine.Contains("\"serverInfo\":{\"name\":\"iclock\""))
+                string removedMcpError = removedMcpProc.StandardError.ReadToEnd();
+                removedMcpProc.WaitForExit(1500);
+                if (removedMcpProc.ExitCode != 2 || !removedMcpError.Contains("server has been removed"))
                 {
-                    Console.WriteLine("FAIL: MCP initialize handshake invalid: " + mcpInitLine);
+                    Console.WriteLine("FAIL: Legacy --mcp should exit with a clear removal message: " + removedMcpError);
                     return 59;
                 }
-
-                // Test ping
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\"}");
-                string mcpPingLine = mcpProc.StandardOutput.ReadLine();
-                if (string.IsNullOrEmpty(mcpPingLine) || !mcpPingLine.Contains("\"result\":{}"))
-                {
-                    Console.WriteLine("FAIL: MCP ping response invalid: " + mcpPingLine);
-                    return 59;
-                }
-
-                // Test tools/list contains iclock_ask_human, iclock_progress and all 6 tools
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/list\",\"params\":{}}");
-                string mcpListLine = mcpProc.StandardOutput.ReadLine();
-                if (string.IsNullOrEmpty(mcpListLine) ||
-                    !mcpListLine.Contains("iclock_ask_human") ||
-                    !mcpListLine.Contains("background_only") ||
-                    !mcpListLine.Contains("iclock_timer") ||
-                    !mcpListLine.Contains("iclock_notify") ||
-                    !mcpListLine.Contains("iclock_quote") ||
-                    !mcpListLine.Contains("iclock_status") ||
-                    !mcpListLine.Contains("iclock_progress"))
-                {
-                    Console.WriteLine("FAIL: MCP tools/list missing core tools or background_only: " + mcpListLine);
-                    return 59;
-                }
-
-                // Test unknown method error handling (-32601)
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"unknown_method\"}");
-                string mcpErrLine = mcpProc.StandardOutput.ReadLine();
-                if (string.IsNullOrEmpty(mcpErrLine) || !mcpErrLine.Contains("-32601"))
-                {
-                    Console.WriteLine("FAIL: MCP unknown method error handling failed: " + mcpErrLine);
-                    return 59;
-                }
-
-                // Regression: the first tool call must not hit the old initial-listener PIPE_CLOSED race.
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_status\",\"arguments\":{}}}");
-                string mcpStatus1;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 5, out mcpStatus1) ||
-                    !mcpStatus1.Contains("\"isError\":false") ||
-                    !mcpStatus1.Contains("remaining_seconds"))
-                {
-                    Console.WriteLine("FAIL: First MCP iclock_status call failed or returned PIPE_CLOSED: " + mcpStatus1);
-                    return 59;
-                }
-
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_status\",\"arguments\":{}}}");
-                string mcpStatus2;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 6, out mcpStatus2) ||
-                    !mcpStatus2.Contains("\"isError\":false"))
-                {
-                    Console.WriteLine("FAIL: Second MCP iclock_status call failed: " + mcpStatus2);
-                    return 59;
-                }
-
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_progress\",\"arguments\":{\"progress\":\"60%\",\"message\":\"SelfCheck\"}}}");
-                string mcpProgress;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 7, out mcpProgress) ||
-                    !mcpProgress.Contains("\"isError\":false") ||
-                    !mcpProgress.Contains("0.6"))
-                {
-                    Console.WriteLine("FAIL: MCP iclock_progress call failed: " + mcpProgress);
-                    return 59;
-                }
-
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_progress\",\"arguments\":{\"progress\":\"2/4\",\"message\":\"Parallel task\",\"agent_name\":\"Agent B\"}}}");
-                string mcpProgressB;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 14, out mcpProgressB) || !mcpProgressB.Contains("\"isError\":false"))
-                {
-                    Console.WriteLine("FAIL: MCP second agent progress call failed: " + mcpProgressB);
-                    return 59;
-                }
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":15,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_progress\",\"arguments\":{\"progress\":\"clear\",\"agent_name\":\"Agent B\"}}}");
-                string mcpClearB;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 15, out mcpClearB) || !mcpClearB.Contains("\"isError\":false"))
-                {
-                    Console.WriteLine("FAIL: MCP clearing second agent failed: " + mcpClearB);
-                    return 59;
-                }
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":16,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_status\",\"arguments\":{}}}");
-                string mcpStatusAfterClearB;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 16, out mcpStatusAfterClearB) ||
-                    !mcpStatusAfterClearB.Contains("test-runner") || mcpStatusAfterClearB.Contains("Agent B"))
-                {
-                    Console.WriteLine("FAIL: Clearing one agent removed or retained the wrong task row: " + mcpStatusAfterClearB);
-                    return 59;
-                }
-
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_timer\",\"arguments\":{\"action\":\"start\",\"minutes\":7,\"label\":\"SelfCheck\"}}}");
-                string mcpTimer;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 8, out mcpTimer) ||
-                    !mcpTimer.Contains("\"isError\":false") ||
-                    !mcpTimer.Contains("minutes") ||
-                    !mcpTimer.Contains("7"))
-                {
-                    Console.WriteLine("FAIL: MCP iclock_timer call failed: " + mcpTimer);
-                    return 59;
-                }
-
-                // ask_human must stay pending without blocking other tool calls.
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_ask_human\",\"arguments\":{\"question\":\"SelfCheck approval\",\"options\":[\"Approve\",\"Cancel\"],\"timeout_seconds\":0}}}");
-                System.Threading.Thread.Sleep(150);
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_status\",\"arguments\":{}}}");
-                string mcpAskOverlap;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 10, out mcpAskOverlap) ||
-                    !mcpAskOverlap.Contains("\"isError\":false") ||
-                    !mcpAskOverlap.Contains("has_pending_ask"))
-                {
-                    Console.WriteLine("FAIL: MCP tool call was blocked by pending ask_human: " + mcpAskOverlap);
-                    return 59;
-                }
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"method\":\"notifications/cancelled\",\"params\":{\"requestId\":9}}");
-                string mcpAskCancel;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 9, out mcpAskCancel) ||
-                    !mcpAskCancel.Contains("\"isError\":false") ||
-                    !mcpAskCancel.Contains("cancelled"))
-                {
-                    Console.WriteLine("FAIL: MCP ask_human cancellation failed: " + mcpAskCancel);
-                    return 59;
-                }
-
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_progress\",\"arguments\":{\"progress\":\"clear\"}}}");
-                string mcpClear;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 11, out mcpClear) ||
-                    !mcpClear.Contains("\"isError\":false"))
-                {
-                    Console.WriteLine("FAIL: MCP iclock_progress clear failed: " + mcpClear);
-                    return 59;
-                }
-
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_timer\",\"arguments\":{\"action\":\"reset\"}}}");
-                string mcpReset;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 12, out mcpReset) ||
-                    !mcpReset.Contains("\"isError\":false"))
-                {
-                    Console.WriteLine("FAIL: MCP iclock_timer reset failed: " + mcpReset);
-                    return 59;
-                }
-
-                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":13,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_notify\",\"arguments\":{\"message\":\"SelfCheck\",\"sound\":\"none\"}}}");
-                string mcpNotify;
-                if (!ReadMcpResponse(mcpProc.StandardOutput, 13, out mcpNotify) ||
-                    !mcpNotify.Contains("\"isError\":false") ||
-                    !mcpNotify.Contains("none"))
-                {
-                    Console.WriteLine("FAIL: MCP iclock_notify call failed: " + mcpNotify);
-                    return 59;
-                }
-
-                mcpProc.StandardInput.Close();
-                mcpProc.WaitForExit(1000);
             }
-
-            // Test IPC status command
-            string testStatFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_stat_" + Guid.NewGuid().ToString("N") + ".txt");
-            handleIpc.Invoke(app, new object[] { "status:" + testStatFile });
-            if (!System.IO.File.Exists(testStatFile))
+            Type cliPromptType = asm.GetType("CliPromptHelper");
+            MethodInfo cliPromptMethod = cliPromptType != null ? cliPromptType.GetMethod("GenerateCliAgentPrompt", BindingFlags.Public | BindingFlags.Static) : null;
+            string cliPromptZh = cliPromptMethod != null ? (string)cliPromptMethod.Invoke(null, new object[] { false }) : "";
+            string cliPromptEn = cliPromptMethod != null ? (string)cliPromptMethod.Invoke(null, new object[] { true }) : "";
+            if (!cliPromptZh.Contains("--ask") || !cliPromptZh.Contains("--progress") || !cliPromptZh.Contains("--notice") || !cliPromptZh.Contains("--json") || cliPromptZh.Contains("MCP") ||
+                !cliPromptEn.Contains("--ask") || !cliPromptEn.Contains("--progress") || !cliPromptEn.Contains("--notice") || !cliPromptEn.Contains("--json") || cliPromptEn.Contains("MCP"))
             {
-                Console.WriteLine("FAIL: IPC status command did not create output file");
+                Console.WriteLine("FAIL: CLI guide should contain CLI collaboration commands only");
                 return 59;
             }
-            string statJson = System.IO.File.ReadAllText(testStatFile);
-            System.IO.File.Delete(testStatFile);
-            if (!statJson.Contains("remaining_seconds") || !statJson.Contains("total_minutes"))
+            MethodInfo quotePromptMethod = asm.GetType("AiAgentQuoteHelper").GetMethod("BuildAgentPrompt", BindingFlags.NonPublic | BindingFlags.Static);
+            string quotePrompt = (string)quotePromptMethod.Invoke(null, new object[] { new List<string> { "专注" }, "zh" });
+            if (!quotePrompt.Contains("--quote-add") || quotePrompt.Contains("MCP"))
             {
-                Console.WriteLine("FAIL: IPC status output format incorrect: " + statJson);
+                Console.WriteLine("FAIL: Agent quote prompt should import through the CLI");
                 return 59;
             }
 
+            string cliBinary = exePath;
+            ProcessStartInfo askJsonPsi = new ProcessStartInfo
+            {
+                FileName = cliBinary,
+                Arguments = "--json --ask",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            using (Process askJsonProc = Process.Start(askJsonPsi))
+            {
+                string askJsonOut = askJsonProc.StandardOutput.ReadToEnd();
+                askJsonProc.WaitForExit(1500);
+                if (askJsonProc.ExitCode != 1 || !askJsonOut.Contains("\"ok\":false") || !askJsonOut.Contains("\"action\":\"ask\"") || !askJsonOut.Contains("\"error\":"))
+                {
+                    Console.WriteLine("FAIL: --json CLI output invalid (ExitCode=" + askJsonProc.ExitCode + ", Out=" + askJsonOut + ")");
+                    return 59;
+                }
+            }
+
+            ProcessStartInfo quoteJsonPsi = new ProcessStartInfo
+            {
+                FileName = cliBinary,
+                Arguments = "--json --quote-add",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            using (Process quoteJsonProc = Process.Start(quoteJsonPsi))
+            {
+                string quoteJsonOut = quoteJsonProc.StandardOutput.ReadToEnd();
+                quoteJsonProc.WaitForExit(1500);
+                if (quoteJsonProc.ExitCode != 1 || !quoteJsonOut.Contains("\"action\":\"quote_add\"") || !quoteJsonOut.Contains("\"error\":"))
+                {
+                    Console.WriteLine("FAIL: --quote-add JSON validation output invalid: " + quoteJsonOut);
+                    return 59;
+                }
+            }
+
+            Console.WriteLine("PASS: MCP server removed; CLI desktop collaboration, quote import guidance, and JSON errors verified.");
             // Test IPC custom quote command (desktop note projection)
             FieldInfo fActiveProjected = appType.GetField("activeProjectedNote", bf);
             FieldInfo fDailySuspended = appType.GetField("dailyQuoteSuspendedForProjection", bf);
@@ -2795,212 +2652,6 @@ internal static class TestCheck
                 return 59;
             }
             bool isFgVal = (bool)isFgMethod.Invoke(null, null);
-
-            // Verify unified Tab 2 MCP controls in SettingsDialog (Option 1: Zero-modal MCP integration)
-            Type setDialogType = asm.GetType("SettingsDialog");
-            Form mcpSetDlg = (Form)Activator.CreateInstance(setDialogType, new object[] { settings });
-            Label lnkMcpCopy = (Label)setDialogType.GetField("lnkMcpCopyPrompt", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
-            Button btnMcpDemo = (Button)setDialogType.GetField("btnMcpDemo", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
-            Button btnMcpDemoProgress = (Button)setDialogType.GetField("btnMcpDemoProgress", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
-            Button btnMcpDemoNotify = (Button)setDialogType.GetField("btnMcpDemoNotify", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(mcpSetDlg);
-            if (lnkMcpCopy == null || btnMcpDemo == null || btnMcpDemoProgress == null || btnMcpDemoNotify == null)
-            {
-                Console.WriteLine("FAIL: SettingsDialog unified MCP controls missing (expected 3 demo buttons)");
-                mcpSetDlg.Close();
-                return 59;
-            }
-            mcpSetDlg.Show();
-            MethodInfo setTabMethod = setDialogType.GetMethod("SetActiveTab", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Public);
-            if (setTabMethod != null) setTabMethod.Invoke(mcpSetDlg, new object[] { 2 });
-            if (lnkMcpCopy.Visible || !btnMcpDemo.Visible || !btnMcpDemoProgress.Visible || !btnMcpDemoNotify.Visible)
-            {
-                Console.WriteLine("FAIL: SettingsDialog previews should be visible and copy link should stay hidden until setup is needed");
-                mcpSetDlg.Close();
-                return 59;
-            }
-            mcpSetDlg.Close();
-
-            // Verify McpConfigHelper type and lossless JSON merge/remove
-            Type mcpHelperType = asm.GetType("McpConfigHelper");
-            if (mcpHelperType == null)
-            {
-                Console.WriteLine("FAIL: McpConfigHelper type missing in iClock");
-                return 59;
-            }
-            MethodInfo genSnippet = mcpHelperType.GetMethod("GenerateJsonSnippet", BindingFlags.Public | BindingFlags.Static);
-            string snippetAbs = (string)genSnippet.Invoke(null, new object[] { true });
-            string snippetRel = (string)genSnippet.Invoke(null, new object[] { false });
-            if (!snippetAbs.Contains("iclock") || !snippetRel.Contains("\"command\": \"iclock\""))
-            {
-                Console.WriteLine("FAIL: GenerateJsonSnippet output invalid");
-                return 59;
-            }
-
-            MethodInfo genPrompt = mcpHelperType.GetMethod("GenerateAgentPrompt", BindingFlags.Public | BindingFlags.Static);
-            if (genPrompt == null)
-            {
-                Console.WriteLine("FAIL: GenerateAgentPrompt method missing");
-                return 59;
-            }
-            string promptZh = (string)genPrompt.Invoke(null, new object[] { false });
-            string promptEn = (string)genPrompt.Invoke(null, new object[] { true });
-            if (!promptZh.Contains("iclock_ask_human") || !promptZh.Contains("iclock_notify") || !promptZh.Contains("iclock_quote") ||
-                !promptEn.Contains("iclock_ask_human") || !promptEn.Contains("iclock_notify") || !promptEn.Contains("iclock_quote"))
-            {
-                Console.WriteLine("FAIL: GenerateAgentPrompt content missing core tools");
-                return 59;
-            }
-
-            // Config-file probing was removed: connection state now comes from the pipe only.
-            if (mcpHelperType.GetMethod("GetConfigPathForAgent") != null ||
-                mcpHelperType.GetMethod("IsConfigured") != null ||
-                mcpHelperType.GetMethod("IsAgentMcpConfigured") != null ||
-                mcpHelperType.GetMethod("GetKnownAgents") != null ||
-                mcpHelperType.GetMethod("Inject") != null || mcpHelperType.GetMethod("Remove") != null)
-            {
-                Console.WriteLine("FAIL: McpConfigHelper should no longer expose config-file probing methods");
-                return 59;
-            }
-
-            // Verify iClock.exe --mcp-config output
-            ProcessStartInfo cfgPsi = new ProcessStartInfo
-            {
-                FileName = mcpBinary,
-                Arguments = "--mcp-config",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
-            using (Process cfgProc = Process.Start(cfgPsi))
-            {
-                string cfgOut = cfgProc.StandardOutput.ReadToEnd();
-                cfgProc.WaitForExit(1000);
-                if (!cfgOut.Contains("\"mcpServers\"") || !cfgOut.Contains("\"iclock\"") || !cfgOut.Contains("\"--mcp\""))
-                {
-                    Console.WriteLine("FAIL: iClock.exe --mcp-config output invalid: " + cfgOut);
-                    return 59;
-                }
-            }
-
-            // Verify iClock.exe --mcp-prompt output
-            ProcessStartInfo promptPsi = new ProcessStartInfo
-            {
-                FileName = mcpBinary,
-                Arguments = "--mcp-prompt",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
-            using (Process promptProc = Process.Start(promptPsi))
-            {
-                string promptOut = promptProc.StandardOutput.ReadToEnd();
-                promptProc.WaitForExit(1000);
-                if (!promptOut.Contains("iclock_ask_human") || !promptOut.Contains("iclock_notify") || !promptOut.Contains("iclock_quote"))
-                {
-                    Console.WriteLine("FAIL: iClock.exe --mcp-prompt output invalid: " + promptOut);
-                    return 59;
-                }
-            }
-
-            // Verify iClock.exe --ask CLI dispatch
-            ProcessStartInfo askPsi = new ProcessStartInfo
-            {
-                FileName = mcpBinary,
-                Arguments = "--ask",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true
-            };
-            using (Process askProc = Process.Start(askPsi))
-            {
-                string askErr = askProc.StandardError.ReadToEnd();
-                askProc.WaitForExit(1500);
-                if (askProc.ExitCode != 1 || !askErr.Contains("Usage: iclock --ask"))
-                {
-                    Console.WriteLine("FAIL: iClock.exe --ask CLI usage output invalid (ExitCode=" + askProc.ExitCode + ", Err=" + askErr + ")");
-                    return 59;
-                }
-            }
-
-            Console.WriteLine("PASS: Single-file MCP Bridge (iClock.exe --mcp + Named Pipe), concurrent tools, ask_human cancellation, Unified Tab 2 MCP Integration, McpConfigHelper, --mcp-config, --mcp-prompt, and --ask CLI verified.");
-
-            // 42. Verify MCP Silent Connection Handshake and Prompt-Driven iclock_notify Verification
-            MethodInfo handleIpcMethod = appType.GetMethod("HandleIpcCommand", bf);
-            if (handleIpcMethod == null)
-            {
-                Console.WriteLine("FAIL: AppContext missing HandleIpcCommand method");
-                return 60;
-            }
-
-            // Verify HandleIpcCommand handles silent mcp-connected handshake gracefully without crashing
-            try
-            {
-                handleIpcMethod.Invoke(app, new object[] { "mcp-connected Antigravity" });
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("FAIL: HandleIpcCommand failed on mcp-connected: " + ex.Message);
-                return 60;
-            }
-
-            // Verify McpToastDialog class has been completely removed (zero intrusive popup clutter)
-            Type toastType = asm.GetType("McpToastDialog");
-            if (toastType != null)
-            {
-                Console.WriteLine("FAIL: McpToastDialog should be removed, but type still exists");
-                return 60;
-            }
-
-            // Verify McpNotifiedClients field has been eliminated from Settings
-            FieldInfo mcpNotifiedField = settingsType.GetField("McpNotifiedClients");
-            if (mcpNotifiedField != null)
-            {
-                Console.WriteLine("FAIL: Settings still contains obsolete McpNotifiedClients field");
-                return 60;
-            }
-
-            // Verify McpConfigHelper.GenerateAgentPrompt contains reload instruction and iclock_notify verification protocol
-            MethodInfo promptMethod = mcpHelperType.GetMethod("GenerateAgentPrompt", BindingFlags.Public | BindingFlags.Static);
-            if (promptMethod == null)
-            {
-                Console.WriteLine("FAIL: McpConfigHelper missing GenerateAgentPrompt method");
-                return 60;
-            }
-
-            string zhPrompt = (string)promptMethod.Invoke(null, new object[] { false });
-            if (!zhPrompt.Contains("重载窗口") || !zhPrompt.Contains("iclock_notify") || !zhPrompt.Contains("验证桌面联通性"))
-            {
-                Console.WriteLine("FAIL: zhPrompt missing reload or iclock_notify verification: " + zhPrompt);
-                return 60;
-            }
-
-            string enPrompt = (string)promptMethod.Invoke(null, new object[] { true });
-            if (!enPrompt.Contains("reload the window") || !enPrompt.Contains("iclock_notify") || !enPrompt.Contains("verify connectivity"))
-            {
-                Console.WriteLine("FAIL: enPrompt missing reload or iclock_notify verification: " + enPrompt);
-                return 60;
-            }
-
-            // Verify CLI client name normalization
-            Type bridgeType = asm.GetType("McpBridge");
-            if (bridgeType != null)
-            {
-                MethodInfo normMethod = bridgeType.GetMethod("NormalizeClientName", BindingFlags.NonPublic | BindingFlags.Static);
-                if (normMethod != null)
-                {
-                    if ((string)normMethod.Invoke(null, new object[] { "antigravity" }) != "Antigravity" ||
-                        (string)normMethod.Invoke(null, new object[] { "cursor-server" }) != "Cursor" ||
-                        (string)normMethod.Invoke(null, new object[] { "claude desktop" }) != "Claude Code" ||
-                        (string)normMethod.Invoke(null, new object[] { "code" }) != "VS Code")
-                    {
-                        Console.WriteLine("FAIL: McpBridge.NormalizeClientName produced unexpected results");
-                        return 60;
-                    }
-                }
-            }
-
-            Console.WriteLine("PASS: MCP silent connection handshake, zero intrusive popups, and prompt-driven iclock_notify verification protocol verified.");
 
             // 43. Verify AI Agent Quote Expansion: Settings (AiAgentType, AiAgentCustomCmd, AiQuoteKeywords persistence & defaults), SettingsDialog side-by-side buttons (btnEditQuotes & btnAiQuotes layout and width), AiAgentQuoteHelper (ParseQuotes formatting, deduplication, safe append with .bak creation), and AiQuoteDialog instantiation.
             FieldInfo fAiAgentType = settingsType.GetField("AiAgentType");
@@ -3189,10 +2840,10 @@ internal static class TestCheck
             // Verify AiAgentQuoteHelper GetKeywords and BuildPrompt
             MethodInfo mGetKeywords = helperType.GetMethod("GetKeywords", BindingFlags.NonPublic | BindingFlags.Static);
             MethodInfo mBuildPrompt = helperType.GetMethod("BuildPrompt", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(List<string>), typeof(string) }, null);
-            MethodInfo mBuildMcpPrompt = helperType.GetMethod("BuildMcpPrompt", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(List<string>), typeof(string) }, null);
-            if (mGetKeywords == null || mBuildPrompt == null || mBuildMcpPrompt == null)
+            MethodInfo mBuildAgentPrompt = helperType.GetMethod("BuildAgentPrompt", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(List<string>), typeof(string) }, null);
+            if (mGetKeywords == null || mBuildPrompt == null || mBuildAgentPrompt == null)
             {
-                Console.WriteLine("FAIL: AiAgentQuoteHelper GetKeywords, BuildPrompt, or BuildMcpPrompt method missing");
+                Console.WriteLine("FAIL: AiAgentQuoteHelper GetKeywords, BuildPrompt, or BuildAgentPrompt method missing");
                 return 61;
             }
             List<string> defaultTagsZh = (List<string>)mGetKeywords.Invoke(null, new object[] { settings });
@@ -3207,10 +2858,10 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: BuildPrompt did not include custom tags and 30 quotes request: " + generatedPrompt);
                 return 61;
             }
-            string generatedMcpPrompt = (string)mBuildMcpPrompt.Invoke(null, new object[] { new List<string> { "知行合一", "松弛感" }, "zh" });
-            if (!generatedMcpPrompt.Contains("30") || !generatedMcpPrompt.Contains("iclock_quote") || !generatedMcpPrompt.Contains("add"))
+            string generatedAgentPrompt = (string)mBuildAgentPrompt.Invoke(null, new object[] { new List<string> { "知行合一", "松弛感" }, "zh" });
+            if (!generatedAgentPrompt.Contains("30") || !generatedAgentPrompt.Contains("--quote-add") || !generatedAgentPrompt.Contains("add"))
             {
-                Console.WriteLine("FAIL: BuildMcpPrompt did not include 30 quotes and iclock_quote tool call instruction: " + generatedMcpPrompt);
+                Console.WriteLine("FAIL: BuildAgentPrompt did not include 30 quotes and CLI quote import instruction: " + generatedAgentPrompt);
                 return 61;
             }
 
@@ -3272,7 +2923,7 @@ internal static class TestCheck
             bool antigravityHasCli = (bool)mHasCli.Invoke(null, new object[] { "Antigravity" });
             if (antigravityHasCli)
             {
-                Console.WriteLine("FAIL: Antigravity should not be identified as CLI (it is an IDE MCP agent)");
+                Console.WriteLine("FAIL: Antigravity should not be identified as CLI (it is an IDE IDE agent)");
                 return 61;
             }
 
@@ -3370,19 +3021,6 @@ internal static class TestCheck
         }
         finally
         {
-            if (mcpGuiProc != null)
-            {
-                try
-                {
-                    if (!mcpGuiProc.HasExited)
-                    {
-                        mcpGuiProc.Kill();
-                        mcpGuiProc.WaitForExit(2000);
-                    }
-                }
-                catch { }
-                try { mcpGuiProc.Dispose(); } catch { }
-            }
             if (iniBackup != null)
             {
                 try { System.IO.File.WriteAllText(iniPath, iniBackup); } catch { }

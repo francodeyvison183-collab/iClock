@@ -9,8 +9,8 @@
 
 iClock is an ultra-lightweight (300 KB), open-source Windows native desktop productivity hub. It combines three core features into a single portable binary without third-party dependencies:
 1. **The Minimalist Focus Timer**: Native 32-bit ARGB rendered countdown with true `WS_EX_TRANSPARENT` mouse click-through, global hotkeys, direct `Alt + Drag` repositioning, and tiered alerts with auto-fullscreen DND suppression.
-2. **Ambient Desktop Inspiration**: Morning wake-up quotes with 0-polling hibernation (0.0% CPU idle), direct desktop micro-interactions (drag position, resize width, scale font size), and AI agent / MCP batch expansion with deduplication.
-3. **AI Agent Collaboration & Native MCP Server**: Automated task completion monitoring for 20+ programming agents (Cursor, Claude Code, Trae, Antigravity, etc.) via a 4-tier perception engine, plus a built-in native stdio Model Context Protocol (MCP) bridge (`iClock.exe --mcp`) providing 6 tools including `iclock_ask_human` (Desktop Human-in-the-Loop Decision Gate).
+2. **Ambient Desktop Inspiration**: Morning wake-up quotes with 0-polling hibernation (0.0% CPU idle), direct desktop micro-interactions (drag position, resize width, scale font size), and CLI import of AI-generated quote batches with deduplication.
+3. **AI Agent Collaboration through CLI**: Automated task completion monitoring for supported programming agents, plus CLI commands for desktop decisions (`--ask`), progress (`--progress`), completion alerts (`--notice`), and structured JSON results (`--json`).
 
 ---
 
@@ -18,44 +18,31 @@ iClock is an ultra-lightweight (300 KB), open-source Windows native desktop prod
 
 | Parameter | Specification | Notes |
 | :--- | :--- | :--- |
-| **Executable Size** | 307,712 bytes (~300 KB) | Single portable PE binary |
+| **Executable Size** | 272,384 bytes (~266 KB) | Single portable PE binary |
 | **Runtime Requirement** | .NET Framework 4.5+ | Pre-installed on all Windows 10 & 11 PCs |
 | **Active Memory (RAM)** | < 15 MB | Low GC pressure, cached GDI handles |
 | **Idle CPU Consumption** | 0.0% | Dynamic heartbeat alignment + pure event-driven message handling |
 | **Rendering Subsystem** | GDI+ & UpdateLayeredWindow | Subpixel anti-aliasing with adaptive drop shadow |
 | **Input Pass-Through** | WS_EX_LAYERED \| WS_EX_TRANSPARENT | 100% mouse click-through; never steals focus |
 | **IPC Pipeline** | Win32 WM_COPYDATA | 0ms latency inter-process control |
-| **MCP Protocol** | Anthropic Model Context Protocol (JSON-RPC 2.0) | Native stdio bridge (`iClock.exe --mcp`) |
+| **Desktop Collaboration** | Local CLI commands | Structured JSON responses (`--json`) |
 | **Author & Maintainer** | gujiangwen (`francodeyvison183@gmail.com`) | 100% open-source under MIT License |
 
 ---
 
-## 3. Native Model Context Protocol (MCP) Specification
+## 3. AI Agent CLI Collaboration
 
-iClock implements the MCP endpoint in the same `iClock.exe` artifact as the GUI. Running `iClock.exe --mcp` starts a stdio bridge that connects to the GUI over the `iClock.McpBridge.v1` Named Pipe; it starts the GUI automatically if no desktop process is available. It requires zero Node.js, Python, or npm dependencies.
+Run `iclock --install-cli` to add iClock to User PATH. The agent can then invoke local desktop capabilities through the CLI:
 
-The stdio loop remains responsive while tool calls execute on the .NET thread pool. Each pipe client has a background reader thread, GUI updates are marshalled onto the WinForms thread, and a shared stdout lock prevents concurrent JSON-RPC responses from interleaving.
+```powershell
+iclock --ask "Continue deployment?" --options "Continue,Cancel" --json
+iclock --progress 3/5 "Running tests" --agent-name "Codex" --json
+iclock --progress clear --agent-name "Codex" --json
+iclock --notice "Task completed" --agent-name "Codex" --json
+iclock --quote-add "quotes.txt" --json
+```
 
-### Tools Exposed to AI Agents:
-1. `iclock_ask_human`:
-   - Description: Pops up a native top-most modal dialog on the user's desktop to request human authorization and input for critical or dangerous actions.
-   - Arguments: `action` ("ask" | "cancel", optional), `question` (string, required for ask), `options` (array of strings, optional), `timeout_seconds` (integer, optional), `background_only` (boolean, optional), `agent_name` (string, optional).
-2. `iclock_progress`:
-   - Description: Projects task step and progress onto the floating clock HUD.
-   - Arguments: `progress` (string, required; percentage, fraction, or `clear`), `message` (string, optional).
-3. `iclock_timer`:
-   - Description: Controls the floating countdown timer.
-   - Arguments: `action` ("start", "pause", "resume", "reset", required), `minutes` (integer, optional), `label` (string, optional).
-4. `iclock_notify`:
-   - Description: Triggers a desktop notification (modal top-most alert or in-place breathing pulse) with optional chime.
-   - Arguments: `message` (string, required), `sound` ("agent" | "doorbell" | "telephone" | "qq" | "knock" | "alarm" | "none", optional), `agent_name` (string, optional).
-5. `iclock_quote`:
-   - Description: Queries the current daily quote or rotates to a new quote.
-   - Arguments: `action` ("show" | "add" | "next" | "clear" | "hide", optional), `text` (string, optional), `author` (string, optional), `agent_name` (string, optional), `quotes` (array of strings, optional).
-6. `iclock_status`:
-   - Description: Returns current timer state (remaining seconds, format, agent monitor state).
-
----
+The commands send messages over local Win32 `WM_COPYDATA` IPC to the running desktop app. `--agent-name` keeps concurrent task rows distinct. Old agent MCP configuration is not edited automatically; remove obsolete `iclock` entries manually. The MCP server is no longer included.
 
 ## 4. Download & Installation Options
 
@@ -91,5 +78,5 @@ A: By default, pressing `Ctrl + Shift + T` globally starts or pauses the countdo
 ### Q: Does ambient desktop quote display drain laptop battery?
 A: No. iClock uses a pure event-driven message handling architecture without background cursor polling loops (0-Polling). Idle CPU consumption is strictly 0.0%, preserving laptop battery life.
 
-### Q: Which AI agents are supported by the native MCP server?
-A: Any agent client supporting Anthropic's Model Context Protocol (Claude Desktop, Cursor, Windsurf, Antigravity, etc.) can connect via stdio (`iClock.exe --mcp`).
+### Q: How can an AI agent use desktop collaboration?
+A: Any agent that can execute local CLI commands can use `--ask`, `--progress`, `--notice`, and `--quote-add`. Add `--json` for structured results.

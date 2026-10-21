@@ -3,18 +3,17 @@
 # <img src="docs/icon-64.png" width="36" height="36" style="vertical-align: -6px;" alt="iClock Logo" /> iClock
 
 ### Ultra-Lightweight (300 KB) Windows Native Productivity Hub
-**⏱ Transparent Floating Timer · 💬 Ambient Daily Quotes · 🤖 AI Agent Monitor & Native MCP Server**
+**⏱ Transparent Floating Timer · 💬 Ambient Daily Quotes · 🤖 AI Agent Monitor & CLI Collaboration**
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Size](https://img.shields.io/badge/Size-275%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
-[![MCP Protocol](https://img.shields.io/badge/MCP-Native%20Stdio-8A2BE2)](https://github.com/francodeyvison183-collab/iClock)
 [![Author](https://img.shields.io/badge/Author-gujiangwen-blue.svg)](mailto:francodeyvison183@gmail.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>Single 300 KB Binary · RAM &lt; 15 MB · 0.0% CPU Idle · Full Mouse Click-Through · Zero-Polling Daily Quotes · Native MCP Agent Hub</b>
+  <b>Single 300 KB Binary · RAM &lt; 15 MB · 0.0% CPU Idle · Full Mouse Click-Through · Zero-Polling Daily Quotes · CLI Agent Collaboration</b>
 </p>
 
 <p align="center">
@@ -36,7 +35,7 @@
 
 Desktop tools often fall into two extremes: either crude and single-purpose, or bloated **100MB+** Electron packages that continuously consume CPU and hundreds of megabytes of RAM, often bundled with telemetry or ads, while their opaque windows obstruct your code and web workspace.
 
-**iClock adheres to extreme engineering minimalism**: built on Windows native Win32 and GDI+ APIs with zero external runtimes or dependencies, packing a **300 KB** standalone executable with an active RAM footprint under **15 MB**. It is not merely a click-through desktop countdown timer, but a cohesive productivity hub integrating **zero-polling ambient daily quotes** and **native Model Context Protocol (MCP) agent collaboration**.
+**iClock adheres to extreme engineering minimalism**: built on Windows native Win32 and GDI+ APIs with zero external runtimes or dependencies, packing a **300 KB** standalone executable with an active RAM footprint under **15 MB**. It is not merely a click-through desktop countdown timer, but a cohesive productivity hub integrating **zero-polling ambient daily quotes** and **CLI-driven desktop collaboration for AI agents**.
 
 ---
 
@@ -52,18 +51,12 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 * 🌅 **Morning Unlock & Desktop Pinning**: Gracefully fades in centered upon morning system unlock; pin to wallpaper or leave floating permanently.
 * ⚡ **0-Polling Hibernation Architecture**: Engineered around Windows native event messages without background cursor polling loops: consumes **0 wakeups and 0.0% CPU** while idling on your desktop.
 * 🎨 **Direct Desktop Micro-Interactions**: **Hold `Alt` + drag** quote text to reposition, drag the right edge to adjust wrap width, and use **`Alt + Ctrl + Wheel` to scale font size**; double-click to skip to the next quote.
-* 📚 **Offline Library & AI Expansion**: Includes 300+ bilingual curated quotes and notepad editing for `quotes.txt`. In Settings, trigger your local AI Agent / MCP to **batch-generate 30 new quotes** with automatic deduplication and safe `quotes.txt.bak` backup.
+* 📚 **Offline Library & AI Expansion**: Includes 300+ bilingual curated quotes and notepad editing for `quotes.txt`. In Settings, trigger your local AI agent to generate a quote file, then import it through the CLI with automatic deduplication and safe `quotes.txt.bak` backup.
 
-### 3. 🤖 AI Agent Collaboration & Native MCP Server
+### 3. 🤖 AI Agent CLI Collaboration
 * 👁 **20+ Programming Agents Monitored**: Automated perception for Cursor, Antigravity, Claude Code, GitHub Copilot, Windsurf, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, Aider, and more. A 4-tier perception matrix (Toast hooks, `HSHELL_FLASH` window flashing, title scanning, process lifecycle) delivers **0ms instant alert** upon task completion with 1-click window restore.
-* 🔌 **Built-in Native stdio MCP Server (`iClock.exe --mcp`)**: The GUI and MCP bridge share one executable. The bridge connects to the desktop process over a local Named Pipe and starts the GUI automatically when needed. It implements Anthropic Model Context Protocol JSON-RPC 2.0 without Node.js or Python dependencies and provides 6 tools:
-  - `iclock_ask_human`: **Desktop Decision Gate (Human-in-the-Loop)**. When an AI agent performs dangerous actions (e.g. deleting files, irreversible script execution, production deploy), it triggers a native modal on your desktop to request human authorization and input;
-  - `iclock_progress`: **Multi-agent task status card**. Progress and status appear together; the card sits below the countdown or stands alone when no countdown is running. Each agent has its own row, and `clear` removes only the caller's row (`agent_name` distinguishes parallel agents sharing an MCP client);
-  - `iclock_timer`: Agent sets, queries, and controls countdown timers autonomously;
-  - `iclock_notify`: Agent triggers desktop top-most popups, breathing pulses, and chimes upon task milestones;
-  - `iclock_quote`: Agent updates its task status text, or reads and rotates desktop motivational quotes;
-  - `iclock_status`: Agent queries runtime system and timer status.
-* 💻 **Command Line & Script Automation (CLI & IPC Pipeline)**: Powered by `WM_COPYDATA` IPC with 0ms overhead. Run `iclock --install-cli` once to add iClock to User PATH and call globally without `.exe` (just like `claude` or `git`); integrate with build scripts (`npm run build && iclock -n "Build Succeeded"`).
+* 💻 **Structured CLI Desktop Collaboration**: Agents use `--ask` for human decisions, `--progress` for task status, and `--notice` for completion alerts. Add `--json` for machine-readable results. `--agent-name` distinguishes parallel agents; `--quote-add` imports AI-generated quotes.
+* 🔗 **Lightweight IPC & Script Automation**: `WM_COPYDATA` sends commands to the running iClock instance. Run `iclock --install-cli` to add the executable directory to User PATH for agents, CI/CD, and scripts.
 
 ---
 
@@ -75,7 +68,7 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 | **Memory (RAM)** | ⚡ **~15 MB** (Physical baseline) | 150 MB ~ 300 MB | ~30 MB | 80 MB ~ 200 MB (Browser tab) |
 | **CPU Usage** | ⚡ **0.0%** (Heartbeat aligned) | 0.5% ~ 3.0% (Polling) | 0.0% | 0.3% ~ 1.5% |
 | **Interaction** | ⚡ **Full click-through, borderless** | Solid window blocking view | Minimized or full window | Must switch tab to view |
-| **Native MCP** | ⚡ **Built-in stdio Server (6 tools)** | ❌ None | ❌ None | ❌ None |
+| **Agent Desktop Collaboration** | ⚡ **CLI + structured JSON** | ❌ None | ❌ None | ❌ None |
 | **AI Agent Monitor**| ⚡ **20+ coding agents supported** | ❌ None | ❌ None | ❌ None |
 | **Desktop Quotes** | ⚡ **0-Polling + AI expansion** | ❌ None | ❌ None | ❌ In-page only |
 | **Network Traffic**| ⚡ **0 network calls, 100% offline** | Telemetry / Update checks | Microsoft account sync | Cloud telemetry |
@@ -105,38 +98,19 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 
 ---
 
-## 🔌 30-Second Setup for Claude Desktop / Cursor (Native MCP)
+## 🤖 AI Agent CLI Collaboration
 
-iClock includes a native stdio MCP bridge (`iClock.exe --mcp`) that requires no Node.js or Python runtime. The GUI and bridge use the same executable; the bridge talks to the running desktop process over a local Named Pipe and starts it automatically if necessary.
+Copy the CLI collaboration instructions from **Settings → AI Collaboration** and give them to your agent. Run `iclock --install-cli` first to configure PATH. The agent can then use the following desktop capabilities; `--json` returns structured results:
 
-### 1. Claude Desktop
-Edit `%APPDATA%\Claude\claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "iclock": {
-      "command": "C:\\Path\\To\\iClock\\iClock.exe",
-      "args": ["--mcp"]
-    }
-  }
-}
+```powershell
+iclock --ask "Continue deployment?" --options "Continue,Cancel" --json
+iclock --progress 3/5 "Running tests" --agent-name "Codex" --json
+iclock --progress clear --agent-name "Codex" --json
+iclock --notice "Task completed" --agent-name "Codex" --json
+iclock --quote-add "quotes.txt" --json
 ```
 
-### 2. Cursor / Windsurf
-Add to `.cursor/mcp.json` or through settings:
-```json
-{
-  "mcpServers": {
-    "iclock": {
-      "command": "C:/Path/To/iClock/iClock.exe",
-      "args": ["--mcp"]
-    }
-  }
-}
-```
-
-### 3. One-Click Prompt Setup
-In iClock Settings ➔ **AI Collaboration**, click **`[ Copy Prompt ]`** to let your AI agent configure its own connection autonomously!
+Existing agent MCP configuration is not changed automatically. Remove any old `iclock` service entry manually from the relevant agent settings; legacy `--mcp` arguments are disabled.
 
 ---
 
@@ -193,15 +167,15 @@ iclock -s 50
 
 ## ❓ Frequently Asked Questions (FAQ)
 
-* **Q: Why doesn't it block mouse clicks while gaming or coding?**  
+* **Q: Why doesn't it block mouse clicks while gaming or coding?**
   **A**: iClock leverages the native Windows `WS_EX_TRANSPARENT` style. Digits render TopMost above all windows, but all mouse clicks and scroll events pass through directly to underlying games, IDEs, and browser tabs.
 * **Q: Why is the file size only 300 KB?**
   **A**: Pure native C# WinForms and GDI+ rendering. Zero Electron, zero Chromium runtime, zero bulky third-party DLLs. Memory stays strictly below 15 MB.
-* **Q: Does desktop quote hibernation consume laptop battery?**  
+* **Q: Does desktop quote hibernation consume laptop battery?**
   **A**: No. It relies purely on Windows native event messages (0-Polling). Idle CPU consumption is 0.0%, preserving battery life.
-* **Q: Which agents are supported by the native MCP server?**  
-  **A**: Any tool supporting Anthropic's Model Context Protocol (Claude Desktop, Cursor, Windsurf, Antigravity, etc.), plus any command-line agent via CLI IPC.
-* **Q: Is iClock secure and ad-free?**  
+* **Q: How can an agent use desktop collaboration?**
+  **A**: Any agent that can run local CLI commands can use `--ask`, `--progress`, and `--notice`; `--json` returns machine-readable results.
+* **Q: Is iClock secure and ad-free?**
   **A**: 100% open source under the MIT License. Zero ads, zero bundled software, zero background telemetry. See [PRIVACY.md](docs/PRIVACY.md).
 
 ---

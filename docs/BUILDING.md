@@ -16,7 +16,7 @@ From the repository root in PowerShell:
 .\build.ps1
 ```
 
-The script compiles `src/iClock.cs` as a Windows GUI executable and writes `dist/iClock.exe`. The same executable also runs the stdio MCP bridge when launched with `--mcp`; no separate CLI shim is built. The output directory is ignored by Git. The executable targets the .NET Framework v4 runtime and references framework assemblies only, including `System.Windows.Forms.dll`, `System.Drawing.dll`, `System.Runtime.WindowsRuntime.dll`, `System.Core.dll`, and `System.Web.Extensions.dll`.
+The script compiles `src/iClock.cs` as a Windows GUI executable and writes `dist/iClock.exe`. The executable also handles local CLI collaboration commands through the running GUI instance; no separate CLI shim is built. The output directory is ignored by Git. The executable targets the .NET Framework v4 runtime and references framework assemblies only, including `System.Windows.Forms.dll`, `System.Drawing.dll`, `System.Runtime.WindowsRuntime.dll`, `System.Core.dll`, and `System.Web.Extensions.dll`.
 
 Equivalent compiler invocation:
 

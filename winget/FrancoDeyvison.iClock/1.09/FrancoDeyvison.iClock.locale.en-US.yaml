@@ -11,16 +11,15 @@ PackageUrl: https://francodeyvison183-collab.github.io/iClock/
 License: MIT
 LicenseUrl: https://github.com/francodeyvison183-collab/iClock/blob/main/LICENSE
 Copyright: Copyright (c) 2026 iClock Project
-ShortDescription: Ultra-lightweight (275 KB), zero-dependency, click-through desktop countdown timer and AI agent monitor for Windows.
+ShortDescription: Ultra-lightweight (275 KB) Windows timer, daily quotes, AI agent monitor, and CLI-based desktop collaboration tool.
 Description: |
-  iClock is a pure, minimalist desktop floating countdown tool, daily quotes and AI agent completion monitor for Windows.
+  iClock is a minimalist Windows desktop timer with daily quotes, AI agent completion monitoring, and CLI-based desktop collaboration.
   Features:
   - 275 KB single portable binary with zero external dependencies
   - Topmost and mouse click-through support
   - Global hotkey toggle (Ctrl+Shift+T by default)
+  - AI agents can request decisions, show progress, and send completion alerts through the CLI with structured JSON responses
   - Memory footprint under 15 MB
-  - Desktop Daily Quotes with AI MCP expansion and 0-polling background hibernation
-  - Native stdio Model Context Protocol (MCP) server with iclock_ask_human
   - Background AI Agent task completion alerts (Cursor, Antigravity, Claude Code, Trae, etc.)
   - 100% green, portable, and ad-free
 Tags:
@@ -32,7 +31,6 @@ Tags:
   - desktop-tool
   - click-through
   - ai-agent
-  - mcp
 ReleaseNotesUrl: https://github.com/francodeyvison183-collab/iClock/releases/tag/v1.09
 ManifestType: defaultLocale
 ManifestVersion: 1.6.0

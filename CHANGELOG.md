@@ -2,6 +2,12 @@
 
 This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY-MM-DD`).
 
+## [Unreleased]
+
+### Removed
+
+- Removed the iClock MCP server and its agent-side tool/configuration workflow. Desktop collaboration is available through CLI commands with structured `--json` responses. Existing agent MCP entries are not migrated or deleted automatically.
+
 ## [1.09] - 2026-10-19
 
 ### Fixed
