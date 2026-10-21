@@ -2513,6 +2513,29 @@ internal static class TestCheck
                     return 59;
                 }
 
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":14,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_progress\",\"arguments\":{\"progress\":\"2/4\",\"message\":\"Parallel task\",\"agent_name\":\"Agent B\"}}}");
+                string mcpProgressB;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 14, out mcpProgressB) || !mcpProgressB.Contains("\"isError\":false"))
+                {
+                    Console.WriteLine("FAIL: MCP second agent progress call failed: " + mcpProgressB);
+                    return 59;
+                }
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":15,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_progress\",\"arguments\":{\"progress\":\"clear\",\"agent_name\":\"Agent B\"}}}");
+                string mcpClearB;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 15, out mcpClearB) || !mcpClearB.Contains("\"isError\":false"))
+                {
+                    Console.WriteLine("FAIL: MCP clearing second agent failed: " + mcpClearB);
+                    return 59;
+                }
+                mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":16,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_status\",\"arguments\":{}}}");
+                string mcpStatusAfterClearB;
+                if (!ReadMcpResponse(mcpProc.StandardOutput, 16, out mcpStatusAfterClearB) ||
+                    !mcpStatusAfterClearB.Contains("test-runner") || mcpStatusAfterClearB.Contains("Agent B"))
+                {
+                    Console.WriteLine("FAIL: Clearing one agent removed or retained the wrong task row: " + mcpStatusAfterClearB);
+                    return 59;
+                }
+
                 mcpProc.StandardInput.WriteLine("{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tools/call\",\"params\":{\"name\":\"iclock_timer\",\"arguments\":{\"action\":\"start\",\"minutes\":7,\"label\":\"SelfCheck\"}}}");
                 string mcpTimer;
                 if (!ReadMcpResponse(mcpProc.StandardOutput, 8, out mcpTimer) ||

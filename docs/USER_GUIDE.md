@@ -195,10 +195,10 @@ iClock 采用 **单页直达·零弹窗·即改即存** 的一体化设计，所
 | Tool Name / 工具名 | Parameters / 参数 | Description / 核心价值 |
 | :--- | :--- | :--- |
 | **`iclock_ask_human`** *(Killer Feature)* | `question` (string, required)<br>`options` (string[], optional)<br>`timeout_seconds` (int, default: 0)<br>`background_only` (bool, default: false) | **决策请示门禁 (Human-in-the-Loop)**：在用户屏幕中央唤起高优先级 Fluent 交互卡片，等待用户按键选择或输入。适合智能体在执行高风险命令（部署、删除库表、付费 API、冲突合并）前获取人类审批。默认永不超时、无倒计时催促，直到用户主动确认或按 Esc 取消。 |
-| **`iclock_progress`** | `progress` (string, required, e.g. "45" or "clear")<br>`message` (string, optional) | **态势感知发丝进度条 (Ghost Progress Meter)**：在桌面悬浮时钟底部投射 2px 极细发丝进度条，支持实时步骤文本悬停查看。任务完成一键 clear 清除。 |
+| **`iclock_progress`** | `progress` (string, required, e.g. "45" or "clear")<br>`message` (string, optional)<br>`agent_name` (string, optional) | **多智能体任务状态卡**：进度条与当前步骤文字在同一行；倒计时运行时显示在时钟下方，无倒计时时独立显示。每个智能体独立占一行，`clear` 只清除自己的行；同一 MCP 客户端内并行时用相同的 `agent_name` 更新和清除。 |
 | **`iclock_timer`** | `action` ("start"\|"pause"\|"resume"\|"reset")<br>`minutes` (int, default: 25)<br>`message` (string, optional) | **倒计时协同 (Timer Sync)**：智能体联动番茄钟，根据工作节奏自动启停倒计时或推送休息提示。 |
 | **`iclock_notify`** | `message` (string, required)<br>`sound` (bool, default: true) | **任务完成强提醒 (Task Notification)**：智能体长任务完成时在屏幕弹出置顶提醒卡片，播放提示音，将注意力拉回工作台。 |
-| **`iclock_quote`** | `text` (string, required)<br>`author` (string, optional) | **桌面状态投射 (Desktop Status HUD)**：智能体在用户桌面上投射当前任务、阶段进展、思考摘要或工作便签。 |
+| **`iclock_quote`** | `text` (string, optional)<br>`author` (string, optional)<br>`agent_name` (string, optional) | **桌面状态文字**：更新任务状态卡中当前智能体对应行的状态文字；也可轮换或扩充桌面格言。 |
 | **`iclock_status`** | *(none)* | **桌面状态感知**：实时读取当前倒计时运行状态、剩余秒数与设定时长，帮助智能体智能避开用户专注高潮。 |
 
 ### `iclock_ask_human` 交互体验亮点

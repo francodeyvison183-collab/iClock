@@ -58,9 +58,10 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 * 👁 **20+ Programming Agents Monitored**: Automated perception for Cursor, Antigravity, Claude Code, GitHub Copilot, Windsurf, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, Aider, and more. A 4-tier perception matrix (Toast hooks, `HSHELL_FLASH` window flashing, title scanning, process lifecycle) delivers **0ms instant alert** upon task completion with 1-click window restore.
 * 🔌 **Built-in Native stdio MCP Server (`iClock.exe --mcp`)**: The GUI and MCP bridge share one executable. The bridge connects to the desktop process over a local Named Pipe and starts the GUI automatically when needed. It implements Anthropic Model Context Protocol JSON-RPC 2.0 without Node.js or Python dependencies and provides 6 tools:
   - `iclock_ask_human`: **Desktop Decision Gate (Human-in-the-Loop)**. When an AI agent performs dangerous actions (e.g. deleting files, irreversible script execution, production deploy), it triggers a native modal on your desktop to request human authorization and input;
+  - `iclock_progress`: **Multi-agent task status card**. Progress and status appear together; the card sits below the countdown or stands alone when no countdown is running. Each agent has its own row, and `clear` removes only the caller's row (`agent_name` distinguishes parallel agents sharing an MCP client);
   - `iclock_timer`: Agent sets, queries, and controls countdown timers autonomously;
   - `iclock_notify`: Agent triggers desktop top-most popups, breathing pulses, and chimes upon task milestones;
-  - `iclock_quote`: Agent reads or rotates desktop motivational quotes;
+  - `iclock_quote`: Agent updates its task status text, or reads and rotates desktop motivational quotes;
   - `iclock_status`: Agent queries runtime system and timer status.
 * 💻 **Command Line & Script Automation (CLI & IPC Pipeline)**: Powered by `WM_COPYDATA` IPC with 0ms overhead. Run `iclock --install-cli` once to add iClock to User PATH and call globally without `.exe` (just like `claude` or `git`); integrate with build scripts (`npm run build && iclock -n "Build Succeeded"`).
 

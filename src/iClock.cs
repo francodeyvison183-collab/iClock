@@ -356,12 +356,6 @@ internal sealed class Overlay : Form
     private Action pulseDismissAction;
     public bool IsPulsing { get; private set; }
 
-    private bool agentProgressActive;
-    private float agentProgressPercent;
-    private string agentProgressMessage;
-    private ToolTip progressToolTip;
-    private bool progressToolTipShown;
-
     public Overlay(Settings s)
     {
         settings = s;
@@ -378,7 +372,6 @@ internal sealed class Overlay : Form
         MouseDown += OnMouseDown;
         MouseMove += OnMouseMove;
         MouseUp += OnMouseUp;
-        MouseLeave += delegate { if (progressToolTipShown) { progressToolTipShown = false; if (progressToolTip != null) progressToolTip.Hide(this); } };
     }
 
     private void UpdateLocation()
@@ -467,15 +460,6 @@ internal sealed class Overlay : Form
             if (MoveMode) { m.Result = (IntPtr)HTCLIENT; return; }
             bool alt = (NativeMethods.GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
             if (alt) { m.Result = (IntPtr)HTCLIENT; return; }
-            if (agentProgressActive && !string.IsNullOrEmpty(agentProgressMessage))
-            {
-                Point pt = PointToClient(Cursor.Position);
-                if (pt.Y >= Height - 10 && pt.Y <= Height && pt.X >= 10 && pt.X <= Width - 10)
-                {
-                    m.Result = (IntPtr)HTCLIENT;
-                    return;
-                }
-            }
             m.Result = (IntPtr)HTTRANSPARENT;
             return;
         }
@@ -577,19 +561,6 @@ internal sealed class Overlay : Form
         {
             path.AddArc(x, y, w, w, 180, 180);
             path.AddArc(x, y + h - w, w, w, 0, 180);
-            path.CloseFigure();
-            g.FillPath(brush, path);
-        }
-    }
-
-    private static void FillHorizontalBar(Graphics g, Brush brush, float x, float y, float w, float h)
-    {
-        if (w <= 0 || h <= 0) return;
-        if (w <= h) { g.FillEllipse(brush, x, y, w, h); return; }
-        using (GraphicsPath path = new GraphicsPath())
-        {
-            path.AddArc(x, y, h, h, 90, 180);
-            path.AddArc(x + w - h, y, h, h, 270, 180);
             path.CloseFigure();
             g.FillPath(brush, path);
         }
@@ -704,33 +675,6 @@ internal sealed class Overlay : Form
                     RectangleF shadowRect = new RectangleF(1.5f, 2.0f, Width, Height);
                     renderGraphics.DrawString(text, cachedFont, shadowBrush, shadowRect, cachedFormat);
                     renderGraphics.DrawString(text, cachedFont, cachedBrush, rect, cachedFormat);
-                }
-            }
-        }
-
-        if (agentProgressActive)
-        {
-            float barH = 2.0f;
-            float barY = Height - 5.0f;
-            float barPad = 12.0f;
-            float barW = Width - barPad * 2.0f;
-            if (barW > 20.0f)
-            {
-                using (SolidBrush shadowTrack = new SolidBrush(Color.FromArgb(60, 0, 0, 0)))
-                {
-                    FillHorizontalBar(renderGraphics, shadowTrack, barPad + 0.5f, barY + 1.2f, barW, barH);
-                }
-
-                using (SolidBrush trackBrush = new SolidBrush(Color.FromArgb(45, 255, 255, 255)))
-                {
-                    FillHorizontalBar(renderGraphics, trackBrush, barPad, barY, barW, barH);
-                }
-
-                float fillW = Math.Max(barH, barW * Math.Max(0.0f, Math.Min(1.0f, agentProgressPercent)));
-                Color accentFill = Color.FromArgb(0, 180, 255);
-                using (SolidBrush fillBrush = new SolidBrush(accentFill))
-                {
-                    FillHorizontalBar(renderGraphics, fillBrush, barPad, barY, fillW, barH);
                 }
             }
         }
@@ -860,7 +804,6 @@ internal sealed class Overlay : Form
             if (cachedBrush != null) { cachedBrush.Dispose(); cachedBrush = null; }
             if (cachedShadowBrush != null) { cachedShadowBrush.Dispose(); cachedShadowBrush = null; }
             if (cachedFormat != null) { cachedFormat.Dispose(); cachedFormat = null; }
-            if (progressToolTip != null) { progressToolTip.Dispose(); progressToolTip = null; }
         }
         base.Dispose(disposing);
     }
@@ -913,10 +856,6 @@ internal sealed class Overlay : Form
             {
                 HideSnapGuide();
             }
-        }
-        else
-        {
-            CheckProgressHover(e.Location);
         }
     }
     private void OnMouseUp(object sender, MouseEventArgs e)
@@ -976,80 +915,153 @@ internal sealed class Overlay : Form
         }
     }
 
-    private void CheckProgressHover(Point clientPt)
+}
+
+internal sealed class AgentTaskStatus
+{
+    internal string AgentName;
+    internal bool HasProgress;
+    internal float Progress;
+    internal string Message;
+}
+
+internal sealed class AgentTaskStatusHud : Form
+{
+    private const int HudWidth = 300;
+    private readonly Settings settings;
+    private List<AgentTaskStatus> tasks = new List<AgentTaskStatus>();
+
+    internal AgentTaskStatusHud(Settings settings)
     {
-        if (!agentProgressActive || string.IsNullOrEmpty(agentProgressMessage))
+        this.settings = settings;
+        FormBorderStyle = FormBorderStyle.None;
+        ShowInTaskbar = false;
+        StartPosition = FormStartPosition.Manual;
+        TopMost = true;
+        BackColor = AppContext.Win11Bg;
+        Opacity = 0.96;
+        DoubleBuffered = true;
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        Size = new Size(HudWidth, 48);
+    }
+
+    protected override bool ShowWithoutActivation { get { return true; } }
+
+    protected override CreateParams CreateParams
+    {
+        get
         {
-            if (progressToolTipShown)
-            {
-                progressToolTipShown = false;
-                if (progressToolTip != null) progressToolTip.Hide(this);
-            }
-            return;
+            CreateParams cp = base.CreateParams;
+            cp.ExStyle |= 0x80 | 0x08000000;
+            return cp;
+        }
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == 0x84) { m.Result = (IntPtr)(-1); return; }
+        base.WndProc(ref m);
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        using (GraphicsPath path = AppContext.GetRoundedRectPath(new Rectangle(0, 0, Width - 1, Height - 1), 8))
+            Region = new Region(path);
+    }
+
+    internal void SetTasks(IList<AgentTaskStatus> values)
+    {
+        tasks = values != null ? new List<AgentTaskStatus>(values) : new List<AgentTaskStatus>();
+        int height = 20;
+        for (int i = 0; i < tasks.Count; i++)
+        {
+            height += tasks[i].HasProgress ? 58 : 42;
+            if (i > 0) height += 10;
+        }
+        Size = new Size(HudWidth, Math.Max(48, height));
+        Invalidate();
+    }
+
+    internal void UpdatePosition(Rectangle clockBounds)
+    {
+        Screen screen = Screen.FromRectangle(clockBounds);
+        Rectangle work = screen.WorkingArea;
+        int x = clockBounds.Left + (clockBounds.Width - Width) / 2;
+        int y = clockBounds.Bottom + 4;
+        if (y + Height > work.Bottom) y = clockBounds.Top - Height - 4;
+        x = Math.Max(work.Left, Math.Min(work.Right - Width, x));
+        y = Math.Max(work.Top, Math.Min(work.Bottom - Height, y));
+        Location = new Point(x, y);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (tasks.Count == 0) return;
+        Graphics g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        using (GraphicsPath path = AppContext.GetRoundedRectPath(new Rectangle(0, 0, Width - 1, Height - 1), 8))
+        using (SolidBrush bg = new SolidBrush(AppContext.Win11Bg))
+        using (Pen border = new Pen(AppContext.Win11Border))
+        {
+            g.FillPath(bg, path);
+            g.DrawPath(border, path);
         }
 
-        if (clientPt.Y >= Height - 10 && clientPt.Y <= Height && clientPt.X >= 10 && clientPt.X <= Width - 10)
+        using (Font headerFont = AppContext.GetUiFont(settings.Language, 8.5f, FontStyle.Bold))
+        using (Font messageFont = AppContext.GetUiFont(settings.Language, 8f))
+        using (SolidBrush primary = new SolidBrush(AppContext.Win11TextPrimary))
+        using (SolidBrush secondary = new SolidBrush(AppContext.Win11TextSecondary))
+        using (SolidBrush track = new SolidBrush(Color.FromArgb(56, AppContext.Win11Accent)))
+        using (SolidBrush fill = new SolidBrush(AppContext.Win11Accent))
+        using (Pen divider = new Pen(AppContext.Win11Border))
+        using (StringFormat messageFormat = new StringFormat())
         {
-            if (!progressToolTipShown)
+            messageFormat.Trimming = StringTrimming.EllipsisWord;
+            messageFormat.FormatFlags = StringFormatFlags.LineLimit;
+            float y = 10f;
+            for (int i = 0; i < tasks.Count; i++)
             {
-                progressToolTipShown = true;
-                if (progressToolTip == null)
+                AgentTaskStatus task = tasks[i];
+                string agent = task.AgentName == "Claude Code" ? "Claude" : task.AgentName;
+                if (string.IsNullOrEmpty(agent)) agent = settings.Language == "en" ? "AI agent" : "智能体";
+                float rowTop = y;
+                float rowHeight = task.HasProgress ? 58f : 42f;
+                RectangleF headerRect = new RectangleF(12f, y, Width - 76f, headerFont.GetHeight(g) + 2f);
+                g.DrawString(agent, headerFont, primary, headerRect, messageFormat);
+                float messageTop;
+                if (task.HasProgress)
                 {
-                    progressToolTip = new ToolTip();
-                    progressToolTip.InitialDelay = 100;
-                    progressToolTip.ReshowDelay = 100;
-                    progressToolTip.AutoPopDelay = 10000;
+                    string pct = ((int)Math.Round(task.Progress * 100f)).ToString() + "%";
+                    g.DrawString(pct, headerFont, primary, new RectangleF(Width - 56f, y, 44f, headerRect.Height), messageFormat);
+                    float barY = y + headerRect.Height + 3f;
+                    float barWidth = Width - 24f;
+                    g.FillRectangle(track, 12f, barY, barWidth, 3f);
+                    g.FillRectangle(fill, 12f, barY, barWidth * Math.Max(0f, Math.Min(1f, task.Progress)), 3f);
+                    messageTop = barY + 7f;
                 }
-                string pctStr = ((int)Math.Round(agentProgressPercent * 100)).ToString() + "%";
-                string tip = "[" + pctStr + "] " + agentProgressMessage;
-                progressToolTip.Show(tip, this, clientPt.X, Height + 2, 8000);
+                else
+                {
+                    messageTop = y + headerRect.Height + 2f;
+                }
+
+                string message = string.IsNullOrEmpty(task.Message)
+                    ? (settings.Language == "en" ? "Task in progress" : "任务进行中")
+                    : task.Message;
+                float messageHeight = Math.Max(messageFont.GetHeight(g), rowHeight - (messageTop - rowTop) - 4f);
+                g.DrawString(message, messageFont, secondary, new RectangleF(12f, messageTop, Width - 24f, messageHeight), messageFormat);
+                y = rowTop + rowHeight;
+                if (i + 1 < tasks.Count)
+                {
+                    y += 4f;
+                    g.DrawLine(divider, 12f, y, Width - 12f, y);
+                    y += 6f;
+                }
             }
         }
-        else
-        {
-            if (progressToolTipShown)
-            {
-                progressToolTipShown = false;
-                if (progressToolTip != null) progressToolTip.Hide(this);
-            }
-        }
     }
-
-    public void UpdateAgentProgress(float percent, string message)
-    {
-        if (InvokeRequired)
-        {
-            BeginInvoke(new Action<float, string>(UpdateAgentProgress), percent, message);
-            return;
-        }
-        agentProgressActive = true;
-        agentProgressPercent = Math.Max(0.0f, Math.Min(1.0f, percent));
-        agentProgressMessage = message;
-        RenderLayeredWindow();
-    }
-
-    public void ClearAgentProgress()
-    {
-        if (InvokeRequired)
-        {
-            BeginInvoke(new Action(ClearAgentProgress));
-            return;
-        }
-        if (!agentProgressActive) return;
-        agentProgressActive = false;
-        agentProgressPercent = 0.0f;
-        agentProgressMessage = null;
-        if (progressToolTipShown)
-        {
-            progressToolTipShown = false;
-            if (progressToolTip != null) progressToolTip.Hide(this);
-        }
-        RenderLayeredWindow();
-    }
-
-    public bool AgentProgressActive { get { return agentProgressActive; } }
-    public float AgentProgressPercent { get { return agentProgressPercent; } }
-    public string AgentProgressMessage { get { return agentProgressMessage; } }
 }
 
 internal sealed class DoubleBufferedPanel : Panel
@@ -1378,12 +1390,14 @@ internal sealed class SettingsDialog : Form
     private Panel panelMcpBox;
     private Label lblMcpServerTitle;
     private Label lblTool1Name, lblTool2Name, lblTool3Name;
+    private Label lblTool1Desc, lblTool2Desc, lblTool3Desc;
     private StyledTipLabel lblAgentCliTip;
     // Two-section layout: MCP connection status first, capability previews second.
     private Panel panelMcpStatus, panelCapCard;
     private Label lblMcpStatusDot, lblMcpStatusText, lblMcpStatusMeta;
     private string mcpStatusState = "unknown";
-    private Label lnkMcpCopyPrompt, lblMcpCopyHint;
+    private LinkLabel lnkMcpCopyPrompt;
+    private Label lblMcpCopyHint;
     private string mcpCopyFeedback;
     private System.Windows.Forms.Timer mcpStatusTimer;
     private System.Windows.Forms.Timer mcpCopyFeedbackTimer;
@@ -1497,7 +1511,7 @@ internal sealed class SettingsDialog : Form
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
         Text = en ? "iClock Settings" : "iClock 设置"; FormBorderStyle = FormBorderStyle.FixedDialog; StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 402);
+        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 452);
 
         btnTabTimer = new Button(); SetupTabButton(btnTabTimer, en ? "Timer" : "倒计时", 18, 0);
         btnTabQuote = new Button(); SetupTabButton(btnTabQuote, en ? "Daily Quotes" : "每日格言", 133, 1);
@@ -1816,8 +1830,10 @@ internal sealed class SettingsDialog : Form
         Controls.Add(lblMcpServerTitle);
 
         panelMcpStatus = new Panel();
-        panelMcpStatus.SetBounds(18, 80, 344, 96);
+        panelMcpStatus.SetBounds(18, 80, 344, 108);
         panelMcpStatus.BackColor = Color.White;
+        panelMcpStatus.AutoScroll = true;
+        panelMcpStatus.HorizontalScroll.Enabled = false;
         panelMcpStatus.Paint += OnCardPaint;
         Controls.Add(panelMcpStatus);
 
@@ -1830,25 +1846,30 @@ internal sealed class SettingsDialog : Form
         lblMcpStatusText.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblMcpStatusText.ForeColor = AppContext.Win11TextPrimary;
         lblMcpStatusText.TextAlign = ContentAlignment.MiddleLeft;
-        lblMcpStatusText.SetBounds(32, 10, 300, 20);
+        lblMcpStatusText.SetBounds(32, 10, 280, 20);
         panelMcpStatus.Controls.Add(lblMcpStatusText);
 
         lblMcpStatusMeta = new Label();
         lblMcpStatusMeta.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblMcpStatusMeta.ForeColor = AppContext.Win11TextSecondary;
         lblMcpStatusMeta.TextAlign = ContentAlignment.TopLeft;
-        lblMcpStatusMeta.SetBounds(32, 32, 300, 36);
+        lblMcpStatusMeta.AutoSize = true;
+        lblMcpStatusMeta.MaximumSize = new Size(280, 0);
+        lblMcpStatusMeta.SetBounds(32, 31, 280, 20);
         panelMcpStatus.Controls.Add(lblMcpStatusMeta);
 
-        lnkMcpCopyPrompt = new Label();
+        lnkMcpCopyPrompt = new LinkLabel();
         lnkMcpCopyPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Underline);
-        lnkMcpCopyPrompt.ForeColor = AppContext.Win11Accent;
+        lnkMcpCopyPrompt.LinkColor = AppContext.Win11Accent;
+        lnkMcpCopyPrompt.ActiveLinkColor = AppContext.Win11Accent;
+        lnkMcpCopyPrompt.VisitedLinkColor = AppContext.Win11Accent;
+        lnkMcpCopyPrompt.LinkBehavior = LinkBehavior.AlwaysUnderline;
         lnkMcpCopyPrompt.AutoSize = false;
         lnkMcpCopyPrompt.TextAlign = ContentAlignment.MiddleLeft;
         lnkMcpCopyPrompt.SetBounds(32, 36, 1, 18);
         lnkMcpCopyPrompt.Cursor = Cursors.Hand;
         lnkMcpCopyPrompt.Visible = false;
-        lnkMcpCopyPrompt.Click += OnMcpCopyPromptClick;
+        lnkMcpCopyPrompt.LinkClicked += OnMcpCopyPromptClick;
         panelMcpStatus.Controls.Add(lnkMcpCopyPrompt);
 
         lblMcpCopyHint = new Label();
@@ -1862,15 +1883,15 @@ internal sealed class SettingsDialog : Form
 
         Label lblCapabilityTitle = new Label();
         lblCapabilityTitle.Name = "lblCapabilityTitle";
-        lblCapabilityTitle.Text = en ? "Desktop Capability Previews" : "常用桌面能力";
+        lblCapabilityTitle.Text = en ? "Desktop Collaboration" : "桌面协作能力";
         lblCapabilityTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
         lblCapabilityTitle.ForeColor = AppContext.Win11TextPrimary;
         lblCapabilityTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblCapabilityTitle.SetBounds(18, 196, 344, 22);
+        lblCapabilityTitle.SetBounds(18, 204, 344, 22);
         Controls.Add(lblCapabilityTitle);
 
         panelCapCard = new Panel();
-        panelCapCard.SetBounds(18, 218, 344, 102);
+        panelCapCard.SetBounds(18, 228, 344, 150);
         panelCapCard.BackColor = Color.White;
         panelCapCard.Paint += OnMcpBoxPaint;
         Controls.Add(panelCapCard);
@@ -1882,13 +1903,20 @@ internal sealed class SettingsDialog : Form
         lblTool1Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool1Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool1Name.TextAlign = ContentAlignment.MiddleLeft;
-        lblTool1Name.SetBounds(14, 6, 252, 22);
+        lblTool1Name.SetBounds(14, 5, 252, 18);
         panelMcpBox.Controls.Add(lblTool1Name);
+
+        lblTool1Desc = new Label();
+        lblTool1Desc.Text = en ? "Pause for your approval before critical actions" : "关键操作前暂停，等待你确认";
+        lblTool1Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblTool1Desc.ForeColor = AppContext.Win11TextSecondary;
+        lblTool1Desc.SetBounds(14, 22, 252, 16);
+        panelMcpBox.Controls.Add(lblTool1Desc);
 
         btnMcpDemo = new Button();
         btnMcpDemo.Text = en ? "Preview" : "预览";
         btnMcpDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpDemo.SetBounds(274, 4, 58, 26);
+        btnMcpDemo.SetBounds(274, 12, 58, 26);
         AppContext.StyleSecondaryButton(btnMcpDemo);
         btnMcpDemo.Click += OnMcpDemoClick;
         panelMcpBox.Controls.Add(btnMcpDemo);
@@ -1899,13 +1927,20 @@ internal sealed class SettingsDialog : Form
         lblTool2Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool2Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool2Name.TextAlign = ContentAlignment.MiddleLeft;
-        lblTool2Name.SetBounds(14, 40, 252, 22);
+        lblTool2Name.SetBounds(14, 55, 252, 18);
         panelMcpBox.Controls.Add(lblTool2Name);
+
+        lblTool2Desc = new Label();
+        lblTool2Desc.Text = en ? "Show task progress and current status together" : "同时显示任务进度与当前状态";
+        lblTool2Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblTool2Desc.ForeColor = AppContext.Win11TextSecondary;
+        lblTool2Desc.SetBounds(14, 72, 252, 16);
+        panelMcpBox.Controls.Add(lblTool2Desc);
 
         btnMcpDemoProgress = new Button();
         btnMcpDemoProgress.Text = en ? "Preview" : "预览";
         btnMcpDemoProgress.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpDemoProgress.SetBounds(274, 38, 58, 26);
+        btnMcpDemoProgress.SetBounds(274, 62, 58, 26);
         AppContext.StyleSecondaryButton(btnMcpDemoProgress);
         btnMcpDemoProgress.Click += OnMcpDemoProgressClick;
         panelMcpBox.Controls.Add(btnMcpDemoProgress);
@@ -1916,19 +1951,26 @@ internal sealed class SettingsDialog : Form
         lblTool3Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool3Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool3Name.TextAlign = ContentAlignment.MiddleLeft;
-        lblTool3Name.SetBounds(14, 74, 252, 22);
+        lblTool3Name.SetBounds(14, 105, 252, 18);
         panelMcpBox.Controls.Add(lblTool3Name);
+
+        lblTool3Desc = new Label();
+        lblTool3Desc.Text = en ? "Popup and sound when the agent reports completion" : "智能体报告完成后弹窗并提示音";
+        lblTool3Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblTool3Desc.ForeColor = AppContext.Win11TextSecondary;
+        lblTool3Desc.SetBounds(14, 122, 252, 16);
+        panelMcpBox.Controls.Add(lblTool3Desc);
 
         btnMcpDemoNotify = new Button();
         btnMcpDemoNotify.Text = en ? "Preview" : "预览";
         btnMcpDemoNotify.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnMcpDemoNotify.SetBounds(274, 72, 58, 26);
+        btnMcpDemoNotify.SetBounds(274, 112, 58, 26);
         AppContext.StyleSecondaryButton(btnMcpDemoNotify);
         btnMcpDemoNotify.Click += OnMcpDemoNotifyClick;
         panelMcpBox.Controls.Add(btnMcpDemoNotify);
 
         string mcpTip1 = en ? "Human-in-the-loop modal decision gate for critical operations (supports 1/2/Enter blind-typing)" : "关键高危操作置顶人机决策门禁，支持 1/2/Enter 盲打审批";
-        string mcpTip2 = en ? "Progress bar on the clock plus a pinned desktop note for current status" : "悬浮时钟显示任务进度，桌面置顶便签同步展示当前状态";
+        string mcpTip2 = en ? "Progress and status share a task card below the countdown" : "任务进度与状态显示在倒计时下方的任务卡片中";
         string mcpTip3 = en ? "Modal alert and sound chime when background tasks finish" : "后台耗时任务完成时弹窗与声音提醒";
         toolTip.SetToolTip(lblTool1Name, mcpTip1);
         toolTip.SetToolTip(btnMcpDemo, mcpTip1);
@@ -1940,11 +1982,11 @@ internal sealed class SettingsDialog : Form
         lblAgentCliTip = new StyledTipLabel("iclock --install-cli", "iclock -h");
         lblAgentCliTip.UseMnemonic = false;
         lblAgentCliTip.Text = en
-            ? "Tip: Run iclock_status for live agent status."
-            : "提示：终端运行 iclock_status 查看智能体状态。";
+            ? "Tip: Run iclock -h for help; iclock --install-cli adds PATH."
+            : "提示：终端运行 iclock -h 查看命令，iclock --install-cli 写入 PATH。";
         lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
         lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentCliTip.SetBounds(16, 336, 348, 20);
+        lblAgentCliTip.SetBounds(16, 396, 348, 20);
         Controls.Add(lblAgentCliTip);
 
         AppContext.CenterFormOnScreen(this);
@@ -2470,7 +2512,7 @@ internal sealed class SettingsDialog : Form
             }
         }
     }
-    private void OnMcpCopyPromptClick(object sender, EventArgs e)
+    private void OnMcpCopyPromptClick(object sender, LinkLabelLinkClickedEventArgs e)
     {
         try
         {
@@ -2561,9 +2603,24 @@ internal sealed class SettingsDialog : Form
             ? AppContext.Current.GetMcpConnectedClientNames()
             : new List<string>();
         List<string> runningAgents = AppContext.DetectAgents();
-        HashSet<string> connectedSet = new HashSet<string>(connected, StringComparer.OrdinalIgnoreCase);
-        List<string> unconfigured = new List<string>();
+        HashSet<string> connectedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        List<string> allAgents = new List<string>();
+        HashSet<string> seenAgents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (string agent in runningAgents)
+        {
+            if (seenAgents.Add(agent)) allAgents.Add(agent);
+        }
+        foreach (string client in connected)
+        {
+            string name = AppContext.MatchAgent(client);
+            if (string.IsNullOrEmpty(name)) name = McpBridge.NormalizeClientName(client);
+            if (string.IsNullOrEmpty(name)) continue;
+            connectedSet.Add(name);
+            if (seenAgents.Add(name)) allAgents.Add(name);
+        }
+        allAgents.Sort(StringComparer.OrdinalIgnoreCase);
+        List<string> unconfigured = new List<string>();
+        foreach (string agent in allAgents)
         {
             if (connectedSet.Contains(agent)) continue;
             unconfigured.Add(agent);
@@ -2585,30 +2642,30 @@ internal sealed class SettingsDialog : Form
             lblMcpStatusText.Text = en ? "Bridge Error" : "桥接异常";
             lblMcpStatusMeta.Text = lastError + (en ? "\nRestart iClock and try again." : "\n请重启 iClock 后重试。");
         }
-        else if (connected.Count > 0)
+        else if (allAgents.Count > 0)
         {
-            string name = connected[0];
-            mcpStatusState = "connected";
-            lblMcpStatusText.Text = en ? name + " Connected" : name + " 已连接";
-            lblMcpStatusMeta.Text = en
-                ? "iClock MCP is ready. 6 tools available.\nNo setup needed."
-                : "iClock MCP 已可用，共 6 项工具。\n无需配置。";
-        }
-        else if (unconfigured.Count > 0)
-        {
-            string name = unconfigured[0];
-            mcpStatusState = "configured";
-            lblMcpStatusText.Text = en ? name + " Not Connected" : name + " 未连接 iClock";
-            lblMcpStatusMeta.Text = "";
-            showCopyLink = true;
+            mcpStatusState = connectedSet.Count > 0 ? "connected" : "configured";
+            lblMcpStatusText.Text = en ? "iClock MCP Server Running" : "iClock MCP 服务运行中";
+            List<string> agentLines = new List<string>();
+            foreach (string name in allAgents)
+            {
+                string displayName = name == "Claude Code" ? "Claude" : name;
+                bool isConnected = connectedSet.Contains(name);
+                agentLines.Add(en
+                    ? displayName + (isConnected ? " · Connected" : " · Not connected")
+                    : displayName + (isConnected ? " · 已连接" : " · 未连接 iClock"));
+            }
+            lblMcpStatusMeta.Text = string.Join("\n", agentLines.ToArray());
+            lblMcpStatusMeta.SetBounds(32, 31, 280, lblMcpStatusMeta.Height);
+            showCopyLink = unconfigured.Count > 0;
         }
         else
         {
             mcpStatusState = "none";
             lblMcpStatusText.Text = en ? "No Agent Running" : "未检测到运行中的智能体";
             lblMcpStatusMeta.Text = en
-                ? "Open the AI agent you use; its MCP status will appear here."
-                : "打开你正在使用的 AI 智能体后，这里会显示 MCP 状态。";
+                ? "No running agent detected."
+                : "当前没有检测到运行中的智能体。";
         }
         if (!string.IsNullOrEmpty(mcpCopyFeedback))
         {
@@ -2616,9 +2673,10 @@ internal sealed class SettingsDialog : Form
             {
                 lnkMcpCopyPrompt.Enabled = false;
                 lnkMcpCopyPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-                lnkMcpCopyPrompt.ForeColor = AppContext.Win11TextSecondary;
+                lnkMcpCopyPrompt.LinkColor = AppContext.Win11TextSecondary;
                 lnkMcpCopyPrompt.Cursor = Cursors.Default;
                 lnkMcpCopyPrompt.Text = mcpCopyFeedback;
+                lnkMcpCopyPrompt.LinkArea = new LinkArea(0, lnkMcpCopyPrompt.Text.Length);
                 showCopyLink = true;
             }
             if (lblMcpCopyHint != null) lblMcpCopyHint.Text = "";
@@ -2627,18 +2685,21 @@ internal sealed class SettingsDialog : Form
         {
             lnkMcpCopyPrompt.Enabled = true;
             lnkMcpCopyPrompt.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Underline);
-            lnkMcpCopyPrompt.ForeColor = AppContext.Win11Accent;
+            lnkMcpCopyPrompt.LinkColor = AppContext.Win11Accent;
             lnkMcpCopyPrompt.Cursor = Cursors.Hand;
             if (showCopyLink && unconfigured.Count > 0)
             {
                 lnkMcpCopyPrompt.Text = en ? "Copy Setup Prompt" : "复制接入提示词";
+                lnkMcpCopyPrompt.LinkArea = new LinkArea(0, lnkMcpCopyPrompt.Text.Length);
                 if (lblMcpCopyHint != null) lblMcpCopyHint.Text = en
-                    ? ", then send it to " + unconfigured[0]
-                    : "，发送给 " + unconfigured[0] + " 完成接入";
-                Size linkSize = TextRenderer.MeasureText(lnkMcpCopyPrompt.Text, lnkMcpCopyPrompt.Font, new Size(300, 18), TextFormatFlags.NoPadding);
-                int linkWidth = Math.Min(300, linkSize.Width + 2);
-                lnkMcpCopyPrompt.SetBounds(32, 36, linkWidth, 18);
-                if (lblMcpCopyHint != null) lblMcpCopyHint.SetBounds(32 + linkWidth, 36, 300 - linkWidth, 18);
+                    ? ", send it to " + unconfigured[0] + (unconfigured.Count > 1 ? " or another agent" : "")
+                    : "，发送给 " + (unconfigured[0] == "Claude Code" ? "Claude" : unconfigured[0]) + (unconfigured.Count > 1 ? " 等任一智能体" : " 完成接入");
+                int contentWidth = 280;
+                int promptTop = Math.Max(75, lblMcpStatusMeta.Bottom + 4);
+                Size linkSize = TextRenderer.MeasureText(lnkMcpCopyPrompt.Text, lnkMcpCopyPrompt.Font, new Size(contentWidth, 18), TextFormatFlags.NoPadding);
+                int linkWidth = Math.Min(contentWidth, linkSize.Width + 2);
+                lnkMcpCopyPrompt.SetBounds(32, promptTop, linkWidth, 18);
+                if (lblMcpCopyHint != null) lblMcpCopyHint.SetBounds(32 + linkWidth, promptTop, contentWidth - linkWidth, 18);
             }
         }
         UpdateMcpCopyLinkVisibility(showCopyLink);
@@ -2651,7 +2712,6 @@ internal sealed class SettingsDialog : Form
 
     private void UpdateMcpCopyLinkVisibility(bool visible)
     {
-        if (lblMcpStatusMeta != null) lblMcpStatusMeta.Visible = !visible;
         if (lnkMcpCopyPrompt != null) lnkMcpCopyPrompt.Visible = visible;
         if (lblMcpCopyHint != null) lblMcpCopyHint.Visible = visible;
     }
@@ -2675,16 +2735,14 @@ internal sealed class SettingsDialog : Form
         string msg = en ? "Running SelfCheck test suite (Step 3/5)..." : "正在执行完整自检套件 (步骤 3/5)...";
         if (AppContext.Current != null)
         {
-            AppContext.Current.SetAgentProgress(0.65f, msg);
-            AppContext.Current.ShowCustomQuote(msg, "");
+            AppContext.Current.SetAgentProgress(0.65f, msg, "演示");
             Timer t = new Timer { Interval = 4000 };
             t.Tick += delegate {
                 t.Stop();
                 t.Dispose();
                 if (AppContext.Current != null)
                 {
-                    AppContext.Current.ClearAgentProgress();
-                    AppContext.Current.ClearProjectedNote();
+                    AppContext.Current.ClearAgentProgress("演示");
                 }
             };
             t.Start();
@@ -2706,8 +2764,8 @@ internal sealed class SettingsDialog : Form
             pe.Graphics.DrawRectangle(p, 0, 0, pnl.Width - 1, pnl.Height - 1);
         using (Pen divPen = new Pen(Color.FromArgb(238, 240, 244), 1f))
         {
-            pe.Graphics.DrawLine(divPen, 10, 34, pnl.Width - 10, 34);
-            pe.Graphics.DrawLine(divPen, 10, 68, pnl.Width - 10, 68);
+            pe.Graphics.DrawLine(divPen, 10, 48, pnl.Width - 10, 48);
+            pe.Graphics.DrawLine(divPen, 10, 98, pnl.Width - 10, 98);
         }
     }
 
@@ -2790,7 +2848,7 @@ internal sealed class SettingsDialog : Form
         {
             if (control != null && control.Name == "lblCapabilityTitle")
             {
-                control.Text = toEnglish ? "Desktop Capability Previews" : "常用桌面能力";
+                control.Text = toEnglish ? "Desktop Collaboration" : "桌面协作能力";
                 control.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Bold);
                 break;
             }
@@ -2799,12 +2857,15 @@ internal sealed class SettingsDialog : Form
         if (btnMcpDemoProgress != null) btnMcpDemoProgress.Text = toEnglish ? "Preview" : "预览";
         if (btnMcpDemoNotify != null) btnMcpDemoNotify.Text = toEnglish ? "Preview" : "预览";
         if (lblTool1Name != null) { lblTool1Name.Text = toEnglish ? "Decision Gate" : "决策请示"; lblTool1Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
+        if (lblTool1Desc != null) { lblTool1Desc.Text = toEnglish ? "Pause for your approval before critical actions" : "关键操作前暂停，等待你确认"; lblTool1Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
         if (lblTool2Name != null) { lblTool2Name.Text = toEnglish ? "Task Status" : "任务状态"; lblTool2Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
+        if (lblTool2Desc != null) { lblTool2Desc.Text = toEnglish ? "Show task progress and current status together" : "同时显示任务进度与当前状态"; lblTool2Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
         if (lblTool3Name != null) { lblTool3Name.Text = toEnglish ? "Completion Notice" : "完成提醒"; lblTool3Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
+        if (lblTool3Desc != null) { lblTool3Desc.Text = toEnglish ? "Popup and sound when the agent reports completion" : "智能体报告完成后弹窗并提示音"; lblTool3Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
         if (toolTip != null)
         {
             string mcpTip1 = toEnglish ? "Human-in-the-loop modal decision gate for critical operations (supports 1/2/Enter blind-typing)" : "关键高危操作置顶人机决策门禁，支持 1/2/Enter 盲打审批";
-            string mcpTip2 = toEnglish ? "Progress bar on the clock plus a pinned desktop note for current status" : "悬浮时钟显示任务进度，桌面置顶便签同步展示当前状态";
+            string mcpTip2 = toEnglish ? "Progress and status share a task card below the countdown" : "任务进度与状态显示在倒计时下方的任务卡片中";
             string mcpTip3 = toEnglish ? "Modal alert and sound chime when background tasks finish" : "后台耗时任务完成时弹窗与声音提醒";
             if (lblTool1Name != null) toolTip.SetToolTip(lblTool1Name, mcpTip1);
             if (btnMcpDemo != null) toolTip.SetToolTip(btnMcpDemo, mcpTip1);
@@ -2815,11 +2876,11 @@ internal sealed class SettingsDialog : Form
         }
         if (lblAgentCliTip != null)
         {
-            lblAgentCliTip.HighlightWords = new string[] { "iclock_status" };
+            lblAgentCliTip.HighlightWords = new string[] { "iclock --install-cli", "iclock -h" };
             lblAgentCliTip.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
             lblAgentCliTip.Text = toEnglish
-                ? "Tip: Run iclock_status for live agent status."
-                : "提示：终端运行 iclock_status 查看智能体状态。";
+                ? "Tip: Run iclock -h for help; iclock --install-cli adds PATH."
+                : "提示：终端运行 iclock -h 查看命令，iclock --install-cli 写入 PATH。";
         }
         if (panelQuoteCard != null) panelQuoteCard.Invalidate();
 
@@ -3439,7 +3500,6 @@ internal sealed class McpPipeConnection
     private int closed;
 
     internal string ClientName { get; set; }
-    internal int LastMessageTick = Environment.TickCount;
 
     internal McpPipeConnection(NamedPipeServerStream pipe)
     {
@@ -3493,6 +3553,15 @@ internal sealed class McpPipeConnection
         try { reader.Close(); } catch { }
         try { writer.Close(); } catch { }
         try { pipe.Close(); } catch { }
+    }
+
+    internal bool IsConnected
+    {
+        get
+        {
+            try { return System.Threading.Volatile.Read(ref closed) == 0 && pipe.IsConnected; }
+            catch { return false; }
+        }
     }
 }
 
@@ -3647,7 +3716,6 @@ internal sealed class McpPipeServer
             {
                 line = line.Trim();
                 if (line.Length == 0) continue;
-                connection.LastMessageTick = Environment.TickCount;
                 Dictionary<string, object> message;
                 try
                 {
@@ -3681,7 +3749,7 @@ internal sealed class McpPipeServer
         {
             foreach (McpPipeConnection connection in connections.Keys)
             {
-                if ((Environment.TickCount - connection.LastMessageTick) > 30000)
+                if (!connection.IsConnected)
                 {
                     connection.Close();
                     bool ignored;
@@ -4277,14 +4345,14 @@ internal static class McpBridge
         list.Add(new Dictionary<string, object>
         {
             { "name", "iclock_quote" },
-            { "description", "Display, cycle, add, or clear inspirational quotes / task sticky notes on iClock's desktop HUD and quotes library." },
+            { "description", "Update your row in the shared desktop task-status card, rotate quotes, or add quotes to the library. Task status rows are independent per agent." },
             { "inputSchema", new Dictionary<string, object>
                 {
                     { "type", "object" },
                     { "properties", new Dictionary<string, object>
                         {
                             { "action", new Dictionary<string, object> { { "type", "string" }, { "enum", new string[] { "show", "add", "next", "clear", "hide" } }, { "description", "Action to perform" } } },
-                            { "text", new Dictionary<string, object> { { "type", "string" }, { "description", "Quote text or sticky note content" } } },
+                            { "text", new Dictionary<string, object> { { "type", "string" }, { "description", "Current task status shown below your progress bar; when no countdown is active, the status card appears on its own" } } },
                             { "author", new Dictionary<string, object> { { "type", "string" }, { "description", "Author or attribution" } } },
                             { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional agent display name." } } },
                             { "quotes", new Dictionary<string, object> { { "type", "array" }, { "items", new Dictionary<string, object> { { "type", "string" } } }, { "description", "Optional list of quotes in 'text | author' format for batch add." } } }
@@ -4309,14 +4377,15 @@ internal static class McpBridge
         list.Add(new Dictionary<string, object>
         {
             { "name", "iclock_progress" },
-            { "description", "Report task progress to iClock's desktop HUD. Use 'clear' to remove the progress bar." },
+            { "description", "Report your task progress in a shared desktop status card. Each agent gets an independent row; use 'clear' to remove only your own row. The card appears with or without a countdown." },
             { "inputSchema", new Dictionary<string, object>
                 {
                     { "type", "object" },
                     { "properties", new Dictionary<string, object>
                         {
                             { "progress", new Dictionary<string, object> { { "type", "string" }, { "description", "Percentage ('60' or '60%'), fraction ('3/5'), float ('0.6'), or 'clear'" } } },
-                            { "message", new Dictionary<string, object> { { "type", "string" }, { "description", "Brief status description of the current step" } } }
+                            { "message", new Dictionary<string, object> { { "type", "string" }, { "description", "Brief status description of the current step" } } },
+                            { "agent_name", new Dictionary<string, object> { { "type", "string" }, { "description", "Optional identity for concurrent agents sharing one MCP client; use the same name when clearing" } } }
                         }
                     },
                     { "required", new string[] { "progress" } }
@@ -4354,12 +4423,12 @@ internal static class McpConfigHelper
                 + "[Core Capabilities]\r\n"
                 + "Once connected, you will have access to iClock desktop tools:\r\n"
                 + "1. iclock_ask_human: Trigger a top-most modal gate for human-in-the-loop approvals on critical decisions;\r\n"
-                + "2. iclock_progress + iclock_quote: Proactively report step progress (e.g. '3/5', '60%') on the floating clock HUD and project your current status onto a pinned desktop note; call iclock_progress with 'clear' when finished;\r\n"
+                + "2. iclock_progress + iclock_quote: Update your row in the desktop task-status card with progress and status text. It appears below an active countdown or on its own when no countdown is running. Concurrent agents have separate rows; if multiple agents share one MCP client, give each a distinct agent_name and reuse it for both tools and clear only that row.\r\n"
                 + "3. iclock_notify: Pop up a desktop alert and sound notification when background tasks complete.\r\n"
                 + "Use iclock_status anytime to query iClock's live state.\r\n\r\n"
                 + "[Instructions]\r\n"
                 + "1. Check current environment's MCP config file (e.g. Cursor's mcp.json, Claude Desktop config, or current workspace MCP config) and merge this server (preserve existing servers).\r\n"
-                + "2. Proactive Habit: Whenever executing multi-step tasks (testing, multi-file refactoring, batch build), call iclock_progress at key milestones so I can see progress on my clock HUD without switching back to your window. Call iclock_progress(progress='clear') upon completion.\r\n"
+                + "2. Proactive Habit: For multi-step work, update your row at key milestones and call iclock_progress(progress='clear') when your task is complete. If sharing one MCP client, pass the same unique agent_name on each update and clear. Do not clear other agents' rows.\r\n"
                 + "3. Once saved, prompt me to reload the window (e.g. 'Developer: Reload Window' in Cursor) so the MCP server takes effect.\r\n"
                 + "4. After reload, immediately call the iclock_notify tool to send a desktop greeting (e.g. 'iClock MCP connected successfully!') to verify connectivity.";
         }
@@ -4373,12 +4442,12 @@ internal static class McpConfigHelper
                 + "【能力说明】\r\n"
                 + "接入后你将拥有 iClock 提供的桌面协作工具：\r\n"
                 + "1. iclock_ask_human: 遇到关键决策、高危操作或多选方案时，呼出桌面置顶阻断式人工审批卡片；\r\n"
-                + "2. iclock_progress + iclock_quote: 执行多步骤耗时任务时，在悬浮时钟投射进度条，并在桌面置顶便签同步展示当前状态；任务完成时调用 iclock_progress('clear') 清理；\r\n"
+                + "2. iclock_progress + iclock_quote: 将进度与当前状态显示在桌面任务状态卡的同一行；倒计时运行时显示在时钟下方，无倒计时时独立显示。多个智能体各占一行；若多个智能体共用一个 MCP 客户端，请为每个智能体设置不同的 agent_name，并在更新与清除时保持一致；\r\n"
                 + "3. iclock_notify: 耗时或后台任务完成时，呼出桌面模态弹窗与提示音唤醒我。\r\n"
                 + "随时可用 iclock_status 查询 iClock 实时状态。\r\n\r\n"
                 + "【操作步骤】\r\n"
                 + "1. 请检查当前环境的 MCP 配置文件（例如 Claude Desktop 的 claude_desktop_config.json、Cursor 的 mcp.json 或当前项目/全局 MCP 配置），将上述 iclock 服务合并进去（保留我已有的其他服务）。\r\n"
-                + "2. 行为准则：在执行多步骤耗时任务时，请主动调用 iclock_progress 汇报节点进度，以便我在屏幕悬浮时钟上实时感知你的进展，任务完毕后清空进度条。\r\n"
+                + "2. 行为准则：执行多步骤任务时，请在关键节点更新自己的状态行；完成后调用 iclock_progress(progress='clear')，不要清除其他智能体的状态。\r\n"
                 + "3. 写入配置后，请提醒我重载窗口生效（如 Cursor 执行 Reload Window 或重启客户端）。\r\n"
                 + "4. 重载后，请立即调用 iclock_notify 工具向我发送一条测试通知（例如：'iClock MCP 协同接入成功！'），以验证桌面联通性。";
         }
@@ -7733,6 +7802,8 @@ internal sealed class AppContext : ApplicationContext
     private const uint MOD_NOREPEAT = 0x4000;
     private readonly Settings settings;
     private Overlay overlay;
+    private AgentTaskStatusHud taskStatusHud;
+    private readonly List<AgentTaskStatus> agentTaskStatuses = new List<AgentTaskStatus>();
     private NotifyIcon tray;
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuAbout, menuExit, menuUpdate;
     internal const string CURRENT_VERSION = "1.09";
@@ -7909,6 +7980,10 @@ internal sealed class AppContext : ApplicationContext
         settings = Settings.Load();
         appIcon = CreateIcon();
         overlay = new Overlay(settings); overlay.PositionChanged += delegate(Point p) { settings.X = p.X; settings.Y = p.Y; settings.Save(); };
+        taskStatusHud = new AgentTaskStatusHud(settings);
+        overlay.LocationChanged += delegate { UpdateTaskStatusHudPosition(); };
+        overlay.SizeChanged += delegate { UpdateTaskStatusHudPosition(); };
+        overlay.VisibleChanged += delegate { UpdateTaskStatusHudPosition(); };
         overlay.TimeAdjustRequested += delegate(int delta) { AdjustMinutes(delta); };
         IntPtr forceOverlayHandle = overlay.Handle;
         messageWindow = new MessageWindow(this);
@@ -8480,9 +8555,26 @@ internal sealed class AppContext : ApplicationContext
             if (!string.IsNullOrEmpty(statFile))
             {
                 int rem = (int)ReadRemaining().TotalSeconds;
-                bool progActive = (overlay != null && overlay.AgentProgressActive);
-                float progPct = progActive ? overlay.AgentProgressPercent : 0f;
-                string progMsg = progActive ? (overlay.AgentProgressMessage ?? "") : "";
+                bool progActive = agentTaskStatuses.Count > 0;
+                float progPct = 0f;
+                string progMsg = "";
+                List<object> taskStatuses = new List<object>();
+                for (int i = 0; i < agentTaskStatuses.Count; i++)
+                {
+                    AgentTaskStatus task = agentTaskStatuses[i];
+                    taskStatuses.Add(new Dictionary<string, object>
+                    {
+                        { "agent", task.AgentName },
+                        { "active", task.HasProgress },
+                        { "percent", (double)Math.Round(task.Progress, 4) },
+                        { "message", task.Message ?? "" }
+                    });
+                    if (task.HasProgress)
+                    {
+                        progPct = task.Progress;
+                        progMsg = task.Message ?? "";
+                    }
+                }
                 bool hasAsk = (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed);
                 string label = currentTimerLabel ?? "";
 
@@ -8496,7 +8588,8 @@ internal sealed class AppContext : ApplicationContext
                         {
                             { "active", progActive },
                             { "percent", (double)Math.Round(progPct, 4) },
-                            { "message", progMsg }
+                            { "message", progMsg },
+                            { "tasks", taskStatuses }
                         }
                     },
                     { "has_pending_ask", hasAsk },
@@ -8553,7 +8646,6 @@ internal sealed class AppContext : ApplicationContext
 
         string op = message.ContainsKey("op") ? message["op"] as string : null;
         string requestId = message.ContainsKey("id") ? McpBridgeClient.ObjectIdToString(message["id"]) : null;
-        if (op != "hello") connection.LastMessageTick = Environment.TickCount;
         if (op == "hello")
         {
             connection.ClientName = message.ContainsKey("client")
@@ -8752,16 +8844,12 @@ internal sealed class AppContext : ApplicationContext
             string action = ArgString(args, "action", "show").ToLowerInvariant();
             if (action == "clear" || action == "hide")
             {
-                if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
-                {
-                    try { activeProjectedNote.Close(); } catch { }
-                    activeProjectedNote = null;
-                }
+                ClearAgentProgress(GetTaskAgentName(ResolveAgentName(args, clientName), settings.Language == "en" ? "AI Agent" : "智能体"));
                 return McpBridgeProtocol.Serialize(new Dictionary<string, object>
                 {
                     { "status", "ok" },
                     { "action", "clear" },
-                    { "message", "已清除桌面便签投射" }
+                    { "message", "已清除当前智能体的任务状态" }
                 });
             }
             if (action == "next")
@@ -8828,7 +8916,7 @@ internal sealed class AppContext : ApplicationContext
             string quoteAuthor = ArgString(args, "author", null);
             if (!string.IsNullOrEmpty(quoteText))
             {
-                ShowCustomQuote(quoteText, quoteAuthor, agentName);
+                SetAgentTaskMessage(quoteText, GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "智能体"));
                 return McpBridgeProtocol.Serialize(new Dictionary<string, object>
                 {
                     { "status", "ok" },
@@ -8836,7 +8924,7 @@ internal sealed class AppContext : ApplicationContext
                     { "text", quoteText },
                     { "author", quoteAuthor ?? "" },
                     { "agent_name", agentName ?? "" },
-                    { "message", "已在桌面置顶投射便签：" + quoteText }
+                    { "message", "已更新任务状态卡：" + quoteText }
                 });
             }
             CheckDailyQuote(true);
@@ -8861,12 +8949,12 @@ internal sealed class AppContext : ApplicationContext
                 string.Equals(progress, "off", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(progress, "reset", StringComparison.OrdinalIgnoreCase))
             {
-                ClearAgentProgress();
+                ClearAgentProgress(GetTaskAgentName(ResolveAgentName(args, clientName), settings.Language == "en" ? "AI Agent" : "智能体"));
                 return McpBridgeProtocol.Serialize(new Dictionary<string, object>
                 {
                     { "status", "ok" },
                     { "action", "clear" },
-                    { "message", "已清除桌面进度条" }
+                    { "message", "已清除当前智能体的任务状态" }
                 });
             }
 
@@ -8877,7 +8965,8 @@ internal sealed class AppContext : ApplicationContext
                     "INVALID_PROGRESS",
                     "无效的进度格式，支持百分比(如 '60%')、分数(如 '3/5')、小数(如 '0.6')或 'clear'"));
             }
-            HandleProgressCommand(string.IsNullOrEmpty(message) ? progress : progress + "|" + message);
+            HandleProgressCommand(string.IsNullOrEmpty(message) ? progress : progress + "|" + message,
+                GetTaskAgentName(ResolveAgentName(args, clientName), settings.Language == "en" ? "AI Agent" : "智能体"));
             return McpBridgeProtocol.Serialize(new Dictionary<string, object>
             {
                 { "status", "ok" },
@@ -8893,10 +8982,30 @@ internal sealed class AppContext : ApplicationContext
 
     private Dictionary<string, object> BuildMcpStatus()
     {
+        if (overlay != null && overlay.InvokeRequired)
+            return (Dictionary<string, object>)overlay.Invoke(new Func<Dictionary<string, object>>(BuildMcpStatus));
         int remainingSeconds = (int)ReadRemaining().TotalSeconds;
-        bool progressActive = overlay != null && overlay.AgentProgressActive;
-        float progressPercent = progressActive ? overlay.AgentProgressPercent : 0f;
-        string progressMessage = progressActive ? (overlay.AgentProgressMessage ?? "") : "";
+        bool progressActive = false;
+        float progressPercent = 0f;
+        string progressMessage = "";
+        List<object> taskStatuses = new List<object>();
+        for (int i = 0; i < agentTaskStatuses.Count; i++)
+        {
+            AgentTaskStatus task = agentTaskStatuses[i];
+            taskStatuses.Add(new Dictionary<string, object>
+            {
+                { "agent", task.AgentName },
+                { "active", task.HasProgress },
+                { "percent", (double)Math.Round(task.Progress, 4) },
+                { "message", task.Message ?? "" }
+            });
+            if (task.HasProgress)
+            {
+                progressActive = true;
+                progressPercent = task.Progress;
+                progressMessage = task.Message ?? "";
+            }
+        }
         bool hasAsk = activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed;
         return new Dictionary<string, object>
         {
@@ -8908,7 +9017,8 @@ internal sealed class AppContext : ApplicationContext
                 {
                     { "active", progressActive },
                     { "percent", (double)Math.Round(progressPercent, 4) },
-                    { "message", progressMessage }
+                    { "message", progressMessage },
+                    { "tasks", taskStatuses }
                 }
             },
             { "has_pending_ask", hasAsk },
@@ -8988,11 +9098,12 @@ internal sealed class AppContext : ApplicationContext
         return parsed >= 0f;
     }
 
-    internal void HandleProgressCommand(string payload)
+    internal void HandleProgressCommand(string payload, string agentName = null)
     {
+        string statusAgent = GetTaskAgentName(agentName, settings.Language == "en" ? "Terminal" : "终端");
         if (string.IsNullOrEmpty(payload) || payload.Equals("clear", StringComparison.OrdinalIgnoreCase) || payload.Equals("off", StringComparison.OrdinalIgnoreCase) || payload.Equals("reset", StringComparison.OrdinalIgnoreCase))
         {
-            ClearAgentProgress();
+            ClearAgentProgress(statusAgent);
             return;
         }
 
@@ -9036,31 +9147,102 @@ internal sealed class AppContext : ApplicationContext
             }
         }
 
-        SetAgentProgress(pct, msg);
+        SetAgentProgress(pct, msg, statusAgent);
     }
 
-    internal void SetAgentProgress(float percent, string message)
+    private static string GetTaskAgentName(string agentName, string fallback)
     {
-        if (overlay != null)
-        {
-            if (!overlay.Visible)
-            {
-                overlay.Show();
-            }
-            overlay.UpdateAgentProgress(percent, message);
-        }
+        return string.IsNullOrWhiteSpace(agentName) ? fallback : agentName.Trim();
     }
 
-    internal void ClearAgentProgress()
+    private AgentTaskStatus FindTaskStatus(string agentName)
     {
-        if (overlay != null)
+        for (int i = 0; i < agentTaskStatuses.Count; i++)
         {
-            overlay.ClearAgentProgress();
-            if (state == ClockState.Idle && overlay.Visible)
+            if (string.Equals(agentTaskStatuses[i].AgentName, agentName, StringComparison.OrdinalIgnoreCase))
+                return agentTaskStatuses[i];
+        }
+        return null;
+    }
+
+    private void RefreshTaskStatusHud()
+    {
+        if (taskStatusHud == null || taskStatusHud.IsDisposed) return;
+        taskStatusHud.SetTasks(agentTaskStatuses);
+        if (agentTaskStatuses.Count == 0)
+        {
+            taskStatusHud.Hide();
+            return;
+        }
+        UpdateTaskStatusHudPosition();
+        if (!taskStatusHud.Visible) taskStatusHud.Show();
+        UpdateTaskStatusHudPosition();
+    }
+
+    private void UpdateTaskStatusHudPosition()
+    {
+        if (taskStatusHud == null || taskStatusHud.IsDisposed || overlay == null || agentTaskStatuses.Count == 0) return;
+        taskStatusHud.UpdatePosition(overlay.Bounds);
+    }
+
+    internal void SetAgentProgress(float percent, string message, string agentName = null)
+    {
+        if (overlay != null && overlay.InvokeRequired)
+        {
+            overlay.BeginInvoke(new Action<float, string, string>(SetAgentProgress), percent, message, agentName);
+            return;
+        }
+        string name = GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "智能体");
+        AgentTaskStatus status = FindTaskStatus(name);
+        if (status == null)
+        {
+            status = new AgentTaskStatus { AgentName = name };
+            agentTaskStatuses.Add(status);
+        }
+        status.HasProgress = true;
+        status.Progress = Math.Max(0f, Math.Min(1f, percent));
+        if (!string.IsNullOrWhiteSpace(message)) status.Message = message;
+        RefreshTaskStatusHud();
+    }
+
+    internal void SetAgentTaskMessage(string message, string agentName)
+    {
+        if (overlay != null && overlay.InvokeRequired)
+        {
+            overlay.BeginInvoke(new Action<string, string>(SetAgentTaskMessage), message, agentName);
+            return;
+        }
+        string name = GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "智能体");
+        AgentTaskStatus status = FindTaskStatus(name);
+        if (status == null)
+        {
+            status = new AgentTaskStatus { AgentName = name };
+            agentTaskStatuses.Add(status);
+        }
+        status.Message = message;
+        RefreshTaskStatusHud();
+    }
+
+    internal void ClearAgentProgress(string agentName = null)
+    {
+        if (overlay != null && overlay.InvokeRequired)
+        {
+            overlay.BeginInvoke(new Action<string>(ClearAgentProgress), agentName);
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(agentName))
+        {
+            agentTaskStatuses.Clear();
+        }
+        else
+        {
+            for (int i = agentTaskStatuses.Count - 1; i >= 0; i--)
             {
-                overlay.Hide();
+                if (string.Equals(agentTaskStatuses[i].AgentName, agentName.Trim(), StringComparison.OrdinalIgnoreCase))
+                    agentTaskStatuses.RemoveAt(i);
             }
         }
+        RefreshTaskStatusHud();
     }
 
     internal void TriggerCliNotice(string message, string agentName = null)
@@ -11141,6 +11323,7 @@ internal sealed class AppContext : ApplicationContext
         if (displaySettingsHandler != null) { try { SystemEvents.DisplaySettingsChanged -= displaySettingsHandler; } catch { } displaySettingsHandler = null; }
         if (sessionSwitchHandler != null) { try { SystemEvents.SessionSwitch -= sessionSwitchHandler; } catch { } sessionSwitchHandler = null; }
         if (trayClickTimer != null) { try { trayClickTimer.Stop(); trayClickTimer.Dispose(); } catch { } trayClickTimer = null; }
+        if (taskStatusHud != null && !taskStatusHud.IsDisposed) { taskStatusHud.Close(); taskStatusHud.Dispose(); taskStatusHud = null; }
         overlay.Close(); overlay.Dispose(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); timer.Dispose(); ExitThread();
     }
     internal static string FormatDuration(long secs, bool en)

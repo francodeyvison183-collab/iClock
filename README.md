@@ -58,10 +58,10 @@
 * 👁 **20+ 款主流编程智能体任务感知矩阵**：全面覆盖 Cursor、Antigravity、Claude Code、GitHub Copilot、Windsurf、Trae、通义灵码、CodeGeeX、文心快码、MiniMax、CodeBuddy、Aider 等主流智能体。采用四级感知矩阵（Windows Toast 拦截、`HSHELL_FLASH` 窗口闪烁、窗口标题变化、多进程生命周期），智能体跑长任务完毕 **0ms 零误报即时提醒**，支持一键点击还原智能体窗口。
 * 🔌 **内置原生 stdio MCP Server (`iClock.exe --mcp`)**：GUI 与 MCP 桥接进程共用同一个单文件；桥接进程通过 Named Pipe 连接桌面端，GUI 未启动时会自动拉起。零额外环境依赖，原生支持 Anthropic Model Context Protocol 标准 JSON-RPC 2.0 协议，向智能体开放 6 大核心工具：
   - `iclock_ask_human`：**极速桌面授权门禁 (Flash Approval HUD / Human-in-the-Loop)**。智能体执行高危操作（如 `git push --force`、生产发布、删除数据）时，置顶唤醒 HUD 门禁卡片，支持 `Enter`/`1-9` 盲打秒级通过、`Esc` 拒绝，毫秒级回传智能体；默认无超时自动兜底，等待人类明确决断。支持命令行直接调用：`iclock -a "Deploy to prod?" --options "Approve,Reject"`；
-  - `iclock_progress`：**态势感知极细发丝进度条 (Ghost Progress Meter)**。智能体执行后台耗时任务（如跑测试、打包、代码重构）时，在悬浮时钟底部投射 2px 极细发丝胶囊进度条，鼠标悬停可查看当前步骤与说明（支持 60%、3/5 等格式）；任务完毕一键清除；
+  - `iclock_progress`：**多智能体任务状态卡**。进度条与步骤文字合并在同一行；倒计时运行时显示在时钟下方，无倒计时时独立显示。不同智能体各占一行，`clear` 只移除调用者自己的状态（支持 `agent_name` 区分共享同一 MCP 连接的并行智能体）；
   - `iclock_timer`：智能体自主为用户设定、控制与查询专注倒计时；
   - `iclock_notify`：智能体长任务完成或阶段汇报时触发桌面强置顶/轻提醒与铃声；
-  - `iclock_quote`：智能体查询或为用户切换桌面励志格言；
+  - `iclock_quote`：智能体更新自己的任务状态文字，也可查询或切换桌面励志格言；
   - `iclock_status`：智能体获取系统与 iClock 运行状态。
 * 💻 **极简命令行与脚本自动化 (CLI & IPC Pipeline)**：内置 `WM_COPYDATA` 超轻量 IPC 管道，支持 `iclock --install-cli` 一键写入环境变量，像 `claude` / `git` 一样免 `.exe` 全局调用；支持 CI/CD 与构建脚本一行命令触发桌面提醒（如 `npm run build && iclock -n "生产构建完成"`）。
 
