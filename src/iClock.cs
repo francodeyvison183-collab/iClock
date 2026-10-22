@@ -1825,6 +1825,7 @@ internal sealed class SettingsDialog : Form
     private StyledTipLabel lblQuoteTip;
     private ComboBox quoteFontCombo, quoteColorCombo, quoteLayerCombo;
     private ToggleSwitch quoteSaverToggle;
+    private Button btnPreviewSaver;
     private Label lblDailyQuote;
     private bool updatingQuoteColorCombo;
     private string selectedQuoteColor = "";
@@ -2233,6 +2234,16 @@ internal sealed class SettingsDialog : Form
         Controls.Add(dailyQuoteToggle);
 
         lblQuoteSaver = AddLabel(en ? "Use today's quote as screensaver" : "开启今日格言作为屏保", 18, 400);
+        btnPreviewSaver = new Button();
+        btnPreviewSaver.Text = en ? "Preview" : "预览";
+        btnPreviewSaver.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
+        btnPreviewSaver.SetBounds(262, 398, 60, 24);
+        AppContext.StyleSecondaryButton(btnPreviewSaver);
+        btnPreviewSaver.Click += OnPreviewSaverClick;
+        toolTip.SetToolTip(btnPreviewSaver, en
+            ? "Show a fullscreen preview of today's quote screensaver"
+            : "全屏预览今日格言屏保效果");
+        Controls.Add(btnPreviewSaver);
         quoteSaverToggle = new ToggleSwitch();
         quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
         quoteSaverToggle.SetBounds(322, 400, 40, 22);
@@ -2549,6 +2560,7 @@ internal sealed class SettingsDialog : Form
         btnEditQuotes.Visible = isQuote;
         if (lblQuoteSaver != null) lblQuoteSaver.Visible = isQuote;
         if (quoteSaverToggle != null) quoteSaverToggle.Visible = isQuote;
+        if (btnPreviewSaver != null) btnPreviewSaver.Visible = isQuote;
         if (btnAiQuotes != null) btnAiQuotes.Visible = isQuote;
         lblQuoteTip.Visible = isQuote;
         SyncQuoteStyleEnabled();
@@ -3061,6 +3073,14 @@ internal sealed class SettingsDialog : Form
             catch { }
         }
     }
+    private void OnPreviewSaverClick(object sender, EventArgs e)
+    {
+        // WYSIWYG: the preview runs the same QuoteScreensaverForm the real saver
+        // uses; a 15 s timeout and click-to-exit keep it from trapping the user.
+        CommitQuoteSettings();
+        QuoteScreensaverForm preview = new QuoteScreensaverForm(true);
+        preview.Show();
+    }
     private void OnEditQuotesClick(object sender, EventArgs e) { AppContext.OpenQuotesFile(); }
     private void OnAiQuotesClick(object sender, EventArgs e)
     {
@@ -3487,6 +3507,11 @@ internal sealed class SettingsDialog : Form
             quoteLayerCombo.SelectedIndex = qlSel >= 0 ? qlSel : 0;
         }
         lblQuoteSaver.Text = toEnglish ? "Use today's quote as screensaver" : "开启今日格言作为屏保";
+        if (btnPreviewSaver != null)
+        {
+            btnPreviewSaver.Text = toEnglish ? "Preview" : "预览";
+            btnPreviewSaver.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f);
+        }
         if (quoteSaverToggle != null) quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
         lblQuoteQuotes.Text = toEnglish ? "Quote library" : "名言词库";
         btnEditQuotes.Text = toEnglish ? "Edit Quotes" : "自定义…";
@@ -11954,9 +11979,16 @@ internal sealed class QuoteScreensaverForm : Form
     private readonly Settings saverSettings;
     private readonly List<QuoteItem> saverQuotes;
     private readonly int saverQuoteIndex;
+    // Manual preview (settings dialog "预览" button): mouse movement does not
+    // kill the preview — only an explicit click/keypress or the timeout does.
+    private readonly bool previewMode;
+    private Timer previewTimeout;
 
-    public QuoteScreensaverForm()
+    public QuoteScreensaverForm() : this(false) { }
+
+    public QuoteScreensaverForm(bool manualPreview)
     {
+        previewMode = manualPreview;
         saverSettings = Settings.Load();
         saverQuotes = DailyQuoteDialog.LoadQuotes();
         if (saverQuotes == null || saverQuotes.Count == 0) saverQuotes = new List<QuoteItem>(DailyQuoteDialog.DefaultQuotes);
@@ -11973,6 +12005,26 @@ internal sealed class QuoteScreensaverForm : Form
         Cursor.Hide();
 
         Capture = true;
+
+        if (previewMode)
+        {
+            // Preview must end on its own if the user walks away: 15 s cap
+            // (a real saver runs indefinitely, a settings preview should not).
+            previewTimeout = new Timer();
+            previewTimeout.Interval = 15000;
+            previewTimeout.Tick += delegate { ExitSaver(); };
+            previewTimeout.Start();
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && previewTimeout != null)
+        {
+            previewTimeout.Dispose();
+            previewTimeout = null;
+        }
+        base.Dispose(disposing);
     }
 
     protected override void OnLoad(EventArgs e)
@@ -12095,8 +12147,9 @@ internal sealed class QuoteScreensaverForm : Form
                 return;
             case WM_MOUSEMOVE:
                 // Explorer moves the mouse right before activation; ignore the first
-                // bounce so the saver does not die instantly.
-                if (saverMouseArmed)
+                // bounce so the saver does not die instantly. Manual preview ignores
+                // mouse movement entirely — only a click exits it.
+                if (!previewMode && saverMouseArmed)
                 {
                     int lp = m.LParam.ToInt32();
                     int y = (lp >> 16) & 0xFFFF, x = lp & 0xFFFF;
