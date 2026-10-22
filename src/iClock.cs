@@ -54,6 +54,8 @@ internal sealed class Settings
     public bool QuotePinTopMost;
     public int QuoteIndex = -1;
     public string QuoteDate = "";
+    // Screensaver mode: 0 = off, 1 = black screen with today's quote, 2 = pure black.
+    public int QuoteSaverMode;
     public int TaskStatusX = -99999;
     public int TaskStatusY = -99999;
     public float TaskStatusFontSize = 9.5f;
@@ -79,6 +81,7 @@ internal sealed class Settings
         QuoteFontSize = src.QuoteFontSize; QuoteColor = src.QuoteColor; QuoteFont = src.QuoteFont;
         QuotePinTopMost = src.QuotePinTopMost;
         QuoteIndex = src.QuoteIndex; QuoteDate = src.QuoteDate;
+        QuoteSaverMode = src.QuoteSaverMode;
         TaskStatusX = src.TaskStatusX; TaskStatusY = src.TaskStatusY;
         TaskStatusFontSize = src.TaskStatusFontSize > 0 ? src.TaskStatusFontSize : 9.5f;
         TaskStatusTextColor = src.TaskStatusTextColor; TaskStatusBarColor = src.TaskStatusBarColor;
@@ -161,6 +164,7 @@ internal sealed class Settings
                 else if (k == "QuotePinTopMost" && bool.TryParse(v, out b)) s.QuotePinTopMost = b;
                 else if (k == "QuoteIndex" && int.TryParse(v, out n)) s.QuoteIndex = n;
                 else if (k == "QuoteDate") s.QuoteDate = v;
+                else if (k == "QuoteSaverMode" && int.TryParse(v, out n)) s.QuoteSaverMode = Math.Max(0, Math.Min(2, n));
                 else if (k == "TaskStatusX" && int.TryParse(v, out n)) s.TaskStatusX = n;
                 else if (k == "TaskStatusY" && int.TryParse(v, out n)) s.TaskStatusY = n;
                 else if (k == "TaskStatusFontSize" && float.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out f)) s.TaskStatusFontSize = f > 0 ? Math.Max(7.0f, Math.Min(16.0f, f)) : 9.5f;
@@ -191,7 +195,7 @@ internal sealed class Settings
             "DesktopCollaborationEnabled=" + DesktopCollaborationEnabled,
             "DailyQuote=" + DailyQuote, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
             "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuotePinTopMost=" + QuotePinTopMost,
-            "QuoteIndex=" + QuoteIndex, "QuoteDate=" + QuoteDate,
+            "QuoteIndex=" + QuoteIndex, "QuoteDate=" + QuoteDate, "QuoteSaverMode=" + QuoteSaverMode,
             "TaskStatusX=" + TaskStatusX, "TaskStatusY=" + TaskStatusY,
             "TaskStatusFontSize=" + (TaskStatusFontSize > 0 ? TaskStatusFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "9.5"),
             "TaskStatusTextColor=" + TaskStatusTextColor, "TaskStatusBarColor=" + TaskStatusBarColor,
@@ -1815,9 +1819,9 @@ internal sealed class SettingsDialog : Form
 
     private NumericUpDown quoteFontSize;
     private bool isSyncingQuoteFontSize;
-    private Label lblQuoteSize, lblQuoteFont, lblQuoteColor, lblQuoteLayer, lblQuoteQuotes;
+    private Label lblQuoteSize, lblQuoteFont, lblQuoteColor, lblQuoteLayer, lblQuoteQuotes, lblQuoteSaver;
     private StyledTipLabel lblQuoteTip;
-    private ComboBox quoteFontCombo, quoteColorCombo, quoteLayerCombo;
+    private ComboBox quoteFontCombo, quoteColorCombo, quoteLayerCombo, quoteSaverCombo;
     private bool updatingQuoteColorCombo;
     private string selectedQuoteColor = "";
     private string selectedQuoteFont = "";
@@ -2215,6 +2219,21 @@ internal sealed class SettingsDialog : Form
         toolTip.SetToolTip(btnAiQuotes, en ? "Generate quotes with AI Agent" : "通过 AI 智能体批量创作并扩充词库");
         Controls.Add(btnAiQuotes);
 
+        // Row 6: Screensaver mode (Y = 394) - install the .scr copy on first enable.
+        lblQuoteSaver = AddLabel(en ? "Screensaver" : "屏幕保护", 18, 398);
+        quoteSaverCombo = AddCombo(394);
+        quoteSaverCombo.Items.AddRange(en
+            ? new object[] { "Off (Default)", "Quote on black", "Pure black screen" }
+            : new object[] { "关闭 (默认)", "显示今日格言", "纯黑屏护眼" });
+        quoteSaverCombo.DrawItem += OnDrawComboItem;
+        quoteSaverCombo.SelectedIndexChanged += OnQuoteSaverChanged;
+        quoteSaverCombo.SelectedIndex = Math.Max(0, Math.Min(2, Value.QuoteSaverMode));
+        if (toolTip == null) toolTip = new ToolTip();
+        toolTip.SetToolTip(quoteSaverCombo, en
+            ? "Install iClock as the Windows screensaver showing today's quote when idle"
+            : "把 iClock 安装为 Windows 屏保，空闲时全屏显示今日格言");
+        Controls.Add(quoteSaverCombo);
+
         // Section 4: Tip (Y = 416)
         lblQuoteTip = new StyledTipLabel(en
             ? new string[] { "Alt + Ctrl + wheel", "Alt + drag" }
@@ -2225,7 +2244,7 @@ internal sealed class SettingsDialog : Form
             : "提示：在桌面格言文字上按住 Alt + 拖拽，Alt + Ctrl + 滚轮缩放字号。";
         lblQuoteTip.ForeColor = AppContext.Win11TextSecondary;
         lblQuoteTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblQuoteTip.SetBounds(16, 416, 348, 22);
+        lblQuoteTip.SetBounds(16, 440, 348, 22);
         Controls.Add(lblQuoteTip);
         if (toolTip == null) toolTip = new ToolTip();
         toolTip.SetToolTip(dailyQuote, en
@@ -2523,6 +2542,8 @@ internal sealed class SettingsDialog : Form
         quoteLayerCombo.Visible = isQuote;
         lblQuoteQuotes.Visible = isQuote;
         btnEditQuotes.Visible = isQuote;
+        if (lblQuoteSaver != null) lblQuoteSaver.Visible = isQuote;
+        if (quoteSaverCombo != null) quoteSaverCombo.Visible = isQuote;
         if (btnAiQuotes != null) btnAiQuotes.Visible = isQuote;
         lblQuoteTip.Visible = isQuote;
 
@@ -2977,6 +2998,28 @@ internal sealed class SettingsDialog : Form
         TriggerQuotePreview();
     }
     private void OnQuoteLayerChanged(object sender, EventArgs e) { TriggerQuotePreview(); }
+    private void OnQuoteSaverChanged(object sender, EventArgs e)
+    {
+        // Managed entirely from the combo: pick a mode -> refresh the .scr copy so
+        // the Windows saver list always has the latest build; pick Off -> remove it.
+        int mode = quoteSaverCombo != null ? quoteSaverCombo.SelectedIndex : 0;
+        if (mode < 0) return;
+        bool ok;
+        if (mode == 0) { Program.UninstallSaverScr(); ok = true; }
+        else ok = Program.InstallSaverScr();
+        if (!ok)
+        {
+            try
+            {
+                MessageBox.Show(this,
+                    Value != null && Value.Language == "en"
+                        ? "Could not copy the screensaver file. Check disk permissions and try again."
+                        : "屏保文件复制失败，请检查目录权限后重试。",
+                    "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            catch { }
+        }
+    }
     private void OnEditQuotesClick(object sender, EventArgs e) { AppContext.OpenQuotesFile(); }
     private void OnAiQuotesClick(object sender, EventArgs e)
     {
@@ -3402,6 +3445,16 @@ internal sealed class SettingsDialog : Form
                 : new object[] { "桌面背景置底 (默认)", "始终置顶显示" });
             quoteLayerCombo.SelectedIndex = qlSel >= 0 ? qlSel : 0;
         }
+        lblQuoteSaver.Text = toEnglish ? "Screensaver" : "屏幕保护";
+        int qsSel = quoteSaverCombo != null ? quoteSaverCombo.SelectedIndex : 0;
+        if (quoteSaverCombo != null)
+        {
+            quoteSaverCombo.Items.Clear();
+            quoteSaverCombo.Items.AddRange(toEnglish
+                ? new object[] { "Off (Default)", "Quote on black", "Pure black screen" }
+                : new object[] { "关闭 (默认)", "显示今日格言", "纯黑屏护眼" });
+            quoteSaverCombo.SelectedIndex = qsSel >= 0 ? qsSel : 0;
+        }
         lblQuoteQuotes.Text = toEnglish ? "Quote library" : "名言词库";
         btnEditQuotes.Text = toEnglish ? "Edit Quotes" : "自定义…";
         btnEditQuotes.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f);
@@ -3583,6 +3636,7 @@ internal sealed class SettingsDialog : Form
         Value.QuoteFont = selectedQuoteFont ?? "";
         if (quoteFontSize != null) Value.QuoteFontSize = (float)quoteFontSize.Value;
         Value.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
+        Value.QuoteSaverMode = quoteSaverCombo != null && quoteSaverCombo.SelectedIndex >= 0 ? quoteSaverCombo.SelectedIndex : 0;
         return Value;
     }
 
@@ -3594,6 +3648,7 @@ internal sealed class SettingsDialog : Form
         Value.QuoteFont = selectedQuoteFont ?? "";
         if (quoteFontSize != null) Value.QuoteFontSize = (float)quoteFontSize.Value;
         Value.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
+        Value.QuoteSaverMode = quoteSaverCombo != null && quoteSaverCombo.SelectedIndex >= 0 ? quoteSaverCombo.SelectedIndex : 0;
         Value.Save();
     }
 
@@ -11326,6 +11381,7 @@ Options:
                                   (ignored if desktop instance is already running)
   --quit, --exit                  Gracefully exit running iClock instance
   --install-cli                   Add iClock directory to User PATH
+  --install-screensaver           Register iClock as the Windows screensaver
   -h, --help                      Show this help information
 
 Examples:
@@ -11572,6 +11628,31 @@ Examples:
     [STAThread]
     private static void Main(string[] args)
     {
+        // Windows screensaver dispatch: explorer launches the .scr copy with /s (run),
+        // /p <hwnd> (preview) or /c (configure). Handle these before CLI parsing and
+        // before the single-instance mutex, so the saver never hijacks the tray app.
+        if (args != null && args.Length > 0)
+        {
+            string firstRaw = args[0];
+            if (string.Equals(firstRaw, "/s", StringComparison.OrdinalIgnoreCase))
+            {
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
+                Application.Run(new QuoteScreensaverForm());
+                return;
+            }
+            if (string.Equals(firstRaw, "/c", StringComparison.OrdinalIgnoreCase))
+            {
+                RunSaverConfigure();
+                return;
+            }
+            if (string.Equals(firstRaw, "/p", StringComparison.OrdinalIgnoreCase))
+            {
+                // Mini preview inside Display Properties: skip (tiny child window
+                // painting has no value for a full-screen text saver).
+                return;
+            }
+        }
         if (args != null && args.Length > 0)
         {
             bool json = false;
@@ -11608,6 +11689,18 @@ Examples:
             if (first == "--install-cli" || first == "install-cli")
             {
                 InstallCli();
+                return;
+            }
+            if (first == "--install-screensaver" || first == "install-screensaver")
+            {
+                if (InstallSaverScr())
+                {
+                    WriteToConsole("[iClock] Screensaver installed. Pick 'iClock' in Windows screensaver settings; the display mode is configured on the quote tab.");
+                }
+                else
+                {
+                    WriteToConsole("[iClock] Failed to copy the screensaver file. Check directory permissions.");
+                }
                 return;
             }
             if (first == "--quote-add" || first == "quote-add")
@@ -11717,4 +11810,287 @@ Examples:
             Application.Run(new AppContext(runArgs.ToArray(), isOneShot));
         }
     }
+
+    // ---- Screensaver (.scr) support -----------------------------------------
+
+    // Local per-user location for the .scr copy that Windows looks up. This
+    // folder already holds settings.ini and quotes.txt, so it is writable and
+    // survives updates of the portable exe.
+    internal static string SaverScrPath
+    {
+        get
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "iClock", "iClock.scr");
+        }
+    }
+
+    // Copy the running exe next to settings.ini as a .scr so Windows can pick it
+    // as a screensaver. Returns true when the copy at SaverScrPath is current.
+    internal static bool InstallSaverScr()
+    {
+        try
+        {
+            string scr = SaverScrPath;
+            string dir = Path.GetDirectoryName(scr);
+            if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+            string self = Assembly.GetExecutingAssembly().Location;
+            if (string.IsNullOrEmpty(self)) return false;
+            if (File.Exists(scr) && FilesEqual(self, scr)) return true;
+            // If the target is locked (saver currently running), retrying later is fine.
+            if (File.Exists(scr))
+            {
+                try { File.Delete(scr); } catch { return false; }
+            }
+            File.Copy(self, scr, true);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // Remove the .scr copy on opt-out so the saver list does not pile up entries.
+    internal static void UninstallSaverScr()
+    {
+        try
+        {
+            string scr = SaverScrPath;
+            if (File.Exists(scr)) File.Delete(scr);
+        }
+        catch { }
+    }
+
+    internal static bool FilesEqual(string a, string b)
+    {
+        try
+        {
+            if (!File.Exists(a) || !File.Exists(b)) return false;
+            FileInfo fa = new FileInfo(a), fb = new FileInfo(b);
+            if (fa.Length != fb.Length) return false;
+            if (Math.Abs((fa.LastWriteTimeUtc - fb.LastWriteTimeUtc).TotalSeconds) < 2) return true;
+            using (FileStream fa1 = File.OpenRead(a), fb1 = File.OpenRead(b))
+            {
+                byte[] bufA = new byte[64 * 1024], bufB = new byte[64 * 1024];
+                int n;
+                while ((n = fa1.Read(bufA, 0, bufA.Length)) > 0)
+                {
+                    if (fb1.Read(bufB, 0, bufB.Length) != n) return false;
+                    for (int i = 0; i < n; i++) if (bufA[i] != bufB[i]) return false;
+                }
+                return true;
+            }
+        }
+        catch { return false; }
+    }
+
+    // /c (configure) handler: open the main app (or its settings dialog) so the
+    // user can switch the saver mode. The running tray instance owns settings,
+    // so activate it via the existing single-instance IPC.
+    private static void RunSaverConfigure()
+    {
+        if (SendIpcMessage("activate"))
+        {
+            WriteToConsole("[iClock] Opened iClock settings (screensaver options are on the quote tab).");
+        }
+        else
+        {
+            // No running instance: start the app normally; it opens the tray and
+            // settings, which is the closest equivalent for a non-GUI user flow.
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new AppContext(new string[0], false));
+        }
+    }
+}
+
+// Full-screen black window that shows today's quote when the Windows screensaver
+// runs. Explorer launches the exe with /s; any mouse or keyboard input closes it
+// (WM_CLOSE), matching standard screensaver behavior.
+internal sealed class QuoteScreensaverForm : Form
+{
+    private const int WM_KEYDOWN = 0x0100;
+    private const int WM_SYSKEYDOWN = 0x0104;
+    private const int WM_MOUSEMOVE = 0x0200;
+    private const int WM_LBUTTONDOWN = 0x0201;
+    private const int WM_MBUTTONDOWN = 0x0207;
+    private const int WM_RBUTTONDOWN = 0x0206;
+    private const int WM_XBUTTONDOWN = 0x020B;
+    private const int WM_MOUSEWHEEL = 0x020A;
+
+    private readonly Settings saverSettings;
+    private readonly List<QuoteItem> saverQuotes;
+    private readonly int saverQuoteIndex;
+    private readonly bool saverShowQuote;
+
+    public QuoteScreensaverForm()
+    {
+        saverSettings = Settings.Load();
+        saverShowQuote = saverSettings.QuoteSaverMode != 2; // 1 = quote, 2 = pure black
+        saverQuotes = DailyQuoteDialog.LoadQuotes();
+        if (saverQuotes == null || saverQuotes.Count == 0) saverQuotes = new List<QuoteItem>(DailyQuoteDialog.DefaultQuotes);
+        saverQuoteIndex = AppContext.ResolveTodayQuoteIndex(saverSettings, saverQuotes.Count);
+
+        FormBorderStyle = FormBorderStyle.None;
+        WindowState = FormWindowState.Maximized;
+        StartPosition = FormStartPosition.Manual;
+        ShowInTaskbar = false;
+        TopMost = true;
+        BackColor = Color.Black;
+        DoubleBuffered = true;
+        Bounds = Screen.PrimaryScreen.Bounds;
+        Cursor.Hide();
+
+        Capture = true;
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        ForceForeground();
+    }
+
+    private void ForceForeground()
+    {
+        // The saver must be foreground or input goes to the desktop beneath it.
+        try
+        {
+            NativeMethods.SetWindowPos(Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040);
+            NativeMethods.SetForegroundWindow(Handle);
+            NativeMethods.BringWindowToTop(Handle);
+        }
+        catch { }
+    }
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        ForceForeground();
+        Invalidate();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        Graphics g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        g.Clear(Color.Black);
+        if (!saverShowQuote) return;
+
+        QuoteItem q = saverQuotes[saverQuoteIndex % saverQuotes.Count];
+        string lang = saverSettings != null ? saverSettings.Language : "zh";
+        string text = string.IsNullOrEmpty(q.Text) ? "" : q.Text;
+        string author = string.IsNullOrEmpty(q.Author) ? "" : q.Author;
+
+        string colStr = !string.IsNullOrEmpty(saverSettings.QuoteColor) ? saverSettings.QuoteColor : "#F77F00";
+        Color mainColor;
+        try { mainColor = ColorTranslator.FromHtml(colStr); }
+        catch { mainColor = Color.FromArgb(247, 127, 0); }
+
+        // Same font resolution as DailyQuoteDialog: QuoteFont > FontFamily > Segoe UI.
+        string family = !string.IsNullOrEmpty(saverSettings.QuoteFont)
+            ? saverSettings.QuoteFont
+            : (!string.IsNullOrEmpty(saverSettings.FontFamily) ? saverSettings.FontFamily : "Segoe UI");
+        Font testFont = null, mainFont = null, authorFont = null;
+        try { testFont = new Font(family, 10f); }
+        catch { family = "Segoe UI"; testFont = new Font(family, 10f); }
+        try
+        {
+            mainFont = new Font(family, 36f, FontStyle.Bold);
+            authorFont = new Font(family, 16f, FontStyle.Regular);
+        }
+        catch
+        {
+            mainFont = new Font("Segoe UI", 36f, FontStyle.Bold);
+            authorFont = new Font("Segoe UI", 16f, FontStyle.Regular);
+        }
+        finally
+        {
+            if (testFont != null) testFont.Dispose();
+        }
+
+        try
+        {
+            Rectangle bounds = Bounds;
+            // Long quotes must wrap and shrink: measure hero size then step down
+            // until the wrapped block fits the central 70% of the screen.
+            float em = 36f;
+            SizeF layoutArea = new SizeF(bounds.Width * 0.72f, bounds.Height * 0.5f);
+            SizeF measured = g.MeasureString(text, mainFont, (int)layoutArea.Width);
+            while ((measured.Height > layoutArea.Height || measured.Width > layoutArea.Width) && em > 14f)
+            {
+                em -= 2f;
+                Font smaller = new Font(family, em, FontStyle.Bold);
+                mainFont.Dispose();
+                mainFont = smaller;
+                measured = g.MeasureString(text, mainFont, (int)layoutArea.Width);
+            }
+
+            RectangleF wrapArea = new RectangleF(bounds.Width * 0.14f, bounds.Height * 0.32f, bounds.Width * 0.72f, bounds.Height * 0.40f);
+            StringFormat sf = new StringFormat();
+            sf.Alignment = StringAlignment.Center;
+            sf.LineAlignment = StringAlignment.Center;
+            sf.FormatFlags = StringFormatFlags.FitBlackBox;
+            g.DrawString(text, mainFont, new SolidBrush(mainColor), wrapArea, sf);
+            if (!string.IsNullOrEmpty(author))
+            {
+                RectangleF authorArea = new RectangleF(bounds.Width * 0.14f, wrapArea.Bottom + 16f, bounds.Width * 0.72f, 40f);
+                g.DrawString("—— " + author, authorFont, new SolidBrush(Color.FromArgb(180, 255, 255, 255)), authorArea, sf);
+            }
+        }
+        finally
+        {
+            mainFont.Dispose();
+            authorFont.Dispose();
+        }
+    }
+
+    private void ExitSaver()
+    {
+        Cursor.Show();
+        Close();
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        switch (m.Msg)
+        {
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN:
+                // F-keys and modifier-only presses are excluded? No: standard savers
+                // exit on any key; keep it simple and consistent.
+                if ((int)m.WParam == (int)Keys.LWin || (int)m.WParam == (int)Keys.RWin) break;
+                ExitSaver();
+                return;
+            case WM_MOUSEMOVE:
+                // Explorer moves the mouse right before activation; ignore the first
+                // bounce so the saver does not die instantly.
+                if (saverMouseArmed)
+                {
+                    int lp = m.LParam.ToInt32();
+                    int y = (lp >> 16) & 0xFFFF, x = lp & 0xFFFF;
+                    if ((short)x != 0 || (short)y != 0)
+                    {
+                        saverMouseArmed = false;
+                        ExitSaver();
+                        return;
+                    }
+                }
+                break;
+            case WM_LBUTTONDOWN:
+            case WM_MBUTTONDOWN:
+            case WM_RBUTTONDOWN:
+            case WM_XBUTTONDOWN:
+            case WM_MOUSEWHEEL:
+                ExitSaver();
+                return;
+            case 0x0010: // WM_CLOSE
+                Cursor.Show();
+                break;
+        }
+        base.WndProc(ref m);
+    }
+
+    private bool saverMouseArmed = true;
 }
