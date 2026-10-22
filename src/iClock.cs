@@ -12200,10 +12200,12 @@ internal sealed class QuoteScreensaverForm : Form
             cardH += (int)Math.Ceiling(padBottom);
             cardH = Math.Max(56, cardH);
 
-            // Screensaver position: horizontally centered, text top anchored at
-            // 38% of the screen height — scales gracefully across resolutions.
+            // Screensaver position: horizontally centered, the text block's
+            // vertical CENTER anchored at 38% of the screen height so the
+            // quote reads optically balanced and scales across resolutions.
             // Text only on black; no card frame here (the desktop note keeps its).
-            Rectangle card = new Rectangle(scr.Left + (scr.Width - cardW) / 2, scr.Top + (int)Math.Round(scr.Height * 0.38), cardW, cardH);
+            int centerAnchoredY = scr.Top + (int)Math.Round(scr.Height * 0.38) - cardH / 2;
+            Rectangle card = new Rectangle(scr.Left + (scr.Width - cardW) / 2, centerAnchoredY, cardW, cardH);
 
             using (StringFormat sf = new StringFormat { Trimming = StringTrimming.Word, Alignment = StringAlignment.Center })
             {
