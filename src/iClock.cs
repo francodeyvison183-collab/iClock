@@ -2348,7 +2348,9 @@ internal sealed class SettingsDialog : Form
         Controls.Add(panelSessionCard);
 
         panelAgentRows = new Panel();
-        panelAgentRows.SetBounds(0, 0, 320, 10);
+        // Full card width: the row dividers must reach the card's right edge
+        // (a 320px panel inside a 344px card left a 24px gap).
+        panelAgentRows.SetBounds(0, 0, panelSkillCard.Width, 10);
         panelAgentRows.BackColor = Color.Transparent;
         panelSkillCard.Controls.Add(panelAgentRows);
 
@@ -3354,12 +3356,15 @@ internal sealed class SettingsDialog : Form
             name.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
             name.ForeColor = AppContext.Win11TextPrimary;
             name.TextAlign = ContentAlignment.MiddleLeft;
-            name.SetBounds(32, y, 192, rowHeight);
+            // Button is right-aligned to the row (16px inner margin), so the
+            // agent name takes whatever space is left of it.
+            int btnX = panelAgentRows.Width - 82 - 16;
+            name.SetBounds(32, y, Math.Max(80, btnX - 32 - 8), rowHeight);
             panelAgentRows.Controls.Add(name);
 
             Button btn = new Button();
             btn.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-            btn.SetBounds(230, y + (rowHeight - 24) / 2, 82, 24);
+            btn.SetBounds(btnX, y + (rowHeight - 24) / 2, 82, 24);
             btn.Tag = agent;
             // Solid fill, no border: reduces line-noise against the row divider.
             btn.FlatStyle = FlatStyle.Flat;
