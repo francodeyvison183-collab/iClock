@@ -3083,11 +3083,17 @@ internal sealed class SettingsDialog : Form
     }
     private void OnPreviewSaverLinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
     {
-        // WYSIWYG: the preview runs the same QuoteScreensaverForm the real saver
-        // uses; a 15 s timeout and click-to-exit keep it from trapping the user.
+        // WYSIWYG: the preview reuses the desktop quote note itself
+        // (DailyQuoteDialog projection mode) so the saver content shows exactly
+        // the configured font/size/color at the note's default position. The
+        // projection auto-dismisses after a minute and closes with Esc.
         lnkPreviewSaver.LinkVisited = false;
         CommitQuoteSettings();
-        QuoteScreensaverForm preview = new QuoteScreensaverForm(true);
+        List<QuoteItem> quotes = DailyQuoteDialog.LoadQuotes();
+        if (quotes == null || quotes.Count == 0) quotes = new List<QuoteItem>(DailyQuoteDialog.DefaultQuotes);
+        int idx = AppContext.ResolveTodayQuoteIndex(Value, quotes.Count);
+        QuoteItem q = quotes[idx % quotes.Count];
+        DailyQuoteDialog preview = new DailyQuoteDialog(Value, q.Text, q.Author, isProjected: true);
         preview.Show();
     }
     private void OnEditQuotesClick(object sender, EventArgs e) { AppContext.OpenQuotesFile(); }
@@ -12068,12 +12074,12 @@ internal sealed class QuoteScreensaverForm : Form
         base.OnPaint(e);
         Graphics g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        g.TextRenderingHint = TextRenderingHint.AntiAlias;
         g.Clear(Color.Black);
 
         QuoteItem q = saverQuotes[saverQuoteIndex % saverQuotes.Count];
         string lang = saverSettings != null ? saverSettings.Language : "zh";
-        string text = string.IsNullOrEmpty(q.Text) ? "" : q.Text;
+        string text = string.IsNullOrEmpty(q.Text) ? "" : "“" + q.Text + "”";
         string author = string.IsNullOrEmpty(q.Author) ? "" : q.Author;
 
         string colStr = !string.IsNullOrEmpty(saverSettings.QuoteColor) ? saverSettings.QuoteColor : "#F77F00";
@@ -12081,69 +12087,115 @@ internal sealed class QuoteScreensaverForm : Form
         try { mainColor = ColorTranslator.FromHtml(colStr); }
         catch { mainColor = Color.FromArgb(247, 127, 0); }
 
-        // Same font resolution as DailyQuoteDialog: QuoteFont > FontFamily > Segoe UI.
+        // Paint exactly like the desktop quote note (DailyQuoteDialog): same
+        // font chain, the configured 文字大小 as-is, the same "curly quotes +
+        // —— author" layout, and the note's default position (centered card
+        // anchored at Y=120 below the top). The card rides on the black saver
+        // background, so the preview and the real saver are pixel-identical.
         string family = !string.IsNullOrEmpty(saverSettings.QuoteFont)
             ? saverSettings.QuoteFont
             : (!string.IsNullOrEmpty(saverSettings.FontFamily) ? saverSettings.FontFamily : "Segoe UI");
-        Font testFont = null, mainFont = null, authorFont = null;
-        try { testFont = new Font(family, 10f); }
-        catch { family = "Segoe UI"; testFont = new Font(family, 10f); }
-        // Respect the user's quote font size (settings dialog, 8-24pt) instead of
-        // a fixed 36pt hero; scale up for the big screen but keep the chosen size
-        // as the base so what you set is what you see. Long quotes still shrink.
         float setSize = saverSettings != null && saverSettings.QuoteFontSize >= 8.0f && saverSettings.QuoteFontSize <= 24.0f
             ? saverSettings.QuoteFontSize
             : 18.0f;
-        float em = Math.Min(64f, setSize * 2.0f);
+
+        Font textFont = null, authorFont = null;
+        Rectangle cardRect;
         try
         {
-            mainFont = new Font(family, em, FontStyle.Bold);
-            authorFont = new Font(family, 16f, FontStyle.Regular);
+            textFont = new Font(family, setSize, FontStyle.Regular, GraphicsUnit.Point);
+        }
+        catch { textFont = AppContext.GetUiFont(lang, setSize); }
+        try
+        {
+            authorFont = new Font(family, Math.Max(8.0f, setSize - 1.5f), FontStyle.Italic, GraphicsUnit.Point);
         }
         catch
         {
-            mainFont = new Font("Segoe UI", em, FontStyle.Bold);
-            authorFont = new Font("Segoe UI", 16f, FontStyle.Regular);
-        }
-        finally
-        {
-            if (testFont != null) testFont.Dispose();
+            try { authorFont = new Font(family, Math.Max(8.0f, setSize - 1.5f), FontStyle.Regular, GraphicsUnit.Point); }
+            catch { authorFont = AppContext.GetUiFont(lang, Math.Max(8.0f, setSize - 1.5f)); }
         }
 
         try
         {
-            Rectangle bounds = Bounds;
-            // Long quotes must wrap and shrink: measure hero size then step down
-            // until the wrapped block fits the central 70% of the screen. Never
-            // drops below the user's configured size so the setting always wins.
-            float minEm = setSize;
-            SizeF layoutArea = new SizeF(bounds.Width * 0.72f, bounds.Height * 0.5f);
-            SizeF measured = g.MeasureString(text, mainFont, (int)layoutArea.Width);
-            while ((measured.Height > layoutArea.Height || measured.Width > layoutArea.Width) && em > minEm)
-            {
-                em -= 2f;
-                if (em < minEm) em = minEm;
-                Font smaller = new Font(family, em, FontStyle.Bold);
-                mainFont.Dispose();
-                mainFont = smaller;
-                measured = g.MeasureString(text, mainFont, (int)layoutArea.Width);
-            }
+            int padX = 18;
+            int padTop = Math.Max(26, (int)Math.Round(setSize * 1.0f) + 8);
+            float gap = Math.Max(6f, setSize * 0.35f);
+            float padBottom = Math.Max(14f, setSize * 0.6f);
 
-            RectangleF wrapArea = new RectangleF(bounds.Width * 0.14f, bounds.Height * 0.32f, bounds.Width * 0.72f, bounds.Height * 0.40f);
-            StringFormat sf = new StringFormat();
-            sf.Alignment = StringAlignment.Center;
-            sf.LineAlignment = StringAlignment.Center;
-            sf.FormatFlags = StringFormatFlags.FitBlackBox;
-            g.DrawString(text, mainFont, new SolidBrush(mainColor), wrapArea, sf);
+            // Card width mirrors the note default: 40% of the working area,
+            // clamped to [320, scr-40]. Long text wraps inside the content width.
+            Rectangle scr = Screen.PrimaryScreen.WorkingArea;
+            int cardW = Math.Max(320, Math.Min(scr.Width - 40, (int)Math.Round(scr.Width * 0.40)));
+            int contentW = cardW - padX * 2;
+            SizeF szText = g.MeasureString(text, textFont, contentW);
+            int cardH = padTop + (int)Math.Ceiling(szText.Height);
             if (!string.IsNullOrEmpty(author))
             {
-                RectangleF authorArea = new RectangleF(bounds.Width * 0.14f, wrapArea.Bottom + 16f, bounds.Width * 0.72f, 40f);
-                g.DrawString("—— " + author, authorFont, new SolidBrush(Color.FromArgb(180, 255, 255, 255)), authorArea, sf);
+                SizeF szAuthor = g.MeasureString("—— " + author, authorFont, contentW);
+                cardH += (int)Math.Ceiling(gap + szAuthor.Height);
+            }
+            cardH += (int)Math.Ceiling(padBottom);
+            cardH = Math.Max(56, cardH);
+
+            // Note default position: horizontally centered, top at Y=120.
+            Rectangle card = new Rectangle(scr.Left + (scr.Width - cardW) / 2, scr.Top + 120, cardW, cardH);
+            cardRect = card;
+
+            // Hover-card look on black: 20% dark base + light border, identical
+            // to the desktop note's Alt hover visual so it reads as one card.
+            using (GraphicsPath path = AppContext.GetRoundedRectPath(cardRect, 10))
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(51, 20, 22, 28)))
+            using (Pen borderPen = new Pen(Color.FromArgb(60, 255, 255, 255), 1.0f))
+            {
+                g.FillPath(bgBrush, path);
+                g.DrawPath(borderPen, path);
+            }
+
+            using (StringFormat sf = new StringFormat { Trimming = StringTrimming.Word, Alignment = StringAlignment.Center })
+            {
+                RectangleF textBounds = new RectangleF(card.Left + padX, card.Top + padTop, contentW, szText.Height);
+                float authorY = card.Top + padTop + szText.Height + gap;
+                SizeF szAuthor = SizeF.Empty;
+                if (!string.IsNullOrEmpty(author))
+                {
+                    szAuthor = g.MeasureString("—— " + author, authorFont, contentW);
+                }
+                RectangleF authorBounds = new RectangleF(card.Left + padX, authorY, contentW, szAuthor.Height + 2);
+
+                float brightness = mainColor.GetBrightness();
+                float shadowOffset = setSize >= 18f ? 2f : 1f;
+                Color shadowColor = (brightness < 0.32f)
+                    ? Color.FromArgb(90, 255, 255, 255)
+                    : Color.FromArgb(110, 0, 0, 0);
+
+                using (StringFormat asf = new StringFormat { Alignment = StringAlignment.Center })
+                using (SolidBrush shadowBrush = new SolidBrush(shadowColor))
+                {
+                    RectangleF shadowText = new RectangleF(textBounds.X + shadowOffset, textBounds.Y + shadowOffset, textBounds.Width, textBounds.Height);
+                    g.DrawString(text, textFont, shadowBrush, shadowText, sf);
+                    if (!string.IsNullOrEmpty(author))
+                    {
+                        RectangleF shadowAuthor = new RectangleF(authorBounds.X + shadowOffset, authorBounds.Y + shadowOffset, authorBounds.Width, authorBounds.Height);
+                        g.DrawString("—— " + author, authorFont, shadowBrush, shadowAuthor, asf);
+                    }
+                }
+
+                using (StringFormat asf = new StringFormat { Alignment = StringAlignment.Center })
+                using (SolidBrush textBrush = new SolidBrush(mainColor))
+                using (SolidBrush authorBrush = new SolidBrush(Color.FromArgb(190, mainColor.R, mainColor.G, mainColor.B)))
+                {
+                    g.DrawString(text, textFont, textBrush, textBounds, sf);
+                    if (!string.IsNullOrEmpty(author))
+                    {
+                        g.DrawString("—— " + author, authorFont, authorBrush, authorBounds, asf);
+                    }
+                }
             }
         }
         finally
         {
-            mainFont.Dispose();
+            textFont.Dispose();
             authorFont.Dispose();
         }
     }
