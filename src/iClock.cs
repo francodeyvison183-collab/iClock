@@ -3083,17 +3083,12 @@ internal sealed class SettingsDialog : Form
     }
     private void OnPreviewSaverLinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
     {
-        // WYSIWYG: the preview reuses the desktop quote note itself
-        // (DailyQuoteDialog projection mode) so the saver content shows exactly
-        // the configured font/size/color at the note's default position. The
-        // projection auto-dismisses after a minute and closes with Esc.
+        // WYSIWYG: the preview IS the real screensaver — full-screen black
+        // background, configured font/size, note default position. Moving the
+        // mouse or pressing Esc exits, just like the actual saver.
         lnkPreviewSaver.LinkVisited = false;
         CommitQuoteSettings();
-        List<QuoteItem> quotes = DailyQuoteDialog.LoadQuotes();
-        if (quotes == null || quotes.Count == 0) quotes = new List<QuoteItem>(DailyQuoteDialog.DefaultQuotes);
-        int idx = AppContext.ResolveTodayQuoteIndex(Value, quotes.Count);
-        QuoteItem q = quotes[idx % quotes.Count];
-        DailyQuoteDialog preview = new DailyQuoteDialog(Value, q.Text, q.Author, isProjected: true);
+        QuoteScreensaverForm preview = new QuoteScreensaverForm();
         preview.Show();
     }
     private void OnEditQuotesClick(object sender, EventArgs e) { AppContext.OpenQuotesFile(); }
@@ -11996,16 +11991,14 @@ internal sealed class QuoteScreensaverForm : Form
     private readonly Settings saverSettings;
     private readonly List<QuoteItem> saverQuotes;
     private readonly int saverQuoteIndex;
-    // Manual preview (settings dialog "预览" button): mouse movement does not
-    // kill the preview — only an explicit click/keypress or the timeout does.
-    private readonly bool previewMode;
-    private Timer previewTimeout;
+    // Mouse-exit is armed shortly after the window shows: the stale mousemove
+    // that arrives with activation must not kill the saver (real saver or the
+    // settings "preview" — the preview is simply this same form launched now).
+    private bool saverMouseArmed;
+    private Timer saverArmTimer;
 
-    public QuoteScreensaverForm() : this(false) { }
-
-    public QuoteScreensaverForm(bool manualPreview)
+    public QuoteScreensaverForm()
     {
-        previewMode = manualPreview;
         saverSettings = Settings.Load();
         saverQuotes = DailyQuoteDialog.LoadQuotes();
         if (saverQuotes == null || saverQuotes.Count == 0) saverQuotes = new List<QuoteItem>(DailyQuoteDialog.DefaultQuotes);
@@ -12023,23 +12016,25 @@ internal sealed class QuoteScreensaverForm : Form
 
         Capture = true;
 
-        if (previewMode)
+        saverArmTimer = new Timer();
+        saverArmTimer.Interval = 500;
+        saverArmTimer.Tick += delegate
         {
-            // Preview must end on its own if the user walks away: 15 s cap
-            // (a real saver runs indefinitely, a settings preview should not).
-            previewTimeout = new Timer();
-            previewTimeout.Interval = 15000;
-            previewTimeout.Tick += delegate { ExitSaver(); };
-            previewTimeout.Start();
-        }
+            saverArmTimer.Stop();
+            saverArmTimer.Dispose();
+            saverArmTimer = null;
+            saverMouseArmed = true;
+        };
+        saverArmTimer.Start();
     }
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing && previewTimeout != null)
+        if (disposing && saverArmTimer != null)
         {
-            previewTimeout.Dispose();
-            previewTimeout = null;
+            saverArmTimer.Stop();
+            saverArmTimer.Dispose();
+            saverArmTimer = null;
         }
         base.Dispose(disposing);
     }
@@ -12218,10 +12213,10 @@ internal sealed class QuoteScreensaverForm : Form
                 ExitSaver();
                 return;
             case WM_MOUSEMOVE:
-                // Explorer moves the mouse right before activation; ignore the first
-                // bounce so the saver does not die instantly. Manual preview ignores
-                // mouse movement entirely — only a click exits it.
-                if (!previewMode && saverMouseArmed)
+                // The stale activation move arrives before the arm timer fires;
+                // once armed, any real mouse movement exits, and the settings
+                // preview behaves exactly like the real saver.
+                if (saverMouseArmed)
                 {
                     int lp = m.LParam.ToInt32();
                     int y = (lp >> 16) & 0xFFFF, x = lp & 0xFFFF;
@@ -12246,6 +12241,4 @@ internal sealed class QuoteScreensaverForm : Form
         }
         base.WndProc(ref m);
     }
-
-    private bool saverMouseArmed = true;
 }
