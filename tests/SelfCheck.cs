@@ -1473,7 +1473,7 @@ internal static class TestCheck
             // Switch to tab 1 (Daily Quote)
             setActiveTabMethod.Invoke(dlgInstance, new object[] { 1 });
             int curTab = (int)settingsDlgType.GetField("activeTab", bf).GetValue(dlgInstance);
-            CheckBox dqBox = (CheckBox)settingsDlgType.GetField("dailyQuote", bf).GetValue(dlgInstance);
+            CheckBox dqBox = (CheckBox)settingsDlgType.GetField("dailyQuoteToggle", bf).GetValue(dlgInstance);
             if (curTab != 1 || dqBox == null || !dqBox.Visible)
             {
                 Console.WriteLine("FAIL: Switching to tab 1 did not activate daily quote controls");
@@ -1848,7 +1848,8 @@ internal static class TestCheck
             }
 
             Form testSetDlg = (Form)Activator.CreateInstance(setDlgType, new object[] { settings });
-            CheckBox dailyQuoteBox = (CheckBox)setDlgType.GetField("dailyQuote", bf).GetValue(testSetDlg);
+            CheckBox dailyQuoteBox = (CheckBox)setDlgType.GetField("dailyQuoteToggle", bf).GetValue(testSetDlg);
+            Label dqLabel = (Label)setDlgType.GetField("lblDailyQuote", bf).GetValue(testSetDlg);
             Button btnEditQ = (Button)setDlgType.GetField("btnEditQuotes", bf).GetValue(testSetDlg);
             ComboBox fontComboQ = (ComboBox)setDlgType.GetField("quoteFontCombo", bf).GetValue(testSetDlg);
             NumericUpDown sizeNudQ = (NumericUpDown)setDlgType.GetField("quoteFontSize", bf).GetValue(testSetDlg);
@@ -1856,17 +1857,17 @@ internal static class TestCheck
             ComboBox layerComboQ = (ComboBox)setDlgType.GetField("quoteLayerCombo", bf).GetValue(testSetDlg);
             Panel panelQuoteCardQ = (Panel)setDlgType.GetField("panelQuoteCard", bf).GetValue(testSetDlg);
             Button btnNextQ = (Button)setDlgType.GetField("btnNextQuote", bf).GetValue(testSetDlg);
-            if (dailyQuoteBox == null || btnEditQ == null || fontComboQ == null || sizeNudQ == null || colorComboQ == null || layerComboQ == null || panelQuoteCardQ == null || btnNextQ == null)
+            if (dailyQuoteBox == null || dqLabel == null || btnEditQ == null || fontComboQ == null || sizeNudQ == null || colorComboQ == null || layerComboQ == null || panelQuoteCardQ == null || btnNextQ == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing DailyQuote controls (including panelQuoteCard, quoteLayerCombo and btnNextQuote)");
                 return 53;
             }
             if (panelQuoteCardQ.Top != 62 || panelQuoteCardQ.Left != 18 || panelQuoteCardQ.Height != 98 ||
-                dailyQuoteBox.Top != 172 || dailyQuoteBox.Left != 18 ||
-                sizeNudQ.Top != 204 || fontComboQ.Top != 242 ||
-                colorComboQ.Top != 280 || colorComboQ.Width != 188 ||
-                layerComboQ.Top != 318 || layerComboQ.Width != 188 ||
-                btnEditQ.Top != 356)
+                dailyQuoteBox.Top != 362 || dailyQuoteBox.Left != 322 || dqLabel.Left != 18 ||
+                sizeNudQ.Top != 172 || fontComboQ.Top != 210 ||
+                colorComboQ.Top != 248 || colorComboQ.Width != 188 ||
+                layerComboQ.Top != 286 || layerComboQ.Width != 188 ||
+                btnEditQ.Top != 324)
             {
                 Console.WriteLine(string.Format("FAIL: SettingsDialog DailyQuote controls layout misaligned: cardT={0}, cardH={1}, dqT={2}, size={3}, font={4}, color={5}, layer={6}, edit={7}",
                     panelQuoteCardQ.Top, panelQuoteCardQ.Height, dailyQuoteBox.Top, sizeNudQ.Top, fontComboQ.Top, colorComboQ.Top, layerComboQ.Top, btnEditQ.Top));

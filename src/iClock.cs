@@ -1771,7 +1771,8 @@ internal sealed class SettingsDialog : Form
     private string selectedColor;
     private TextBox endMessage;
     private ComboBox format, language, fontCombo;
-    private CheckBox startup, sound, notice, dailyQuote;
+    private CheckBox startup, sound, notice;
+    private ToggleSwitch dailyQuoteToggle;
     private Button btnEditQuotes, btnAiQuotes;
     private ComboBox soundStyle, noticeStyle;
     private TextBox hotkeyBox;
@@ -1783,7 +1784,7 @@ internal sealed class SettingsDialog : Form
     public event Action SettingsCommitted;
     public event Action<bool> QuotePreviewRequested;
     public event Action QuoteNextRequested;
-    public bool IsDailyQuoteChecked { get { return dailyQuote != null && dailyQuote.Checked; } }
+    public bool IsDailyQuoteChecked { get { return dailyQuoteToggle != null && dailyQuoteToggle.Checked; } }
     public bool IsQuoteDesktopVisible { get { return IsDailyQuoteChecked; } }
     public int DialogQuoteIndex { get { return dialogQuoteIndex; } }
     public int ActiveTab { get { return activeTab; } }
@@ -1824,6 +1825,7 @@ internal sealed class SettingsDialog : Form
     private StyledTipLabel lblQuoteTip;
     private ComboBox quoteFontCombo, quoteColorCombo, quoteLayerCombo;
     private ToggleSwitch quoteSaverToggle;
+    private Label lblDailyQuote;
     private bool updatingQuoteColorCombo;
     private string selectedQuoteColor = "";
     private string selectedQuoteFont = "";
@@ -2150,12 +2152,8 @@ internal sealed class SettingsDialog : Form
         panelQuoteCard.Controls.Add(lblCardQuoteAuthor);
         UpdateDialogQuoteCard();
 
-        // Section 2: Daily Quote Switch (Y = 172)
-        dailyQuote = AddCheck(en ? "Enable desktop quote note" : "在桌面常驻显示每日格言便签", Value.DailyQuote, 18, 172);
-        dailyQuote.SetBounds(18, 172, 344, 24);
-        dailyQuote.CheckedChanged += OnDailyQuoteCheckChanged;
-
-        // Section 3: Unified 2-column key-value grid (Y = 204, 242, 280, 318, 356)
+        // Section 2: Daily quote settings grid (style rows; toggle switches live at page bottom)
+        // Row 1: Font Size (Y = 172)
         // Row 1: Font Size (Y = 204)
         lblQuoteSize = AddLabel(en ? "Text size" : "文字大小", 18, 208);
         quoteFontSize = new NumericUpDown();
@@ -2165,14 +2163,14 @@ internal sealed class SettingsDialog : Form
         quoteFontSize.Maximum = 24.0M;
         float initQuoteSize = (Value.QuoteFontSize >= 8.0f && Value.QuoteFontSize <= 24.0f) ? Value.QuoteFontSize : 18.0f;
         quoteFontSize.Value = (decimal)initQuoteSize;
-        quoteFontSize.SetBounds(172, 204, 188, 28);
+        quoteFontSize.SetBounds(172, 172, 188, 28);
         ApplyInputPadding(quoteFontSize);
         quoteFontSize.ValueChanged += OnQuoteFontSizeChanged;
         Controls.Add(quoteFontSize);
 
-        // Row 2: Font Style (Y = 242)
-        lblQuoteFont = AddLabel(en ? "Font style" : "字体样式", 18, 246);
-        quoteFontCombo = AddCombo(242);
+        // Row 2: Font Style (Y = 210)
+        lblQuoteFont = AddLabel(en ? "Font style" : "字体样式", 18, 214);
+        quoteFontCombo = AddCombo(210);
         quoteFontCombo.DropDownWidth = 220;
         quoteFontCombo.MaxDropDownItems = 10;
         quoteFontCombo.Items.AddRange(en
@@ -2182,17 +2180,17 @@ internal sealed class SettingsDialog : Form
         quoteFontCombo.DrawItem += OnDrawQuoteFontItem;
         quoteFontCombo.SelectedIndexChanged += OnQuoteFontChanged;
 
-        // Row 3: Color (Full width 188px, self-contained color chips, Y = 280)
-        lblQuoteColor = AddLabel(en ? "Text color" : "文字颜色", 18, 284);
-        quoteColorCombo = AddCombo(280);
+        // Row 3: Color (Full width 188px, self-contained color chips, Y = 248)
+        lblQuoteColor = AddLabel(en ? "Text color" : "文字颜色", 18, 252);
+        quoteColorCombo = AddCombo(248);
         PopulateQuoteColorCombo(en);
         quoteColorCombo.SelectedIndex = GetQuoteColorIndex(selectedQuoteColor);
         quoteColorCombo.DrawItem += OnDrawQuoteColorItem;
         quoteColorCombo.SelectedIndexChanged += OnQuoteColorComboChanged;
 
-        // Row 4: Window Layer (常驻层级, Y = 318)
-        lblQuoteLayer = AddLabel(en ? "Window level" : "常驻层级", 18, 322);
-        quoteLayerCombo = AddCombo(318);
+        // Row 4: Window Layer (常驻层级, Y = 286. Clicking toggle re-uses move-mode.)
+        lblQuoteLayer = AddLabel(en ? "Window level" : "常驻层级", 18, 290);
+        quoteLayerCombo = AddCombo(286);
         quoteLayerCombo.Items.AddRange(en
             ? new object[] { "Desktop Layer (Default)", "Always on Top" }
             : new object[] { "桌面背景置底 (默认)", "始终置顶显示" });
@@ -2200,12 +2198,12 @@ internal sealed class SettingsDialog : Form
         quoteLayerCombo.DrawItem += OnDrawComboItem;
         quoteLayerCombo.SelectedIndexChanged += OnQuoteLayerChanged;
 
-        // Row 5: Quote Library (Y = 356)
-        lblQuoteQuotes = AddLabel(en ? "Quote library" : "名言词库", 18, 360);
+        // Row 5: Quote Library (Y = 324)
+        lblQuoteQuotes = AddLabel(en ? "Quote library" : "名言词库", 18, 328);
         btnEditQuotes = new Button();
         btnEditQuotes.Text = en ? "Edit Quotes" : "自定义…";
         btnEditQuotes.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
-        btnEditQuotes.SetBounds(172, 356, 90, 28);
+        btnEditQuotes.SetBounds(172, 324, 90, 28);
         AppContext.StyleSecondaryButton(btnEditQuotes);
         btnEditQuotes.Click += OnEditQuotesClick;
         if (toolTip == null) toolTip = new ToolTip();
@@ -2215,25 +2213,36 @@ internal sealed class SettingsDialog : Form
         btnAiQuotes = new Button();
         btnAiQuotes.Text = en ? "✨ AI Quotes" : "✨ AI 扩充";
         btnAiQuotes.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
-        btnAiQuotes.SetBounds(270, 356, 90, 28);
+        btnAiQuotes.SetBounds(270, 324, 90, 28);
         AppContext.StyleSecondaryButton(btnAiQuotes);
         btnAiQuotes.Click += OnAiQuotesClick;
         toolTip.SetToolTip(btnAiQuotes, en ? "Generate quotes with AI Agent" : "通过 AI 智能体批量创作并扩充词库");
         Controls.Add(btnAiQuotes);
 
-        // Row 6: Quote-as-screensaver toggle (Y = 394) - installs the .scr copy on enable.
-        lblQuoteSaver = AddLabel(en ? "Use today's quote as screensaver" : "开启今日格言作为屏保", 18, 398);
+        // Switch group at page bottom: desktop note toggle + screensaver toggle,
+        // stacked them like the checkbox grid rows (label left, toggle right).
+        lblDailyQuote = AddLabel(en ? "Show daily quote note on desktop" : "在桌面常驻显示每日格言便签", 18, 362);
+        dailyQuoteToggle = new ToggleSwitch();
+        dailyQuoteToggle.Checked = Value.DailyQuote;
+        dailyQuoteToggle.SetBounds(322, 362, 40, 22);
+        dailyQuoteToggle.CheckedChanged += OnDailyQuoteCheckChanged;
+        if (toolTip == null) toolTip = new ToolTip();
+        toolTip.SetToolTip(dailyQuoteToggle, en
+            ? "Display ambient quote note on desktop; hold Alt + drag to move, drag edge to resize"
+            : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
+        Controls.Add(dailyQuoteToggle);
+
+        lblQuoteSaver = AddLabel(en ? "Use today's quote as screensaver" : "开启今日格言作为屏保", 18, 400);
         quoteSaverToggle = new ToggleSwitch();
         quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
-        quoteSaverToggle.SetBounds(322, 398, 40, 22);
+        quoteSaverToggle.SetBounds(322, 400, 40, 22);
         quoteSaverToggle.CheckedChanged += OnQuoteSaverToggleChanged;
-        if (toolTip == null) toolTip = new ToolTip();
         toolTip.SetToolTip(quoteSaverToggle, en
             ? "Install iClock as the Windows screensaver showing today's quote when idle"
             : "把 iClock 安装为 Windows 屏保，空闲时全屏显示今日格言");
         Controls.Add(quoteSaverToggle);
 
-        // Section 4: Tip (Y = 416)
+        // Section 4: Tip (Y = 436)
         lblQuoteTip = new StyledTipLabel(en
             ? new string[] { "Alt + Ctrl + wheel", "Alt + drag" }
             : new string[] { "Alt + Ctrl + 滚轮", "Alt + 拖拽" });
@@ -2245,10 +2254,6 @@ internal sealed class SettingsDialog : Form
         lblQuoteTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblQuoteTip.SetBounds(16, 440, 348, 22);
         Controls.Add(lblQuoteTip);
-        if (toolTip == null) toolTip = new ToolTip();
-        toolTip.SetToolTip(dailyQuote, en
-            ? "Display ambient quote note on desktop; hold Alt + drag to move, drag edge to resize"
-            : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
 
 
         // Main title row: title + master switch.
@@ -2529,7 +2534,8 @@ internal sealed class SettingsDialog : Form
         noticeStyle.Visible = isTimer;
         startup.Visible = isTimer;
 
-        dailyQuote.Visible = isQuote;
+        if (lblDailyQuote != null) lblDailyQuote.Visible = isQuote;
+        if (dailyQuoteToggle != null) dailyQuoteToggle.Visible = isQuote;
         panelQuoteCard.Visible = isQuote;
         lblQuoteSize.Visible = isQuote;
         quoteFontSize.Visible = isQuote;
@@ -2545,6 +2551,7 @@ internal sealed class SettingsDialog : Form
         if (quoteSaverToggle != null) quoteSaverToggle.Visible = isQuote;
         if (btnAiQuotes != null) btnAiQuotes.Visible = isQuote;
         lblQuoteTip.Visible = isQuote;
+        SyncQuoteStyleEnabled();
 
         if (panelSkillCard != null) panelSkillCard.Visible = isAgent;
         if (panelSessionCard != null) panelSessionCard.Visible = isAgent;
@@ -2987,7 +2994,37 @@ internal sealed class SettingsDialog : Form
     }
     private void OnDailyQuoteCheckChanged(object sender, EventArgs e)
     {
+        // Style rows only make sense while the desktop note is on; gray them out
+        // when it is off. The screensaver toggle stays independent of this state.
+        bool noteOn = dailyQuoteToggle != null && dailyQuoteToggle.Checked;
+        if (lblQuoteSize != null) lblQuoteSize.Enabled = noteOn;
+        if (quoteFontSize != null) quoteFontSize.Enabled = noteOn;
+        if (lblQuoteFont != null) lblQuoteFont.Enabled = noteOn;
+        if (quoteFontCombo != null) quoteFontCombo.Enabled = noteOn;
+        if (lblQuoteColor != null) lblQuoteColor.Enabled = noteOn;
+        if (quoteColorCombo != null) quoteColorCombo.Enabled = noteOn;
+        if (lblQuoteLayer != null) lblQuoteLayer.Enabled = noteOn;
+        if (quoteLayerCombo != null) quoteLayerCombo.Enabled = noteOn;
+        if (lblQuoteQuotes != null) lblQuoteQuotes.Enabled = noteOn;
+        if (btnEditQuotes != null) btnEditQuotes.Enabled = noteOn;
+        if (btnAiQuotes != null) btnAiQuotes.Enabled = noteOn;
         TriggerQuotePreview();
+    }
+    private void SyncQuoteStyleEnabled()
+    {
+        // Initial graying state for the style rows, matched to the toggle value.
+        bool noteOn = dailyQuoteToggle != null && dailyQuoteToggle.Checked && activeTab == 1;
+        if (lblQuoteSize != null) lblQuoteSize.Enabled = noteOn;
+        if (quoteFontSize != null) quoteFontSize.Enabled = noteOn;
+        if (lblQuoteFont != null) lblQuoteFont.Enabled = noteOn;
+        if (quoteFontCombo != null) quoteFontCombo.Enabled = noteOn;
+        if (lblQuoteColor != null) lblQuoteColor.Enabled = noteOn;
+        if (quoteColorCombo != null) quoteColorCombo.Enabled = noteOn;
+        if (lblQuoteLayer != null) lblQuoteLayer.Enabled = noteOn;
+        if (quoteLayerCombo != null) quoteLayerCombo.Enabled = noteOn;
+        if (lblQuoteQuotes != null) lblQuoteQuotes.Enabled = noteOn;
+        if (btnEditQuotes != null) btnEditQuotes.Enabled = noteOn;
+        if (btnAiQuotes != null) btnAiQuotes.Enabled = noteOn;
     }
     private void OnQuoteFontSizeChanged(object sender, EventArgs e) { if (!isSyncingQuoteFontSize) TriggerQuotePreview(); }
     private void OnQuoteFontChanged(object sender, EventArgs e)
@@ -3435,7 +3472,7 @@ internal sealed class SettingsDialog : Form
         sound.Text = toEnglish ? "Play sound at end" : "结束时声音提醒";
         notice.Text = toEnglish ? "End notification" : "结束时系统通知";
 
-        dailyQuote.Text = toEnglish ? "Enable desktop quote note" : "在桌面常驻显示每日格言便签";
+        if (lblDailyQuote != null) lblDailyQuote.Text = toEnglish ? "Show daily quote note on desktop" : "在桌面常驻显示每日格言便签";
         lblQuoteSize.Text = toEnglish ? "Text size" : "文字大小";
         lblQuoteFont.Text = toEnglish ? "Font style" : "字体样式";
         lblQuoteColor.Text = toEnglish ? "Text color" : "文字颜色";
@@ -3474,7 +3511,7 @@ internal sealed class SettingsDialog : Form
             if (btnNextQuote != null) toolTip.SetToolTip(btnNextQuote, toEnglish ? "Next quote (↻)" : "换一句 (↻)");
             toolTip.SetToolTip(btnEditQuotes, toEnglish ? "Open and edit quotes.txt in notepad" : "在记事本中自定义编辑名言 (quotes.txt)");
             if (btnAiQuotes != null) toolTip.SetToolTip(btnAiQuotes, toEnglish ? "Generate quotes with AI Agent" : "通过 AI 智能体批量创作并扩充词库");
-            if (dailyQuote != null) toolTip.SetToolTip(dailyQuote, toEnglish ? "Display ambient quote note on desktop; hold Alt + drag to move, drag edge to resize" : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
+            if (dailyQuoteToggle != null) toolTip.SetToolTip(dailyQuoteToggle, toEnglish ? "Display ambient quote note on desktop; hold Alt + drag to move, drag edge to resize" : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
         }
         if (lblCardQuoteText != null)
         {
@@ -3627,7 +3664,7 @@ internal sealed class SettingsDialog : Form
         Value.EndNotice = notice != null ? notice.Checked : Value.EndNotice;
         Value.NoticeStyle = (noticeStyle != null && noticeStyle.SelectedIndex == 1) ? "Pulse" : "Popup";
         Value.EndMessage = endMessage != null ? endMessage.Text.Trim() : Value.EndMessage;
-        Value.DailyQuote = dailyQuote != null ? dailyQuote.Checked : Value.DailyQuote;
+        Value.DailyQuote = dailyQuoteToggle != null ? dailyQuoteToggle.Checked : Value.DailyQuote;
         Value.QuoteColor = selectedQuoteColor ?? "";
         Value.QuoteFont = selectedQuoteFont ?? "";
         if (quoteFontSize != null) Value.QuoteFontSize = (float)quoteFontSize.Value;
@@ -3639,7 +3676,7 @@ internal sealed class SettingsDialog : Form
     private void CommitQuoteSettings()
     {
         if (Value == null) return;
-        Value.DailyQuote = dailyQuote != null ? dailyQuote.Checked : Value.DailyQuote;
+        Value.DailyQuote = dailyQuoteToggle != null ? dailyQuoteToggle.Checked : Value.DailyQuote;
         Value.QuoteColor = selectedQuoteColor ?? "";
         Value.QuoteFont = selectedQuoteFont ?? "";
         if (quoteFontSize != null) Value.QuoteFontSize = (float)quoteFontSize.Value;
@@ -3661,12 +3698,12 @@ internal sealed class SettingsDialog : Form
 
     private void TriggerQuotePreview()
     {
-        if (dailyQuote != null)
+        if (dailyQuoteToggle != null)
         {
             CommitQuoteSettings();
             if (QuotePreviewRequested != null)
             {
-                QuotePreviewRequested(activeTab == 1 && dailyQuote.Checked);
+                QuotePreviewRequested(activeTab == 1 && dailyQuoteToggle.Checked);
             }
         }
     }
@@ -3753,9 +3790,9 @@ internal sealed class SettingsDialog : Form
     }
     public void SetDailyQuoteChecked(bool chk)
     {
-        if (dailyQuote != null && dailyQuote.Checked != chk)
+        if (dailyQuoteToggle != null && dailyQuoteToggle.Checked != chk)
         {
-            dailyQuote.Checked = chk;
+            dailyQuoteToggle.Checked = chk;
         }
     }
 
