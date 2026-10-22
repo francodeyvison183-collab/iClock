@@ -1940,7 +1940,7 @@ internal sealed class SettingsDialog : Form
         MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 470);
 
         btnTabTimer = new Button(); SetupTabButton(btnTabTimer, en ? "Timer" : "倒计时", 18, 0);
-        btnTabQuote = new Button(); SetupTabButton(btnTabQuote, en ? "Daily Quotes" : "每日格言", 133, 1);
+        btnTabQuote = new Button(); SetupTabButton(btnTabQuote, en ? "Daily Quotes" : "每日金句", 133, 1);
         btnTabAgent = new Button(); SetupTabButton(btnTabAgent, en ? "AI Collaboration" : "AI 协作", 248, 2);
 
         KeyPreview = true;
@@ -2225,23 +2225,23 @@ internal sealed class SettingsDialog : Form
 
         // Switch group at page bottom: desktop note toggle + screensaver toggle,
         // stacked them like the checkbox grid rows (label left, toggle right).
-        lblDailyQuote = AddLabel(en ? "Show daily quote note on desktop" : "在桌面常驻显示每日格言便签", 18, 366);
-        lblDailyQuote.SetBounds(18, 366, 296, 24); // full "便签" is wider than AddLabel's 148px default and would clip
+        lblDailyQuote = AddLabel(en ? "Show daily quote on desktop" : "在桌面常驻显示每日金句", 18, 366);
+        lblDailyQuote.SetBounds(18, 366, 296, 24); // the label is wider than AddLabel's 148px default and would clip
         dailyQuoteToggle = new ToggleSwitch();
         dailyQuoteToggle.Checked = Value.DailyQuote;
         dailyQuoteToggle.SetBounds(322, 366, 40, 22);
         dailyQuoteToggle.CheckedChanged += OnDailyQuoteCheckChanged;
         if (toolTip == null) toolTip = new ToolTip();
         toolTip.SetToolTip(dailyQuoteToggle, en
-            ? "Display ambient quote note on desktop; hold Alt + drag to move, drag edge to resize"
-            : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
+            ? "Show the daily quote on the desktop; hold Alt + drag to move, drag edge to resize"
+            : "在桌面上常驻显示每日金句；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
         Controls.Add(dailyQuoteToggle);
 
-        // Screensaver row: "开启今日格言作为屏保 [预览]" as a single LinkLabel,
+        // Screensaver row: "开启今日金句作为屏保 [预览]" as a single LinkLabel,
         // LinkArea highlighting the trailing [预览] so the whole text lays out
         // in one control and never clips the link.
         lnkPreviewSaver = new LinkLabel();
-        string saverLabel = en ? "Use today's quote as screensaver [Preview]" : "开启今日格言作为屏保 [预览]";
+        string saverLabel = en ? "Use today's quote as screensaver [Preview]" : "开启今日金句作为屏保 [预览]";
         lnkPreviewSaver.Text = saverLabel;
         int linkStart = saverLabel.IndexOf('[');
         int linkLen = saverLabel.Length - linkStart;
@@ -2255,7 +2255,7 @@ internal sealed class SettingsDialog : Form
         lnkPreviewSaver.LinkClicked += OnPreviewSaverLinkClicked;
         toolTip.SetToolTip(lnkPreviewSaver, en
             ? "Show a fullscreen preview of today's quote screensaver"
-            : "全屏预览今日格言屏保效果");
+            : "全屏预览今日金句屏保效果");
         Controls.Add(lnkPreviewSaver);
         quoteSaverToggle = new ToggleSwitch();
         quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
@@ -2263,7 +2263,7 @@ internal sealed class SettingsDialog : Form
         quoteSaverToggle.CheckedChanged += OnQuoteSaverToggleChanged;
         toolTip.SetToolTip(quoteSaverToggle, en
             ? "Install iClock as the Windows screensaver showing today's quote when idle"
-            : "把 iClock 安装为 Windows 屏保，空闲时全屏显示今日格言");
+            : "把 iClock 安装为 Windows 屏保，空闲时全屏显示今日金句");
         Controls.Add(quoteSaverToggle);
 
         // Section 4: Tip (Y = 436)
@@ -2273,7 +2273,7 @@ internal sealed class SettingsDialog : Form
         lblQuoteTip.UseMnemonic = false;
         lblQuoteTip.Text = en
             ? "Tip: Hold Alt + drag to move quote, Alt + Ctrl + wheel to scale font."
-            : "提示：在桌面格言文字上按住 Alt + 拖拽，Alt + Ctrl + 滚轮缩放字号。";
+            : "提示：在桌面金句文字上按住 Alt + 拖拽，Alt + Ctrl + 滚轮缩放字号。";
         lblQuoteTip.ForeColor = AppContext.Win11TextSecondary;
         lblQuoteTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblQuoteTip.SetBounds(16, 424, 348, 22);
@@ -3495,7 +3495,7 @@ internal sealed class SettingsDialog : Form
         else if (!toEnglish && endMessage.Text == "Countdown finished") endMessage.Text = "倒计时结束";
 
         btnTabTimer.Text = toEnglish ? "Timer" : "倒计时";
-        btnTabQuote.Text = toEnglish ? "Daily Quotes" : "每日格言";
+        btnTabQuote.Text = toEnglish ? "Daily Quotes" : "每日金句";
         btnTabAgent.Text = toEnglish ? "AI Collaboration" : "AI 协作";
         UpdateTabButtons();
 
@@ -3513,7 +3513,7 @@ internal sealed class SettingsDialog : Form
 
         if (lblDailyQuote != null)
         {
-            lblDailyQuote.Text = toEnglish ? "Show daily quote note on desktop" : "在桌面常驻显示每日格言便签";
+            lblDailyQuote.Text = toEnglish ? "Show daily quote on desktop" : "在桌面常驻显示每日金句";
             lblDailyQuote.SetBounds(18, 366, 296, 24);
         }
         lblQuoteSize.Text = toEnglish ? "Text size" : "文字大小";
@@ -3531,7 +3531,7 @@ internal sealed class SettingsDialog : Form
         }
         if (lnkPreviewSaver != null)
         {
-            string saverLabel = toEnglish ? "Use today's quote as screensaver [Preview]" : "开启今日格言作为屏保 [预览]";
+            string saverLabel = toEnglish ? "Use today's quote as screensaver [Preview]" : "开启今日金句作为屏保 [预览]";
             lnkPreviewSaver.Text = saverLabel;
             int linkStart = saverLabel.IndexOf('[');
             int linkLen = saverLabel.Length - linkStart;
@@ -3554,14 +3554,14 @@ internal sealed class SettingsDialog : Form
             lblQuoteTip.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
             lblQuoteTip.Text = toEnglish
                 ? "Tip: Hold Alt + drag to move quote, Alt + Ctrl + wheel to scale font."
-                : "提示：在桌面格言文字上按住 Alt + 拖拽，Alt + Ctrl + 滚轮缩放字号。";
+                : "提示：在桌面金句文字上按住 Alt + 拖拽，Alt + Ctrl + 滚轮缩放字号。";
         }
         if (toolTip != null)
         {
             if (btnNextQuote != null) toolTip.SetToolTip(btnNextQuote, toEnglish ? "Next quote (↻)" : "换一句 (↻)");
             toolTip.SetToolTip(btnEditQuotes, toEnglish ? "Open and edit quotes.txt in notepad" : "在记事本中自定义编辑名言 (quotes.txt)");
             if (btnAiQuotes != null) toolTip.SetToolTip(btnAiQuotes, toEnglish ? "Generate quotes with AI Agent" : "通过 AI 智能体批量创作并扩充词库");
-            if (dailyQuoteToggle != null) toolTip.SetToolTip(dailyQuoteToggle, toEnglish ? "Display ambient quote note on desktop; hold Alt + drag to move, drag edge to resize" : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
+            if (dailyQuoteToggle != null) toolTip.SetToolTip(dailyQuoteToggle, toEnglish ? "Show the daily quote on the desktop; hold Alt + drag to move, drag edge to resize" : "在桌面上常驻显示每日金句；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
         }
         if (lblCardQuoteText != null)
         {
@@ -6171,15 +6171,15 @@ internal static class AiAgentQuoteHelper
         }
         else
         {
-            return "请围绕偏好标签【" + t + "】精选创作 " + count + " 条高质量桌面格言短句。\r\n" +
-                   "请将格言保存为 UTF-8 文本文件，每行一条，严格使用 `格言内容 | 作者或出处` 格式，然后在 PowerShell 执行以下命令导入：\r\n" +
+            return "请围绕偏好标签【" + t + "】精选创作 " + count + " 条高质量桌面金句。\r\n" +
+                   "请将金句保存为 UTF-8 文本文件，每行一条，严格使用 `金句内容 | 作者或出处` 格式，然后在 PowerShell 执行以下命令导入：\r\n" +
                    "$quotesPath = Join-Path $env:TEMP 'iclock-quotes.txt'\r\n" +
-                   "@'\r\n<在此放入全部 " + count + " 行格言>\r\n'@ | Set-Content -Encoding UTF8 $quotesPath\r\n" +
+                   "@'\r\n<在此放入全部 " + count + " 行金句>\r\n'@ | Set-Content -Encoding UTF8 $quotesPath\r\n" +
                    "& '" + cliPath + "' --quote-add $quotesPath --json\r\n" +
                    "解析 JSON；只有 `ok` 为 true 才表示导入成功，并报告 `result.added_count`。\r\n\r\n" +
                    "严格规范：\r\n" +
-                   "1. 每条格言控制在 35 字以内，语言精练有力，富有启发与哲理；\r\n" +
-                   "2. 每条格言必须附带真实作者或典籍出处（若佚名请注明佚名）；\r\n" +
+                   "1. 每条金句控制在 35 字以内，语言精练有力，富有启发与哲理；\r\n" +
+                   "2. 每条金句必须附带真实作者或典籍出处（若佚名请注明佚名）；\r\n" +
                    "3. 必须执行导入命令并等待返回结果，严禁多余的打招呼或寒暄废话。";
         }
     }
@@ -6201,7 +6201,7 @@ internal static class AiAgentQuoteHelper
         }
         else
         {
-            return "请围绕主题【" + t + "】精选创作" + count + "条桌面格言短句。严格规范：1.每行严格格式为'格言内容 | 作者或出处'；2.每条不超过35字，语言精炼有力；3.严禁输出序号、引号、打招呼、前言或任何多余废话。";
+            return "请围绕主题【" + t + "】精选创作" + count + "条桌面金句。严格规范：1.每行严格格式为'金句内容 | 作者或出处'；2.每条不超过35字，语言精炼有力；3.严禁输出序号、引号、打招呼、前言或任何多余废话。";
         }
     }
 
@@ -6270,7 +6270,7 @@ internal static class AiAgentQuoteHelper
         error = null;
         if (newQuotes == null || newQuotes.Count == 0)
         {
-            error = "未解析到有效的新格言";
+            error = "未解析到有效的新金句";
             return false;
         }
 
@@ -6336,7 +6336,7 @@ internal static class AiAgentQuoteHelper
 
             if (linesToAppend.Count == 0)
             {
-                error = "所生成的格言已存在于词库中";
+                error = "所生成的金句已存在于词库中";
                 return false;
             }
 
@@ -6816,11 +6816,11 @@ internal sealed class AiQuoteDialog : Form
         panelStatus.Visible = true;
 
         lblStatusTitle.Text = en ? "✨ Collaborating with " + agentName : "✨ 正在与 " + agentName + " 协作扩充...";
-        lblCardMain.Text = en ? "✓ 30-quote prompt copied to clipboard!" : "✓ 30 条格言扩充指令已复制到剪贴板！";
+        lblCardMain.Text = en ? "✓ 30-quote prompt copied to clipboard!" : "✓ 30 条金句扩充指令已复制到剪贴板！";
         lblCardMain.ForeColor = Color.FromArgb(16, 124, 65);
         lblCardSub.Text = en
             ? string.Format("Switch to [{0}] chat and press Ctrl+V. The agent will import the quotes through iClock CLI.", agentName)
-            : string.Format("请切换至【{0}】对话框按 Ctrl+V 发送；智能体将通过 iClock 命令行导入格言。", agentName);
+            : string.Format("请切换至【{0}】对话框按 Ctrl+V 发送；智能体将通过 iClock 命令行导入金句。", agentName);
         lblCardSub.ForeColor = AppContext.Win11TextSecondary;
         lblCardBadge.Text = en ? "• Waiting for CLI import..." : "• 正在等待命令行导入...";
         lblCardBadge.ForeColor = AppContext.Win11Accent;
@@ -6862,11 +6862,11 @@ internal sealed class AiQuoteDialog : Form
         panelStatus.Visible = true;
 
         lblStatusTitle.Text = en ? "⚡ Generating via " + agentName + "..." : "⚡ 正在通过 " + agentName + " 后台直接生成...";
-        lblCardMain.Text = en ? "⚡ Running agent CLI in background..." : "⚡ 正在调用智能体命令行直接生成 30 条格言...";
+        lblCardMain.Text = en ? "⚡ Running agent CLI in background..." : "⚡ 正在调用智能体命令行直接生成 30 条金句...";
         lblCardMain.ForeColor = AppContext.Win11Accent;
         lblCardSub.Text = en
             ? "No manual action required. Generating 30 quotes in background...\nResults will be reported here once completed."
-            : "无需手动操作，智能体正在后台创作 30 条格言。\n完成后将自动收录并在此当场汇报。";
+            : "无需手动操作，智能体正在后台创作 30 条金句。\n完成后将自动收录并在此当场汇报。";
         lblCardSub.ForeColor = AppContext.Win11TextSecondary;
         lblCardBadge.Text = en ? "• Generating in background..." : "• 正在后台生成中...";
         lblCardBadge.ForeColor = AppContext.Win11Accent;
@@ -6897,19 +6897,19 @@ internal sealed class AiQuoteDialog : Form
         panelSetup.Visible = false;
         panelStatus.Visible = true;
 
-        lblStatusTitle.Text = en ? "✨ Quotes Expansion Completed!" : "✨ 格言扩充完成！";
+        lblStatusTitle.Text = en ? "✨ Quotes Expansion Completed!" : "✨ 金句扩充完成！";
         lblCardMain.Text = en
             ? string.Format("Successfully added {0} new quotes to library!", count)
-            : string.Format("已成功将 {0} 条全新精选格言收录至名言词库！", count);
+            : string.Format("已成功将 {0} 条全新精选金句收录至名言词库！", count);
         lblCardMain.ForeColor = Color.FromArgb(16, 124, 65);
 
         string preview = (sample != null && !string.IsNullOrEmpty(sample.Text))
             ? (string.IsNullOrEmpty(sample.Author) ? ("“" + sample.Text + "”") : ("“" + sample.Text + "”\r\n—— " + sample.Author))
-            : (en ? "New quotes have been added to the library." : "新格言已加入词库并刷新。");
+            : (en ? "New quotes have been added to the library." : "新金句已加入词库并刷新。");
         lblCardSub.Text = preview;
         lblCardSub.ForeColor = AppContext.Win11TextPrimary;
 
-        lblCardBadge.Text = en ? "✨ Latest quote projected to desktop display" : "✨ 最新格言已同步投递至桌面每日格言展示";
+        lblCardBadge.Text = en ? "✨ Latest quote projected to desktop display" : "✨ 最新金句已同步投递至桌面每日金句展示";
         lblCardBadge.ForeColor = Color.FromArgb(16, 124, 65);
 
         btnStatusAction1.Visible = true;
@@ -7143,7 +7143,7 @@ internal sealed class AiQuoteDialog : Form
                 {
                     string failMsg = (settings != null && settings.Language == "en")
                         ? "Agent output did not contain valid quotes format."
-                        : "智能体未按规范格式返回格言，建议使用对话框协作方式。";
+                        : "智能体未按规范格式返回金句，建议使用对话框协作方式。";
                     try
                     {
                         BeginInvoke(new MethodInvoker(delegate
@@ -9096,7 +9096,7 @@ internal sealed class AppContext : ApplicationContext
             if (state == ClockState.Idle) overlay.Hide();
         }
         bool en = settings.Language == "en";
-        ShowTrayNotification("iClock", enabled ? (en ? "Drag the translucent area to move countdown or quote. Use the tray menu to finish." : "拖动半透明区域调整倒计时或格言位置，再次从托盘菜单退出调整模式。") : (en ? "Position saved." : "文字位置已保存。"), 2000);
+        ShowTrayNotification("iClock", enabled ? (en ? "Drag the translucent area to move countdown or quote. Use the tray menu to finish." : "拖动半透明区域调整倒计时或金句位置，再次从托盘菜单退出调整模式。") : (en ? "Position saved." : "文字位置已保存。"), 2000);
         UpdateMenuText();
     }
     private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
@@ -10652,7 +10652,7 @@ internal sealed class AppContext : ApplicationContext
             if (!File.Exists(path))
             {
                 StringBuilder sb = new StringBuilder();
-                sb.AppendLine("# iClock 每日格言 / Daily Quotes");
+                sb.AppendLine("# iClock 每日金句 / Daily Quotes");
                 sb.AppendLine("# 格式：[序号. ]名言正文 —— 作者/出处 （支持使用 1. / 02、 / [3] 等序号，作者可省略）");
                 sb.AppendLine("# Format: [No. ]Quote text -- Author (leading numbers like 1. / 02. are optional, author is optional)");
                 sb.AppendLine("# 提示：序号仅用于在此文本中排版整理，桌面及卡片展示时会自动智能隐藏序号。");

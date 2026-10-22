@@ -1749,7 +1749,7 @@ internal static class TestCheck
             setDlgKnock.Close();
             Console.WriteLine("PASS: Doorbell chime, QQ, Telephone ring, Door knock (咚咚咚 x3) & Alarm ring sound synthesis and SettingsDialog integration verified.");
 
-            // 35. Verify Daily Quote (每日格言) feature, Settings serialization, Quotes file reading, and Dialog UI
+            // 35. Verify Daily Quote (每日金句) feature, Settings serialization, Quotes file reading, and Dialog UI
             Type quoteDlgType = asm.GetType("DailyQuoteDialog");
             if (quoteDlgType == null)
             {
@@ -2058,7 +2058,7 @@ internal static class TestCheck
             triggeredQuote.Close();
             quoteDlg.Close();
 
-            Console.WriteLine("PASS: Daily Quote (每日格言) feature, custom quotes parsing, IPC -q command, and SettingsDialog controls verified.");
+            Console.WriteLine("PASS: Daily Quote (每日金句) feature, custom quotes parsing, IPC -q command, and SettingsDialog controls verified.");
 
             // 36. Verify Bug 1 & Bug 2: Desktop quote font size sync with SettingsDialog and Tab 0 countdown color change immunity
             mSetQuotePrev = appType.GetMethod("SetQuotePreview", bf);

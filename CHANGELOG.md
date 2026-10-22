@@ -4,6 +4,10 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 ## [Unreleased]
 
+### Changed
+
+- **每日格言 → 每日金句 (Daily Quotes renamed to Daily Golden Lines)**: user-facing Chinese wording now uses 「每日金句」 across the app UI (settings tab, desktop toggle, screensaver row, tooltips, AI expansion prompts and notices) and the current README / user guide / website copy. The desktop toggle label no longer carries the 「便签」 suffix. The AI expansion prompt now asks for `金句内容 | 作者或出处` lines, while the quote library itself (`quotes.txt`, CLI commands and settings keys) is unchanged, and the English UI keeps "Daily Quotes".
+
 ### Removed
 
 - Removed the iClock MCP server and its agent-side tool/configuration workflow. Desktop collaboration is available through CLI commands with structured `--json` responses. Existing agent MCP entries are not migrated or deleted automatically.

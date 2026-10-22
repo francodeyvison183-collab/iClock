@@ -26,12 +26,12 @@ Settings uses an authentic Windows 11 File Explorer multi-tab navigation / 设�
 - **End sound & notification / 声音与通知:** independently control the prompt sound style (**QQ Message / QQ 经典提示 (嘀嘀)**, **Classic Telephone Ring / 经典电话铃 (叮铃铃)**, **Alarm Ring / 醒目闹铃**, all >= 3s duration) and notification mode (**Popup / Auto DND Fullscreen** vs **In-Place Pulse**).
 - **Start with Windows / 开机自启动:** located at the bottom of the countdown settings tab, controls automatic start on user logon.
 
-### 💬 每日格言 / Daily Quotes Tab
-- **Hero Banner & Dual Switches / 每日格言展台与顶栏双开关:**
-  - **Today's Quote Card / 每日格言展台 (Top = 62..160):** Positioned at the very top directly below the tab strip, prominently presenting the active quote and author in an elegant 98px frosted container with optically balanced vertical centering, plus a flat borderless vector `↻ 换一句 (Next quote)` button in the bottom-left corner (`Left = 12`).
-  - **Master Enable Switch / 开启每日格言 (Left = 18, Y = 172):** Master switch controlling whether daily quotes are enabled upon startup/unlock.
-  - **Desktop Display Toggle / 桌面悬浮显示 (Right-Aligned, Right = 362, Y = 172):** Toggle to immediately project and preview the floating quote on your desktop wallpaper. Unchecking `开启每日格言` automatically turns off desktop floating display.
-  - **Pinned Quote Persistence / 钉住桌面格言持久化:** Pinned quotes (`📌 钉在桌面`) remain active on the desktop even after closing SettingsDialog.
+### 💬 每日金句 / Daily Quotes Tab
+- **Hero Banner & Dual Switches / 每日金句展台与顶栏双开关:**
+  - **Today's Quote Card / 每日金句展台 (Top = 62..160):** Positioned at the very top directly below the tab strip, prominently presenting the active quote and author in an elegant 98px frosted container with optically balanced vertical centering, plus a flat borderless vector `↻ 换一句 (Next quote)` button in the bottom-left corner (`Left = 12`).
+  - **Master Enable Switch / 开启每日金句 (Left = 18, Y = 172):** Master switch controlling whether daily quotes are enabled upon startup/unlock.
+  - **Desktop Display Toggle / 桌面悬浮显示 (Right-Aligned, Right = 362, Y = 172):** Toggle to immediately project and preview the floating quote on your desktop wallpaper. Unchecking `开启每日金句` automatically turns off desktop floating display.
+  - **Pinned Quote Persistence / 钉住桌面金句持久化:** Pinned quotes (`📌 钉在桌面`) remain active on the desktop even after closing SettingsDialog.
 - **Unified 2-Column Styling Grid / 统一双列栅格体系:** Matches the exact design language and 34px vertical pitch of Tab 0 (`⏱ 倒计时`):
   - **Duration / 显示时长（秒）:** Adjust floating duration (`3` to `60` seconds, default: 10s).
   - **Text size / 文字大小:** Dedicated spinner (`8.0pt` ~ `24.0pt`, step 0.5pt). Adjustments made on desktop via `Ctrl + MouseWheel` synchronize back to this control in real time.
@@ -64,18 +64,18 @@ Settings uses an authentic Windows 11 File Explorer multi-tab navigation / 设�
 
 ## Position, Drag & Ergonomics / 位置、随心拖拽与微交互
 
-- **Direct Alt+Drag / 按住 Alt 直接拖拽**: Hold `Alt` and drag the countdown text or quote directly with the left mouse button to reposition it anywhere on your screen. Release to automatically save coordinates. / 在屏幕上按住 `Alt` 键，鼠标左键直接拖拽倒计时或格言文字即可瞬时定位，松开自动保存，完全无需进菜单。
+- **Direct Alt+Drag / 按住 Alt 直接拖拽**: Hold `Alt` and drag the countdown text or quote directly with the left mouse button to reposition it anywhere on your screen. Release to automatically save coordinates. / 在屏幕上按住 `Alt` 键，鼠标左键直接拖拽倒计时或金句文字即可瞬时定位，松开自动保存，完全无需进菜单。
 - **Tray Scroll Wheel / 托盘滚轮微调时长**: Hover your mouse over the system tray icon and roll the mouse wheel to adjust duration by `±1 min` (or `±5 min` with `Shift`). You can also hold `Alt` and scroll the wheel directly over the floating clock. / 鼠标悬停在系统托盘图标上滚动滚轮，直接以 `±1分钟`（按住 `Shift` 为 `±5分钟`）快速微调倒计时时长；按住 `Alt` 在悬浮文字上滚动滚轮亦可同步调整。
-- **Menu Move Mode / 菜单调整模式**: You can also choose **Adjust position** in the tray menu to display the positioning frame for both countdown and quote. / 亦可从托盘菜单点击“调整位置”同时对倒计时或格言进行拖动定位。
+- **Menu Move Mode / 菜单调整模式**: You can also choose **Adjust position** in the tray menu to display the positioning frame for both countdown and quote. / 亦可从托盘菜单点击“调整位置”同时对倒计时或金句进行拖动定位。
 - **True 32-bit ARGB & Adaptive Shadow / 真抗锯齿与自适应投影**: Powered by native `UpdateLayeredWindow`, text renders with smooth anti-aliased subpixel precision and adaptive drop shadows, crystal-clear across bright wallpapers, dark IDEs, and full-screen games. / 采用 Windows 原生 `UpdateLayeredWindow` 32 位 ARGB 渲染，消除传统色键点阵毛刺，配合平滑自适应边缘微投影，在浅色文档、深黑终端或高对比游戏画面下均清晰可读。
 
-## Daily Quotes / 每日格言
+## Daily Quotes / 每日金句
 
 iClock features an ultra-minimalist Daily Quotes popup designed to inspire your day upon first startup or session unlock:
 - **Automatic Daily Appearance / 每日唤醒**: Pops up once per day on program startup or morning unlock, smoothly floating horizontally centered at `Y = 120px` (comfortably below countdown text `Y = 60..96px` and above the centered settings panel `Y = 242px+`). / 每天首次启动或早晨解锁后自动弹出一次，平滑浮动于屏幕水平居中 Y = 120px 处，位于默认倒计时文字下方并处于居中设置面板上方，三者中轴对齐、匀称美观且互不重叠。
 - **Transparent Ambient & Click-Through / 透明背景与鼠标穿透**: By default, the quote renders cleanly with a pure transparent background and soft text drop shadow, free of borders, card boxes, or decorative labels. Native `WM_NCHITTEST` (`HTTRANSPARENT`) ensures all mouse clicks pass 100% through to windows below without interfering with your work. / 默认完全透明背景，文字带有自适应柔和投影，无边框与多余标签干扰；原生鼠标点击穿透，完全不阻碍底层窗口与游戏的正常操作。
 - **Consistent Font & Color / 字体与颜色同倒计时同步**: Quote text automatically adopts the exact same font family (`settings.FontFamily`) and vibrant color (`settings.Color`) configured for your countdown timer. Text renders with adaptive dual-layer high-contrast drop-shadows, ensuring crisp readability on any desktop background. / 自动继承倒计时设置的字体与主题颜色，名言正文与倒计时颜色完全一致，作者名字以同色系柔和呼应，配合自适应高对比投影，在任何深浅背景下均清晰通透。
-- **Unified Alt + Drag & Hover Card / Alt + 拖拽与微交互卡片**: Hold `Alt` and hover over the quote to smoothly wake up the Win11 acrylic card frame and action buttons (Next quote, Pin, Close). While holding `Alt`, drag anywhere on the quote to move its position, or drag the right edge to adjust width. Releasing `Alt` seamlessly restores clean click-through ambient text. / 按住 `Alt` 悬停于格言时唤醒微交互卡片与操作按钮（换一句、固定、关闭）；按住 `Alt` 直接拖拽卡片任意空白区域即可调整位置，拖动右侧抓手可调节宽度；松开 `Alt` 立即恢复为纯净无打扰的点击穿透文字。
+- **Unified Alt + Drag & Hover Card / Alt + 拖拽与微交互卡片**: Hold `Alt` and hover over the quote to smoothly wake up the Win11 acrylic card frame and action buttons (Next quote, Pin, Close). While holding `Alt`, drag anywhere on the quote to move its position, or drag the right edge to adjust width. Releasing `Alt` seamlessly restores clean click-through ambient text. / 按住 `Alt` 悬停于金句时唤醒微交互卡片与操作按钮（换一句、固定、关闭）；按住 `Alt` 直接拖拽卡片任意空白区域即可调整位置，拖动右侧抓手可调节宽度；松开 `Alt` 立即恢复为纯净无打扰的点击穿透文字。
 - **Zero-Resource Hibernation / 极致低能耗与零轮询休眠**: Position adjustment is completely event-driven via Win32 `WM_NCHITTEST` without any 200ms cursor polling timers. When pinned to desktop, all timers are completely stopped (0 timer wakeups, 0% CPU, 0 memory allocations). / 交互与位置调整基于原生 `WM_NCHITTEST` 消息驱动，彻底移除了原本每 200ms 的鼠标坐标轮询定时器；桌面常驻固定时定时器彻底停止（0 唤醒、0% CPU 占用、0 额外内存分配）。
 - **Intuitive Gestures & Shortcuts / 极简手势与快捷操作**:
   - `Alt + Drag / 拖拽定位`: Hold `Alt` and drag anywhere on the card to move it; new coordinates are automatically saved across sessions. / 按住 `Alt` 键在卡片任意区域拖拽即可移动位置，松开自动保存。
@@ -87,11 +87,11 @@ iClock features an ultra-minimalist Daily Quotes popup designed to inspire your 
 - **Custom Quotes File / 自定义名言库**: Automatically loads `quotes.txt` from the application directory or `%APPDATA%\iClock\quotes.txt`. Supports both UTF-8 and ANSI/GBK encodings. Format: `Quote Text —— Author` (or simple text lines). Supports arbitrary leading sequence numbers in text (e.g. `1. `, `02、`, `[3]`, `(4)`, `5) `, `6: `, `No. 7 `, `#8 `, `①`, `1．`), which are automatically hidden when displayed on the desktop HUD and preview card. If no custom file is found, iClock provides 10 built-in classic quotes. / 自动加载程序同目录或 `%APPDATA%\iClock\quotes.txt`。自适应 UTF-8 及 ANSI/GBK 编码。格式为 `名言正文 —— 作者`（作者可省略）。支持在名言文本前添加任意格式的序号（如 `1. `、`02、`、`[3]`、`(4)`、`5) `、`6: `、`No.7 `、`#8 `、`①`、`1．` 等），在桌面卡片及设置预览中均会自动隐去序号展示。若无自定义名言文件，默认提供 10 条经典中英名言。
 - **AI Agent Quote Expansion / AI 智能体命令行批量扩充**: In Settings Tab 1, click **「✨ AI 扩充」** beside **「自定义…」** to prepare a batch of **30 curated quotes**. The dialog supports tag selection, copies an instruction for the agent, and monitors CLI quote import; imported quotes are deduplicated and backed up. It provides a **Dual-Track In-Place Execution & Reporting Engine**:
   - **CLI Track (后台直接扩充)**: Agents supporting direct headless generation (e.g. Claude Code CLI, Ollama, Antigravity CLI) can be expanded directly in background (`⚡ 直接扩充`) without manual pasting, presenting live progress and reporting completion on the fly.
-  - **IDE Track (对话框协作扩充)**: IDE agents (e.g. Cursor, Windsurf) keep the dialog open with clear next-step guidance (`✓ 30 条格言扩充指令已复制到剪贴板！请切换至对话框按 Ctrl+V 发送`), window activation helper (`唤起窗口`), and CLI import monitoring (`• 正在等待智能体通过命令行导入词库...`).
-  - **Live In-Place Completion Report**: In either track, once quotes are added via CLI import, the dialog immediately presents a celebratory success card (`✨ 格言扩充完成！`), reports the 30 new quotes, previews the first quote, and synchronizes to desktop display with automatic deduplication and `.bak` backup. / 在设置面板“每日格言”中，点击“自定义…”并排的“✨ AI 扩充”按钮，即可弹出 410 × 265px 极简扩充面板。采用统一标签池体系（支持 `✕` 随时删除默认标签，输入框与 `➕ 添加` 回车新增自定义标签，标签修改自动持久化记忆）；单次精选扩充 **30 条**高质量名言，独创**双轨就地执行与实时汇报反馈体系**：
+  - **IDE Track (对话框协作扩充)**: IDE agents (e.g. Cursor, Windsurf) keep the dialog open with clear next-step guidance (`✓ 30 条金句扩充指令已复制到剪贴板！请切换至对话框按 Ctrl+V 发送`), window activation helper (`唤起窗口`), and CLI import monitoring (`• 正在等待智能体通过命令行导入词库...`).
+  - **Live In-Place Completion Report**: In either track, once quotes are added via CLI import, the dialog immediately presents a celebratory success card (`✨ 金句扩充完成！`), reports the 30 new quotes, previews the first quote, and synchronizes to desktop display with automatic deduplication and `.bak` backup. / 在设置面板“每日金句”中，点击“自定义…”并排的“✨ AI 扩充”按钮，即可弹出 410 × 265px 极简扩充面板。采用统一标签池体系（支持 `✕` 随时删除默认标签，输入框与 `➕ 添加` 回车新增自定义标签，标签修改自动持久化记忆）；单次精选扩充 **30 条**高质量名言，独创**双轨就地执行与实时汇报反馈体系**：
   - **命令行直接执行轨**：对于支持命令行的智能体（如 Claude Code CLI、Ollama、Antigravity CLI），支持一键 `⚡ 直接扩充`，后台静默自动创作并直接入库，实时更新进度；
   - **IDE 对话框协作轨**：对于 Cursor 等 IDE，点击后弹窗就地进入协作与监听状态（指令已复制，指引切换至聊天框 Ctrl+V 发送，提供“唤起窗口”与“重新复制”快捷按钮，动态监听智能体写入）；
-  - **统一当场汇报**：无论哪条轨道，一旦新格言入库成功，弹窗当场切换为“✨ 格言扩充完成！”成果汇报卡片，展示 30 条收录成果与最新格言预览，彻底告别“点了没反应/不知道成败”的体验盲区！
+  - **统一当场汇报**：无论哪条轨道，一旦新金句入库成功，弹窗当场切换为“✨ 金句扩充完成！”成果汇报卡片，展示 30 条收录成果与最新金句预览，彻底告别“点了没反应/不知道成败”的体验盲区！
 - **Settings & Audition / 设置与演示**: Manage independently via Settings Tab 1, select from 10 curated color presets, customize font style with live acrylic card preview, click **自定义…** or **✨ AI 扩充** to manage library, and audition the floating quote on your desktop anytime.
 
 ## History & Daily Statistics / 专注历史记录与统计
@@ -143,8 +143,8 @@ This appends iClock's directory to your User `PATH` environment variable. Open a
 | `--ask <question>` | `-a` | Request a desktop decision / 呼出桌面决策请示 | `iclock --ask "Continue?" --options "Yes,No" --json` |
 | `--progress <value>` | `-pr` | Project task status; use `clear` to remove / 投射任务进度，`clear` 清除 | `iclock --progress 3/5 "Testing" --agent-name "Codex" --json` |
 | `--json` | - | Return structured collaboration response / 返回结构化协作结果 | `iclock --notice "Done" --json` |
-| `--quote-add <file>` | - | Import quote lines from a UTF-8 file / 从 UTF-8 文件导入格言 | `iclock --quote-add "quotes.txt" --json` |
-| `-q` | `--quote` | Show Daily Quote popup / 弹出每日格言浮窗 | `iclock -q` |
+| `--quote-add <file>` | - | Import quote lines from a UTF-8 file / 从 UTF-8 文件导入金句 | `iclock --quote-add "quotes.txt" --json` |
+| `-q` | `--quote` | Show Daily Quote popup / 弹出每日金句浮窗 | `iclock -q` |
 | `--once` | - | Single-run mode: exit automatically upon completion (ignored if desktop instance is running) / 单次运行模式：任务结束后自动完全退出（若桌面端已运行则不退出桌面端） | `iclock -s 25 --once` |
 | `--quit` / `--exit` | `quit` | Gracefully terminate running iClock instance / 干净安全地退出正在运行的 iClock 实例 | `iclock --quit` |
 | `--install-cli` | - | Configure User PATH / 自动配置全局 PATH | `iclock --install-cli` |

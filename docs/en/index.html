@@ -7,7 +7,7 @@
             iClock — Native Minimalist Productivity Hub for Windows
           </title>
   <meta name="description" data-i18n-meta="description" content="Native minimalist Windows productivity hub: click-through timer, 0-polling quotes, AI agent monitor and CLI desktop collaboration.">
-  <meta name="keywords" content="iClock, 倒计时, 桌面倒计时, 悬浮倒计时, 番茄钟, 每日格言, Windows 效率工具, 极简倒计时, countdown timer, desktop timer">
+  <meta name="keywords" content="iClock, 倒计时, 桌面倒计时, 悬浮倒计时, 番茄钟, 每日金句, Windows 效率工具, 极简倒计时, countdown timer, desktop timer">
   <link rel="icon" type="image/png" sizes="32x32" href="../icon-32.png">
   <link rel="icon" type="image/png" sizes="64x64" href="../icon-64.png">
   <link rel="icon" type="image/png" sizes="256x256" href="../icon-256.png">
@@ -1669,7 +1669,7 @@
             💡 Tip: Click and drag the clock above to experience translucent floating positioning
           </div>
 
-            <!-- 每日格言仿真模式 -->
+            <!-- 每日金句仿真模式 -->
             <div class="simulated-quote-card" id="simQuoteCard" style="display: none;">
               <div class="sim-quote-text" id="simQuoteText">“Simplicity is the ultimate sophistication.”</div>
               <div class="sim-quote-author" id="simQuoteAuthor">— Leonardo da Vinci</div>
@@ -2450,7 +2450,7 @@
   <div class="toast" id="toast">Copied to clipboard successfully</div>
 
   <script>
-    // 格言数据
+    // 金句数据
     const quotes = {
       zh: [
         { text: "“至繁归于至简，方能行远。”", author: "— 列奥纳多·达·芬奇" },
@@ -2507,7 +2507,7 @@
         sandbox_title: "iClock 交互体验沙盒",
         sandbox_drag_hint: "按住自由拖动",
         sandbox_tab_demo: "倒计时沙盒",
-        sandbox_tab_quote: "每日格言",
+        sandbox_tab_quote: "每日金句",
         sandbox_tab_shot: "软件实图",
         sandbox_tip: "💡 提示：在上方可按住时钟自由拖动定位，感受半透明悬浮体验",
 
@@ -2534,8 +2534,8 @@
         p1_title: "极简悬浮倒计时",
         p1_desc: "基于 Windows 原生 32 位 ARGB 渲染，消除毛刺平滑细腻，自适应微投影。默认鼠标完全点击穿透，不抢焦点不挡代码；按住 Alt 鼠标左键拖拽瞬时定位，托盘滚轮微调时长，智能识别全屏游戏与 PPT 降级原位呼吸免打扰，多维统计本地 TSV 自动归档。",
         p2_num: "02 / DAILY QUOTES",
-        p2_title: "桌面每日格言与灵感常驻",
-        p2_desc: "开机/解锁晨间唤醒优雅浮现，支持一键钉在桌面背景常驻。纯事件消息驱动架构，彻底剔除死循环轮询，常驻 0 唤醒、0.0% CPU 占用！支持 Alt+拖拽位置、边缘调节折行、Alt+Ctrl+滚轮缩放字号；内置 300+ 双语精选词库，支持 AI 生成格言并通过命令行导入并自动去重备份。",
+        p2_title: "桌面每日金句与灵感常驻",
+        p2_desc: "开机/解锁晨间唤醒优雅浮现，支持一键钉在桌面背景常驻。纯事件消息驱动架构，彻底剔除死循环轮询，常驻 0 唤醒、0.0% CPU 占用！支持 Alt+拖拽位置、边缘调节折行、Alt+Ctrl+滚轮缩放字号；内置 300+ 双语精选词库，支持 AI 生成金句并通过命令行导入并自动去重备份。",
         p3_num: "03 / AI AGENT CLI",
         p3_title: "AI 智能体命令行协同",
         p3_desc: "自动感知国内外 20+ 款主流编程智能体（Cursor、Antigravity、Claude Code、GitHub Copilot、Trae 等）长任务完成，四级感知矩阵 0ms 零误报即时提醒；智能体可通过 CLI 请求人工决策、投射任务进度、发送完成提醒；支持结构化 JSON 返回。",
@@ -2582,7 +2582,7 @@
         comp_r5_iclock: "⚡ CLI + 结构化 JSON",
         comp_r6_name: "AI 任务感知矩阵",
         comp_r6_iclock: "⚡ 20+ 款智能体任务结束感知",
-        comp_r7_name: "桌面灵感格言",
+        comp_r7_name: "桌面灵感金句",
         comp_r7_iclock: "⚡ 0-Polling 悬浮 + AI 扩充",
         comp_r8_name: "网络行为与隐私",
         comp_r8_iclock: "⚡ 0 联网请求，纯本地隐私",
@@ -2619,7 +2619,7 @@
         cli_r4_desc: "恢复已暂停的倒计时",
         cli_r5_desc: "重置倒计时为待命状态并隐藏悬浮字",
         cli_r6_desc: "触发桌面置顶强通知弹窗与提示音",
-        cli_r7_desc: "随机切换下一句桌面格言",
+        cli_r7_desc: "随机切换下一句桌面金句",
         cli_r8_desc: "在控制台终端打印完整指令帮助手册",
 
         sc_tag: "Ergonomics",
@@ -2628,11 +2628,11 @@
         sc_1_title: "全局热键启停",
         sc_1_desc: "在任意软件或游戏前台，盲操一键启停倒计时；也可左键单击托盘图标切换。",
         sc_2_title: "随心拖拽定位",
-        sc_2_desc: "在倒计时或桌面格言文字上按住 Alt 拖动瞬时定位，松开自动保存坐标。",
+        sc_2_desc: "在倒计时或桌面金句文字上按住 Alt 拖动瞬时定位，松开自动保存坐标。",
         sc_3_title: "滚轮快速微调",
         sc_3_desc: "鼠标悬停托盘图标滚动滚轮快速加减时长 (±1m)，按住 Shift 加速微调 (±5m)。",
-        sc_4_title: "格言字号缩放",
-        sc_4_desc: "在桌面格言文字上快速缩放字号，拖动右边缘调节折行宽度，双击快速换一句。",
+        sc_4_title: "金句字号缩放",
+        sc_4_desc: "在桌面金句文字上快速缩放字号，拖动右边缘调节折行宽度，双击快速换一句。",
 
         faq_tag: "Q & A",
         faq_title: "常见问题与解答",
@@ -2641,7 +2641,7 @@
         faq_a1: "基于 Windows WS_EX_TRANSPARENT 原生 API，倒计时浮窗始终悬浮在桌面最顶层，但所有鼠标点击与滚轮事件均直接穿透到底层的编辑器、终端或游戏画面，丝毫不干扰任何操作。",
         faq_q2: "为什么体积只有 300 KB？",
         faq_a2: "坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 15 MB 以内。",
-        faq_q3: "桌面格言常驻后台会消耗笔记本电池吗？",
+        faq_q3: "桌面金句常驻后台会消耗笔记本电池吗？",
         faq_a3: "完全不会。iClock 采用纯事件消息驱动与 0-Polling 架构，静止常驻时 CPU 占用为 0.0%，彻底消除了后台定时器循环唤醒，笔记本全天候常驻零耗电。",
         faq_q4: "智能体如何使用桌面协作？",
         faq_a4: "任何可运行本地命令的智能体都可调用 iClock CLI；`--json` 提供机器可读的结构化返回。",
@@ -3061,7 +3061,7 @@
       if (isDragging) isDragging = false;
     });
 
-    // 视图切换：倒计时沙盒 vs 每日格言 vs 软件实图
+    // 视图切换：倒计时沙盒 vs 每日金句 vs 软件实图
     const tabInteractive = document.getElementById('tabInteractive');
     const tabQuote = document.getElementById('tabQuote');
     const tabScreenshot = document.getElementById('tabScreenshot');
