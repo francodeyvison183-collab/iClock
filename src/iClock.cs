@@ -36,6 +36,7 @@ internal sealed class Settings
     public string Language = "zh";
     public bool AutoStart;
     public bool EndSound = true;
+    public int RestMinutes = 10;
     public string EndSoundStyle = "Doorbell";
     public bool EndNotice = true;
     public bool FirstRun;
@@ -74,7 +75,7 @@ internal sealed class Settings
         HotkeyModifiers = src.HotkeyModifiers; HotkeyKey = src.HotkeyKey;
         Color = src.Color; FontFamily = src.FontFamily; Format = src.Format;
         EndMessage = src.EndMessage; Language = src.Language; AutoStart = src.AutoStart;
-        EndSound = src.EndSound; EndSoundStyle = src.EndSoundStyle; EndNotice = src.EndNotice;
+        EndSound = src.EndSound; RestMinutes = src.RestMinutes; EndSoundStyle = src.EndSoundStyle; EndNotice = src.EndNotice;
         FirstRun = src.FirstRun; NoticeStyle = src.NoticeStyle; FullscreenDnd = src.FullscreenDnd;
         AgentProgress = src.AgentProgress; DesktopCollaborationEnabled = src.DesktopCollaborationEnabled; DailyQuote = src.DailyQuote;
         QuoteX = src.QuoteX; QuoteY = src.QuoteY; QuoteWidth = src.QuoteWidth;
@@ -148,6 +149,7 @@ internal sealed class Settings
                 else if (k == "AutoStart" && bool.TryParse(v, out b)) s.AutoStart = b;
                 else if (k == "EndSound" && bool.TryParse(v, out b)) s.EndSound = b;
                 else if (k == "EndSoundStyle" && (v == "Doorbell" || v == "Chime" || v == "QQ" || v == "Phone" || v == "Pager" || v == "Knock" || v == "Alarm" || v == "Classic")) s.EndSoundStyle = (v == "Chime" || v == "Doorbell") ? "Doorbell" : ((v == "Classic" || v == "Pager") ? "Phone" : v);
+                else if (k == "RestMinutes" && int.TryParse(v, out n)) s.RestMinutes = (n >= 1 && n <= 60) ? n : 10;
                 else if (k == "EndNotice" && bool.TryParse(v, out b)) s.EndNotice = b;
                 else if (k == "FirstRun" && bool.TryParse(v, out b)) s.FirstRun = b;
                 else if (k == "NoticeStyle" && (v == "Popup" || v == "Pulse")) s.NoticeStyle = v;
@@ -192,6 +194,7 @@ internal sealed class Settings
             "HotkeyModifiers=" + HotkeyModifiers, "HotkeyKey=" + HotkeyKey,
             "Color=" + Color, "FontFamily=" + FontFamily, "Format=" + Format, "EndMessage=" + EndMessage, "Language=" + Language, "AutoStart=" + AutoStart,
             "EndSound=" + EndSound, "EndSoundStyle=" + EndSoundStyle, "EndNotice=" + EndNotice, "FirstRun=" + FirstRun, "NoticeStyle=" + NoticeStyle, "FullscreenDnd=" + FullscreenDnd,
+            "RestMinutes=" + RestMinutes,
             "AgentProgress=" + AgentProgress,
             "DesktopCollaborationEnabled=" + DesktopCollaborationEnabled,
             "DailyQuote=" + DailyQuote, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
@@ -3891,6 +3894,11 @@ internal sealed class NoticeDialog : Form
 
     private IntPtr targetHwnd;
     private bool isAgentNotice;
+    // Chosen rest length shown on the "休息 N 分钟 ▾" button (popup-editable).
+    private int restMinutes = 10;
+    // Guards the rest button: menu-opening clicks must not also raise Click
+    // (AcceptButton uses PerformClick, which raises Click without MouseClick).
+    private bool suppressRaiseClick;
 
     public NoticeDialog(Settings s, DateTime finishedAt) : this(s, finishedAt, null, IntPtr.Zero, null) { }
 
@@ -3959,13 +3967,68 @@ internal sealed class NoticeDialog : Form
 
         if (onStartRest != null)
         {
+            // Rest length is user-adjustable right here on the popup: the
+            // primary button shows the current length and a ▼ opens a preset
+            // menu (5/10/15/20/30 + any saved custom value). Picking one
+            // updates the label and persists it; plain click starts the rest
+            // with the currently displayed length.
+            restMinutes = Math.Max(1, Math.Min(60, s.RestMinutes > 0 ? s.RestMinutes : 10));
             Button btnRest = new Button();
-            btnRest.Text = en ? "Rest (5 min)" : "休息 5 分钟";
+            btnRest.Text = string.Format(en ? "Rest ({0} min) ▾" : "休息 {0} 分钟 ▾", restMinutes);
             btnRest.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
             btnRest.SetBounds(35, 150, 130, 36);
             AppContext.StylePrimaryButton(btnRest);
+
+            ContextMenuStrip restMenu = new ContextMenuStrip();
+            restMenu.ShowImageMargin = false;
+            Action<int> pickRest = delegate(int mins)
+            {
+                restMinutes = Math.Max(1, Math.Min(60, mins));
+                btnRest.Text = string.Format(en ? "Rest ({0} min) ▾" : "休息 {0} 分钟 ▾", restMinutes);
+                s.RestMinutes = restMinutes;
+                try { s.Save(); } catch { }
+            };
+            int[] presets = { 5, 10, 15, 20, 30 };
+            foreach (int p in presets)
+            {
+                int mins = p;
+                ToolStripMenuItem it = new ToolStripMenuItem(string.Format(en ? "{0} minutes" : "{0} 分钟", mins));
+                it.Click += delegate { pickRest(mins); };
+                restMenu.Items.Add(it);
+            }
+            if (Array.IndexOf(presets, restMinutes) < 0)
+            {
+                // A saved custom length keeps a slot in the menu so it stays reachable.
+                int mins = restMinutes;
+                ToolStripMenuItem custom = new ToolStripMenuItem(string.Format(en ? "{0} minutes" : "{0} 分钟", mins));
+                custom.Click += delegate { pickRest(mins); };
+                restMenu.Items.Add(custom);
+            }
+            btnRest.ContextMenuStrip = restMenu;
+            // One dispatcher for all LIVE mouse clicks on the button: left click
+            // near the ▾ opens the preset menu, right click opens it anywhere
+            // else, and a plain left click (not near the arrow) starts the rest.
+            // Enter via AcceptButton raises Click only, so the menu-open paths
+            // set suppressRaiseClick and the Click handler below skips them.
+            btnRest.MouseClick += delegate(object sender, MouseEventArgs me)
+            {
+                if (me.Button == MouseButtons.Right)
+                {
+                    suppressRaiseClick = true;
+                    restMenu.Show(btnRest, new Point(0, btnRest.Height));
+                    return;
+                }
+                if (me.Button == MouseButtons.Left && me.X > btnRest.Width - 24)
+                {
+                    suppressRaiseClick = true;
+                    restMenu.Show(btnRest, new Point(btnRest.Width - restMenu.Width, btnRest.Height));
+                    return;
+                }
+                suppressRaiseClick = false;
+            };
             btnRest.Click += delegate
             {
+                if (suppressRaiseClick) { suppressRaiseClick = false; return; }
                 Close();
                 onStartRest();
             };
@@ -8973,7 +9036,7 @@ internal sealed class AppContext : ApplicationContext
                 ForceTopMost(activeNotice);
                 return;
             }
-            Action onRest = wasRest ? null : new Action(delegate { StartRest(5); });
+            Action onRest = wasRest ? null : new Action(delegate { StartRest(settings.RestMinutes > 0 ? settings.RestMinutes : 10); });
             try
             {
                 activeNotice = new NoticeDialog(settings, DateTime.Now, wasRest ? (settings.Language == "en" ? "Break" : "休息") : null, IntPtr.Zero, onRest);
