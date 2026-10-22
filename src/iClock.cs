@@ -12094,14 +12094,21 @@ internal sealed class QuoteScreensaverForm : Form
         Font testFont = null, mainFont = null, authorFont = null;
         try { testFont = new Font(family, 10f); }
         catch { family = "Segoe UI"; testFont = new Font(family, 10f); }
+        // Respect the user's quote font size (settings dialog, 8-24pt) instead of
+        // a fixed 36pt hero; scale up for the big screen but keep the chosen size
+        // as the base so what you set is what you see. Long quotes still shrink.
+        float setSize = saverSettings != null && saverSettings.QuoteFontSize >= 8.0f && saverSettings.QuoteFontSize <= 24.0f
+            ? saverSettings.QuoteFontSize
+            : 18.0f;
+        float em = Math.Min(64f, setSize * 2.0f);
         try
         {
-            mainFont = new Font(family, 36f, FontStyle.Bold);
+            mainFont = new Font(family, em, FontStyle.Bold);
             authorFont = new Font(family, 16f, FontStyle.Regular);
         }
         catch
         {
-            mainFont = new Font("Segoe UI", 36f, FontStyle.Bold);
+            mainFont = new Font("Segoe UI", em, FontStyle.Bold);
             authorFont = new Font("Segoe UI", 16f, FontStyle.Regular);
         }
         finally
@@ -12113,13 +12120,15 @@ internal sealed class QuoteScreensaverForm : Form
         {
             Rectangle bounds = Bounds;
             // Long quotes must wrap and shrink: measure hero size then step down
-            // until the wrapped block fits the central 70% of the screen.
-            float em = 36f;
+            // until the wrapped block fits the central 70% of the screen. Never
+            // drops below the user's configured size so the setting always wins.
+            float minEm = setSize;
             SizeF layoutArea = new SizeF(bounds.Width * 0.72f, bounds.Height * 0.5f);
             SizeF measured = g.MeasureString(text, mainFont, (int)layoutArea.Width);
-            while ((measured.Height > layoutArea.Height || measured.Width > layoutArea.Width) && em > 14f)
+            while ((measured.Height > layoutArea.Height || measured.Width > layoutArea.Width) && em > minEm)
             {
                 em -= 2f;
+                if (em < minEm) em = minEm;
                 Font smaller = new Font(family, em, FontStyle.Bold);
                 mainFont.Dispose();
                 mainFont = smaller;
