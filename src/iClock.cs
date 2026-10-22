@@ -12095,7 +12095,6 @@ internal sealed class QuoteScreensaverForm : Form
             : 18.0f;
 
         Font textFont = null, authorFont = null;
-        Rectangle cardRect;
         try
         {
             textFont = new Font(family, setSize, FontStyle.Regular, GraphicsUnit.Point);
@@ -12134,18 +12133,9 @@ internal sealed class QuoteScreensaverForm : Form
             cardH = Math.Max(56, cardH);
 
             // Note default position: horizontally centered, top at Y=120.
+            // The screensaver draws text only — no card background or border;
+            // the desktop note keeps its hover-card frame, the saver does not.
             Rectangle card = new Rectangle(scr.Left + (scr.Width - cardW) / 2, scr.Top + 120, cardW, cardH);
-            cardRect = card;
-
-            // Hover-card look on black: 20% dark base + light border, identical
-            // to the desktop note's Alt hover visual so it reads as one card.
-            using (GraphicsPath path = AppContext.GetRoundedRectPath(cardRect, 10))
-            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(51, 20, 22, 28)))
-            using (Pen borderPen = new Pen(Color.FromArgb(60, 255, 255, 255), 1.0f))
-            {
-                g.FillPath(bgBrush, path);
-                g.DrawPath(borderPen, path);
-            }
 
             using (StringFormat sf = new StringFormat { Trimming = StringTrimming.Word, Alignment = StringAlignment.Center })
             {
