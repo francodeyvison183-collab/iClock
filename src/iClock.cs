@@ -2226,6 +2226,7 @@ internal sealed class SettingsDialog : Form
         // Switch group at page bottom: desktop note toggle + screensaver toggle,
         // stacked them like the checkbox grid rows (label left, toggle right).
         lblDailyQuote = AddLabel(en ? "Show daily quote note on desktop" : "在桌面常驻显示每日格言便签", 18, 366);
+        lblDailyQuote.SetBounds(18, 366, 296, 24); // full "便签" is wider than AddLabel's 148px default and would clip
         dailyQuoteToggle = new ToggleSwitch();
         dailyQuoteToggle.Checked = Value.DailyQuote;
         dailyQuoteToggle.SetBounds(322, 366, 40, 22);
@@ -3505,7 +3506,11 @@ internal sealed class SettingsDialog : Form
         sound.Text = toEnglish ? "Play sound at end" : "结束时声音提醒";
         notice.Text = toEnglish ? "End notification" : "结束时系统通知";
 
-        if (lblDailyQuote != null) lblDailyQuote.Text = toEnglish ? "Show daily quote note on desktop" : "在桌面常驻显示每日格言便签";
+        if (lblDailyQuote != null)
+        {
+            lblDailyQuote.Text = toEnglish ? "Show daily quote note on desktop" : "在桌面常驻显示每日格言便签";
+            lblDailyQuote.SetBounds(18, 366, 296, 24);
+        }
         lblQuoteSize.Text = toEnglish ? "Text size" : "文字大小";
         lblQuoteFont.Text = toEnglish ? "Font style" : "字体样式";
         lblQuoteColor.Text = toEnglish ? "Text color" : "文字颜色";
