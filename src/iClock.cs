@@ -2237,11 +2237,11 @@ internal sealed class SettingsDialog : Form
             : "在桌面上常驻显示每日金句；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
         Controls.Add(dailyQuoteToggle);
 
-        // Screensaver row: "开启今日金句作为屏保 [预览]" as a single LinkLabel,
+        // Screensaver row: "开启每日金句作为屏保 [预览]" as a single LinkLabel,
         // LinkArea highlighting the trailing [预览] so the whole text lays out
         // in one control and never clips the link.
         lnkPreviewSaver = new LinkLabel();
-        string saverLabel = en ? "Use today's quote as screensaver [Preview]" : "开启今日金句作为屏保 [预览]";
+        string saverLabel = en ? "Use today's quote as screensaver [Preview]" : "开启每日金句作为屏保 [预览]";
         lnkPreviewSaver.Text = saverLabel;
         int linkStart = saverLabel.IndexOf('[');
         int linkLen = saverLabel.Length - linkStart;
@@ -2255,7 +2255,7 @@ internal sealed class SettingsDialog : Form
         lnkPreviewSaver.LinkClicked += OnPreviewSaverLinkClicked;
         toolTip.SetToolTip(lnkPreviewSaver, en
             ? "Show a fullscreen preview of today's quote screensaver"
-            : "全屏预览今日金句屏保效果");
+            : "全屏预览每日金句屏保效果");
         Controls.Add(lnkPreviewSaver);
         quoteSaverToggle = new ToggleSwitch();
         quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
@@ -2263,7 +2263,7 @@ internal sealed class SettingsDialog : Form
         quoteSaverToggle.CheckedChanged += OnQuoteSaverToggleChanged;
         toolTip.SetToolTip(quoteSaverToggle, en
             ? "Install iClock as the Windows screensaver showing today's quote when idle"
-            : "把 iClock 安装为 Windows 屏保，空闲时全屏显示今日金句");
+            : "把 iClock 安装为 Windows 屏保，空闲时全屏显示每日金句");
         Controls.Add(quoteSaverToggle);
 
         // Section 4: Tip (Y = 436)
@@ -3531,7 +3531,7 @@ internal sealed class SettingsDialog : Form
         }
         if (lnkPreviewSaver != null)
         {
-            string saverLabel = toEnglish ? "Use today's quote as screensaver [Preview]" : "开启今日金句作为屏保 [预览]";
+            string saverLabel = toEnglish ? "Use today's quote as screensaver [Preview]" : "开启每日金句作为屏保 [预览]";
             lnkPreviewSaver.Text = saverLabel;
             int linkStart = saverLabel.IndexOf('[');
             int linkLen = saverLabel.Length - linkStart;
