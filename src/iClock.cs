@@ -2225,7 +2225,7 @@ internal sealed class SettingsDialog : Form
         lblQuoteSaver = AddLabel(en ? "Use today's quote as screensaver" : "开启今日格言作为屏保", 18, 398);
         quoteSaverToggle = new ToggleSwitch();
         quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
-        quoteSaverToggle.SetBounds(172, 394, 188, 28);
+        quoteSaverToggle.SetBounds(322, 398, 40, 22);
         quoteSaverToggle.CheckedChanged += OnQuoteSaverToggleChanged;
         if (toolTip == null) toolTip = new ToolTip();
         toolTip.SetToolTip(quoteSaverToggle, en
