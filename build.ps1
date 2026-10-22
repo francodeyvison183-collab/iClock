@@ -17,6 +17,7 @@ $legacyCli = Join-Path $outputDir 'iclock.com'
 $source = Join-Path $projectRoot 'src\iClock.cs'
 $zan = Join-Path $projectRoot 'src\zan.jpg'
 $appIco = Join-Path $projectRoot 'src\app.ico'
+$logoPng = Join-Path $projectRoot 'docs\icon-64.png'
 
 Get-Process | Where-Object { $_.ProcessName -like "iClock*" -or $_.ProcessName -eq "SelfCheck" } | Stop-Process -Force
 if (Test-Path -LiteralPath $legacyCli) {
@@ -30,6 +31,12 @@ if (Test-Path -LiteralPath $zan) {
 if (Test-Path -LiteralPath $appIco) {
     $compilerArgs += "/resource:$appIco,app.ico"
     $compilerArgs += "/win32icon:$appIco"
+}
+# Brand mark for the screensaver: app.ico only carries a 24x24 frame, which
+# turns to mush at the 64px logo size. The 64px PNG is a 1:1 source and costs
+# ~4 KB in the binary.
+if (Test-Path -LiteralPath $logoPng) {
+    $compilerArgs += "/resource:$logoPng,logo64.png"
 }
 $compilerArgs += $source
 

@@ -12252,12 +12252,107 @@ internal sealed class QuoteScreensaverForm : Form
                     }
                 }
             }
+
+            DrawBrandMark(g, scr, mainColor);
         }
         finally
         {
             textFont.Dispose();
             authorFont.Dispose();
         }
+    }
+
+    // Brand mark low on the saver: the app icon brightened so its dark navy
+    // body separates from the black background, sitting on a soft accent halo.
+    // Purely decorative — any failure here must never take the quote down.
+    private static void DrawBrandMark(Graphics g, Rectangle scr, Color accent)
+    {
+        try
+        {
+            const int logoSize = 64;
+            int cx = scr.Left + scr.Width / 2;
+            int cy = scr.Top + (int)Math.Round(scr.Height * 0.80);
+
+            int haloSize = (int)Math.Round(logoSize * 1.6);
+            Rectangle haloRect = new Rectangle(cx - haloSize / 2, cy - haloSize / 2, haloSize, haloSize);
+            using (GraphicsPath haloPath = new GraphicsPath())
+            {
+                haloPath.AddEllipse(haloRect);
+                using (PathGradientBrush halo = new PathGradientBrush(haloPath))
+                {
+                    halo.CenterColor = Color.FromArgb(52, accent.R, accent.G, accent.B);
+                    halo.SurroundColors = new Color[] { Color.FromArgb(0, accent.R, accent.G, accent.B) };
+                    g.FillPath(halo, haloPath);
+                }
+            }
+
+            Bitmap logo = LoadBrandLogo(logoSize);
+            if (logo == null) return;
+            using (logo)
+            using (ImageAttributes attr = new ImageAttributes())
+            {
+                // Linear lift: out = 0.864 * in + 0.136. The dark navy body goes
+                // from #1B2340 to about #3A415A while white and the orange slash
+                // keep their original values (a plain multiply would blow the
+                // orange out to yellow).
+                attr.SetColorMatrix(new ColorMatrix(new float[][]
+                {
+                    new float[] { 0.864f, 0f, 0f, 0f, 0.136f },
+                    new float[] { 0f, 0.864f, 0f, 0f, 0.136f },
+                    new float[] { 0f, 0f, 0.864f, 0f, 0.136f },
+                    new float[] { 0f, 0f, 0f, 1f, 0f },
+                    new float[] { 0f, 0f, 0f, 0f, 1f }
+                }));
+                g.DrawImage(logo,
+                    new Rectangle(cx - logoSize / 2, cy - logoSize / 2, logoSize, logoSize),
+                    0, 0, logo.Width, logo.Height, GraphicsUnit.Pixel, attr);
+            }
+        }
+        catch { }
+    }
+
+    // Prefer the embedded 64px PNG (1:1 at logo size); fall back to the 24px
+    // window icon when the build has no PNG resource.
+    private static Bitmap LoadBrandLogo(int size)
+    {
+        try
+        {
+            using (Stream s = typeof(AppContext).Assembly.GetManifestResourceStream("logo64.png"))
+            {
+                if (s != null)
+                {
+                    using (Bitmap src = new Bitmap(s))
+                    {
+                        return ScaleBitmap(src, size);
+                    }
+                }
+            }
+        }
+        catch { }
+        try
+        {
+            using (Icon ico = AppContext.CreateIcon())
+            {
+                using (Bitmap src = ico.ToBitmap())
+                {
+                    return ScaleBitmap(src, size);
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static Bitmap ScaleBitmap(Bitmap src, int size)
+    {
+        Bitmap dst = new Bitmap(size, size);
+        using (Graphics g2 = Graphics.FromImage(dst))
+        {
+            g2.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g2.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            g2.DrawImage(src, new Rectangle(0, 0, size, size));
+        }
+        return dst;
     }
 
     private void ExitSaver()
