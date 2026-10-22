@@ -12269,7 +12269,7 @@ internal sealed class QuoteScreensaverForm : Form
     {
         try
         {
-            const int logoSize = 64;
+            const int logoSize = 32;
             int cx = scr.Left + scr.Width / 2;
             int cy = scr.Top + (int)Math.Round(scr.Height * 0.80);
 
@@ -12311,13 +12311,13 @@ internal sealed class QuoteScreensaverForm : Form
         catch { }
     }
 
-    // Prefer the embedded 64px PNG (1:1 at logo size); fall back to the 24px
+    // Prefer the embedded 32px PNG (1:1 at logo size); fall back to the 24px
     // window icon when the build has no PNG resource.
     private static Bitmap LoadBrandLogo(int size)
     {
         try
         {
-            using (Stream s = typeof(AppContext).Assembly.GetManifestResourceStream("logo64.png"))
+            using (Stream s = typeof(AppContext).Assembly.GetManifestResourceStream("logo32.png"))
             {
                 if (s != null)
                 {
