@@ -52,6 +52,8 @@ internal sealed class Settings
     public string QuoteColor = "";
     public string QuoteFont = "";
     public bool QuotePinTopMost;
+    public int QuoteIndex = -1;
+    public string QuoteDate = "";
     public int TaskStatusX = -99999;
     public int TaskStatusY = -99999;
     public float TaskStatusFontSize = 9.5f;
@@ -76,6 +78,7 @@ internal sealed class Settings
         QuoteX = src.QuoteX; QuoteY = src.QuoteY; QuoteWidth = src.QuoteWidth;
         QuoteFontSize = src.QuoteFontSize; QuoteColor = src.QuoteColor; QuoteFont = src.QuoteFont;
         QuotePinTopMost = src.QuotePinTopMost;
+        QuoteIndex = src.QuoteIndex; QuoteDate = src.QuoteDate;
         TaskStatusX = src.TaskStatusX; TaskStatusY = src.TaskStatusY;
         TaskStatusFontSize = src.TaskStatusFontSize > 0 ? src.TaskStatusFontSize : 9.5f;
         TaskStatusTextColor = src.TaskStatusTextColor; TaskStatusBarColor = src.TaskStatusBarColor;
@@ -156,6 +159,8 @@ internal sealed class Settings
                 else if (k == "QuoteColor") s.QuoteColor = v;
                 else if (k == "QuoteFont") s.QuoteFont = v;
                 else if (k == "QuotePinTopMost" && bool.TryParse(v, out b)) s.QuotePinTopMost = b;
+                else if (k == "QuoteIndex" && int.TryParse(v, out n)) s.QuoteIndex = n;
+                else if (k == "QuoteDate") s.QuoteDate = v;
                 else if (k == "TaskStatusX" && int.TryParse(v, out n)) s.TaskStatusX = n;
                 else if (k == "TaskStatusY" && int.TryParse(v, out n)) s.TaskStatusY = n;
                 else if (k == "TaskStatusFontSize" && float.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out f)) s.TaskStatusFontSize = f > 0 ? Math.Max(7.0f, Math.Min(16.0f, f)) : 9.5f;
@@ -186,6 +191,7 @@ internal sealed class Settings
             "DesktopCollaborationEnabled=" + DesktopCollaborationEnabled,
             "DailyQuote=" + DailyQuote, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
             "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuotePinTopMost=" + QuotePinTopMost,
+            "QuoteIndex=" + QuoteIndex, "QuoteDate=" + QuoteDate,
             "TaskStatusX=" + TaskStatusX, "TaskStatusY=" + TaskStatusY,
             "TaskStatusFontSize=" + (TaskStatusFontSize > 0 ? TaskStatusFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "9.5"),
             "TaskStatusTextColor=" + TaskStatusTextColor, "TaskStatusBarColor=" + TaskStatusBarColor,
@@ -1298,7 +1304,7 @@ internal sealed class AgentTaskStatusHud : Form
         }
         else
         {
-            try { textColor = !string.IsNullOrEmpty(settings.QuoteColor) ? ColorTranslator.FromHtml(settings.QuoteColor) : Color.White; }
+            try { textColor = !string.IsNullOrEmpty(settings.QuoteColor) ? ColorTranslator.FromHtml(settings.QuoteColor) : ColorTranslator.FromHtml("#F77F00"); }
             catch { textColor = Color.White; }
         }
         // Bar color: explicit TaskStatusBarColor wins; else theme accent.
@@ -1787,18 +1793,18 @@ internal sealed class SettingsDialog : Form
     private ToggleSwitch chkDesktopCollaboration;
     private Label lblTool1Name, lblTool2Name, lblTool3Name;
     private Label lblTool1Desc, lblTool2Desc, lblTool3Desc;
-    private StyledTipLabel lblAgentCliTip;
     // Two-section layout: collaboration readiness first, capability previews second.
-    private Panel panelSkillCard, panelCapCard;
+    private Panel panelSkillCard, panelSessionCard, panelCapCard;
     private Label lblSkillGuidance, lblSkillFeedback;
-    private LinkLabel lnkCliGuide;
-    private string cliCopyFeedback;
     private string agentRowsFingerprint;
     private System.Windows.Forms.Timer cliCopyFeedbackTimer;
     private System.Windows.Forms.Timer agentListTimer;
     // Dynamic per-agent rows (running agents only), rebuilt by RefreshSkillInstallUi.
     private Panel panelAgentRows;
     private Label lblAgentEmpty;
+    private Label lblSkillMethod1, lblSkillMethod2;
+    private Label lblCliGuideHint;
+    private Button btnCopyCliGuide;
     // Install failure closure: reason, human self-help, retry, overwrite, agent-assist copy.
     private Panel panelInstallFail;
     private Label lblFailReason, lblFailHint;
@@ -1825,9 +1831,11 @@ internal sealed class SettingsDialog : Form
         "", "Microsoft YaHei", "KaiTi", "FangSong", "SimSun", "LiSu", "YouYuan", "Georgia", "Constantia", "Segoe UI"
     };
     private static readonly string[] TimerPresetColors = { "#FF0000", "#FFFFFF", "#FFD166", "#06D6A0", "#4CC9F0", "#F72585", "#52B788", "#7209B7", "#F77F00", "custom" };
-    private static readonly string[] QuotePresetColors = { "", "#FFFFFF", "#FFD166", "#06D6A0", "#4CC9F0", "#F72585", "#52B788", "#7209B7", "#F77F00", "custom" };
-    private static readonly string[] sharedColorNamesZh = { "柔白", "暖金", "薄荷", "淡青", "樱粉", "竹青", "暮紫", "暖橙", "自选…" };
-    private static readonly string[] sharedColorNamesEn = { "White", "Gold", "Mint", "Cyan", "Pink", "Green", "Purple", "Orange", "Custom…" };
+    private static readonly string[] QuotePresetColors = { "#F77F00", "#FFFFFF", "#8EA3B7", "#F4A261", "#A7C4BC", "#E8B4B8", "#E0C097", "#6C8EBF", "custom" };
+    private static readonly string[] timerColorNamesZh = { "柔白", "暖金", "薄荷", "淡青", "樱粉", "竹青", "暮紫", "暖橙", "自选…" };
+    private static readonly string[] timerColorNamesEn = { "White", "Gold", "Mint", "Cyan", "Pink", "Green", "Purple", "Orange", "Custom…" };
+    private static readonly string[] quoteColorNamesZh = { "暖橙 (默认)", "柔白", "雾灰蓝", "暖杏", "豆沙绿", "藕粉", "燕麦", "暮蓝", "自选…" };
+    private static readonly string[] quoteColorNamesEn = { "Warm Orange (Default)", "White", "Mist Blue", "Apricot", "Sage", "Lotus Pink", "Oat", "Dusk Blue", "Custom…" };
 
     private const int EM_SETMARGINS = 0x00D3;
     private const int EM_SETRECTNP = 0x00B4;
@@ -1909,7 +1917,8 @@ internal sealed class SettingsDialog : Form
     {
         this.hotkeyActive = hotkeyActive;
         Value = s;
-        selectedQuoteColor = s.QuoteColor ?? "";
+        // Empty stored color means "use the default" -> resolve to the default preset so the combo can select it.
+        selectedQuoteColor = string.IsNullOrEmpty(s.QuoteColor) ? QuotePresetColors[0] : s.QuoteColor;
         selectedQuoteFont = s.QuoteFont ?? "";
         bool en = Value.Language == "en";
         Font = AppContext.GetUiFont(Value.Language, 9.5f);
@@ -2031,8 +2040,7 @@ internal sealed class SettingsDialog : Form
 
         dialogQuoteList = DailyQuoteDialog.LoadQuotes();
         if (dialogQuoteList == null || dialogQuoteList.Count == 0) dialogQuoteList = new List<QuoteItem>(DailyQuoteDialog.DefaultQuotes);
-        int seed = DateTime.Today.Year * 366 + DateTime.Today.DayOfYear;
-        dialogQuoteIndex = Math.Abs(seed) % dialogQuoteList.Count;
+        dialogQuoteIndex = AppContext.ResolveTodayQuoteIndex(s, dialogQuoteList.Count);
 
         // Section 1 Hero Banner: panelQuoteCard (Top = 62, Height = 98px, vertically centered content)
         panelQuoteCard = new Panel();
@@ -2255,11 +2263,12 @@ internal sealed class SettingsDialog : Form
         lblCapabilitySub.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblCapabilitySub.ForeColor = AppContext.Win11TextSecondary;
         lblCapabilitySub.TextAlign = ContentAlignment.MiddleLeft;
-        lblCapabilitySub.SetBounds(18, 80, 344, 16);
+        lblCapabilitySub.SetBounds(18, 78, 344, 28);
+        lblCapabilitySub.AutoEllipsis = true;
         Controls.Add(lblCapabilitySub);
 
         panelCapCard = new Panel();
-        panelCapCard.SetBounds(18, 100, 344, 150);
+        panelCapCard.SetBounds(18, 110, 344, 132);
         panelCapCard.BackColor = Color.White;
         panelCapCard.Paint += OnCapabilityCardPaint;
         Controls.Add(panelCapCard);
@@ -2273,50 +2282,65 @@ internal sealed class SettingsDialog : Form
             : "安装技能让智能体学会这些能力：";
         lblSkillGuidance.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblSkillGuidance.ForeColor = AppContext.Win11TextSecondary;
-        lblSkillGuidance.SetBounds(18, 264, 344, 18);
+        lblSkillGuidance.SetBounds(18, 248, 344, 18);
         Controls.Add(lblSkillGuidance);
 
         // Skill card: dynamic per-agent rows + empty-state fallback + install-failure closure.
         panelSkillCard = new Panel();
-        panelSkillCard.SetBounds(18, 286, 344, 110);
+        panelSkillCard.SetBounds(18, 270, 344, 84);
         panelSkillCard.BackColor = Color.White;
         panelSkillCard.AutoScroll = true;
         panelSkillCard.HorizontalScroll.Enabled = false;
         panelSkillCard.Paint += OnCardPaint;
         Controls.Add(panelSkillCard);
 
+        panelSessionCard = new Panel();
+        panelSessionCard.SetBounds(18, 362, 344, 84);
+        panelSessionCard.BackColor = Color.White;
+        panelSessionCard.Paint += OnCardPaint;
+        Controls.Add(panelSessionCard);
+
         panelAgentRows = new Panel();
-        panelAgentRows.SetBounds(0, 0, 344, 10);
+        panelAgentRows.SetBounds(0, 0, 320, 10);
         panelAgentRows.BackColor = Color.Transparent;
         panelSkillCard.Controls.Add(panelAgentRows);
+
+        lblSkillMethod1 = new Label();
+        lblSkillMethod1.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Bold);
+        lblSkillMethod1.ForeColor = AppContext.Win11TextPrimary;
+        lblSkillMethod1.SetBounds(14, 6, 300, 16);
+        panelSkillCard.Controls.Add(lblSkillMethod1);
+
+        lblSkillMethod2 = new Label();
+        lblSkillMethod2.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Bold);
+        lblSkillMethod2.ForeColor = AppContext.Win11TextPrimary;
+        lblSkillMethod2.SetBounds(14, 6, 316, 18);
+        panelSessionCard.Controls.Add(lblSkillMethod2);
+
+        lblCliGuideHint = new Label();
+        lblCliGuideHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblCliGuideHint.ForeColor = AppContext.Win11TextSecondary;
+        lblCliGuideHint.SetBounds(14, 30, 208, 36);
+        panelSessionCard.Controls.Add(lblCliGuideHint);
+
+        btnCopyCliGuide = new Button();
+        btnCopyCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        btnCopyCliGuide.SetBounds(232, 36, 98, 24);
+        AppContext.StyleSecondaryButton(btnCopyCliGuide);
+        btnCopyCliGuide.Click += OnCopyCliGuideClick;
+        panelSessionCard.Controls.Add(btnCopyCliGuide);
 
         lblAgentEmpty = new Label();
         lblAgentEmpty.Name = "lblAgentEmpty";
         lblAgentEmpty.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblAgentEmpty.ForeColor = AppContext.Win11TextSecondary;
-        lblAgentEmpty.SetBounds(14, 12, 316, 40);
+        lblAgentEmpty.SetBounds(14, 12, 300, 40);
         lblAgentEmpty.Visible = false;
         panelSkillCard.Controls.Add(lblAgentEmpty);
 
-        lnkCliGuide = new LinkLabel();
-        lnkCliGuide.Name = "lnkCliGuide";
-        lnkCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lnkCliGuide.ForeColor = AppContext.Win11TextSecondary;
-        lnkCliGuide.LinkColor = AppContext.Win11Accent;
-        lnkCliGuide.ActiveLinkColor = AppContext.Win11Accent;
-        lnkCliGuide.VisitedLinkColor = AppContext.Win11Accent;
-        lnkCliGuide.LinkBehavior = LinkBehavior.AlwaysUnderline;
-        lnkCliGuide.AutoSize = false;
-        lnkCliGuide.TextAlign = ContentAlignment.MiddleLeft;
-        lnkCliGuide.SetBounds(14, 52, 316, 20);
-        lnkCliGuide.Cursor = Cursors.Hand;
-        lnkCliGuide.Visible = false;
-        lnkCliGuide.LinkClicked += OnCliGuideClick;
-        panelSkillCard.Controls.Add(lnkCliGuide);
-
         // Install-failure closure panel (hidden until an install fails).
         panelInstallFail = new Panel();
-        panelInstallFail.SetBounds(10, 76, 324, 76);
+        panelInstallFail.SetBounds(10, 76, 310, 76);
         panelInstallFail.BackColor = Color.FromArgb(255, 250, 243);
         panelInstallFail.Visible = false;
         panelSkillCard.Controls.Add(panelInstallFail);
@@ -2324,13 +2348,13 @@ internal sealed class SettingsDialog : Form
         lblFailReason = new Label();
         lblFailReason.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblFailReason.ForeColor = Color.FromArgb(180, 83, 9);
-        lblFailReason.SetBounds(8, 6, 308, 16);
+        lblFailReason.SetBounds(8, 6, 294, 16);
         panelInstallFail.Controls.Add(lblFailReason);
 
         lblFailHint = new Label();
         lblFailHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblFailHint.ForeColor = AppContext.Win11TextSecondary;
-        lblFailHint.SetBounds(8, 24, 308, 26);
+        lblFailHint.SetBounds(8, 24, 294, 26);
         panelInstallFail.Controls.Add(lblFailHint);
 
         btnRetryInstall = new Button();
@@ -2362,7 +2386,7 @@ internal sealed class SettingsDialog : Form
         lblSkillFeedback.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblSkillFeedback.ForeColor = AppContext.Win11TextSecondary;
         lblSkillFeedback.AutoSize = false;
-        lblSkillFeedback.SetBounds(14, 156, 316, 18);
+        lblSkillFeedback.SetBounds(14, 156, 300, 18);
         lblSkillFeedback.Visible = false;
         panelSkillCard.Controls.Add(lblSkillFeedback);
 
@@ -2377,20 +2401,20 @@ internal sealed class SettingsDialog : Form
         lblTool1Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool1Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool1Name.TextAlign = ContentAlignment.MiddleLeft;
-        lblTool1Name.SetBounds(14, 5, 252, 18);
+        lblTool1Name.SetBounds(14, 3, 252, 18);
         panelCapabilityCard.Controls.Add(lblTool1Name);
 
         lblTool1Desc = new Label();
         lblTool1Desc.Text = en ? "Pause for your approval before critical actions" : "关键操作前暂停，等待你确认";
         lblTool1Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblTool1Desc.ForeColor = AppContext.Win11TextSecondary;
-        lblTool1Desc.SetBounds(14, 22, 252, 16);
+        lblTool1Desc.SetBounds(14, 19, 252, 16);
         panelCapabilityCard.Controls.Add(lblTool1Desc);
 
         btnAskDemo = new Button();
         btnAskDemo.Text = en ? "Preview" : "预览";
         btnAskDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnAskDemo.SetBounds(274, 12, 58, 26);
+        btnAskDemo.SetBounds(274, 9, 58, 26);
         AppContext.StyleSecondaryButton(btnAskDemo);
         btnAskDemo.Click += OnAskDemoClick;
         panelCapabilityCard.Controls.Add(btnAskDemo);
@@ -2401,20 +2425,20 @@ internal sealed class SettingsDialog : Form
         lblTool2Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool2Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool2Name.TextAlign = ContentAlignment.MiddleLeft;
-        lblTool2Name.SetBounds(14, 55, 252, 18);
+        lblTool2Name.SetBounds(14, 47, 252, 18);
         panelCapabilityCard.Controls.Add(lblTool2Name);
 
         lblTool2Desc = new Label();
         lblTool2Desc.Text = en ? "Show task progress and current status together" : "同时显示任务进度与当前状态";
         lblTool2Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblTool2Desc.ForeColor = AppContext.Win11TextSecondary;
-        lblTool2Desc.SetBounds(14, 72, 252, 16);
+        lblTool2Desc.SetBounds(14, 63, 252, 16);
         panelCapabilityCard.Controls.Add(lblTool2Desc);
 
         btnProgressDemo = new Button();
         btnProgressDemo.Text = en ? "Preview" : "预览";
         btnProgressDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnProgressDemo.SetBounds(274, 62, 58, 26);
+        btnProgressDemo.SetBounds(274, 53, 58, 26);
         AppContext.StyleSecondaryButton(btnProgressDemo);
         btnProgressDemo.Click += OnProgressDemoClick;
         panelCapabilityCard.Controls.Add(btnProgressDemo);
@@ -2425,20 +2449,20 @@ internal sealed class SettingsDialog : Form
         lblTool3Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
         lblTool3Name.ForeColor = AppContext.Win11TextPrimary;
         lblTool3Name.TextAlign = ContentAlignment.MiddleLeft;
-        lblTool3Name.SetBounds(14, 105, 252, 18);
+        lblTool3Name.SetBounds(14, 91, 252, 18);
         panelCapabilityCard.Controls.Add(lblTool3Name);
 
         lblTool3Desc = new Label();
         lblTool3Desc.Text = en ? "Popup and sound when the agent reports completion" : "智能体报告完成后弹窗并提示音";
         lblTool3Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblTool3Desc.ForeColor = AppContext.Win11TextSecondary;
-        lblTool3Desc.SetBounds(14, 122, 252, 16);
+        lblTool3Desc.SetBounds(14, 107, 252, 16);
         panelCapabilityCard.Controls.Add(lblTool3Desc);
 
         btnNotifyDemo = new Button();
         btnNotifyDemo.Text = en ? "Preview" : "预览";
         btnNotifyDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnNotifyDemo.SetBounds(274, 112, 58, 26);
+        btnNotifyDemo.SetBounds(274, 97, 58, 26);
         AppContext.StyleSecondaryButton(btnNotifyDemo);
         btnNotifyDemo.Click += OnNotifyDemoClick;
         panelCapabilityCard.Controls.Add(btnNotifyDemo);
@@ -2452,16 +2476,6 @@ internal sealed class SettingsDialog : Form
         toolTip.SetToolTip(btnProgressDemo, capabilityTip2);
         toolTip.SetToolTip(lblTool3Name, capabilityTip3);
         toolTip.SetToolTip(btnNotifyDemo, capabilityTip3);
-
-        lblAgentCliTip = new StyledTipLabel("iclock --install-cli", "iclock -h");
-        lblAgentCliTip.UseMnemonic = false;
-        lblAgentCliTip.Text = en
-            ? "Tip: Run iclock -h for help; iclock --install-cli adds PATH."
-            : "提示：终端运行 iclock -h 查看命令，iclock --install-cli 写入 PATH。";
-        lblAgentCliTip.ForeColor = AppContext.Win11TextSecondary;
-        lblAgentCliTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblAgentCliTip.SetBounds(16, 410, 348, 20);
-        Controls.Add(lblAgentCliTip);
 
         AppContext.CenterFormOnScreen(this);
         SetActiveTab(lastActiveTab);
@@ -2513,8 +2527,11 @@ internal sealed class SettingsDialog : Form
         lblQuoteTip.Visible = isQuote;
 
         if (panelSkillCard != null) panelSkillCard.Visible = isAgent;
+        if (panelSessionCard != null) panelSessionCard.Visible = isAgent;
         if (panelCapCard != null) panelCapCard.Visible = isAgent;
-        if (lblAgentCliTip != null) lblAgentCliTip.Visible = isAgent;
+        if (lblSkillMethod2 != null) lblSkillMethod2.Visible = isAgent;
+        if (lblCliGuideHint != null) lblCliGuideHint.Visible = isAgent;
+        if (btnCopyCliGuide != null) btnCopyCliGuide.Visible = isAgent;
         if (chkDesktopCollaboration != null) chkDesktopCollaboration.Visible = isAgent;
         if (lblSkillGuidance != null) lblSkillGuidance.Visible = isAgent;
         foreach (Control control in Controls)
@@ -2529,6 +2546,8 @@ internal sealed class SettingsDialog : Form
             bool collabEnabled = chkDesktopCollaboration != null && chkDesktopCollaboration.Checked;
             if (panelCapCard != null) panelCapCard.Enabled = collabEnabled;
             if (panelSkillCard != null) panelSkillCard.Enabled = collabEnabled;
+            if (panelSessionCard != null) panelSessionCard.Enabled = collabEnabled;
+            if (btnCopyCliGuide != null) btnCopyCliGuide.Enabled = collabEnabled;
             if (lblSkillGuidance != null) lblSkillGuidance.Enabled = collabEnabled;
             RefreshSkillInstallUi();
             if (agentListTimer == null)
@@ -2645,7 +2664,7 @@ internal sealed class SettingsDialog : Form
 
     private Color GetEffectiveQuoteColor()
     {
-        string col = !string.IsNullOrEmpty(selectedQuoteColor) ? selectedQuoteColor : "#FFFFFF";
+        string col = !string.IsNullOrEmpty(selectedQuoteColor) ? selectedQuoteColor : "#F77F00";
         try { return ColorTranslator.FromHtml(col); }
         catch { return Color.White; }
     }
@@ -2671,26 +2690,31 @@ internal sealed class SettingsDialog : Form
     private static int GetQuoteColorIndex(string colorHex)
     {
         if (string.IsNullOrEmpty(colorHex)) return 0;
-        for (int i = 1; i < 9; i++)
+        for (int i = 1; i < 8; i++)
             if (string.Equals(QuotePresetColors[i], colorHex, StringComparison.OrdinalIgnoreCase)) return i;
-        return 9;
+        return 8;
     }
 
-    private static void PopulateColorCombo(ComboBox cb, string firstItem, bool en)
+    private static void PopulateColorCombo(ComboBox cb, bool en, string[] namesZh, string[] namesEn)
     {
         if (cb == null) return;
         cb.Items.Clear();
-        cb.Items.Add(firstItem);
-        for (int i = 0; i < sharedColorNamesEn.Length; i++)
-            cb.Items.Add(en ? sharedColorNamesEn[i] : sharedColorNamesZh[i]);
+        string[] names = en ? namesEn : namesZh;
+        for (int i = 0; i < names.Length; i++)
+            cb.Items.Add(names[i]);
     }
     private void PopulateTimerColorCombo(bool en)
     {
-        PopulateColorCombo(timerColorCombo, en ? "Classic Red (Default)" : "经典红 (默认)", en);
+        // Timer keeps its original 9 presets plus a "Classic Red (Default)" header (idx 0 -> TimerPresetColors[0]).
+        if (timerColorCombo == null) return;
+        timerColorCombo.Items.Clear();
+        timerColorCombo.Items.Add(en ? "Classic Red (Default)" : "经典红 (默认)");
+        string[] names = en ? timerColorNamesEn : timerColorNamesZh;
+        for (int i = 0; i < names.Length; i++) timerColorCombo.Items.Add(names[i]);
     }
     private void PopulateQuoteColorCombo(bool en)
     {
-        PopulateColorCombo(quoteColorCombo, en ? "Classic White (Default)" : "经典白 (默认)", en);
+        PopulateColorCombo(quoteColorCombo, en, quoteColorNamesZh, quoteColorNamesEn);
     }
 
     private void DrawColorItem(DrawItemEventArgs e, ComboBox cb, string[] presets, string currentHex, bool isQuote)
@@ -2703,16 +2727,16 @@ internal sealed class SettingsDialog : Form
         Color chipCol;
         if (e.Index == 0)
         {
-            chipCol = isQuote ? Color.White : Color.Red;
+            chipCol = isQuote ? ColorTranslator.FromHtml(presets[0]) : Color.Red;
         }
-        else if (e.Index >= 1 && e.Index <= 8)
+        else if (e.Index >= 1 && e.Index <= (isQuote ? 7 : 8))
         {
             chipCol = ColorTranslator.FromHtml(presets[e.Index]);
         }
         else
         {
             bool isCustom = isQuote
-                ? (!string.IsNullOrEmpty(selectedQuoteColor) && GetQuoteColorIndex(selectedQuoteColor) == 9)
+                ? (!string.IsNullOrEmpty(selectedQuoteColor) && GetQuoteColorIndex(selectedQuoteColor) == 8)
                 : (!string.IsNullOrEmpty(selectedColor) && GetTimerColorIndex(selectedColor) == 9);
             if (isCustom)
             {
@@ -2822,19 +2846,13 @@ internal sealed class SettingsDialog : Form
     {
         if (updatingQuoteColorCombo || quoteColorCombo == null) return;
         int idx = quoteColorCombo.SelectedIndex;
-        if (idx == 0)
-        {
-            selectedQuoteColor = "";
-            UpdateQuoteColorPreview();
-            TriggerQuotePreview();
-        }
-        else if (idx >= 1 && idx <= 8)
+        if (idx >= 0 && idx <= 7)
         {
             selectedQuoteColor = QuotePresetColors[idx];
             UpdateQuoteColorPreview();
             TriggerQuotePreview();
         }
-        else if (idx == 9)
+        else if (idx == 8)
         {
             ChooseCustomColor(true);
         }
@@ -2970,15 +2988,13 @@ internal sealed class SettingsDialog : Form
             }
         }
     }
-    private void OnCliGuideClick(object sender, LinkLabelLinkClickedEventArgs e)
+    private void OnCopyCliGuideClick(object sender, EventArgs e)
     {
         try
         {
             bool en = Value != null && Value.Language == "en";
-            string prompt = CliPromptHelper.GenerateCliAgentPrompt(en);
-            Clipboard.SetText(prompt);
-            cliCopyFeedback = en ? "Copied (current conversation only)" : "已复制（仅当前会话有效）";
-            RefreshSkillInstallUi();
+            Clipboard.SetText(CliPromptHelper.GenerateCliAgentPrompt(en));
+            btnCopyCliGuide.Text = en ? "Copied ✓" : "已复制 ✓";
             if (cliCopyFeedbackTimer == null)
             {
                 cliCopyFeedbackTimer = new System.Windows.Forms.Timer();
@@ -2986,8 +3002,8 @@ internal sealed class SettingsDialog : Form
                 cliCopyFeedbackTimer.Tick += delegate
                 {
                     cliCopyFeedbackTimer.Stop();
-                    cliCopyFeedback = null;
-                    RefreshSkillInstallUi();
+                    if (btnCopyCliGuide != null && !btnCopyCliGuide.IsDisposed)
+                        btnCopyCliGuide.Text = Value != null && Value.Language == "en" ? "Copy guide" : "复制指引";
                 };
             }
             cliCopyFeedbackTimer.Stop();
@@ -3132,40 +3148,38 @@ internal sealed class SettingsDialog : Form
             : "安装技能让智能体学会这些能力：";
         lblSkillGuidance.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
 
+        lblSkillMethod1.Text = en ? "Method 1 · Install Skill (persistent)" : "方式一 · 安装技能（持久有效）";
+        lblSkillMethod2.Text = en ? "Method 2 · Temporary enable (this session)" : "方式二 · 临时启用（本次会话）";
+        lblCliGuideHint.Text = en
+            ? "Copy the guide to your agent for\nimportant iClock alerts this session."
+            : "复制协作说明给智能体，\n本次会话通过 iClock 提醒重要进展。";
+        lblCliGuideHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblCliGuideHint.ForeColor = AppContext.Win11TextSecondary;
+        btnCopyCliGuide.Text = en ? "Copy guide" : "复制指引";
+
         BuildAgentRows(en, false);
 
         bool hasAgents = panelAgentRows.Controls.Count > 0;
+
+        // Method 1 block: title then agent rows (or the empty-state text).
+        lblSkillMethod1.SetBounds(14, 6, 300, 16);
+        int y = lblSkillMethod1.Bottom;
+        panelAgentRows.Top = y;
+        y = panelAgentRows.Bottom;
+
         lblAgentEmpty.Visible = !hasAgents;
         if (!hasAgents)
         {
             lblAgentEmpty.Text = en
-                ? "No running agent detected. Start one (e.g. Codex, Cursor), or copy the guide for this session:"
-                : "未检测到运行中的智能体。请先启动（如 Codex、Cursor），或复制指引到当前会话临时使用：";
+                ? "No running agent detected. Start one (e.g. Codex, Cursor) to install."
+                : "未检测到运行中的智能体。请先启动（如 Codex、Cursor）以安装技能。";
             lblAgentEmpty.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+            lblAgentEmpty.SetBounds(14, y, 300, 20);
+            y = lblAgentEmpty.Bottom;
         }
-        lnkCliGuide.Visible = !hasAgents;
-        if (!string.IsNullOrEmpty(cliCopyFeedback))
-        {
-            lnkCliGuide.Text = cliCopyFeedback;
-            lnkCliGuide.Enabled = false;
-            lnkCliGuide.LinkArea = new LinkArea(0, 0);
-        }
-        else
-        {
-            string prefix = en ? "Can't install Skill? " : "无法安装 Skill？";
-            string linkText = en ? "Copy this session guide" : "复制本次会话指引";
-            lnkCliGuide.Text = prefix + linkText;
-            lnkCliGuide.LinkArea = new LinkArea(prefix.Length, linkText.Length);
-            lnkCliGuide.Enabled = true;
-        }
-        lnkCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lnkCliGuide.ForeColor = AppContext.Win11TextSecondary;
-        lnkCliGuide.LinkColor = AppContext.Win11Accent;
-        lnkCliGuide.LinkBehavior = LinkBehavior.AlwaysUnderline;
-        lnkCliGuide.Cursor = lnkCliGuide.Enabled ? Cursors.Hand : Cursors.Default;
 
         bool showFail = panelInstallFail != null && panelInstallFail.Visible;
-        int contentBottom = hasAgents ? panelAgentRows.Bottom : lnkCliGuide.Bottom;
+        int contentBottom = y;
         if (showFail)
         {
             panelInstallFail.Top = contentBottom + 6;
@@ -3177,7 +3191,7 @@ internal sealed class SettingsDialog : Form
             lblSkillFeedback.Visible = !string.IsNullOrEmpty(lblSkillFeedback.Text);
         }
         lblSkillFeedback.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        int minHeight = (showFail ? panelInstallFail.Bottom : (lblSkillFeedback.Visible ? lblSkillFeedback.Bottom : contentBottom)) + 8;
+        int minHeight = (showFail ? panelInstallFail.Bottom : (lblSkillFeedback.Visible ? lblSkillFeedback.Bottom : contentBottom)) + 4;
         panelSkillCard.AutoScrollMinSize = new Size(0, minHeight);
     }
 
@@ -3189,24 +3203,32 @@ internal sealed class SettingsDialog : Form
         StringBuilder fps = new StringBuilder(en ? "en|" : "zh|");
         foreach (string a in running) { fps.Append(a); fps.Append('='); fps.Append(CliSkillInstaller.IsInstalled(a)); fps.Append(';'); }
         string fp = fps.ToString();
-        if (!force && fp == agentRowsFingerprint && panelAgentRows.Controls.Count == running.Count * 3)
+        // Rows contribute 3 controls each (dot, name, button); dividers contribute running.Count - 1.
+        int expectedControls = running.Count * 3 + Math.Max(0, running.Count - 1);
+        if (!force && fp == agentRowsFingerprint && panelAgentRows.Controls.Count == expectedControls)
             return;
         agentRowsFingerprint = fp;
 
         panelAgentRows.SuspendLayout();
         foreach (Control c in panelAgentRows.Controls) c.Dispose();
         panelAgentRows.Controls.Clear();
-        int y = 8;
+        int y = 0;
+        int rowHeight = 28;
+        int rowIndex = 0;
         foreach (string agent in running)
         {
             bool rowInstalled = CliSkillInstaller.IsInstalled(agent);
 
-            Label dot = new Label();
-            dot.Text = "●";
-            dot.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-            dot.ForeColor = Color.FromArgb(22, 163, 74);
-            dot.TextAlign = ContentAlignment.MiddleCenter;
-            dot.SetBounds(14, y, 16, 24);
+            // Solid 8x8 dot instead of a font glyph so it renders identically at any DPI.
+            Panel dot = new Panel();
+            dot.BackColor = Color.Transparent;
+            dot.SetBounds(16, y + (rowHeight - 8) / 2, 8, 8);
+            dot.Paint += delegate(object sender, PaintEventArgs pe)
+            {
+                pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using (SolidBrush b = new SolidBrush(Color.FromArgb(22, 163, 74)))
+                    pe.Graphics.FillEllipse(b, 0, 0, 7, 7);
+            };
             panelAgentRows.Controls.Add(dot);
 
             Label name = new Label();
@@ -3214,27 +3236,46 @@ internal sealed class SettingsDialog : Form
             name.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
             name.ForeColor = AppContext.Win11TextPrimary;
             name.TextAlign = ContentAlignment.MiddleLeft;
-            name.SetBounds(34, y, 200, 24);
+            name.SetBounds(32, y, 192, rowHeight);
             panelAgentRows.Controls.Add(name);
 
             Button btn = new Button();
             btn.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-            btn.SetBounds(246, y, 82, 24);
+            btn.SetBounds(230, y + (rowHeight - 24) / 2, 82, 24);
             btn.Tag = agent;
+            // Solid fill, no border: reduces line-noise against the row divider.
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.FlatAppearance.BorderSize = 0;
+            btn.Cursor = rowInstalled ? Cursors.Default : Cursors.Hand;
             if (rowInstalled)
             {
                 btn.Text = en ? "Installed ✓" : "已安装 ✓";
                 btn.Enabled = false;
-                AppContext.StyleSecondaryButton(btn);
+                btn.BackColor = Color.FromArgb(229, 231, 235);
+                btn.ForeColor = Color.FromArgb(107, 114, 128);
             }
             else
             {
                 btn.Text = en ? "Install" : "安装技能";
-                AppContext.StyleSecondaryButton(btn);
+                btn.BackColor = Color.FromArgb(59, 130, 246);
+                btn.ForeColor = Color.White;
+                btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(37, 99, 235);
+                btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(29, 78, 216);
                 btn.Click += OnInstallCliSkillClick;
             }
             panelAgentRows.Controls.Add(btn);
-            y += 28;
+            y += rowHeight;
+
+            // Full-width divider between rows (not after the last one).
+            if (rowIndex < running.Count - 1)
+            {
+                Panel divider = new Panel();
+                divider.BackColor = Color.FromArgb(229, 231, 235);
+                divider.SetBounds(0, y, panelAgentRows.Width, 1);
+                panelAgentRows.Controls.Add(divider);
+                y += 1;
+            }
+            rowIndex++;
         }
         panelAgentRows.Height = running.Count > 0 ? y : 0;
         panelAgentRows.ResumeLayout();
@@ -3262,6 +3303,8 @@ internal sealed class SettingsDialog : Form
         if (!enabled && AppContext.Current != null) AppContext.Current.CancelDesktopCollaboration();
         if (panelCapCard != null) panelCapCard.Enabled = enabled;
         if (panelSkillCard != null) panelSkillCard.Enabled = enabled;
+        if (panelSessionCard != null) panelSessionCard.Enabled = enabled;
+        if (btnCopyCliGuide != null) btnCopyCliGuide.Enabled = enabled;
         if (lblSkillGuidance != null) lblSkillGuidance.Enabled = enabled;
         RefreshSkillInstallUi();
     }
@@ -3315,8 +3358,8 @@ internal sealed class SettingsDialog : Form
             pe.Graphics.DrawRectangle(p, 0, 0, pnl.Width - 1, pnl.Height - 1);
         using (Pen divPen = new Pen(Color.FromArgb(238, 240, 244), 1f))
         {
-            pe.Graphics.DrawLine(divPen, 10, 48, pnl.Width - 10, 48);
-            pe.Graphics.DrawLine(divPen, 10, 98, pnl.Width - 10, 98);
+            pe.Graphics.DrawLine(divPen, 10, 44, pnl.Width - 10, 44);
+            pe.Graphics.DrawLine(divPen, 10, 88, pnl.Width - 10, 88);
         }
     }
 
@@ -3429,14 +3472,6 @@ internal sealed class SettingsDialog : Form
             if (btnProgressDemo != null) toolTip.SetToolTip(btnProgressDemo, capabilityTip2);
             if (lblTool3Name != null) toolTip.SetToolTip(lblTool3Name, capabilityTip3);
             if (btnNotifyDemo != null) toolTip.SetToolTip(btnNotifyDemo, capabilityTip3);
-        }
-        if (lblAgentCliTip != null)
-        {
-            lblAgentCliTip.HighlightWords = new string[] { "iclock --install-cli", "iclock -h" };
-            lblAgentCliTip.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
-            lblAgentCliTip.Text = toEnglish
-                ? "Tip: Run iclock -h for help; iclock --install-cli adds PATH."
-                : "提示：终端运行 iclock -h 查看命令，iclock --install-cli 写入 PATH。";
         }
         if (panelQuoteCard != null) panelQuoteCard.Invalidate();
 
@@ -4628,6 +4663,7 @@ internal sealed class DailyQuoteDialog : Form
         if (quoteList != null && quoteList.Count > 0)
         {
             currentQuoteIndex = Math.Abs(idx) % quoteList.Count;
+            SaveQuotePosition();
             UpdateCardLayout(keepLeft: true);
         }
     }
@@ -4637,9 +4673,18 @@ internal sealed class DailyQuoteDialog : Form
         if (quoteList != null && quoteList.Count > 0)
         {
             currentQuoteIndex = (currentQuoteIndex + 1) % quoteList.Count;
+            SaveQuotePosition();
             UpdateCardLayout(keepLeft: true);
             if (QuoteChanged != null) QuoteChanged();
         }
+    }
+
+    private void SaveQuotePosition()
+    {
+        if (settings == null) return;
+        settings.QuoteIndex = currentQuoteIndex;
+        settings.QuoteDate = DateTime.Today.ToString("yyyy-MM-dd");
+        settings.Save();
     }
 
     public void ReloadQuotes()
@@ -4754,8 +4799,7 @@ internal sealed class DailyQuoteDialog : Form
         {
             quoteList = LoadQuotes();
             if (quoteList == null || quoteList.Count == 0) quoteList = new List<QuoteItem>(DefaultQuotes);
-            int seed = DateTime.Today.Year * 366 + DateTime.Today.DayOfYear;
-            currentQuoteIndex = Math.Abs(seed) % quoteList.Count;
+            currentQuoteIndex = AppContext.ResolveTodayQuoteIndex(settings, quoteList.Count);
         }
 
         if (isProjectedNote)
@@ -5161,7 +5205,7 @@ internal sealed class DailyQuoteDialog : Form
 
         QuoteItem q = GetCurrentQuote();
         Color mainColor;
-        string colStr = (settings != null && !string.IsNullOrEmpty(settings.QuoteColor)) ? settings.QuoteColor : (settings != null ? settings.Color : "#FF0000");
+        string colStr = (settings != null && !string.IsNullOrEmpty(settings.QuoteColor)) ? settings.QuoteColor : "#F77F00";
         try { mainColor = ColorTranslator.FromHtml(colStr); }
         catch { mainColor = Color.FromArgb(245, 247, 250); }
 
@@ -7443,6 +7487,32 @@ internal sealed class AppContext : ApplicationContext
 {
     private static AppContext currentInstance;
     internal static AppContext Current { get { return currentInstance; } }
+
+    // Resolve today's quote index: same-day reuse saved index, new day advance by one.
+    // Persists immediately so the setting page and overlay stay in sync.
+    internal static int ResolveTodayQuoteIndex(Settings s, int count)
+    {
+        if (count <= 0) return 0;
+        string today = DateTime.Today.ToString("yyyy-MM-dd");
+        int idx;
+        if (s.QuoteDate == today && s.QuoteIndex >= 0)
+        {
+            idx = s.QuoteIndex % count;
+        }
+        else if (!string.IsNullOrEmpty(s.QuoteDate) && s.QuoteIndex >= 0)
+        {
+            idx = (s.QuoteIndex + 1) % count;
+        }
+        else
+        {
+            int seed = DateTime.Today.Year * 366 + DateTime.Today.DayOfYear;
+            idx = Math.Abs(seed) % count;
+        }
+        s.QuoteIndex = idx;
+        s.QuoteDate = today;
+        s.Save();
+        return idx;
+    }
 
     internal static bool IsSelfCheckRunning = false;
 

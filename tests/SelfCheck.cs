@@ -393,9 +393,9 @@ internal static class TestCheck
             // 10. Verify version comparison and JSON parsing
             BindingFlags sbf = BindingFlags.NonPublic | BindingFlags.Static;
             FieldInfo verField = appType.GetField("CURRENT_VERSION", sbf);
-            if (verField == null || (string)verField.GetValue(null) != "1.09")
+            if (verField == null || (string)verField.GetValue(null) != "1.10")
             {
-                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.09");
+                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.10");
                 return 16;
             }
             MethodInfo isNewer = appType.GetMethod("IsNewer", sbf);
@@ -1233,7 +1233,10 @@ internal static class TestCheck
             Panel agentRows = (Panel)settingsDialogType.GetField("panelAgentRows", bf).GetValue(tabDlg);
             Label agentEmpty = (Label)settingsDialogType.GetField("lblAgentEmpty", bf).GetValue(tabDlg);
             Panel installFail = (Panel)settingsDialogType.GetField("panelInstallFail", bf).GetValue(tabDlg);
-            LinkLabel cliGuide = (LinkLabel)settingsDialogType.GetField("lnkCliGuide", bf).GetValue(tabDlg);
+            Label method1 = (Label)settingsDialogType.GetField("lblSkillMethod1", bf).GetValue(tabDlg);
+            Label method2 = (Label)settingsDialogType.GetField("lblSkillMethod2", bf).GetValue(tabDlg);
+            Label guideHint = (Label)settingsDialogType.GetField("lblCliGuideHint", bf).GetValue(tabDlg);
+            Button copyGuide = (Button)settingsDialogType.GetField("btnCopyCliGuide", bf).GetValue(tabDlg);
             CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
             Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
             Label tool1 = (Label)settingsDialogType.GetField("lblTool1Name", bf).GetValue(tabDlg);
@@ -1251,7 +1254,8 @@ internal static class TestCheck
 
             if (btnTabTimer == null || btnTabAgent == null || capCard == null || skillCard == null || skillGuidance == null ||
                 agentRows == null || agentEmpty == null || installFail == null ||
-                cliGuide == null || btnProgDemo == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null)
+                method1 == null || method2 == null || guideHint == null || copyGuide == null ||
+                btnProgDemo == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Agent tab controls");
                 return 33;
@@ -1281,11 +1285,14 @@ internal static class TestCheck
                 return 33;
             }
 
-            // Agent rows list only running agents; empty-state shows the copy-guide fallback.
-            int runningCount = agentRows.Controls.Count / 3; // dot + name + button per agent
+            // Agent rows list only running agents; method 2 guide copy is always available.
+            int runningCount = 0;
+            foreach (Control rowCtrl in agentRows.Controls) if (rowCtrl is Button) runningCount++;
             if (!capCard.Visible || !skillCard.Visible || skillGuidance.Text != "安装技能让智能体学会这些能力：" ||
                 (runningCount > 0 && agentEmpty.Visible) || (runningCount == 0 && !agentEmpty.Visible) ||
-                cliGuide.Visible != (runningCount == 0) || installFail.Visible)
+                !copyGuide.Visible || !guideHint.Visible ||
+                method1.Text != "方式一 · 安装技能（持久有效）" || method2.Text != "方式二 · 临时启用（本次会话）" ||
+                installFail.Visible)
             {
                 Console.WriteLine("FAIL: Agent tab should list running agents or show the empty-state fallback");
                 return 33;
@@ -1613,10 +1620,10 @@ internal static class TestCheck
                 return 51;
             }
 
-            FieldInfo cliTipField = settingsDlgType.GetField("lblAgentCliTip", bf);
+            FieldInfo cliTipField = settingsDlgType.GetField("lblCliGuideHint", bf);
             if (cliTipField == null)
             {
-                Console.WriteLine("FAIL: SettingsDialog missing lblAgentCliTip field");
+                Console.WriteLine("FAIL: SettingsDialog missing lblCliGuideHint field");
                 return 51;
             }
 
@@ -1624,9 +1631,9 @@ internal static class TestCheck
             setDlgTab2.Show();
             setActiveTabMethod.Invoke(setDlgTab2, new object[] { 2 });
             Label cliTipCtrl = (Label)cliTipField.GetValue(setDlgTab2);
-            if (cliTipCtrl == null || !cliTipCtrl.Visible || !cliTipCtrl.Text.Contains("iclock --install-cli"))
+            if (cliTipCtrl == null || !cliTipCtrl.Visible || !cliTipCtrl.Text.Contains("iClock"))
             {
-                Console.WriteLine("FAIL: Tab 2 lblAgentCliTip invalid or not visible: " + (cliTipCtrl == null ? "null" : cliTipCtrl.Text));
+                Console.WriteLine("FAIL: Tab 2 lblCliGuideHint invalid or not visible: " + (cliTipCtrl == null ? "null" : cliTipCtrl.Text));
                 setDlgTab2.Close();
                 return 51;
             }
@@ -2371,10 +2378,10 @@ internal static class TestCheck
             // Verify Tab 2 CLI tip in both languages
             Form dlgZh = (Form)Activator.CreateInstance(settingsDlgType, new object[] { settings, true });
             setActiveTabMethod.Invoke(dlgZh, new object[] { 2 });
-            Label tipZh = (Label)settingsDlgType.GetField("lblAgentCliTip", bf).GetValue(dlgZh);
-            if (tipZh == null || !tipZh.Text.Contains("iclock --install-cli"))
+            Label tipZh = (Label)settingsDlgType.GetField("lblCliGuideHint", bf).GetValue(dlgZh);
+            if (tipZh == null || !tipZh.Text.Contains("iClock"))
             {
-                Console.WriteLine("FAIL: Tab 2 CLI tip missing expected Chinese instructions");
+                Console.WriteLine("FAIL: Tab 2 guide hint missing expected Chinese instructions");
                 dlgZh.Close();
                 return 58;
             }
@@ -2384,10 +2391,10 @@ internal static class TestCheck
             settingsType.GetField("Language").SetValue(enSettings, "en");
             Form dlgEn = (Form)Activator.CreateInstance(settingsDlgType, new object[] { enSettings, true });
             setActiveTabMethod.Invoke(dlgEn, new object[] { 2 });
-            Label tipEn = (Label)settingsDlgType.GetField("lblAgentCliTip", bf).GetValue(dlgEn);
-            if (tipEn == null || !tipEn.Text.Contains("iclock --install-cli"))
+            Label tipEn = (Label)settingsDlgType.GetField("lblCliGuideHint", bf).GetValue(dlgEn);
+            if (tipEn == null || !tipEn.Text.Contains("iClock"))
             {
-                Console.WriteLine("FAIL: Tab 2 CLI tip missing expected English instructions");
+                Console.WriteLine("FAIL: Tab 2 guide hint missing expected English instructions");
                 dlgEn.Close();
                 return 58;
             }
