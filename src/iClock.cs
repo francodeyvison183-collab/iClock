@@ -57,6 +57,10 @@ internal sealed class Settings
     public string QuoteDate = "";
     // Use today's quote as the Windows screensaver (installed as iClock.scr).
     public bool QuoteSaverEnabled;
+    // Previous HKCU\Control Panel\Desktop screensaver values (SCR / ScreenSaveActive /
+    // ScreenSaveTimeOut), captured before iClock takes them over so opting out can put
+    // the user's own screensaver back. Empty when nothing was captured yet.
+    public string SaverRegBackup = "";
     public int TaskStatusX = -99999;
     public int TaskStatusY = -99999;
     public float TaskStatusFontSize = 9.5f;
@@ -83,6 +87,7 @@ internal sealed class Settings
         QuotePinTopMost = src.QuotePinTopMost;
         QuoteIndex = src.QuoteIndex; QuoteDate = src.QuoteDate;
         QuoteSaverEnabled = src.QuoteSaverEnabled;
+        SaverRegBackup = src.SaverRegBackup;
         TaskStatusX = src.TaskStatusX; TaskStatusY = src.TaskStatusY;
         TaskStatusFontSize = src.TaskStatusFontSize > 0 ? src.TaskStatusFontSize : 9.5f;
         TaskStatusTextColor = src.TaskStatusTextColor; TaskStatusBarColor = src.TaskStatusBarColor;
@@ -167,6 +172,7 @@ internal sealed class Settings
                 else if (k == "QuoteIndex" && int.TryParse(v, out n)) s.QuoteIndex = n;
                 else if (k == "QuoteDate") s.QuoteDate = v;
                 else if (k == "QuoteSaverEnabled" && bool.TryParse(v, out b)) s.QuoteSaverEnabled = b;
+                else if (k == "SaverRegBackup") s.SaverRegBackup = v;
                 else if (k == "QuoteSaverMode" && int.TryParse(v, out n)) s.QuoteSaverEnabled = n >= 1; // v1.11 迁移:旧三态 >=1 视为开启
                 else if (k == "TaskStatusX" && int.TryParse(v, out n)) s.TaskStatusX = n;
                 else if (k == "TaskStatusY" && int.TryParse(v, out n)) s.TaskStatusY = n;
@@ -200,6 +206,7 @@ internal sealed class Settings
             "DailyQuote=" + DailyQuote, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
             "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuotePinTopMost=" + QuotePinTopMost,
             "QuoteIndex=" + QuoteIndex, "QuoteDate=" + QuoteDate, "QuoteSaverEnabled=" + QuoteSaverEnabled,
+            "SaverRegBackup=" + SaverRegBackup,
             "TaskStatusX=" + TaskStatusX, "TaskStatusY=" + TaskStatusY,
             "TaskStatusFontSize=" + (TaskStatusFontSize > 0 ? TaskStatusFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "9.5"),
             "TaskStatusTextColor=" + TaskStatusTextColor, "TaskStatusBarColor=" + TaskStatusBarColor,
@@ -277,6 +284,8 @@ internal static class NativeMethods
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, ref RECT lParam);
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, ref COPYDATASTRUCT lParam);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern IntPtr SendMessageTimeout(IntPtr hWnd, int msg, IntPtr wParam, string lParam, int flags, int timeout, out IntPtr result);
 
     [DllImport("kernel32.dll", SetLastError = true)] public static extern bool AttachConsole(int dwProcessId);
     [DllImport("kernel32.dll", SetLastError = true)] public static extern bool FreeConsole();
@@ -2241,7 +2250,7 @@ internal sealed class SettingsDialog : Form
         // LinkArea highlighting the trailing [预览] so the whole text lays out
         // in one control and never clips the link.
         lnkPreviewSaver = new LinkLabel();
-        string saverLabel = en ? "Use today's quote as screensaver [Preview]" : "开启每日金句作为屏保 [预览]";
+        string saverLabel = en ? "Use today's quote as screensaver [Preview]" : "开启每日金句作为锁屏+屏保 [预览]";
         lnkPreviewSaver.Text = saverLabel;
         int linkStart = saverLabel.IndexOf('[');
         int linkLen = saverLabel.Length - linkStart;
@@ -2250,7 +2259,7 @@ internal sealed class SettingsDialog : Form
         lnkPreviewSaver.ActiveLinkColor = AppContext.Win11Accent;
         lnkPreviewSaver.LinkBehavior = LinkBehavior.HoverUnderline;
         lnkPreviewSaver.ForeColor = AppContext.Win11TextPrimary;
-        lnkPreviewSaver.SetBounds(18, 392, 270, 24);
+        lnkPreviewSaver.SetBounds(18, 392, 296, 24); // full width up to the toggle: "锁屏+屏保 [预览]" needs the room
         lnkPreviewSaver.TextAlign = ContentAlignment.MiddleLeft;
         lnkPreviewSaver.LinkClicked += OnPreviewSaverLinkClicked;
         toolTip.SetToolTip(lnkPreviewSaver, en
@@ -2262,8 +2271,8 @@ internal sealed class SettingsDialog : Form
         quoteSaverToggle.SetBounds(322, 392, 40, 22);
         quoteSaverToggle.CheckedChanged += OnQuoteSaverToggleChanged;
         toolTip.SetToolTip(quoteSaverToggle, en
-            ? "Install iClock as the Windows screensaver showing today's quote when idle"
-            : "把 iClock 安装为 Windows 屏保，空闲时全屏显示每日金句");
+            ? "Set iClock as the Windows screensaver: shows today's quote when idle and on the lock screen"
+            : "把 iClock 设为 Windows 屏保：空闲和锁屏（Win+L）时全屏显示每日金句");
         Controls.Add(quoteSaverToggle);
 
         // Section 4: Tip (Y = 436)
@@ -3062,15 +3071,16 @@ internal sealed class SettingsDialog : Form
     private void OnQuoteLayerChanged(object sender, EventArgs e) { TriggerQuotePreview(); }
     private void OnQuoteSaverToggleChanged(object sender, EventArgs e)
     {
-        // Toggle commit-first semantics: persist the choice, then refresh the .scr
-        // copy so the Windows saver list always has the latest build; failure on
-        // install still keeps the preference and warns once.
+        // Toggle commit-first semantics: persist the choice, then take over (or give
+        // back) the Windows screensaver registration. Enabling points HKCU SCR at
+        // iClock.scr so both the idle timeout AND Win+L show the quote screen;
+        // disabling restores whatever the user had before.
         bool on = quoteSaverToggle != null && quoteSaverToggle.Checked;
         Value.QuoteSaverEnabled = on;
         Value.Save();
         bool ok;
-        if (on) ok = Program.InstallSaverScr();
-        else { Program.UninstallSaverScr(); ok = true; }
+        if (on) ok = Program.ApplySaverRegistry(Value);
+        else { Program.RestoreSaverRegistry(Value); ok = true; }
         if (!ok)
         {
             if (quoteSaverToggle != null) quoteSaverToggle.Checked = false;
@@ -3531,11 +3541,12 @@ internal sealed class SettingsDialog : Form
         }
         if (lnkPreviewSaver != null)
         {
-            string saverLabel = toEnglish ? "Use today's quote as screensaver [Preview]" : "开启每日金句作为屏保 [预览]";
+            string saverLabel = toEnglish ? "Use today's quote as screensaver [Preview]" : "开启每日金句作为锁屏+屏保 [预览]";
             lnkPreviewSaver.Text = saverLabel;
             int linkStart = saverLabel.IndexOf('[');
             int linkLen = saverLabel.Length - linkStart;
             lnkPreviewSaver.LinkArea = new LinkArea(linkStart < 0 ? 0 : linkStart, linkLen);
+            lnkPreviewSaver.SetBounds(18, 392, 296, 24);
         }
         if (quoteSaverToggle != null) quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
         lblQuoteQuotes.Text = toEnglish ? "Quote library" : "名言词库";
@@ -7940,6 +7951,9 @@ internal sealed class AppContext : ApplicationContext
             settings.Save();
         }
         tray = new NotifyIcon(); tray.Icon = appIcon; tray.Text = isOneShot ? (settings.Language == "en" ? "iClock (One-shot mode)" : "iClock (单次运行模式)") : "iClock"; tray.Visible = true; tray.ContextMenuStrip = MakeMenu();
+        // The lock screen / screensaver registration can be wiped by a cleanup
+        // tool or a Windows reset; re-assert it while the toggle is still on.
+        Program.EnsureSaverRegistry(settings);
         tray.MouseMove += delegate { if (!running && !sessionActive) { lastTrayMouseMove = Environment.TickCount; EnsureMouseHook(); } };
         tray.BalloonTipClicked += delegate { if (!string.IsNullOrEmpty(updateUrl)) { try { Process.Start(updateUrl); } catch { } } };
         tray.MouseClick += delegate(object sender, MouseEventArgs e)
@@ -11836,9 +11850,12 @@ Examples:
             }
             if (first == "--install-screensaver" || first == "install-screensaver")
             {
-                if (InstallSaverScr())
+                Settings regSettings = Settings.Load();
+                if (ApplySaverRegistry(regSettings))
                 {
-                    WriteToConsole("[iClock] Screensaver installed. Pick 'iClock' in Windows screensaver settings; the display mode is configured on the quote tab.");
+                    regSettings.QuoteSaverEnabled = true;
+                    regSettings.Save();
+                    WriteToConsole("[iClock] Screensaver installed and registered: today's quote now shows when idle and on the lock screen (Win+L).");
                 }
                 else
                 {
@@ -12002,6 +12019,129 @@ Examples:
             if (File.Exists(scr)) File.Delete(scr);
         }
         catch { }
+    }
+
+    private const string SaverRegKey = @"Control Panel\Desktop";
+    private const string SaverScrValue = "SCR";
+    private const string SaverActiveValue = "ScreenSaveActive";
+    private const string SaverTimeoutValue = "ScreenSaveTimeOut";
+    // 30 minutes: the Windows idle timer is a convenience backstop, not the main
+    // way this saver is used — locking with Win+L shows it on demand, and a short
+    // timeout would interrupt work too often.
+    private const string SaverIdleTimeoutSeconds = "1800";
+
+    private static string ReadSaverRegValue(string name)
+    {
+        try { return Registry.GetValue("HKEY_CURRENT_USER\\" + SaverRegKey, name, "") as string ?? ""; }
+        catch { return ""; }
+    }
+
+    private static void WriteSaverRegValue(string name, object value)
+    {
+        using (RegistryKey k = Registry.CurrentUser.CreateSubKey(SaverRegKey))
+        {
+            if (k != null) k.SetValue(name, value, RegistryValueKind.String);
+        }
+    }
+
+    private static void DeleteSaverRegValue(string name)
+    {
+        try
+        {
+            using (RegistryKey k = Registry.CurrentUser.OpenSubKey(SaverRegKey, true))
+            {
+                if (k != null) k.DeleteValue(name, false);
+            }
+        }
+        catch { }
+    }
+
+    // Windows caches these for the Settings UI; this broadcast makes the change
+    // take effect immediately instead of after a sign-out.
+    private static void BroadcastSaverRegChange()
+    {
+        try
+        {
+            IntPtr broadcastResult;
+            NativeMethods.SendMessageTimeout(
+                new IntPtr(0xffff), 0x001A, IntPtr.Zero, "Environment",
+                0x0002 /* SMTO_ABORTIFHUNG */, 2000, out broadcastResult);
+        }
+        catch { }
+    }
+
+    // Startup self-heal: if the toggle is still on but the registration was lost
+// (a cleaner reset HKCU, or Windows fell back to "(None)"), put it back. If the
+// user picked a different screensaver in Windows meanwhile, respect that.
+    internal static void EnsureSaverRegistry(Settings settings)
+    {
+        try
+        {
+            if (settings == null || !settings.QuoteSaverEnabled) return;
+            string current = ReadSaverRegValue(SaverScrValue);
+            if (!string.IsNullOrEmpty(current) &&
+                !string.Equals(current, SaverScrPath, StringComparison.OrdinalIgnoreCase)) return;
+            ApplySaverRegistry(settings);
+        }
+        catch { }
+    }
+
+    // Enable: point the Windows screensaver at iClock.scr and turn it on. The
+    // user's previous values are captured once so RestoreSaverRegistry can put
+    // them back on opt-out. Backup format: "SCR\x1fActive\x1fTimeout".
+    internal static bool ApplySaverRegistry(Settings settings)
+    {
+        if (!InstallSaverScr()) return false;
+        try
+        {
+            if (settings != null && string.IsNullOrEmpty(settings.SaverRegBackup))
+            {
+                settings.SaverRegBackup = string.Join("\x1f",
+                    ReadSaverRegValue(SaverScrValue) ?? "",
+                    ReadSaverRegValue(SaverActiveValue) ?? "",
+                    ReadSaverRegValue(SaverTimeoutValue) ?? "");
+                settings.Save();
+            }
+            WriteSaverRegValue(SaverScrValue, SaverScrPath);
+            WriteSaverRegValue(SaverActiveValue, "1");
+            WriteSaverRegValue(SaverTimeoutValue, SaverIdleTimeoutSeconds);
+            BroadcastSaverRegChange();
+            return true;
+        }
+        catch { return false; }
+    }
+
+    // Opt-out: put the captured values back (or remove ours when the user had
+    // none), and drop the .scr copy so the saver list does not pile up entries.
+    internal static void RestoreSaverRegistry(Settings settings)
+    {
+        try
+        {
+            string backup = settings != null ? settings.SaverRegBackup ?? "" : "";
+            string[] parts = backup.Split('\x1f');
+            if (parts.Length == 3)
+            {
+                RestoreOne(SaverScrValue, parts[0]);
+                RestoreOne(SaverActiveValue, parts[1]);
+                RestoreOne(SaverTimeoutValue, parts[2]);
+            }
+            else
+            {
+                // No backup captured: only clear a selection that is still ours.
+                if (string.Equals(ReadSaverRegValue(SaverScrValue), SaverScrPath, StringComparison.OrdinalIgnoreCase))
+                    DeleteSaverRegValue(SaverScrValue);
+            }
+            if (settings != null) { settings.SaverRegBackup = ""; settings.Save(); }
+            BroadcastSaverRegChange();
+        }
+        catch { }
+        UninstallSaverScr();
+    }
+
+    private static void RestoreOne(string name, string oldValue)
+    {
+        if (string.IsNullOrEmpty(oldValue)) DeleteSaverRegValue(name);
+        else WriteSaverRegValue(name, oldValue);
     }
 
     internal static bool FilesEqual(string a, string b)
