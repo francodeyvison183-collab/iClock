@@ -54,8 +54,8 @@ internal sealed class Settings
     public bool QuotePinTopMost;
     public int QuoteIndex = -1;
     public string QuoteDate = "";
-    // Screensaver mode: 0 = off, 1 = black screen with today's quote, 2 = pure black.
-    public int QuoteSaverMode;
+    // Use today's quote as the Windows screensaver (installed as iClock.scr).
+    public bool QuoteSaverEnabled;
     public int TaskStatusX = -99999;
     public int TaskStatusY = -99999;
     public float TaskStatusFontSize = 9.5f;
@@ -81,7 +81,7 @@ internal sealed class Settings
         QuoteFontSize = src.QuoteFontSize; QuoteColor = src.QuoteColor; QuoteFont = src.QuoteFont;
         QuotePinTopMost = src.QuotePinTopMost;
         QuoteIndex = src.QuoteIndex; QuoteDate = src.QuoteDate;
-        QuoteSaverMode = src.QuoteSaverMode;
+        QuoteSaverEnabled = src.QuoteSaverEnabled;
         TaskStatusX = src.TaskStatusX; TaskStatusY = src.TaskStatusY;
         TaskStatusFontSize = src.TaskStatusFontSize > 0 ? src.TaskStatusFontSize : 9.5f;
         TaskStatusTextColor = src.TaskStatusTextColor; TaskStatusBarColor = src.TaskStatusBarColor;
@@ -164,7 +164,8 @@ internal sealed class Settings
                 else if (k == "QuotePinTopMost" && bool.TryParse(v, out b)) s.QuotePinTopMost = b;
                 else if (k == "QuoteIndex" && int.TryParse(v, out n)) s.QuoteIndex = n;
                 else if (k == "QuoteDate") s.QuoteDate = v;
-                else if (k == "QuoteSaverMode" && int.TryParse(v, out n)) s.QuoteSaverMode = Math.Max(0, Math.Min(2, n));
+                else if (k == "QuoteSaverEnabled" && bool.TryParse(v, out b)) s.QuoteSaverEnabled = b;
+                else if (k == "QuoteSaverMode" && int.TryParse(v, out n)) s.QuoteSaverEnabled = n >= 1; // v1.11 迁移:旧三态 >=1 视为开启
                 else if (k == "TaskStatusX" && int.TryParse(v, out n)) s.TaskStatusX = n;
                 else if (k == "TaskStatusY" && int.TryParse(v, out n)) s.TaskStatusY = n;
                 else if (k == "TaskStatusFontSize" && float.TryParse(v, NumberStyles.Float, CultureInfo.InvariantCulture, out f)) s.TaskStatusFontSize = f > 0 ? Math.Max(7.0f, Math.Min(16.0f, f)) : 9.5f;
@@ -195,7 +196,7 @@ internal sealed class Settings
             "DesktopCollaborationEnabled=" + DesktopCollaborationEnabled,
             "DailyQuote=" + DailyQuote, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
             "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuotePinTopMost=" + QuotePinTopMost,
-            "QuoteIndex=" + QuoteIndex, "QuoteDate=" + QuoteDate, "QuoteSaverMode=" + QuoteSaverMode,
+            "QuoteIndex=" + QuoteIndex, "QuoteDate=" + QuoteDate, "QuoteSaverEnabled=" + QuoteSaverEnabled,
             "TaskStatusX=" + TaskStatusX, "TaskStatusY=" + TaskStatusY,
             "TaskStatusFontSize=" + (TaskStatusFontSize > 0 ? TaskStatusFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "9.5"),
             "TaskStatusTextColor=" + TaskStatusTextColor, "TaskStatusBarColor=" + TaskStatusBarColor,
@@ -1821,7 +1822,8 @@ internal sealed class SettingsDialog : Form
     private bool isSyncingQuoteFontSize;
     private Label lblQuoteSize, lblQuoteFont, lblQuoteColor, lblQuoteLayer, lblQuoteQuotes, lblQuoteSaver;
     private StyledTipLabel lblQuoteTip;
-    private ComboBox quoteFontCombo, quoteColorCombo, quoteLayerCombo, quoteSaverCombo;
+    private ComboBox quoteFontCombo, quoteColorCombo, quoteLayerCombo;
+    private ToggleSwitch quoteSaverToggle;
     private bool updatingQuoteColorCombo;
     private string selectedQuoteColor = "";
     private string selectedQuoteFont = "";
@@ -2219,20 +2221,17 @@ internal sealed class SettingsDialog : Form
         toolTip.SetToolTip(btnAiQuotes, en ? "Generate quotes with AI Agent" : "通过 AI 智能体批量创作并扩充词库");
         Controls.Add(btnAiQuotes);
 
-        // Row 6: Screensaver mode (Y = 394) - install the .scr copy on first enable.
-        lblQuoteSaver = AddLabel(en ? "Screensaver" : "屏幕保护", 18, 398);
-        quoteSaverCombo = AddCombo(394);
-        quoteSaverCombo.Items.AddRange(en
-            ? new object[] { "Off (Default)", "Quote on black", "Pure black screen" }
-            : new object[] { "关闭 (默认)", "显示今日格言", "纯黑屏护眼" });
-        quoteSaverCombo.DrawItem += OnDrawComboItem;
-        quoteSaverCombo.SelectedIndexChanged += OnQuoteSaverChanged;
-        quoteSaverCombo.SelectedIndex = Math.Max(0, Math.Min(2, Value.QuoteSaverMode));
+        // Row 6: Quote-as-screensaver toggle (Y = 394) - installs the .scr copy on enable.
+        lblQuoteSaver = AddLabel(en ? "Use today's quote as screensaver" : "开启今日格言作为屏保", 18, 398);
+        quoteSaverToggle = new ToggleSwitch();
+        quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
+        quoteSaverToggle.SetBounds(172, 394, 188, 28);
+        quoteSaverToggle.CheckedChanged += OnQuoteSaverToggleChanged;
         if (toolTip == null) toolTip = new ToolTip();
-        toolTip.SetToolTip(quoteSaverCombo, en
+        toolTip.SetToolTip(quoteSaverToggle, en
             ? "Install iClock as the Windows screensaver showing today's quote when idle"
             : "把 iClock 安装为 Windows 屏保，空闲时全屏显示今日格言");
-        Controls.Add(quoteSaverCombo);
+        Controls.Add(quoteSaverToggle);
 
         // Section 4: Tip (Y = 416)
         lblQuoteTip = new StyledTipLabel(en
@@ -2543,7 +2542,7 @@ internal sealed class SettingsDialog : Form
         lblQuoteQuotes.Visible = isQuote;
         btnEditQuotes.Visible = isQuote;
         if (lblQuoteSaver != null) lblQuoteSaver.Visible = isQuote;
-        if (quoteSaverCombo != null) quoteSaverCombo.Visible = isQuote;
+        if (quoteSaverToggle != null) quoteSaverToggle.Visible = isQuote;
         if (btnAiQuotes != null) btnAiQuotes.Visible = isQuote;
         lblQuoteTip.Visible = isQuote;
 
@@ -2998,17 +2997,22 @@ internal sealed class SettingsDialog : Form
         TriggerQuotePreview();
     }
     private void OnQuoteLayerChanged(object sender, EventArgs e) { TriggerQuotePreview(); }
-    private void OnQuoteSaverChanged(object sender, EventArgs e)
+    private void OnQuoteSaverToggleChanged(object sender, EventArgs e)
     {
-        // Managed entirely from the combo: pick a mode -> refresh the .scr copy so
-        // the Windows saver list always has the latest build; pick Off -> remove it.
-        int mode = quoteSaverCombo != null ? quoteSaverCombo.SelectedIndex : 0;
-        if (mode < 0) return;
+        // Toggle commit-first semantics: persist the choice, then refresh the .scr
+        // copy so the Windows saver list always has the latest build; failure on
+        // install still keeps the preference and warns once.
+        bool on = quoteSaverToggle != null && quoteSaverToggle.Checked;
+        Value.QuoteSaverEnabled = on;
+        Value.Save();
         bool ok;
-        if (mode == 0) { Program.UninstallSaverScr(); ok = true; }
-        else ok = Program.InstallSaverScr();
+        if (on) ok = Program.InstallSaverScr();
+        else { Program.UninstallSaverScr(); ok = true; }
         if (!ok)
         {
+            if (quoteSaverToggle != null) quoteSaverToggle.Checked = false;
+            Value.QuoteSaverEnabled = false;
+            Value.Save();
             try
             {
                 MessageBox.Show(this,
@@ -3445,16 +3449,8 @@ internal sealed class SettingsDialog : Form
                 : new object[] { "桌面背景置底 (默认)", "始终置顶显示" });
             quoteLayerCombo.SelectedIndex = qlSel >= 0 ? qlSel : 0;
         }
-        lblQuoteSaver.Text = toEnglish ? "Screensaver" : "屏幕保护";
-        int qsSel = quoteSaverCombo != null ? quoteSaverCombo.SelectedIndex : 0;
-        if (quoteSaverCombo != null)
-        {
-            quoteSaverCombo.Items.Clear();
-            quoteSaverCombo.Items.AddRange(toEnglish
-                ? new object[] { "Off (Default)", "Quote on black", "Pure black screen" }
-                : new object[] { "关闭 (默认)", "显示今日格言", "纯黑屏护眼" });
-            quoteSaverCombo.SelectedIndex = qsSel >= 0 ? qsSel : 0;
-        }
+        lblQuoteSaver.Text = toEnglish ? "Use today's quote as screensaver" : "开启今日格言作为屏保";
+        if (quoteSaverToggle != null) quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
         lblQuoteQuotes.Text = toEnglish ? "Quote library" : "名言词库";
         btnEditQuotes.Text = toEnglish ? "Edit Quotes" : "自定义…";
         btnEditQuotes.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f);
@@ -3636,7 +3632,7 @@ internal sealed class SettingsDialog : Form
         Value.QuoteFont = selectedQuoteFont ?? "";
         if (quoteFontSize != null) Value.QuoteFontSize = (float)quoteFontSize.Value;
         Value.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
-        Value.QuoteSaverMode = quoteSaverCombo != null && quoteSaverCombo.SelectedIndex >= 0 ? quoteSaverCombo.SelectedIndex : 0;
+        Value.QuoteSaverEnabled = quoteSaverToggle != null && quoteSaverToggle.Checked;
         return Value;
     }
 
@@ -3648,7 +3644,7 @@ internal sealed class SettingsDialog : Form
         Value.QuoteFont = selectedQuoteFont ?? "";
         if (quoteFontSize != null) Value.QuoteFontSize = (float)quoteFontSize.Value;
         Value.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
-        Value.QuoteSaverMode = quoteSaverCombo != null && quoteSaverCombo.SelectedIndex >= 0 ? quoteSaverCombo.SelectedIndex : 0;
+        Value.QuoteSaverEnabled = quoteSaverToggle != null && quoteSaverToggle.Checked;
         Value.Save();
     }
 
@@ -11921,12 +11917,10 @@ internal sealed class QuoteScreensaverForm : Form
     private readonly Settings saverSettings;
     private readonly List<QuoteItem> saverQuotes;
     private readonly int saverQuoteIndex;
-    private readonly bool saverShowQuote;
 
     public QuoteScreensaverForm()
     {
         saverSettings = Settings.Load();
-        saverShowQuote = saverSettings.QuoteSaverMode != 2; // 1 = quote, 2 = pure black
         saverQuotes = DailyQuoteDialog.LoadQuotes();
         if (saverQuotes == null || saverQuotes.Count == 0) saverQuotes = new List<QuoteItem>(DailyQuoteDialog.DefaultQuotes);
         saverQuoteIndex = AppContext.ResolveTodayQuoteIndex(saverSettings, saverQuotes.Count);
@@ -11976,7 +11970,6 @@ internal sealed class QuoteScreensaverForm : Form
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
         g.Clear(Color.Black);
-        if (!saverShowQuote) return;
 
         QuoteItem q = saverQuotes[saverQuoteIndex % saverQuotes.Count];
         string lang = saverSettings != null ? saverSettings.Language : "zh";
