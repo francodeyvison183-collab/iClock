@@ -1863,7 +1863,7 @@ internal static class TestCheck
                 return 53;
             }
             if (panelQuoteCardQ.Top != 62 || panelQuoteCardQ.Left != 18 || panelQuoteCardQ.Height != 98 ||
-                dailyQuoteBox.Top != 362 || dailyQuoteBox.Left != 322 || dqLabel.Left != 18 ||
+                dailyQuoteBox.Top != 366 || dailyQuoteBox.Left != 322 || dqLabel.Left != 18 ||
                 sizeNudQ.Top != 172 || fontComboQ.Top != 210 ||
                 colorComboQ.Top != 248 || colorComboQ.Width != 188 ||
                 layerComboQ.Top != 286 || layerComboQ.Width != 188 ||

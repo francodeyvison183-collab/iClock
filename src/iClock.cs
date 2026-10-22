@@ -1825,7 +1825,7 @@ internal sealed class SettingsDialog : Form
     private StyledTipLabel lblQuoteTip;
     private ComboBox quoteFontCombo, quoteColorCombo, quoteLayerCombo;
     private ToggleSwitch quoteSaverToggle;
-    private Button btnPreviewSaver;
+    private LinkLabel lnkPreviewSaver;
     private Label lblDailyQuote;
     private bool updatingQuoteColorCombo;
     private string selectedQuoteColor = "";
@@ -2156,7 +2156,7 @@ internal sealed class SettingsDialog : Form
         // Section 2: Daily quote settings grid (style rows; toggle switches live at page bottom)
         // Row 1: Font Size (Y = 172)
         // Row 1: Font Size (Y = 204)
-        lblQuoteSize = AddLabel(en ? "Text size" : "文字大小", 18, 208);
+        lblQuoteSize = AddLabel(en ? "Text size" : "文字大小", 18, 176);
         quoteFontSize = new NumericUpDown();
         quoteFontSize.DecimalPlaces = 1;
         quoteFontSize.Increment = 0.5M;
@@ -2222,10 +2222,10 @@ internal sealed class SettingsDialog : Form
 
         // Switch group at page bottom: desktop note toggle + screensaver toggle,
         // stacked them like the checkbox grid rows (label left, toggle right).
-        lblDailyQuote = AddLabel(en ? "Show daily quote note on desktop" : "在桌面常驻显示每日格言便签", 18, 362);
+        lblDailyQuote = AddLabel(en ? "Show daily quote note on desktop" : "在桌面常驻显示每日格言便签", 18, 366);
         dailyQuoteToggle = new ToggleSwitch();
         dailyQuoteToggle.Checked = Value.DailyQuote;
-        dailyQuoteToggle.SetBounds(322, 362, 40, 22);
+        dailyQuoteToggle.SetBounds(322, 366, 40, 22);
         dailyQuoteToggle.CheckedChanged += OnDailyQuoteCheckChanged;
         if (toolTip == null) toolTip = new ToolTip();
         toolTip.SetToolTip(dailyQuoteToggle, en
@@ -2233,20 +2233,23 @@ internal sealed class SettingsDialog : Form
             : "在桌面上常驻显示每日格言便签；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
         Controls.Add(dailyQuoteToggle);
 
-        lblQuoteSaver = AddLabel(en ? "Use today's quote as screensaver" : "开启今日格言作为屏保", 18, 400);
-        btnPreviewSaver = new Button();
-        btnPreviewSaver.Text = en ? "Preview" : "预览";
-        btnPreviewSaver.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
-        btnPreviewSaver.SetBounds(262, 398, 60, 24);
-        AppContext.StyleSecondaryButton(btnPreviewSaver);
-        btnPreviewSaver.Click += OnPreviewSaverClick;
-        toolTip.SetToolTip(btnPreviewSaver, en
+        // Screensaver row: label text + trailing [预览] text link, toggle on the right.
+        lblQuoteSaver = AddLabel(en ? "Use today's quote as screensaver" : "开启今日格言作为屏保", 18, 404);
+        lnkPreviewSaver = new LinkLabel();
+        lnkPreviewSaver.Text = en ? "[Preview]" : "[预览]";
+        lnkPreviewSaver.LinkColor = AppContext.Win11Accent;
+        lnkPreviewSaver.ActiveLinkColor = AppContext.Win11Accent;
+        lnkPreviewSaver.LinkBehavior = LinkBehavior.HoverUnderline;
+        lnkPreviewSaver.AutoSize = true;
+        lnkPreviewSaver.Click += OnPreviewSaverClick;
+        toolTip.SetToolTip(lnkPreviewSaver, en
             ? "Show a fullscreen preview of today's quote screensaver"
             : "全屏预览今日格言屏保效果");
-        Controls.Add(btnPreviewSaver);
+        Controls.Add(lnkPreviewSaver);
+        PositionPreviewLink();
         quoteSaverToggle = new ToggleSwitch();
         quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
-        quoteSaverToggle.SetBounds(322, 400, 40, 22);
+        quoteSaverToggle.SetBounds(322, 404, 40, 22);
         quoteSaverToggle.CheckedChanged += OnQuoteSaverToggleChanged;
         toolTip.SetToolTip(quoteSaverToggle, en
             ? "Install iClock as the Windows screensaver showing today's quote when idle"
@@ -2560,7 +2563,7 @@ internal sealed class SettingsDialog : Form
         btnEditQuotes.Visible = isQuote;
         if (lblQuoteSaver != null) lblQuoteSaver.Visible = isQuote;
         if (quoteSaverToggle != null) quoteSaverToggle.Visible = isQuote;
-        if (btnPreviewSaver != null) btnPreviewSaver.Visible = isQuote;
+        if (lnkPreviewSaver != null) lnkPreviewSaver.Visible = isQuote;
         if (btnAiQuotes != null) btnAiQuotes.Visible = isQuote;
         lblQuoteTip.Visible = isQuote;
         SyncQuoteStyleEnabled();
@@ -3021,6 +3024,20 @@ internal sealed class SettingsDialog : Form
         if (btnEditQuotes != null) btnEditQuotes.Enabled = noteOn;
         if (btnAiQuotes != null) btnAiQuotes.Enabled = noteOn;
         TriggerQuotePreview();
+    }
+    private void PositionPreviewLink()
+    {
+        // Place the [预览] link right after the screensaver label text, so the
+        // row reads "开启今日格言作为屏保 [预览]" no matter which language is on.
+        if (lblQuoteSaver == null || lnkPreviewSaver == null) return;
+        string text = lblQuoteSaver.Text ?? "";
+        Font lblFont = lblQuoteSaver.Font;
+        using (Graphics g = lblQuoteSaver.CreateGraphics())
+        {
+            SizeF textSize = g.MeasureString(text, lblFont);
+            lnkPreviewSaver.Left = lblQuoteSaver.Left + (int)Math.Ceiling(textSize.Width);
+            lnkPreviewSaver.Top = lblQuoteSaver.Top + (lblQuoteSaver.Height - lnkPreviewSaver.Height) / 2;
+        }
     }
     private void SyncQuoteStyleEnabled()
     {
@@ -3507,10 +3524,10 @@ internal sealed class SettingsDialog : Form
             quoteLayerCombo.SelectedIndex = qlSel >= 0 ? qlSel : 0;
         }
         lblQuoteSaver.Text = toEnglish ? "Use today's quote as screensaver" : "开启今日格言作为屏保";
-        if (btnPreviewSaver != null)
+        if (lnkPreviewSaver != null)
         {
-            btnPreviewSaver.Text = toEnglish ? "Preview" : "预览";
-            btnPreviewSaver.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f);
+            lnkPreviewSaver.Text = toEnglish ? "[Preview]" : "[预览]";
+            PositionPreviewLink();
         }
         if (quoteSaverToggle != null) quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
         lblQuoteQuotes.Text = toEnglish ? "Quote library" : "名言词库";
