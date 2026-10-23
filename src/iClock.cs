@@ -12071,8 +12071,8 @@ Examples:
     }
 
     // Startup self-heal: if the toggle is still on but the registration was lost
-// (a cleaner reset HKCU, or Windows fell back to "(None)"), put it back. If the
-// user picked a different screensaver in Windows meanwhile, respect that.
+    // (a cleaner reset HKCU, or Windows fell back to "(None)"), put it back. If the
+    // user picked a different screensaver in Windows meanwhile, respect that.
     internal static void EnsureSaverRegistry(Settings settings)
     {
         try
@@ -12094,17 +12094,26 @@ Examples:
         if (!InstallSaverScr()) return false;
         try
         {
-            if (settings != null && string.IsNullOrEmpty(settings.SaverRegBackup))
+            string currentScr = ReadSaverRegValue(SaverScrValue);
+            // Already ours (startup self-heal, or the toggle was simply visited
+            // again): leave the wait time alone. The user may have picked their
+            // own value in Windows' screen saver dialog, and rewriting it on every
+            // launch would silently undo that.
+            bool alreadyOurs = string.Equals(currentScr, SaverScrPath, StringComparison.OrdinalIgnoreCase);
+            if (!alreadyOurs)
             {
-                settings.SaverRegBackup = string.Join("\x1f",
-                    ReadSaverRegValue(SaverScrValue) ?? "",
-                    ReadSaverRegValue(SaverActiveValue) ?? "",
-                    ReadSaverRegValue(SaverTimeoutValue) ?? "");
-                settings.Save();
+                if (settings != null && string.IsNullOrEmpty(settings.SaverRegBackup))
+                {
+                    settings.SaverRegBackup = string.Join("\x1f",
+                        currentScr ?? "",
+                        ReadSaverRegValue(SaverActiveValue) ?? "",
+                        ReadSaverRegValue(SaverTimeoutValue) ?? "");
+                    settings.Save();
+                }
+                WriteSaverRegValue(SaverTimeoutValue, SaverIdleTimeoutSeconds);
             }
             WriteSaverRegValue(SaverScrValue, SaverScrPath);
             WriteSaverRegValue(SaverActiveValue, "1");
-            WriteSaverRegValue(SaverTimeoutValue, SaverIdleTimeoutSeconds);
             BroadcastSaverRegChange();
             return true;
         }
