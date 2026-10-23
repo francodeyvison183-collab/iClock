@@ -72,8 +72,6 @@ internal sealed class Settings
     public string TaskStatusTextColor = "";
     public string TaskStatusBarColor = "";
     public int TaskStatusWidth = 300;
-    public string AiAgentType = "Auto";
-    public string AiAgentCustomCmd = "";
     public string AiQuoteKeywords = "";
     public int AiQuoteCount = 30;
 
@@ -98,7 +96,6 @@ internal sealed class Settings
         TaskStatusFontSize = src.TaskStatusFontSize > 0 ? src.TaskStatusFontSize : 9.5f;
         TaskStatusTextColor = src.TaskStatusTextColor; TaskStatusBarColor = src.TaskStatusBarColor;
         TaskStatusWidth = src.TaskStatusWidth > 0 ? Math.Max(160, Math.Min(800, src.TaskStatusWidth)) : 300;
-        AiAgentType = src.AiAgentType; AiAgentCustomCmd = src.AiAgentCustomCmd;
         AiQuoteKeywords = src.AiQuoteKeywords;
         AiQuoteCount = src.AiQuoteCount > 0 ? src.AiQuoteCount : 30;
     }
@@ -187,8 +184,6 @@ internal sealed class Settings
                 else if (k == "TaskStatusTextColor") s.TaskStatusTextColor = v;
                 else if (k == "TaskStatusBarColor") s.TaskStatusBarColor = v;
                 else if (k == "TaskStatusWidth" && int.TryParse(v, out n)) s.TaskStatusWidth = n > 0 ? Math.Max(160, Math.Min(800, n)) : 300;
-                else if (k == "AiAgentType") s.AiAgentType = v;
-                else if (k == "AiAgentCustomCmd") s.AiAgentCustomCmd = v;
                 else if (k == "AiQuoteKeywords") s.AiQuoteKeywords = v;
                 else if (k == "AiQuoteCount" && int.TryParse(v, out n)) s.AiQuoteCount = n > 0 ? n : 30;
             }
@@ -219,8 +214,6 @@ internal sealed class Settings
             "TaskStatusFontSize=" + (TaskStatusFontSize > 0 ? TaskStatusFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "9.5"),
             "TaskStatusTextColor=" + TaskStatusTextColor, "TaskStatusBarColor=" + TaskStatusBarColor,
             "TaskStatusWidth=" + TaskStatusWidth,
-            "AiAgentType=" + AiAgentType,
-            "AiAgentCustomCmd=" + AiAgentCustomCmd,
             "AiQuoteKeywords=" + AiQuoteKeywords
             , "AiQuoteCount=" + AiQuoteCount
         };
@@ -6152,8 +6145,6 @@ internal sealed class DailyQuoteDialog : Form
 
 internal static class AiAgentQuoteHelper
 {
-    private static readonly Dictionary<string, bool> commandCache = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-
     public static event Action<int, QuoteItem> OnQuotesAdded;
 
     internal static void NotifyQuotesAdded(int count, QuoteItem sample)
@@ -6166,42 +6157,6 @@ internal static class AiAgentQuoteHelper
             }
         }
         catch { }
-    }
-
-    internal static bool HasCliSupport(string agentName)
-    {
-        string exe, args;
-        return TryGetCliCommand(agentName, "test", out exe, out args);
-    }
-
-    internal static bool IsCommandInPath(string cmd)
-    {
-        if (string.IsNullOrEmpty(cmd)) return false;
-        lock (commandCache)
-        {
-            bool cached;
-            if (commandCache.TryGetValue(cmd, out cached)) return cached;
-        }
-        try
-        {
-            ProcessStartInfo psi = new ProcessStartInfo
-            {
-                FileName = "where.exe",
-                Arguments = cmd,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-            using (Process p = Process.Start(psi))
-            {
-                p.WaitForExit(1000);
-                bool found = (p.ExitCode == 0);
-                lock (commandCache) { commandCache[cmd] = found; }
-                return found;
-            }
-        }
-        catch { return false; }
     }
 
     internal static List<string> GetKeywords(Settings s)
@@ -6271,27 +6226,6 @@ internal static class AiAgentQuoteHelper
                    "1. 每条金句控制在 35 字以内，语言精练有力，富有启发与哲理；\r\n" +
                    "2. 每条金句必须附带真实作者或典籍出处（若佚名请注明佚名）；\r\n" +
                    "3. 必须执行导入命令并等待返回结果，严禁多余的打招呼或寒暄废话。";
-        }
-    }
-
-    internal static string BuildPrompt(List<string> keywords, int count, string lang)
-    {
-        bool en = (lang == "en");
-        if (count <= 0) count = 30;
-        string t = (keywords != null && keywords.Count > 0)
-            ? string.Join(en ? ", " : "、", keywords.ToArray())
-            : (en ? "Deep focus and craftsmanship" : "极客心流与深度专注");
-        if (en)
-        {
-            return "Please create " + count + " inspiring desk quotes based on the topics: [" + t + "]. " +
-                   "STRICT OUTPUT RULES: " +
-                   "1. Each quote on its own line in the exact format: 'Quote text | Author or Source'. " +
-                   "2. Maximum 35 words per quote. " +
-                   "3. NEVER output numbers, bullets, greetings, markdown quotes, or any explanations.";
-        }
-        else
-        {
-            return "请围绕主题【" + t + "】精选创作" + count + "条桌面金句。严格规范：1.每行严格格式为'金句内容 | 作者或出处'；2.每条不超过35字，语言精炼有力；3.严禁输出序号、引号、打招呼、前言或任何多余废话。";
         }
     }
 
@@ -6454,91 +6388,12 @@ internal static class AiAgentQuoteHelper
         }
     }
 
-    internal static bool TryGetCliCommand(string agentName, string prompt, out string exe, out string args)
-    {
-        exe = "";
-        args = "";
-        if (string.IsNullOrEmpty(agentName)) return false;
-        string lower = agentName.ToLowerInvariant();
-
-        if (lower.Contains("claude"))
-        {
-            if (IsCommandInPath("claude.cmd")) { exe = "claude.cmd"; args = "-p \"" + prompt.Replace("\"", "\\\"") + "\""; return true; }
-            if (IsCommandInPath("claude")) { exe = "claude"; args = "-p \"" + prompt.Replace("\"", "\\\"") + "\""; return true; }
-        }
-        else if (lower.Contains("ollama"))
-        {
-            if (IsCommandInPath("ollama.exe")) { exe = "ollama.exe"; args = "run qwen2.5 \"" + prompt.Replace("\"", "\\\"") + "\""; return true; }
-            if (IsCommandInPath("ollama")) { exe = "ollama"; args = "run qwen2.5 \"" + prompt.Replace("\"", "\\\"") + "\""; return true; }
-        }
-        return false;
-    }
-
-    internal static bool RunAgentCli(string agentName, Settings settings, List<string> keywords, int count, out string stdout, out string error)
-    {
-        stdout = null;
-        error = null;
-        string actualAgent = !string.IsNullOrEmpty(agentName) ? agentName : (settings != null ? settings.AiAgentType : "Auto");
-
-        string lang = settings != null ? settings.Language : "zh";
-        string prompt = BuildPrompt(keywords, count, lang);
-
-        string exe, args;
-        if (!TryGetCliCommand(actualAgent, prompt, out exe, out args))
-        {
-            error = (lang == "en") ? "Agent CLI not found or not supported for direct headless execution." : "未找到该智能体的命令行执行工具或不支持直接后台生成。";
-            return false;
-        }
-
-        try
-        {
-            ProcessStartInfo psi = new ProcessStartInfo
-            {
-                FileName = exe,
-                Arguments = args,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
-
-            using (Process p = Process.Start(psi))
-            {
-                string outText = p.StandardOutput.ReadToEnd();
-                string errText = p.StandardError.ReadToEnd();
-                if (!p.WaitForExit(35000))
-                {
-                    try { p.Kill(); } catch { }
-                    error = (lang == "en") ? "Agent execution timed out (35s)" : "智能体执行超时 (35秒)";
-                    return false;
-                }
-
-                if (p.ExitCode != 0)
-                {
-                    string msg = !string.IsNullOrEmpty(errText) ? errText : outText;
-                    error = !string.IsNullOrEmpty(msg) ? msg.Trim() : ("智能体退出码: " + p.ExitCode);
-                    return false;
-                }
-
-                stdout = outText;
-                return true;
-            }
-        }
-        catch (Exception ex)
-        {
-            error = ex.Message;
-            return false;
-        }
-    }
 }
 
 internal sealed class AiQuoteDialog : Form
 {
     private Settings settings;
     private List<string> currentKeywords;
-    private List<string> detectedAgents;
-    private string selectedAgent;
     private string currentPrompt;
     private int currentQuoteCount = 30;
 
@@ -6546,8 +6401,7 @@ internal sealed class AiQuoteDialog : Form
     private Panel panelSetup;
     private TextBox txtPreference;
     private NumericUpDown nudQuoteCount;
-    private ComboBox cboAgent;
-    private Label lblAgentHint;
+    private Label lblHint;
     private ToolTip tipCount;
     private Button btnCancel;
     private Button btnGenerate;
@@ -6559,18 +6413,16 @@ internal sealed class AiQuoteDialog : Form
     private Label lblCardSub;
     private Label lblCardBadge;
 
-    private Button btnStatusAction1; // Bring window to front / Open library / Fallback to chat
-    private Button btnStatusAction2; // Copy again / Retry
-    private Button btnStatusBack;    // Back to setup
-    private Button btnStatusDone;    // Close / Done / Cancel
+    private Button btnStatusAction1; // Copy again / Open library
+    private Button btnStatusAction2; // Back to setup
+    private Button btnStatusBack;    // unused placeholder (kept for layout symmetry)
+    private Button btnStatusDone;    // Close / Done
 
     private System.Windows.Forms.Timer timerStatus;
     private int elapsedSeconds = 0;
-    private int waitingDots = 0;
 
-    private enum ViewMode { Setup, WaitingAgent, RunningCli, Completed, Error }
+    private enum ViewMode { Setup, WaitingImport, Completed }
     private ViewMode currentMode = ViewMode.Setup;
-    private bool isExecutingCli = false;
 
     public AiQuoteDialog(Settings s)
     {
@@ -6626,7 +6478,7 @@ internal sealed class AiQuoteDialog : Form
     {
         if (keyData == Keys.Escape)
         {
-            if (currentMode == ViewMode.WaitingAgent || currentMode == ViewMode.Error)
+            if (currentMode == ViewMode.WaitingImport)
             {
                 ShowSetupView();
                 return true;
@@ -6663,9 +6515,9 @@ internal sealed class AiQuoteDialog : Form
         txtPreference.AcceptsReturn = true;
         txtPreference.ScrollBars = ScrollBars.Vertical;
         txtPreference.Font = AppContext.GetUiFont(lang, 9f);
-        // The box takes the 60px the old layout left empty under the hint row;
-        // content now sits in one even column from the header to the footer.
-        txtPreference.SetBounds(18, 56, 374, 116);
+        // Without the agent picker this column has one input and one number, so
+        // the keyword box grows to fill the page it now owns.
+        txtPreference.SetBounds(18, 56, 374, 176);
         txtPreference.Text = currentKeywords != null && currentKeywords.Count > 0
             ? string.Join(Environment.NewLine, currentKeywords.ToArray())
             : "";
@@ -6675,7 +6527,7 @@ internal sealed class AiQuoteDialog : Form
         lblCount.Text = en ? "Quotes to generate:" : "扩充数量：";
         lblCount.Font = AppContext.GetUiFont(lang, 9f);
         lblCount.ForeColor = AppContext.Win11TextPrimary;
-        lblCount.SetBounds(18, 188, 90, 18);
+        lblCount.SetBounds(18, 250, 90, 18);
         panelSetup.Controls.Add(lblCount);
 
         nudQuoteCount = new NumericUpDown();
@@ -6685,7 +6537,7 @@ internal sealed class AiQuoteDialog : Form
         nudQuoteCount.Font = AppContext.GetUiFont(lang, 9f);
         int savedCount = settings != null && settings.AiQuoteCount > 0 ? settings.AiQuoteCount : 30;
         nudQuoteCount.Value = Math.Max(5, Math.Min(100, savedCount));
-        nudQuoteCount.SetBounds(112, 186, 80, 24);
+        nudQuoteCount.SetBounds(112, 248, 80, 24);
         panelSetup.Controls.Add(nudQuoteCount);
 
         // The range lives in the tooltip: the row reads as one sentence
@@ -6697,64 +6549,22 @@ internal sealed class AiQuoteDialog : Form
         lblCountUnit.Text = en ? "quotes" : "条";
         lblCountUnit.Font = AppContext.GetUiFont(lang, 8.5f);
         lblCountUnit.ForeColor = AppContext.Win11TextSecondary;
-        lblCountUnit.SetBounds(198, 188, 194, 18);
+        lblCountUnit.SetBounds(198, 250, 194, 18);
         panelSetup.Controls.Add(lblCountUnit);
 
-        Label lblAgent = new Label();
-        lblAgent.Text = en ? "AI Collaboration Agent:" : "AI 协作智能体：";
-        lblAgent.Font = AppContext.GetUiFont(lang, 9f);
-        lblAgent.ForeColor = AppContext.Win11TextPrimary;
-        lblAgent.SetBounds(18, 218, 374, 18);
-        panelSetup.Controls.Add(lblAgent);
-
-        cboAgent = new ComboBox();
-        cboAgent.DropDownStyle = ComboBoxStyle.DropDownList;
-        cboAgent.Font = AppContext.GetUiFont(lang, 9f);
-        cboAgent.SetBounds(18, 238, 374, 25);
-        panelSetup.Controls.Add(cboAgent);
-
-        // Show agents currently available on this computer.
-        List<string> allDetected = AppContext.DetectAgents();
-        HashSet<string> running = AppContext.GetRunningAgents();
-        detectedAgents = new List<string>();
-        foreach (string name in allDetected)
-        {
-            detectedAgents.Add(name);
-        }
-        detectedAgents.Sort(delegate(string a, string b)
-        {
-            bool aRun = running.Contains(a);
-            bool bRun = running.Contains(b);
-            if (aRun != bRun) return aRun ? -1 : 1;
-            return string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
-        });
-
-        int defaultIdx = 0;
-        string savedAgent = settings != null ? settings.AiAgentType : "";
-        for (int i = 0; i < detectedAgents.Count; i++)
-        {
-            string name = detectedAgents[i];
-            bool isRun = running.Contains(name);
-            string stateStr = isRun
-                ? (en ? "Running" : "运行中")
-                : (en ? "Ready" : "已就绪");
-            // Name and state only: the execution mode is spelled out in the hint
-            // line right below once the item is selected.
-            string display = string.Format("{0} · {1}", name, stateStr);
-            cboAgent.Items.Add(display);
-            if (!string.IsNullOrEmpty(savedAgent) && name.Equals(savedAgent, StringComparison.OrdinalIgnoreCase))
-            {
-                defaultIdx = i;
-            }
-        }
-
-        lblAgentHint = new Label();
-        lblAgentHint.Text = "";
-        lblAgentHint.ForeColor = AppContext.Win11TextSecondary;
-        lblAgentHint.Font = AppContext.GetUiFont(lang, 8.5f);
-        lblAgentHint.SetBounds(18, 268, 374, 20);
-        lblAgentHint.AutoEllipsis = true;
-        panelSetup.Controls.Add(lblAgentHint);
+        // No agent picker: iClock does not run the agent, it only hands over an
+        // instruction and waits for the quotes to come back through the iClock
+        // command line. Which agent you paste into is your business, so the
+        // dialog does not list them.
+        lblHint = new Label();
+        lblHint.Text = en
+            ? "Copies an instruction to the clipboard; paste it into any agent chat (Ctrl+V) and send."
+            : "复制指令到剪贴板，粘贴到智能体对话框（Ctrl+V）发送即可入库。";
+        lblHint.ForeColor = AppContext.Win11TextSecondary;
+        lblHint.Font = AppContext.GetUiFont(lang, 8.5f);
+        lblHint.SetBounds(18, 280, 374, 20);
+        lblHint.AutoEllipsis = true;
+        panelSetup.Controls.Add(lblHint);
 
         btnCancel = new Button();
         btnCancel.Text = en ? "Cancel" : "取消";
@@ -6764,61 +6574,12 @@ internal sealed class AiQuoteDialog : Form
         panelSetup.Controls.Add(btnCancel);
 
         btnGenerate = new Button();
-        // One fixed label whatever the selected agent runs in: the hint below
-        // explains the mode, the button only says what happens when you click.
-        btnGenerate.Text = en ? "Expand Quotes" : "开始扩充";
+        // The button copies an instruction; the agent does the generating.
+        btnGenerate.Text = en ? "Copy Prompt" : "复制指令";
         btnGenerate.SetBounds(296, 314, 96, 30);
         AppContext.StylePrimaryButton(btnGenerate);
         btnGenerate.Click += OnGenerateClick;
         panelSetup.Controls.Add(btnGenerate);
-
-        if (detectedAgents.Count == 0)
-        {
-            cboAgent.Items.Add(en ? "No available agents detected" : "未检测到可用智能体");
-            cboAgent.SelectedIndex = 0;
-            lblAgentHint.Text = en
-                ? "Tip: Start an AI agent to use this feature."
-                : "提示：启动一个智能体后即可使用此功能。";
-            lblAgentHint.ForeColor = Color.FromArgb(180, 100, 20);
-            btnGenerate.Enabled = false;
-        }
-        else
-        {
-            cboAgent.SelectedIndex = defaultIdx;
-            cboAgent.SelectedIndexChanged += delegate { UpdateAgentSelection(); };
-            UpdateAgentSelection();
-        }
-    }
-
-    private void UpdateAgentSelection()
-    {
-        bool en = (settings != null && settings.Language == "en");
-        int idx = cboAgent != null ? cboAgent.SelectedIndex : -1;
-        if (idx >= 0 && idx < detectedAgents.Count)
-        {
-            selectedAgent = detectedAgents[idx];
-            if (settings != null)
-            {
-                settings.AiAgentType = selectedAgent;
-                settings.Save();
-            }
-            bool hasCli = AiAgentQuoteHelper.HasCliSupport(selectedAgent);
-            if (hasCli)
-            {
-                lblAgentHint.Text = en
-                    ? "Runs headless in the background and reports back here."
-                    : "支持后台直接生成，点击「开始扩充」后在此自动汇报。";
-                lblAgentHint.ForeColor = AppContext.Win11TextSecondary;
-            }
-            else
-            {
-                lblAgentHint.Text = en
-                    ? "Chat mode: copies the prompt, then press Ctrl+V in the agent window."
-                    : "对话框协作：复制指令，在智能体窗口按 Ctrl+V 发送。";
-                lblAgentHint.ForeColor = AppContext.Win11TextSecondary;
-            }
-            btnGenerate.Enabled = true;
-        }
     }
 
     private void BuildStatusPanel(string lang, bool en)
@@ -6904,7 +6665,6 @@ internal sealed class AiQuoteDialog : Form
     private void ShowSetupView()
     {
         currentMode = ViewMode.Setup;
-        isExecutingCli = false;
         if (timerStatus != null) timerStatus.Stop();
         panelStatus.Visible = false;
         panelSetup.Visible = true;
@@ -6912,86 +6672,47 @@ internal sealed class AiQuoteDialog : Form
         CancelButton = btnCancel;
     }
 
-    private void ShowWaitingAgentView(string agentName)
+    private void ShowCopiedPromptView()
     {
         bool en = (settings != null && settings.Language == "en");
-        currentMode = ViewMode.WaitingAgent;
-        isExecutingCli = false;
+        currentMode = ViewMode.WaitingImport;
         panelSetup.Visible = false;
         panelStatus.Visible = true;
 
-        // States what iClock did (copied the prompt), not what the agent is doing:
-        // it cannot see inside the other app.
-        lblStatusTitle.Text = en ? "✨ Prompt handed to " + agentName : "✨ 已把提示词交给 " + agentName;
+        // States what iClock did (copied the instruction) and what the user has
+        // to do with it. It cannot see inside the agent, so it says nothing
+        // about what the agent is doing.
+        lblStatusTitle.Text = en ? "✨ Instruction copied" : "✨ 指令已复制到剪贴板";
         lblCardMain.Text = en
-            ? string.Format("✓ Prompt for {0} quotes copied to clipboard!", currentQuoteCount)
-            : string.Format("✓ {0} 条金句的扩充指令已复制到剪贴板！", currentQuoteCount);
+            ? string.Format("✓ Instruction for {0} quotes copied!", currentQuoteCount)
+            : string.Format("✓ {0} 条金句的扩充指令已复制！", currentQuoteCount);
         lblCardMain.ForeColor = Color.FromArgb(16, 124, 65);
         lblCardSub.Text = en
-            ? string.Format("Switch to [{0}] and press Ctrl+V. The quotes it returns are imported through iClock's command line.", agentName)
-            : string.Format("切换到【{0}】窗口按 Ctrl+V 发送；生成的金句会经由 iClock 命令行自动导入。", agentName);
+            ? "① Paste it into any agent chat and send.\r\n② The agent runs the iClock command line to import the quotes.\r\n③ The result is reported here as soon as it arrives."
+            : "① 粘贴到任意智能体对话框并发送；\r\n② 智能体会执行 iClock 命令行导入金句；\r\n③ 导入完成后将在此当场汇报。";
         lblCardSub.ForeColor = AppContext.Win11TextSecondary;
         lblCardBadge.Text = en ? "• Waiting for import..." : "• 正在等待导入...";
         lblCardBadge.ForeColor = AppContext.Win11Accent;
 
         btnStatusAction1.Visible = true;
-        btnStatusAction1.Text = en ? "Bring Window" : "唤起窗口";
-        btnStatusAction1.SetBounds(18, 314, 96, 30);
+        btnStatusAction1.Text = en ? "Copy Again" : "重新复制";
+        btnStatusAction1.SetBounds(18, 314, 110, 30);
         AppContext.StyleSecondaryButton(btnStatusAction1);
 
         btnStatusAction2.Visible = true;
-        btnStatusAction2.Text = en ? "Copy Again" : "重新复制";
-        btnStatusAction2.SetBounds(120, 314, 96, 30);
+        btnStatusAction2.Text = en ? "❮ Back" : "❮ 返回修改";
+        btnStatusAction2.SetBounds(136, 314, 110, 30);
         AppContext.StyleSecondaryButton(btnStatusAction2);
 
-        btnStatusBack.Visible = true;
+        btnStatusBack.Visible = false;
         btnStatusBack.Text = en ? "❮ Back" : "❮ 返回修改";
-        btnStatusBack.SetBounds(222, 314, 94, 30);
+        btnStatusBack.SetBounds(136, 314, 110, 30);
         AppContext.StyleSecondaryButton(btnStatusBack);
 
         btnStatusDone.Visible = true;
         btnStatusDone.Text = en ? "Close" : "关闭";
-        btnStatusDone.SetBounds(322, 314, 70, 30);
-        AppContext.StyleSecondaryButton(btnStatusDone);
-
-        AcceptButton = null;
-        CancelButton = btnStatusDone;
-
-        elapsedSeconds = 0;
-        waitingDots = 0;
-        if (timerStatus != null) timerStatus.Start();
-    }
-
-    private void ShowRunningCliView(string agentName)
-    {
-        bool en = (settings != null && settings.Language == "en");
-        currentMode = ViewMode.RunningCli;
-        isExecutingCli = true;
-        panelSetup.Visible = false;
-        panelStatus.Visible = true;
-
-        // Here the name is certain: iClock starts this CLI itself and reads its
-        // stdout, so "via X" describes the process it launched, not a guess.
-        lblStatusTitle.Text = en ? "⚡ Generating via " + agentName + "..." : "⚡ 正在通过 " + agentName + " 后台直接生成...";
-        lblCardMain.Text = en
-            ? string.Format("⚡ {0} quotes in progress...", currentQuoteCount)
-            : string.Format("⚡ 正在生成 {0} 条金句...", currentQuoteCount);
-        lblCardMain.ForeColor = AppContext.Win11Accent;
-        lblCardSub.Text = en
-            ? "No manual action required. Results are imported and reported here once completed."
-            : "无需手动操作，完成后将自动收录并在此汇报。";
-        lblCardSub.ForeColor = AppContext.Win11TextSecondary;
-        lblCardBadge.Text = en ? "• Generating in background..." : "• 正在后台生成中...";
-        lblCardBadge.ForeColor = AppContext.Win11Accent;
-
-        btnStatusAction1.Visible = false;
-        btnStatusAction2.Visible = false;
-        btnStatusBack.Visible = false;
-
-        btnStatusDone.Visible = true;
-        btnStatusDone.Text = en ? "Cancel" : "取消";
-        btnStatusDone.SetBounds(318, 314, 74, 30);
-        AppContext.StyleSecondaryButton(btnStatusDone);
+        btnStatusDone.SetBounds(288, 314, 104, 30);
+        AppContext.StylePrimaryButton(btnStatusDone);
 
         AcceptButton = null;
         CancelButton = btnStatusDone;
@@ -7004,7 +6725,6 @@ internal sealed class AiQuoteDialog : Form
     {
         bool en = (settings != null && settings.Language == "en");
         currentMode = ViewMode.Completed;
-        isExecutingCli = false;
         if (timerStatus != null) timerStatus.Stop();
 
         panelSetup.Visible = false;
@@ -7042,102 +6762,35 @@ internal sealed class AiQuoteDialog : Form
         CancelButton = btnStatusDone;
     }
 
-    private void ShowErrorView(string errorMsg)
-    {
-        bool en = (settings != null && settings.Language == "en");
-        currentMode = ViewMode.Error;
-        isExecutingCli = false;
-        if (timerStatus != null) timerStatus.Stop();
-
-        panelSetup.Visible = false;
-        panelStatus.Visible = true;
-
-        lblStatusTitle.Text = en ? "Notice: Expansion Incomplete" : "提示：后台生成未完成";
-        lblCardMain.Text = en ? "Agent CLI execution failed or timed out:" : "智能体命令行执行异常或响应超时：";
-        lblCardMain.ForeColor = Color.FromArgb(196, 43, 28);
-
-        lblCardSub.Text = !string.IsNullOrEmpty(errorMsg) ? errorMsg : "Unknown error";
-        lblCardSub.ForeColor = AppContext.Win11TextSecondary;
-
-        lblCardBadge.Text = en ? "✨ Tip: fall back to copying the prompt." : "✨ 提示：可降级为复制指令，在智能体窗口按 Ctrl+V 发送。";
-        lblCardBadge.ForeColor = Color.FromArgb(180, 100, 20);
-
-        btnStatusAction1.Visible = true;
-        btnStatusAction1.Text = en ? "Fallback to Chat" : "降级为复制";
-        btnStatusAction1.SetBounds(18, 314, 118, 30);
-        AppContext.StylePrimaryButton(btnStatusAction1);
-
-        btnStatusAction2.Visible = true;
-        btnStatusAction2.Text = en ? "Retry" : "重试";
-        btnStatusAction2.SetBounds(146, 314, 74, 30);
-        AppContext.StyleSecondaryButton(btnStatusAction2);
-
-        btnStatusBack.Visible = true;
-        btnStatusBack.Text = en ? "❮ Back" : "❮ 返回";
-        btnStatusBack.SetBounds(230, 314, 82, 30);
-        AppContext.StyleSecondaryButton(btnStatusBack);
-
-        btnStatusDone.Visible = true;
-        btnStatusDone.Text = en ? "Close" : "关闭";
-        btnStatusDone.SetBounds(322, 314, 70, 30);
-        AppContext.StyleSecondaryButton(btnStatusDone);
-
-        AcceptButton = btnStatusAction1;
-        CancelButton = btnStatusDone;
-    }
-
     private void OnTimerStatusTick(object sender, EventArgs e)
     {
         bool en = (settings != null && settings.Language == "en");
-        if (currentMode == ViewMode.RunningCli)
+        if (currentMode == ViewMode.WaitingImport)
         {
             elapsedSeconds++;
             lblCardBadge.Text = en
-                ? string.Format("• Generating in background... ({0}s)", elapsedSeconds)
-                : string.Format("• 正在后台生成中... (已耗时 {0} 秒)", elapsedSeconds);
-        }
-        else if (currentMode == ViewMode.WaitingAgent)
-        {
-            waitingDots = (waitingDots + 1) % 4;
-            string dots = new string('.', waitingDots);
-            lblCardBadge.Text = en
-                ? ("• Waiting for import" + dots)
-                : ("• 正在等待导入" + dots);
+                ? string.Format("• Waiting for import... ({0}s)", elapsedSeconds)
+                : string.Format("• 正在等待导入... (已等待 {0} 秒)", elapsedSeconds);
         }
     }
 
     private void OnStatusAction1Click(object sender, EventArgs e)
     {
-        if (currentMode == ViewMode.WaitingAgent)
+        bool en = (settings != null && settings.Language == "en");
+        if (currentMode == ViewMode.WaitingImport)
         {
-            AppContext.BringAgentToFront(selectedAgent);
+            CopyPromptToClipboard();
+            btnStatusAction1.Text = en ? "Copied ✓" : "已复制 ✓";
         }
         else if (currentMode == ViewMode.Completed)
         {
             AppContext.OpenQuotesFile();
         }
-        else if (currentMode == ViewMode.Error)
-        {
-            StartAgentCollaboration(selectedAgent);
-        }
     }
 
     private void OnStatusAction2Click(object sender, EventArgs e)
     {
-        bool en = (settings != null && settings.Language == "en");
-        if (currentMode == ViewMode.WaitingAgent)
-        {
-            try
-            {
-                Clipboard.SetText(currentPrompt);
-                btnStatusAction2.Text = en ? "Copied ✓" : "已复制 ✓";
-            }
-            catch { }
-        }
-        else if (currentMode == ViewMode.Error)
-        {
-            StartCliGeneration(selectedAgent);
-        }
+        ShowSetupView();
     }
 
     private void OnStatusBackClick(object sender, EventArgs e)
@@ -7154,7 +6807,6 @@ internal sealed class AiQuoteDialog : Form
         }
         else
         {
-            isExecutingCli = false;
             DialogResult = DialogResult.Cancel;
             Close();
         }
@@ -7162,7 +6814,6 @@ internal sealed class AiQuoteDialog : Form
 
     private void OnGenerateClick(object sender, EventArgs e)
     {
-        bool en = settings != null && settings.Language == "en";
         string lang = settings != null ? settings.Language : "zh";
 
         // Persist preference text (GetKeywords splits newlines/commas on next open).
@@ -7171,115 +6822,26 @@ internal sealed class AiQuoteDialog : Form
         {
             settings.AiQuoteKeywords = rawPreference;
             settings.AiQuoteCount = nudQuoteCount != null ? (int)nudQuoteCount.Value : 30;
+            settings.Save();
         }
         currentKeywords = AiAgentQuoteHelper.GetKeywords(settings);
         int quoteCount = settings != null && settings.AiQuoteCount > 0 ? settings.AiQuoteCount : 30;
         currentQuoteCount = quoteCount;
 
-        int selIdx = cboAgent != null ? cboAgent.SelectedIndex : -1;
-        if (selIdx < 0 || detectedAgents == null || selIdx >= detectedAgents.Count)
-        {
-            lblAgentHint.ForeColor = Color.FromArgb(202, 80, 16);
-            lblAgentHint.Text = en ? "No available agent selected." : "未选择可用的智能体。";
-            return;
-        }
-
-        selectedAgent = detectedAgents[selIdx];
-        if (settings != null)
-        {
-            settings.AiAgentType = selectedAgent;
-            settings.Save();
-        }
-
         currentPrompt = AiAgentQuoteHelper.BuildAgentPrompt(currentKeywords, quoteCount, lang);
-
-        bool hasCli = AiAgentQuoteHelper.HasCliSupport(selectedAgent);
-        if (hasCli)
-        {
-            StartCliGeneration(selectedAgent);
-        }
-        else
-        {
-            StartAgentCollaboration(selectedAgent);
-        }
+        CopyPromptToClipboard();
+        ShowCopiedPromptView();
     }
 
-    private void StartAgentCollaboration(string agentName)
+    // The one and only way quotes get in: the agent runs iClock's command line
+    // after pasting the instruction, and the result comes back over the CLI.
+    private void CopyPromptToClipboard()
     {
         try
         {
             Clipboard.SetText(currentPrompt);
         }
         catch { }
-
-        AppContext.BringAgentToFront(agentName);
-        ShowWaitingAgentView(agentName);
-    }
-
-    private void StartCliGeneration(string agentName)
-    {
-        ShowRunningCliView(agentName);
-        System.Threading.ThreadPool.QueueUserWorkItem(delegate
-        {
-            string stdout;
-            string error;
-            bool ok = AiAgentQuoteHelper.RunAgentCli(agentName, settings, currentKeywords, currentQuoteCount, out stdout, out error);
-            if (!isExecutingCli) return; // User cancelled or closed
-
-            if (ok && !string.IsNullOrEmpty(stdout))
-            {
-                List<QuoteItem> parsed = AiAgentQuoteHelper.ParseQuotes(stdout);
-                if (parsed.Count > 0)
-                {
-                    int addedCount;
-                    string appendErr;
-                    AiAgentQuoteHelper.AppendQuotesToFile(parsed, out addedCount, out appendErr);
-                    if (addedCount > 0)
-                    {
-                        try
-                        {
-                            if (AppContext.Current != null)
-                            {
-                                AppContext.Current.ShowCustomQuote(parsed[0].Text, parsed[0].Author);
-                            }
-                        }
-                        catch { }
-                        AiAgentQuoteHelper.NotifyQuotesAdded(addedCount, parsed[0]);
-                    }
-                    else
-                    {
-                        // Deduplicated, all existed
-                        AiAgentQuoteHelper.NotifyQuotesAdded(parsed.Count, parsed[0]);
-                    }
-                }
-                else
-                {
-                    string failMsg = (settings != null && settings.Language == "en")
-                        ? "Agent output did not contain valid quotes format."
-                        : "智能体未按规范格式返回金句，建议使用对话框协作方式。";
-                    try
-                    {
-                        BeginInvoke(new MethodInvoker(delegate
-                        {
-                            if (isExecutingCli) ShowErrorView(failMsg);
-                        }));
-                    }
-                    catch { }
-                }
-            }
-            else
-            {
-                string failMsg = !string.IsNullOrEmpty(error) ? error : "CLI execution returned no output.";
-                try
-                {
-                    BeginInvoke(new MethodInvoker(delegate
-                    {
-                        if (isExecutingCli) ShowErrorView(failMsg);
-                    }));
-                }
-                catch { }
-            }
-        });
     }
 
     private void HandleQuotesAddedCallback(int count, QuoteItem sample)
@@ -9834,35 +9396,6 @@ internal sealed class AppContext : ApplicationContext
         return result;
     }
 
-    internal static bool BringAgentToFront(string agentName)
-    {
-        if (string.IsNullOrEmpty(agentName)) return false;
-        try
-        {
-            HashSet<int> pids = new HashSet<int>();
-            EnumerateSystemProcesses(delegate(int pid, string exeName)
-            {
-                string match = MatchAgent(exeName);
-                if (match != null && match.Equals(agentName, StringComparison.OrdinalIgnoreCase))
-                {
-                    pids.Add(pid);
-                }
-            });
-            if (pids.Count > 0)
-            {
-                IntPtr hwnd = FindAgentMainWindow(pids);
-                if (hwnd != IntPtr.Zero && NativeMethods.IsWindow(hwnd))
-                {
-                    NativeMethods.ShowWindow(hwnd, 9); // SW_RESTORE
-                    NativeMethods.SetForegroundWindow(hwnd);
-                    return true;
-                }
-            }
-        }
-        catch { }
-        return false;
-    }
-
     internal static string GetAgentWindowTitle(IntPtr hWnd)
     {
         if (hWnd == IntPtr.Zero || !NativeMethods.IsWindow(hWnd)) return string.Empty;
@@ -9876,60 +9409,6 @@ internal sealed class AppContext : ApplicationContext
         }
         catch { return string.Empty; }
     }
-
-    internal static IntPtr FindAgentMainWindow(HashSet<int> pids)
-    {
-        if (pids == null || pids.Count == 0) return IntPtr.Zero;
-        IntPtr best = IntPtr.Zero;
-        int maxArea = 0;
-        IntPtr desk = IntPtr.Zero;
-        try
-        {
-            desk = NativeMethods.OpenInputDesktop(0, false, 0x0100 | 0x0001);
-            NativeMethods.EnumWindowsProc proc = delegate(IntPtr hWnd, IntPtr lParam)
-            {
-                if (!NativeMethods.IsWindowVisible(hWnd)) return true;
-                uint pid;
-                NativeMethods.GetWindowThreadProcessId(hWnd, out pid);
-                if (pids.Contains((int)pid))
-                {
-                    if (NativeMethods.GetWindowTextLength(hWnd) > 0)
-                    {
-                        RECT r;
-                        if (NativeMethods.GetWindowRect(hWnd, out r))
-                        {
-                            int area = (r.Right - r.Left) * (r.Bottom - r.Top);
-                            if (area > maxArea)
-                            {
-                                maxArea = area;
-                                best = hWnd;
-                            }
-                        }
-                    }
-                }
-                return true;
-            };
-
-            if (desk != IntPtr.Zero)
-            {
-                NativeMethods.EnumDesktopWindows(desk, proc, IntPtr.Zero);
-            }
-            if (best == IntPtr.Zero)
-            {
-                NativeMethods.EnumWindows(proc, IntPtr.Zero);
-            }
-        }
-        catch { }
-        finally
-        {
-            if (desk != IntPtr.Zero)
-            {
-                try { NativeMethods.CloseDesktop(desk); } catch { }
-            }
-        }
-        return best;
-    }
-
 
     private void RefreshTimerVisual()
     {

@@ -2690,37 +2690,33 @@ internal static class TestCheck
             }
             bool isFgVal = (bool)isFgMethod.Invoke(null, null);
 
-            // 43. Verify AI Agent Quote Expansion: Settings (AiAgentType, AiAgentCustomCmd, AiQuoteKeywords persistence & defaults), SettingsDialog side-by-side buttons (btnEditQuotes & btnAiQuotes layout and width), AiAgentQuoteHelper (ParseQuotes formatting, deduplication, safe append with .bak creation), and AiQuoteDialog instantiation.
-            FieldInfo fAiAgentType = settingsType.GetField("AiAgentType");
-            FieldInfo fAiAgentCustomCmd = settingsType.GetField("AiAgentCustomCmd");
+            // 43. Verify AI Agent Quote Expansion: Settings (AiQuoteKeywords persistence & defaults), SettingsDialog side-by-side buttons (btnEditQuotes & btnAiQuotes layout and width), AiAgentQuoteHelper (ParseQuotes formatting, deduplication, safe append with .bak creation), and AiQuoteDialog instantiation.
             FieldInfo fAiQuoteKeywords = settingsType.GetField("AiQuoteKeywords");
-            if (fAiAgentType == null || fAiAgentCustomCmd == null || fAiQuoteKeywords == null)
+            if (fAiQuoteKeywords == null)
             {
-                Console.WriteLine("FAIL: Settings missing AiAgentType, AiAgentCustomCmd or AiQuoteKeywords field");
+                Console.WriteLine("FAIL: Settings missing AiQuoteKeywords field");
                 return 61;
             }
-            if ((string)fAiAgentType.GetValue(settings) != "Auto")
+
+            // The agent picker and the headless "run the agent for me" track are
+            // gone: iClock only hands over an instruction and waits for the
+            // quotes to come back through its command line.
+            if (settingsType.GetField("AiAgentType") != null || settingsType.GetField("AiAgentCustomCmd") != null)
             {
-                Console.WriteLine("FAIL: Default AiAgentType should be 'Auto', got: " + fAiAgentType.GetValue(settings));
+                Console.WriteLine("FAIL: Settings still carries the removed agent-selection fields (AiAgentType/AiAgentCustomCmd)");
                 return 61;
             }
 
             // Test settings persistence round-trip
-            fAiAgentType.SetValue(settings, "Claude");
-            fAiAgentCustomCmd.SetValue(settings, "my-cli -p {prompt}");
             fAiQuoteKeywords.SetValue(settings, "心流, 专注");
             settings.GetType().GetMethod("Save").Invoke(settings, null);
             object reloadedAiSettings = settingsType.GetMethod("Load").Invoke(null, null);
-            if ((string)fAiAgentType.GetValue(reloadedAiSettings) != "Claude" ||
-                (string)fAiAgentCustomCmd.GetValue(reloadedAiSettings) != "my-cli -p {prompt}" ||
-                (string)fAiQuoteKeywords.GetValue(reloadedAiSettings) != "心流, 专注")
+            if ((string)fAiQuoteKeywords.GetValue(reloadedAiSettings) != "心流, 专注")
             {
-                Console.WriteLine("FAIL: Settings AiAgentType, AiAgentCustomCmd or AiQuoteKeywords failed to persist across Load/Save");
+                Console.WriteLine("FAIL: Settings AiQuoteKeywords failed to persist across Load/Save");
                 return 61;
             }
             // Restore default
-            fAiAgentType.SetValue(settings, "Auto");
-            fAiAgentCustomCmd.SetValue(settings, "");
             fAiQuoteKeywords.SetValue(settings, "");
             settings.GetType().GetMethod("Save").Invoke(settings, null);
 
@@ -2874,25 +2870,18 @@ internal static class TestCheck
                 try { System.IO.File.Delete(actualQuotesFile + ".bak"); } catch { }
             }
 
-            // Verify AiAgentQuoteHelper GetKeywords and BuildPrompt
+            // Verify AiAgentQuoteHelper GetKeywords and BuildAgentPrompt
             MethodInfo mGetKeywords = helperType.GetMethod("GetKeywords", BindingFlags.NonPublic | BindingFlags.Static);
-            MethodInfo mBuildPrompt = helperType.GetMethod("BuildPrompt", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(List<string>), typeof(int), typeof(string) }, null);
             MethodInfo mBuildAgentPrompt = helperType.GetMethod("BuildAgentPrompt", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(List<string>), typeof(int), typeof(string) }, null);
-            if (mGetKeywords == null || mBuildPrompt == null || mBuildAgentPrompt == null)
+            if (mGetKeywords == null || mBuildAgentPrompt == null)
             {
-                Console.WriteLine("FAIL: AiAgentQuoteHelper GetKeywords, BuildPrompt, or BuildAgentPrompt method missing");
+                Console.WriteLine("FAIL: AiAgentQuoteHelper GetKeywords or BuildAgentPrompt method missing");
                 return 61;
             }
             List<string> defaultTagsZh = (List<string>)mGetKeywords.Invoke(null, new object[] { settings });
             if (defaultTagsZh == null || defaultTagsZh.Count != 4 || !defaultTagsZh.Contains("极客心流"))
             {
                 Console.WriteLine("FAIL: GetKeywords did not return expected default ZH tags");
-                return 61;
-            }
-            string generatedPrompt = (string)mBuildPrompt.Invoke(null, new object[] { new List<string> { "知行合一", "松弛感" }, 50, "zh" });
-            if (!generatedPrompt.Contains("知行合一") || !generatedPrompt.Contains("松弛感") || !generatedPrompt.Contains("50"))
-            {
-                Console.WriteLine("FAIL: BuildPrompt did not include custom tags and 50 quotes request: " + generatedPrompt);
                 return 61;
             }
             string generatedAgentPrompt = (string)mBuildAgentPrompt.Invoke(null, new object[] { new List<string> { "知行合一", "松弛感" }, 50, "zh" });
@@ -2922,17 +2911,24 @@ internal static class TestCheck
             }
             FieldInfo fTxtPreference = aiDlgType.GetField("txtPreference", BindingFlags.NonPublic | BindingFlags.Instance);
             FieldInfo fNudQuoteCount = aiDlgType.GetField("nudQuoteCount", BindingFlags.NonPublic | BindingFlags.Instance);
-            FieldInfo fCboAgent = aiDlgType.GetField("cboAgent", BindingFlags.NonPublic | BindingFlags.Instance);
             FieldInfo fPanelStatus = aiDlgType.GetField("panelStatus", BindingFlags.NonPublic | BindingFlags.Instance);
             FieldInfo fPanelSetup = aiDlgType.GetField("panelSetup", BindingFlags.NonPublic | BindingFlags.Instance);
-            if (fTxtPreference == null || fNudQuoteCount == null || fCboAgent == null || fPanelStatus == null || fPanelSetup == null)
+            if (fTxtPreference == null || fNudQuoteCount == null || fPanelStatus == null || fPanelSetup == null)
             {
-                Console.WriteLine("FAIL: AiQuoteDialog missing required UI fields (txtPreference, nudQuoteCount, cboAgent, panelStatus, panelSetup)");
+                Console.WriteLine("FAIL: AiQuoteDialog missing required UI fields (txtPreference, nudQuoteCount, panelStatus, panelSetup)");
+                return 61;
+            }
+            // Guard against the old agent picker coming back: the dialog hands
+            // over an instruction, it does not choose or drive an agent.
+            if (aiDlgType.GetField("cboAgent", BindingFlags.NonPublic | BindingFlags.Instance) != null ||
+                aiDlgType.GetField("detectedAgents", BindingFlags.NonPublic | BindingFlags.Instance) != null ||
+                aiDlgType.GetField("selectedAgent", BindingFlags.NonPublic | BindingFlags.Instance) != null)
+            {
+                Console.WriteLine("FAIL: AiQuoteDialog still exposes the removed agent picker (cboAgent/detectedAgents/selectedAgent)");
                 return 61;
             }
             TextBox txtPref = (TextBox)fTxtPreference.GetValue(aiDlg);
             NumericUpDown nudCount = (NumericUpDown)fNudQuoteCount.GetValue(aiDlg);
-            ComboBox cbAgent = (ComboBox)fCboAgent.GetValue(aiDlg);
             Panel pnlSetup = (Panel)fPanelSetup.GetValue(aiDlg);
             Panel pnlStatus = (Panel)fPanelStatus.GetValue(aiDlg);
             if (txtPref == null || !txtPref.Multiline || txtPref.Text.Length == 0 || !txtPref.Text.Contains("极客心流"))
@@ -2943,11 +2939,6 @@ internal static class TestCheck
             if (nudCount == null || nudCount.Minimum != 5 || nudCount.Maximum != 100 || nudCount.Value != 30)
             {
                 Console.WriteLine("FAIL: AiQuoteDialog nudQuoteCount should default to 30 with range 5-100");
-                return 61;
-            }
-            if (cbAgent == null || cbAgent.Items.Count == 0)
-            {
-                Console.WriteLine("FAIL: AiQuoteDialog cboAgent was not populated with detected agents");
                 return 61;
             }
             if (pnlSetup == null || pnlStatus == null || pnlSetup.Controls.Count == 0 || pnlStatus.Controls.Count == 0)
@@ -2980,17 +2971,13 @@ internal static class TestCheck
                 return 61;
             }
 
-            // Verify AiAgentQuoteHelper HasCliSupport method and OnQuotesAdded event
-            MethodInfo mHasCli = helperType.GetMethod("HasCliSupport", BindingFlags.NonPublic | BindingFlags.Static);
-            if (mHasCli == null)
+            // The headless "iClock runs the agent" track is gone; the helper no
+            // longer spawns any agent CLI.
+            if (helperType.GetMethod("HasCliSupport", BindingFlags.NonPublic | BindingFlags.Static) != null ||
+                helperType.GetMethod("RunAgentCli", BindingFlags.NonPublic | BindingFlags.Static) != null ||
+                helperType.GetMethod("TryGetCliCommand", BindingFlags.NonPublic | BindingFlags.Static) != null)
             {
-                Console.WriteLine("FAIL: AiAgentQuoteHelper missing HasCliSupport method");
-                return 61;
-            }
-            bool antigravityHasCli = (bool)mHasCli.Invoke(null, new object[] { "Antigravity" });
-            if (antigravityHasCli)
-            {
-                Console.WriteLine("FAIL: Antigravity should not be identified as CLI (it is an IDE IDE agent)");
+                Console.WriteLine("FAIL: AiAgentQuoteHelper still exposes the removed agent-CLI execution path");
                 return 61;
             }
 

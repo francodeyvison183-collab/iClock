@@ -6,10 +6,13 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 ### Changed
 
+- **AI 扩充金句改为「一段指令，任意智能体」**: the expansion dialog no longer lists or picks an agent. It builds one instruction, copies it to the clipboard (`复制指令`), and waits; the agent you are already using imports the quotes through the iClock command line (`--quote-add`), exactly as before. The dialog now shows the keyword box, the quote count (5–100) and one instruction line, and the waiting view spells out the three steps instead of naming an agent. / 扩充弹窗不再列出或选择智能体，只负责生成指令、复制到剪贴板并等待入库——导入仍由智能体执行 iClock 命令行完成，与此前一致。
+
 - **每日格言 → 每日金句 (Daily Quotes renamed to Daily Golden Lines)**: user-facing Chinese wording now uses 「每日金句」 across the app UI (settings tab, desktop toggle, screensaver row, tooltips, AI expansion prompts and notices) and the current README / user guide / website copy. The desktop toggle label no longer carries the 「便签」 suffix. The AI expansion prompt now asks for `金句内容 | 作者或出处` lines, while the quote library itself (`quotes.txt`, CLI commands and settings keys) is unchanged, and the English UI keeps "Daily Quotes".
 
 ### Removed
 
+- Removed the headless "let iClock run the agent for you" track of the quote expansion: iClock no longer spawns `claude -p` / `ollama run` (that path could only ever hit its 35-second timeout), the agent dropdown and its running/ready list, the `唤起窗口` window-activation helper, the `settings.AiAgentType` / `settings.AiAgentCustomCmd` keys and the now-unused agent-CLI helpers. The agent list in the Settings agent tab is untouched — it belongs to the skill installer.
 - Removed the iClock MCP server and its agent-side tool/configuration workflow. Desktop collaboration is available through CLI commands with structured `--json` responses. Existing agent MCP entries are not migrated or deleted automatically.
 
 ## [1.09] - 2026-10-19
