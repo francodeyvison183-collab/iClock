@@ -1862,12 +1862,14 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: SettingsDialog missing DailyQuote controls (including panelQuoteCard, quoteLayerCombo and btnNextQuote)");
                 return 53;
             }
+            // The master switch leads the grid (above the style rows) and every row
+            // sits on a uniform 34px pitch under the 98px-tall preview card.
             if (panelQuoteCardQ.Top != 62 || panelQuoteCardQ.Left != 18 || panelQuoteCardQ.Height != 98 ||
-                dailyQuoteBox.Top != 366 || dailyQuoteBox.Left != 322 || dqLabel.Left != 18 ||
-                sizeNudQ.Top != 172 || fontComboQ.Top != 210 ||
-                colorComboQ.Top != 248 || colorComboQ.Width != 188 ||
-                layerComboQ.Top != 286 || layerComboQ.Width != 188 ||
-                btnEditQ.Top != 324)
+                dailyQuoteBox.Top != 176 || dailyQuoteBox.Left != 322 || dqLabel.Left != 18 ||
+                sizeNudQ.Top != 206 || fontComboQ.Top != 240 ||
+                colorComboQ.Top != 274 || colorComboQ.Width != 188 ||
+                layerComboQ.Top != 308 || layerComboQ.Width != 188 ||
+                btnEditQ.Top != 342)
             {
                 Console.WriteLine(string.Format("FAIL: SettingsDialog DailyQuote controls layout misaligned: cardT={0}, cardH={1}, dqT={2}, size={3}, font={4}, color={5}, layer={6}, edit={7}",
                     panelQuoteCardQ.Top, panelQuoteCardQ.Height, dailyQuoteBox.Top, sizeNudQ.Top, fontComboQ.Top, colorComboQ.Top, layerComboQ.Top, btnEditQ.Top));

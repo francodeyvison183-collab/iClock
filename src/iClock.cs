@@ -2176,10 +2176,24 @@ internal sealed class SettingsDialog : Form
         panelQuoteCard.Controls.Add(lblCardQuoteAuthor);
         UpdateDialogQuoteCard();
 
-        // Section 2: Daily quote settings grid (style rows; toggle switches live at page bottom)
-        // Row 1: Font Size (Y = 172)
-        // Row 1: Font Size (Y = 204)
-        lblQuoteSize = AddLabel(en ? "Text size" : "文字大小", 18, 176);
+        // Section 2: Daily quote settings grid. The master switch leads the grid —
+        // with it off none of the style rows below apply — and the rows sit on a
+        // uniform 34px pitch so all of them fit between the card and the tip.
+        // Row 1: Master switch (Y = 176)
+        lblDailyQuote = AddLabel(en ? "Show daily quote on desktop" : "在桌面常驻显示每日金句", 18, 176);
+        lblDailyQuote.SetBounds(18, 176, 296, 24); // the label is wider than AddLabel's 148px default and would clip
+        dailyQuoteToggle = new ToggleSwitch();
+        dailyQuoteToggle.Checked = Value.DailyQuote;
+        dailyQuoteToggle.SetBounds(322, 176, 40, 22);
+        dailyQuoteToggle.CheckedChanged += OnDailyQuoteCheckChanged;
+        if (toolTip == null) toolTip = new ToolTip();
+        toolTip.SetToolTip(dailyQuoteToggle, en
+            ? "Show the daily quote on the desktop; hold Alt + drag to move, drag edge to resize"
+            : "在桌面上常驻显示每日金句；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
+        Controls.Add(dailyQuoteToggle);
+
+        // Row 2: Font Size (Y = 210)
+        lblQuoteSize = AddLabel(en ? "Text size" : "文字大小", 18, 210);
         quoteFontSize = new NumericUpDown();
         quoteFontSize.DecimalPlaces = 1;
         quoteFontSize.Increment = 0.5M;
@@ -2187,14 +2201,14 @@ internal sealed class SettingsDialog : Form
         quoteFontSize.Maximum = 24.0M;
         float initQuoteSize = (Value.QuoteFontSize >= 8.0f && Value.QuoteFontSize <= 24.0f) ? Value.QuoteFontSize : 18.0f;
         quoteFontSize.Value = (decimal)initQuoteSize;
-        quoteFontSize.SetBounds(172, 172, 188, 28);
+        quoteFontSize.SetBounds(172, 206, 188, 28);
         ApplyInputPadding(quoteFontSize);
         quoteFontSize.ValueChanged += OnQuoteFontSizeChanged;
         Controls.Add(quoteFontSize);
 
-        // Row 2: Font Style (Y = 210)
-        lblQuoteFont = AddLabel(en ? "Font style" : "字体样式", 18, 214);
-        quoteFontCombo = AddCombo(210);
+        // Row 3: Font Style (Y = 244)
+        lblQuoteFont = AddLabel(en ? "Font style" : "字体样式", 18, 244);
+        quoteFontCombo = AddCombo(240);
         quoteFontCombo.DropDownWidth = 220;
         quoteFontCombo.MaxDropDownItems = 10;
         quoteFontCombo.Items.AddRange(en
@@ -2204,17 +2218,17 @@ internal sealed class SettingsDialog : Form
         quoteFontCombo.DrawItem += OnDrawQuoteFontItem;
         quoteFontCombo.SelectedIndexChanged += OnQuoteFontChanged;
 
-        // Row 3: Color (Full width 188px, self-contained color chips, Y = 248)
-        lblQuoteColor = AddLabel(en ? "Text color" : "文字颜色", 18, 252);
-        quoteColorCombo = AddCombo(248);
+        // Row 4: Color (Full width 188px, self-contained color chips, Y = 278)
+        lblQuoteColor = AddLabel(en ? "Text color" : "文字颜色", 18, 278);
+        quoteColorCombo = AddCombo(274);
         PopulateQuoteColorCombo(en);
         quoteColorCombo.SelectedIndex = GetQuoteColorIndex(selectedQuoteColor);
         quoteColorCombo.DrawItem += OnDrawQuoteColorItem;
         quoteColorCombo.SelectedIndexChanged += OnQuoteColorComboChanged;
 
-        // Row 4: Window Layer (常驻层级, Y = 286. Clicking toggle re-uses move-mode.)
-        lblQuoteLayer = AddLabel(en ? "Window level" : "常驻层级", 18, 290);
-        quoteLayerCombo = AddCombo(286);
+        // Row 5: Window Layer (常驻层级, Y = 312. Clicking toggle re-uses move-mode.)
+        lblQuoteLayer = AddLabel(en ? "Window level" : "常驻层级", 18, 312);
+        quoteLayerCombo = AddCombo(308);
         quoteLayerCombo.Items.AddRange(en
             ? new object[] { "Desktop Layer (Default)", "Always on Top" }
             : new object[] { "桌面背景置底 (默认)", "始终置顶显示" });
@@ -2222,12 +2236,12 @@ internal sealed class SettingsDialog : Form
         quoteLayerCombo.DrawItem += OnDrawComboItem;
         quoteLayerCombo.SelectedIndexChanged += OnQuoteLayerChanged;
 
-        // Row 5: Quote Library (Y = 324)
-        lblQuoteQuotes = AddLabel(en ? "Quote library" : "名言词库", 18, 328);
+        // Row 6: Quote Library (Y = 346)
+        lblQuoteQuotes = AddLabel(en ? "Quote library" : "名言词库", 18, 346);
         btnEditQuotes = new Button();
         btnEditQuotes.Text = en ? "Edit Quotes" : "自定义…";
         btnEditQuotes.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
-        btnEditQuotes.SetBounds(172, 324, 90, 28);
+        btnEditQuotes.SetBounds(172, 342, 90, 28);
         AppContext.StyleSecondaryButton(btnEditQuotes);
         btnEditQuotes.Click += OnEditQuotesClick;
         if (toolTip == null) toolTip = new ToolTip();
@@ -2237,27 +2251,13 @@ internal sealed class SettingsDialog : Form
         btnAiQuotes = new Button();
         btnAiQuotes.Text = en ? "✨ AI Quotes" : "✨ AI 扩充";
         btnAiQuotes.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
-        btnAiQuotes.SetBounds(270, 324, 90, 28);
+        btnAiQuotes.SetBounds(270, 342, 90, 28);
         AppContext.StyleSecondaryButton(btnAiQuotes);
         btnAiQuotes.Click += OnAiQuotesClick;
         toolTip.SetToolTip(btnAiQuotes, en ? "Generate quotes with AI Agent" : "通过 AI 智能体批量创作并扩充词库");
         Controls.Add(btnAiQuotes);
 
-        // Switch group at page bottom: desktop note toggle + screensaver toggle,
-        // stacked them like the checkbox grid rows (label left, toggle right).
-        lblDailyQuote = AddLabel(en ? "Show daily quote on desktop" : "在桌面常驻显示每日金句", 18, 366);
-        lblDailyQuote.SetBounds(18, 366, 296, 24); // the label is wider than AddLabel's 148px default and would clip
-        dailyQuoteToggle = new ToggleSwitch();
-        dailyQuoteToggle.Checked = Value.DailyQuote;
-        dailyQuoteToggle.SetBounds(322, 366, 40, 22);
-        dailyQuoteToggle.CheckedChanged += OnDailyQuoteCheckChanged;
-        if (toolTip == null) toolTip = new ToolTip();
-        toolTip.SetToolTip(dailyQuoteToggle, en
-            ? "Show the daily quote on the desktop; hold Alt + drag to move, drag edge to resize"
-            : "在桌面上常驻显示每日金句；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
-        Controls.Add(dailyQuoteToggle);
-
-        // Screensaver row: preview link + one dropdown that is both the on/off
+        // Row 7: Screensaver — preview link + one dropdown that is both the on/off
         // switch and the idle wait. iClock owns this because Windows' own screen
         // saver dialog only lists System32 .scr files and so cannot show or edit
         // this entry.
@@ -2271,7 +2271,7 @@ internal sealed class SettingsDialog : Form
         lnkPreviewSaver.ActiveLinkColor = AppContext.Win11Accent;
         lnkPreviewSaver.LinkBehavior = LinkBehavior.HoverUnderline;
         lnkPreviewSaver.ForeColor = AppContext.Win11TextPrimary;
-        lnkPreviewSaver.SetBounds(18, 392, 148, 24); // the wait dropdown takes the middle column
+        lnkPreviewSaver.SetBounds(18, 380, 148, 24); // the wait dropdown takes the middle column
         lnkPreviewSaver.TextAlign = ContentAlignment.MiddleLeft;
         lnkPreviewSaver.LinkClicked += OnPreviewSaverLinkClicked;
         toolTip.SetToolTip(lnkPreviewSaver, en
@@ -2283,14 +2283,14 @@ internal sealed class SettingsDialog : Form
         quoteSaverWaitCombo.DropDownStyle = ComboBoxStyle.DropDownList;
         quoteSaverWaitCombo.DrawMode = DrawMode.OwnerDrawFixed;
         quoteSaverWaitCombo.ItemHeight = 22;
-        quoteSaverWaitCombo.SetBounds(172, 388, 188, 28); // full column: this dropdown replaces the toggle too
+        quoteSaverWaitCombo.SetBounds(172, 376, 188, 28); // full column: this dropdown replaces the toggle too
         PopulateSaverWaitCombo(en);
         quoteSaverWaitCombo.DrawItem += OnDrawComboItem;
         quoteSaverWaitCombo.SelectedIndexChanged += OnSaverWaitChanged;
         UpdateSaverTooltip(en);
         Controls.Add(quoteSaverWaitCombo);
 
-        // Section 4: Tip (Y = 436)
+        // Section 3: Tip (Y = 408)
         lblQuoteTip = new StyledTipLabel(en
             ? new string[] { "Alt + Ctrl + wheel", "Alt + drag" }
             : new string[] { "Alt + Ctrl + 滚轮", "Alt + 拖拽" });
@@ -2300,7 +2300,7 @@ internal sealed class SettingsDialog : Form
             : "提示：在桌面金句文字上按住 Alt + 拖拽，Alt + Ctrl + 滚轮缩放字号。";
         lblQuoteTip.ForeColor = AppContext.Win11TextSecondary;
         lblQuoteTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblQuoteTip.SetBounds(16, 424, 348, 22);
+        lblQuoteTip.SetBounds(16, 408, 348, 22);
         Controls.Add(lblQuoteTip);
 
 
@@ -3597,7 +3597,7 @@ internal sealed class SettingsDialog : Form
         if (lblDailyQuote != null)
         {
             lblDailyQuote.Text = toEnglish ? "Show daily quote on desktop" : "在桌面常驻显示每日金句";
-            lblDailyQuote.SetBounds(18, 366, 296, 24);
+            lblDailyQuote.SetBounds(18, 176, 296, 24);
         }
         lblQuoteSize.Text = toEnglish ? "Text size" : "文字大小";
         lblQuoteFont.Text = toEnglish ? "Font style" : "字体样式";
@@ -3619,7 +3619,7 @@ internal sealed class SettingsDialog : Form
             int linkStart = saverLabel.IndexOf('[');
             int linkLen = saverLabel.Length - linkStart;
             lnkPreviewSaver.LinkArea = new LinkArea(linkStart < 0 ? 0 : linkStart, linkLen);
-            lnkPreviewSaver.SetBounds(18, 392, 148, 24);
+            lnkPreviewSaver.SetBounds(18, 380, 148, 24);
         }
         PopulateSaverWaitCombo(toEnglish); // also restores the selected option
         UpdateSaverTooltip(toEnglish);
