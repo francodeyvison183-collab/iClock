@@ -12062,9 +12062,33 @@ Examples:
     }
 
     private const string SaverRegKey = @"Control Panel\Desktop";
-    private const string SaverScrValue = "SCR";
+    // Windows launches whatever SCRNSAVE.EXE names. "SCR" is written alongside it
+    // because some tools (and older Windows builds) read that name instead — writing
+    // only SCR is what silently disabled the saver here: the idle timer fired, found
+    // no screensaver, and did nothing.
+    private const string SaverScrValue = "SCRNSAVE.EXE";
+    private const string SaverScrLegacyValue = "SCR";
     private const string SaverActiveValue = "ScreenSaveActive";
     private const string SaverTimeoutValue = "ScreenSaveTimeOut";
+
+    // What Windows is actually configured to run, tolerating either value name.
+    private static string ReadSaverScr()
+    {
+        string current = ReadSaverRegValue(SaverScrValue);
+        if (string.IsNullOrEmpty(current)) current = ReadSaverRegValue(SaverScrLegacyValue);
+        return current ?? "";
+    }
+
+    private static bool SaverScrIsOurs()
+    {
+        return string.Equals(ReadSaverScr(), SaverScrPath, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void WriteSaverScr(string path)
+    {
+        WriteSaverRegValue(SaverScrValue, path);
+        WriteSaverRegValue(SaverScrLegacyValue, path);
+    }
 
     private static string ReadSaverRegValue(string name)
     {
@@ -12114,7 +12138,7 @@ Examples:
         try
         {
             if (settings == null || !settings.QuoteSaverEnabled) return;
-            string current = ReadSaverRegValue(SaverScrValue);
+            string current = ReadSaverScr();
             if (!string.IsNullOrEmpty(current) &&
                 !string.Equals(current, SaverScrPath, StringComparison.OrdinalIgnoreCase)) return;
             ApplySaverRegistry(settings);
@@ -12124,25 +12148,28 @@ Examples:
 
     // Enable: point the Windows screensaver at iClock.scr and turn it on. The
     // user's previous values are captured once so RestoreSaverRegistry can put
-    // them back on opt-out. Backup format: "SCR\x1fActive\x1fTimeout".
+    // them back on opt-out. Backup format: "v2\x1fSCRNSAVE.EXE\x1fSCR\x1fActive\x1fTimeout";
+    // older installs still hold the pre-fix 3-part "SCR\x1fActive\x1fTimeout".
     internal static bool ApplySaverRegistry(Settings settings)
     {
         if (!InstallSaverScr()) return false;
         try
         {
-            string currentScr = ReadSaverRegValue(SaverScrValue);
+            string currentScr = ReadSaverScr();
             // Capture the user's own screensaver settings the first time iClock
             // takes the registration over, so opting out can put them back.
             if (!string.Equals(currentScr, SaverScrPath, StringComparison.OrdinalIgnoreCase) &&
                 settings != null && string.IsNullOrEmpty(settings.SaverRegBackup))
             {
                 settings.SaverRegBackup = string.Join("\x1f",
-                    currentScr ?? "",
+                    "v2",
+                    ReadSaverRegValue(SaverScrValue) ?? "",
+                    ReadSaverRegValue(SaverScrLegacyValue) ?? "",
                     ReadSaverRegValue(SaverActiveValue) ?? "",
                     ReadSaverRegValue(SaverTimeoutValue) ?? "");
                 settings.Save();
             }
-            WriteSaverRegValue(SaverScrValue, SaverScrPath);
+            WriteSaverScr(SaverScrPath);
             WriteSaverRegValue(SaverActiveValue, "1");
             WriteSaverWaitSeconds(settings);
             BroadcastSaverRegChange();
@@ -12198,17 +12225,31 @@ Examples:
         {
             string backup = settings != null ? settings.SaverRegBackup ?? "" : "";
             string[] parts = backup.Split('\x1f');
-            if (parts.Length == 3)
+            if (parts.Length == 5 && parts[0] == "v2")
             {
-                RestoreOne(SaverScrValue, parts[0]);
+                RestoreOne(SaverScrValue, parts[1]);
+                RestoreOne(SaverScrLegacyValue, parts[2]);
+                RestoreOne(SaverActiveValue, parts[3]);
+                RestoreOne(SaverTimeoutValue, parts[4]);
+            }
+            else if (parts.Length == 3)
+            {
+                // Backup written before iClock knew Windows reads SCRNSAVE.EXE:
+                // only the legacy name was captured, so put that back and drop our
+                // own SCRNSAVE.EXE entry.
+                RestoreOne(SaverScrLegacyValue, parts[0]);
                 RestoreOne(SaverActiveValue, parts[1]);
                 RestoreOne(SaverTimeoutValue, parts[2]);
+                if (SaverScrIsOurs()) DeleteSaverRegValue(SaverScrValue);
             }
             else
             {
                 // No backup captured: only clear a selection that is still ours.
-                if (string.Equals(ReadSaverRegValue(SaverScrValue), SaverScrPath, StringComparison.OrdinalIgnoreCase))
+                if (SaverScrIsOurs())
+                {
                     DeleteSaverRegValue(SaverScrValue);
+                    DeleteSaverRegValue(SaverScrLegacyValue);
+                }
             }
             if (settings != null) { settings.SaverRegBackup = ""; settings.Save(); }
             BroadcastSaverRegChange();
