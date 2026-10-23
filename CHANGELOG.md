@@ -10,6 +10,10 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 - **每日格言 → 每日金句 (Daily Quotes renamed to Daily Golden Lines)**: user-facing Chinese wording now uses 「每日金句」 across the app UI (settings tab, desktop toggle, screensaver row, tooltips, AI expansion prompts and notices) and the current README / user guide / website copy. The desktop toggle label no longer carries the 「便签」 suffix. The AI expansion prompt now asks for `金句内容 | 作者或出处` lines, while the quote library itself (`quotes.txt`, CLI commands and settings keys) is unchanged, and the English UI keeps "Daily Quotes".
 
+### Fixed
+
+- **Countdown-end rest length is actually selectable (倒计时结束的休息时长终于能选)**: the popup's primary button used to carry the ▼ inside its text while the clickable zone was only the last 24 pixels of the button — the visible arrow sat *outside* that zone, so the preset menu was practically impossible to hit, and clicking the words「休息 10 分钟」started the break straight away. The arrow now lives in its own drawn zone (36px, separated by a hairline, highlighted on hover), the text stays centred in the remaining space, the menu marks the length in use with a ✓, and the zone is decided from the mouse-down position so it no longer depends on the order in which the framework raises Click and MouseClick. / 休息时长按钮的 ▼ 原本画在文字里，而可点区域只有最右侧 24px，可见箭头落在可点区之外，菜单几乎点不中，点文字反而直接开始休息。现在箭头独占一块 36px 的绘制区域（有分隔线、悬停高亮），文字在剩余空间居中，菜单用 ✓ 标出当前时长，点击区域改由按下位置判定，不再依赖 Click / MouseClick 的触发顺序。
+
 ### Removed
 
 - Removed the headless "let iClock run the agent for you" track of the quote expansion: iClock no longer spawns `claude -p` / `ollama run` (that path could only ever hit its 35-second timeout), the agent dropdown and its running/ready list, the `唤起窗口` window-activation helper, the `settings.AiAgentType` / `settings.AiAgentCustomCmd` keys and the now-unused agent-CLI helpers. The agent list in the Settings agent tab is untouched — it belongs to the skill installer.

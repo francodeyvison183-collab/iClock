@@ -3977,6 +3977,91 @@ internal sealed class SettingsDialog : Form
     }
 }
 
+/// <summary>
+/// Primary button that shows the chosen rest length and opens the preset
+/// menu from a dedicated arrow zone on its right edge. The arrow used to be
+/// part of the button text while the clickable zone was the last 24 pixels,
+/// so the visible arrow sat outside the area that opened the menu and the
+/// menu was practically impossible to hit. The zone is now drawn, separated
+/// by a hairline and highlighted on hover.
+/// </summary>
+internal sealed class RestLengthButton : Button
+{
+    public const int ArrowZoneWidth = 36;
+
+    private bool arrowHot;
+    private bool mouseInside;
+
+    public RestLengthButton()
+    {
+        FlatStyle = FlatStyle.Flat;
+        FlatAppearance.BorderSize = 0;
+        // The button paints itself: UserPaint plus an OnPaint that never
+        // calls the base, so ButtonBase's own drawing is skipped.
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+    }
+
+    /// <summary>Left edge of the arrow zone, in client coordinates.</summary>
+    public int ArrowZoneLeft { get { return Width - ArrowZoneWidth; } }
+
+    public bool InArrowZone(int x) { return x >= ArrowZoneLeft; }
+
+    protected override void OnMouseEnter(EventArgs e)
+    {
+        base.OnMouseEnter(e);
+        mouseInside = true;
+        Invalidate();
+    }
+
+    protected override void OnMouseMove(MouseEventArgs mevent)
+    {
+        base.OnMouseMove(mevent);
+        bool hot = InArrowZone(mevent.X);
+        if (hot != arrowHot)
+        {
+            arrowHot = hot;
+            Invalidate();
+        }
+    }
+
+    protected override void OnMouseLeave(EventArgs e)
+    {
+        base.OnMouseLeave(e);
+        mouseInside = false;
+        arrowHot = false;
+        Invalidate();
+    }
+
+    protected override void OnPaint(PaintEventArgs pevent)
+    {
+        Graphics g = pevent.Graphics;
+        Color face = BackColor;
+        if (mouseInside)
+        {
+            Color hover = FlatAppearance.MouseOverBackColor;
+            if (hover != Color.Empty && hover != BackColor) face = hover;
+        }
+        g.Clear(face);
+        if (arrowHot)
+        {
+            using (SolidBrush hot = new SolidBrush(ControlPaint.Dark(face, 0.18f)))
+                g.FillRectangle(hot, ArrowZoneLeft, 0, ArrowZoneWidth, Height);
+        }
+        // The text keeps the centred look it had before the arrow was split
+        // off: it is centred in the space that is left of the arrow zone.
+        TextRenderer.DrawText(g, Text, Font, new Rectangle(0, 0, ArrowZoneLeft, Height), ForeColor,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+        using (Pen separator = new Pen(Color.FromArgb(90, 255, 255, 255)))
+            g.DrawLine(separator, ArrowZoneLeft - 0.5f, 8, ArrowZoneLeft - 0.5f, Height - 8);
+        // A small filled triangle instead of a glyph: it stays crisp at any
+        // DPI and cannot fall back to a missing-glyph box.
+        float cx = ArrowZoneLeft + ArrowZoneWidth / 2f;
+        float cy = Height / 2f;
+        using (SolidBrush arrow = new SolidBrush(arrowHot ? Color.White : Color.FromArgb(210, 255, 255, 255)))
+            g.FillPolygon(arrow, new PointF[] { new PointF(cx - 5f, cy - 3f), new PointF(cx + 5f, cy - 3f), new PointF(cx, cy + 3f) });
+    }
+}
+
 internal sealed class NoticeDialog : Form
 {
     private readonly Settings settings;
@@ -3987,11 +4072,13 @@ internal sealed class NoticeDialog : Form
 
     private IntPtr targetHwnd;
     private bool isAgentNotice;
-    // Chosen rest length shown on the "休息 N 分钟 ▾" button (popup-editable).
+    // Chosen rest length shown on the "休息 N 分钟" button (arrow zone opens a preset menu).
     private int restMinutes = 10;
-    // Guards the rest button: menu-opening clicks must not also raise Click
-    // (AcceptButton uses PerformClick, which raises Click without MouseClick).
-    private bool suppressRaiseClick;
+    // Kept alive for the lifetime of the popup: a tooltip held only by a
+    // local can be collected and silently stop showing.
+    private ToolTip restTip;
+    // The preset menu, kept as a field so the arrow zone can be tested.
+    private ContextMenuStrip restMenu;
 
     public NoticeDialog(Settings s, DateTime finishedAt) : this(s, finishedAt, null, IntPtr.Zero, null) { }
 
@@ -4061,25 +4148,31 @@ internal sealed class NoticeDialog : Form
         if (onStartRest != null)
         {
             // Rest length is user-adjustable right here on the popup: the
-            // primary button shows the current length and a ▼ opens a preset
-            // menu (5/10/15/20/30 + any saved custom value). Picking one
-            // updates the label and persists it; plain click starts the rest
-            // with the currently displayed length.
+            // primary button shows the current length and the arrow zone on
+            // its right edge opens a preset menu (5/10/15/20/30 plus any
+            // saved custom value). Picking one updates the label and persists
+            // it; a click on the text starts the rest with the length shown.
             restMinutes = Math.Max(1, Math.Min(60, s.RestMinutes > 0 ? s.RestMinutes : 10));
-            Button btnRest = new Button();
-            btnRest.Text = string.Format(en ? "Rest ({0} min) ▾" : "休息 {0} 分钟 ▾", restMinutes);
+            RestLengthButton btnRest = new RestLengthButton();
+            btnRest.Text = string.Format(en ? "Rest ({0} min)" : "休息 {0} 分钟", restMinutes);
             btnRest.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-            btnRest.SetBounds(35, 150, 130, 36);
+            btnRest.SetBounds(30, 150, 150, 36);
             AppContext.StylePrimaryButton(btnRest);
 
-            ContextMenuStrip restMenu = new ContextMenuStrip();
+            restMenu = new ContextMenuStrip();
             restMenu.ShowImageMargin = false;
+            List<int> restItemMinutes = new List<int>();
+            List<ToolStripMenuItem> restItems = new List<ToolStripMenuItem>();
             Action<int> pickRest = delegate(int mins)
             {
                 restMinutes = Math.Max(1, Math.Min(60, mins));
-                btnRest.Text = string.Format(en ? "Rest ({0} min) ▾" : "休息 {0} 分钟 ▾", restMinutes);
+                btnRest.Text = string.Format(en ? "Rest ({0} min)" : "休息 {0} 分钟", restMinutes);
+                btnRest.Invalidate();
                 s.RestMinutes = restMinutes;
                 try { s.Save(); } catch { }
+                // Mark the length in use so the menu shows what is active.
+                for (int i = 0; i < restItems.Count; i++)
+                    restItems[i].Text = string.Format(en ? "{0} minutes" : "{0} 分钟", restItemMinutes[i]) + (restItemMinutes[i] == restMinutes ? "  ✓" : "");
             };
             int[] presets = { 5, 10, 15, 20, 30 };
             foreach (int p in presets)
@@ -4088,6 +4181,8 @@ internal sealed class NoticeDialog : Form
                 ToolStripMenuItem it = new ToolStripMenuItem(string.Format(en ? "{0} minutes" : "{0} 分钟", mins));
                 it.Click += delegate { pickRest(mins); };
                 restMenu.Items.Add(it);
+                restItemMinutes.Add(mins);
+                restItems.Add(it);
             }
             if (Array.IndexOf(presets, restMinutes) < 0)
             {
@@ -4096,32 +4191,38 @@ internal sealed class NoticeDialog : Form
                 ToolStripMenuItem custom = new ToolStripMenuItem(string.Format(en ? "{0} minutes" : "{0} 分钟", mins));
                 custom.Click += delegate { pickRest(mins); };
                 restMenu.Items.Add(custom);
+                restItemMinutes.Add(mins);
+                restItems.Add(custom);
             }
-            btnRest.ContextMenuStrip = restMenu;
-            // One dispatcher for all LIVE mouse clicks on the button: left click
-            // near the ▾ opens the preset menu, right click opens it anywhere
-            // else, and a plain left click (not near the arrow) starts the rest.
-            // Enter via AcceptButton raises Click only, so the menu-open paths
-            // set suppressRaiseClick and the Click handler below skips them.
+            for (int i = 0; i < restItems.Count; i++)
+                if (restItemMinutes[i] == restMinutes) restItems[i].Text += "  ✓";
+
+            restTip = new ToolTip();
+            restTip.SetToolTip(btnRest, en ? "Click to start the break · click the arrow to change the length" : "点击开始休息 · 点击箭头更换时长");
+
+            // The zone is decided from the mouse-down position, so it holds
+            // no matter whether the framework raises Click before or after
+            // MouseClick. Enter via AcceptButton raises Click only, so it
+            // always starts the rest.
+            int pressX = -1;
+            btnRest.MouseDown += delegate(object sender, MouseEventArgs me) { pressX = me.X; };
             btnRest.MouseClick += delegate(object sender, MouseEventArgs me)
             {
                 if (me.Button == MouseButtons.Right)
                 {
-                    suppressRaiseClick = true;
-                    restMenu.Show(btnRest, new Point(0, btnRest.Height));
-                    return;
+                    pressX = -1;
+                    restMenu.Show(Cursor.Position);
                 }
-                if (me.Button == MouseButtons.Left && me.X > btnRest.Width - 24)
-                {
-                    suppressRaiseClick = true;
-                    restMenu.Show(btnRest, new Point(btnRest.Width - restMenu.Width, btnRest.Height));
-                    return;
-                }
-                suppressRaiseClick = false;
             };
             btnRest.Click += delegate
             {
-                if (suppressRaiseClick) { suppressRaiseClick = false; return; }
+                int down = pressX;
+                pressX = -1;
+                if (down >= 0 && btnRest.InArrowZone(down))
+                {
+                    restMenu.Show(btnRest, new Point(btnRest.Width - restMenu.Width, btnRest.Height));
+                    return;
+                }
                 Close();
                 onStartRest();
             };
@@ -4130,7 +4231,7 @@ internal sealed class NoticeDialog : Form
             Button btn = new Button();
             btn.Text = en ? "OK" : "确定";
             btn.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-            btn.SetBounds(185, 150, 130, 36);
+            btn.SetBounds(195, 150, 125, 36);
             AppContext.StyleSecondaryButton(btn);
             btn.Click += delegate { Close(); };
             Controls.Add(btn);
