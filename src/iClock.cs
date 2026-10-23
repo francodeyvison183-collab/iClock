@@ -2290,7 +2290,7 @@ internal sealed class SettingsDialog : Form
         UpdateSaverTooltip(en);
         Controls.Add(quoteSaverWaitCombo);
 
-        // Section 3: Tip (Y = 408)
+        // Section 3: Tip (Y = 414) — same 34px pitch as the rows above.
         lblQuoteTip = new StyledTipLabel(en
             ? new string[] { "Alt + Ctrl + wheel", "Alt + drag" }
             : new string[] { "Alt + Ctrl + 滚轮", "Alt + 拖拽" });
@@ -2300,7 +2300,7 @@ internal sealed class SettingsDialog : Form
             : "提示：在桌面金句文字上按住 Alt + 拖拽，Alt + Ctrl + 滚轮缩放字号。";
         lblQuoteTip.ForeColor = AppContext.Win11TextSecondary;
         lblQuoteTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblQuoteTip.SetBounds(16, 408, 348, 22);
+        lblQuoteTip.SetBounds(16, 414, 348, 22);
         Controls.Add(lblQuoteTip);
 
 
