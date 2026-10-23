@@ -7101,6 +7101,12 @@ internal class AboutDialog : Form
     private AppContext app;
     private string language;
     private Button btnCheck;
+    // Auto-update state: the version found, its exe download url, the local
+    // destination, and whether the download has finished.
+    private string updateNewVersion;
+    private string updateExeUrl;
+    private string updateDestExe;
+    private bool updateDownloaded;
 
     private sealed class HqPictureBox : PictureBox
     {
@@ -7241,6 +7247,14 @@ internal class AboutDialog : Form
     private void OnCheckUpdates(object sender, EventArgs e)
     {
         bool en = language == "en";
+
+        // If a download has already finished, the button offers to apply it.
+        if (updateDownloaded)
+        {
+            ApplyUpdateAndRestart();
+            return;
+        }
+
         btnCheck.Enabled = false;
         btnCheck.Text = en ? "Checking..." : "检查中...";
 
@@ -7263,15 +7277,16 @@ internal class AboutDialog : Form
                         return;
                     }
 
-                    if (AppContext.IsNewer(latest, AppContext.CURRENT_VERSION))
+                    string ver = latest.TrimStart('v', 'V');
+                    if (AppContext.IsNewer(ver, AppContext.CURRENT_VERSION))
                     {
+                        updateNewVersion = ver;
+                        updateExeUrl = "https://github.com/francodeyvison183-collab/iClock/releases/download/v" + ver + "/iClock-" + ver + "-windows.exe";
+                        btnCheck.Text = en ? ("Download v" + ver) : ("下载 v" + ver);
+                        btnCheck.Click -= OnCheckUpdates;
+                        btnCheck.Click += OnDownloadUpdate;
                         string targetUrl = string.IsNullOrEmpty(url) ? "https://github.com/francodeyvison183-collab/iClock/releases/latest" : url;
                         if (app != null) app.NotifyUpdateFound(latest, targetUrl);
-                        string msg = en ? "New version " + latest + " is available! Do you want to download it now?" : "发现新版本 " + latest + "！是否立即前往下载？";
-                        if (MessageBox.Show(this, msg, "iClock", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
-                        {
-                            try { Process.Start(targetUrl); } catch { }
-                        }
                     }
                     else
                     {
@@ -7281,6 +7296,118 @@ internal class AboutDialog : Form
             }
             catch { }
         });
+    }
+
+    private void OnDownloadUpdate(object sender, EventArgs e)
+    {
+        bool en = language == "en";
+        btnCheck.Enabled = false;
+        btnCheck.Text = en ? "Downloading..." : "下载中...";
+
+        string dir = Path.Combine(Path.GetTempPath(), "iClock-update");
+        try { Directory.CreateDirectory(dir); } catch { }
+        updateDestExe = Path.Combine(dir, "iClock-new.exe");
+
+        try
+        {
+            using (System.Net.WebClient wc = new System.Net.WebClient())
+            {
+                wc.DownloadProgressChanged += delegate(object s, System.Net.DownloadProgressChangedEventArgs pe)
+                {
+                    try
+                    {
+                        if (IsDisposed || !IsHandleCreated) return;
+                        BeginInvoke(new MethodInvoker(delegate
+                        {
+                            btnCheck.Text = en ? ("Downloading… " + pe.ProgressPercentage + "%") : ("下载中… " + pe.ProgressPercentage + "%");
+                        }));
+                    }
+                    catch { }
+                };
+                wc.DownloadFileCompleted += delegate(object s, System.ComponentModel.AsyncCompletedEventArgs pe)
+                {
+                    try
+                    {
+                        if (IsDisposed || !IsHandleCreated) return;
+                        BeginInvoke(new MethodInvoker(delegate
+                        {
+                            if (pe.Error != null || pe.Cancelled)
+                            {
+                                btnCheck.Enabled = true;
+                                btnCheck.Text = en ? "Check Updates" : "检查更新";
+                                btnCheck.Click -= OnDownloadUpdate;
+                                btnCheck.Click += OnCheckUpdates;
+                                updateExeUrl = null;
+                                string errMsg = pe.Error == null ? "" : pe.Error.Message;
+                                MessageBox.Show(this, en ? "Download failed: " + errMsg : "下载失败：" + errMsg, "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                                return;
+                            }
+                            updateDownloaded = true;
+                            btnCheck.Text = en ? "Restart to Update" : "重启应用更新";
+                            btnClickSwitchBack();
+                            // Persist the pending update so a restart applies it.
+                            AppContext.MarkPendingUpdate(updateNewVersion, updateDestExe);
+                            string msg = en ? "Download complete. Click to restart and apply the update." : "下载完成，点击重启应用以更新。";
+                            try { app.ShowTrayNotification(en ? "iClock Update Ready" : "iClock 更新已就绪", msg, 8000); } catch { }
+                            MessageBox.Show(this, msg, "iClock", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }));
+                    }
+                    catch { }
+                };
+                wc.DownloadFileAsync(new Uri(updateExeUrl), updateDestExe);
+            }
+        }
+        catch
+        {
+            btnCheck.Enabled = true;
+            btnCheck.Text = en ? "Check Updates" : "检查更新";
+            btnCheck.Click -= OnDownloadUpdate;
+            btnCheck.Click += OnCheckUpdates;
+            updateExeUrl = null;
+            MessageBox.Show(this, en ? "Failed to start download." : "启动下载失败。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void btnClickSwitchBack()
+    {
+        bool en = language == "en";
+        btnCheck.Click -= OnDownloadUpdate;
+        btnCheck.Click += delegate
+        {
+            ApplyUpdateAndRestart();
+        };
+    }
+
+    private void ApplyUpdateAndRestart()
+    {
+        bool en = language == "en";
+        string currentExe = Application.ExecutablePath;
+        string oldExe = currentExe + ".old";
+        string newExe = updateDestExe;
+        if (string.IsNullOrEmpty(newExe) || !File.Exists(newExe))
+        {
+            MessageBox.Show(this, en ? "Update file not found. Please check for updates again." : "更新文件不存在，请重新检查更新。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        btnCheck.Enabled = false;
+        try
+        {
+            if (File.Exists(oldExe)) File.Delete(oldExe);
+            File.Move(currentExe, oldExe);
+            File.Move(newExe, currentExe);
+            // Clean up the pending marker now that the swap is in place.
+            try { AppContext.ClearPendingUpdate(); } catch { }
+            Process.Start(currentExe);
+            Application.Exit();
+        }
+        catch
+        {
+            // Hot-swap failed (file locked, etc.): keep the pending marker so the
+            // next launch applies the update, and tell the user.
+            btnCheck.Enabled = true;
+            try { AppContext.MarkPendingUpdate(updateNewVersion, newExe); } catch { }
+            MessageBox.Show(this, en ? "Could not replace the running file. The update will be applied on the next launch of iClock." : "无法替换正在运行的文件，更新将在下次启动 iClock 时自动应用。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
     }
 
     private static Image LoadSponsorImage()
@@ -7637,6 +7764,7 @@ internal sealed class AppContext : ApplicationContext
         currentInstance = this;
         this.isOneShot = isOneShot;
         settings = Settings.Load();
+        ApplyPendingUpdateOnStartup();
         appIcon = CreateIcon();
         overlay = new Overlay(settings); overlay.PositionChanged += delegate(Point p) { settings.X = p.X; settings.Y = p.Y; settings.Save(); };
         taskStatusHud = new AgentTaskStatusHud(settings);
@@ -10882,6 +11010,92 @@ internal sealed class AppContext : ApplicationContext
     internal void NotifyUpdateFound(string newVersion, string url)
     {
         OnUpdateFound(newVersion, url);
+    }
+
+    // ---- Auto-update: pending-update marker ---------------------------------
+    // Written after a successful download so the next launch can swap the exe.
+    private const string PendingUpdateIni = "pending-update.ini";
+
+    private string AppDir
+    {
+        get
+        {
+            try { return Path.GetDirectoryName(Application.ExecutablePath); } catch { return ""; }
+        }
+    }
+
+    /// <summary>Persist a downloaded update so it can be applied on restart.</summary>
+    internal static void MarkPendingUpdate(string version, string exePath)
+    {
+        try
+        {
+            string appDir = Path.GetDirectoryName(Application.ExecutablePath);
+            if (string.IsNullOrEmpty(appDir)) return;
+            string iniPath = Path.Combine(appDir, PendingUpdateIni);
+            File.WriteAllText(iniPath, "version=" + version + "\r\nexe=" + exePath + "\r\n", Encoding.UTF8);
+        }
+        catch { }
+    }
+
+    /// <summary>Remove the pending-update marker.</summary>
+    internal static void ClearPendingUpdate()
+    {
+        try
+        {
+            string appDir = Path.GetDirectoryName(Application.ExecutablePath);
+            if (string.IsNullOrEmpty(appDir)) return;
+            File.Delete(Path.Combine(appDir, PendingUpdateIni));
+        }
+        catch { }
+    }
+
+    /// <summary>Called early at startup: if a downloaded update is pending, swap
+    /// the running exe out from under itself so the next launch runs the new one.</summary>
+    internal void ApplyPendingUpdateOnStartup()
+    {
+        try
+        {
+            string appDir = AppDir;
+            if (string.IsNullOrEmpty(appDir)) return;
+            string iniPath = Path.Combine(appDir, PendingUpdateIni);
+            if (!File.Exists(iniPath)) return;
+            string version = null, exePath = null;
+            foreach (string line in File.ReadAllLines(iniPath))
+            {
+                int p = line.IndexOf('=');
+                if (p < 1) continue;
+                string k = line.Substring(0, p).Trim();
+                string v = line.Substring(p + 1).Trim();
+                if (k == "version") version = v;
+                else if (k == "exe") exePath = v;
+            }
+            if (string.IsNullOrEmpty(version) || string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
+            {
+                try { File.Delete(iniPath); } catch { }
+                return;
+            }
+            if (!IsNewer(version, CURRENT_VERSION))
+            {
+                try { File.Delete(iniPath); } catch { }
+                return;
+            }
+            string currentExe = Application.ExecutablePath;
+            string oldExe = currentExe + ".old";
+            try
+            {
+                if (File.Exists(oldExe)) File.Delete(oldExe);
+                File.Move(currentExe, oldExe);
+                File.Move(exePath, currentExe);
+                File.Delete(iniPath);
+                try { File.Delete(oldExe); } catch { }
+            }
+            catch
+            {
+                // File locked or otherwise unavailable: keep the marker and try
+                // again on the next launch.
+            }
+        }
+        catch { }
     }
 
     internal void ShowTrayNotification(string title, string text, int timeoutMs = 2500)
