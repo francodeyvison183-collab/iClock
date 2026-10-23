@@ -4,6 +4,16 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 ## [Unreleased]
 
+## [1.11] - 2026-10-23
+
+### Added
+
+- **每日金句屏保 (Daily Quotes Screensaver)**: iClock can register itself as the Windows screensaver and show the day's quote full-screen.
+  - The quote page now leads with the master switch, the screensaver toggle is a single switch (default **off**), and the idle wait moved into a dropdown in the quote page — right-click the toggle for 1 / 5 / 10 / 15 / 30 minutes.
+  - The wait time is written to `SCRNSAVE.EXE` (the value Windows actually reads) as well as the registry, and `/s` launches are logged to `saver.log` so a Windows-side launch failure can be diagnosed.
+  - A **预览 (Preview)** button launches the real screensaver (mouse or Esc exits), so the preview is what you get by construction instead of a lookalike.
+  - The screensaver follows the configured quote font size, anchors the text block by its centre at 38% of screen height, draws text only (no card frame) on black, and paints a 32px brand mark over a soft accent halo.
+
 ### Changed
 
 - **AI 扩充金句改为「一段指令，任意智能体」**: the expansion dialog no longer lists or picks an agent. It builds one instruction, copies it to the clipboard (`复制指令`), and waits; the agent you are already using imports the quotes through the iClock command line (`--quote-add`), exactly as before. The dialog now shows the keyword box, the quote count (5–100) and one instruction line, and the waiting view spells out the three steps instead of naming an agent. The window was tightened to **380 × 280** while doing so. / 扩充弹窗不再列出或选择智能体，只负责生成指令、复制到剪贴板并等待入库——导入仍由智能体执行 iClock 命令行完成，与此前一致；弹窗同时收紧为 380 × 280。
@@ -13,11 +23,27 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 ### Fixed
 
 - **Countdown-end rest length is actually selectable (倒计时结束的休息时长终于能选)**: the popup's primary button used to carry the ▼ inside its text while the clickable zone was only the last 24 pixels of the button — the visible arrow sat *outside* that zone, so the preset menu was practically impossible to hit, and clicking the words「休息 10 分钟」started the break straight away. The arrow now lives in its own drawn zone (36px, separated by a hairline, highlighted on hover), the text stays centred in the remaining space, the menu marks the length in use with a ✓, and the zone is decided from the mouse-down position so it no longer depends on the order in which the framework raises Click and MouseClick. / 休息时长按钮的 ▼ 原本画在文字里，而可点区域只有最右侧 24px，可见箭头落在可点区之外，菜单几乎点不中，点文字反而直接开始休息。现在箭头独占一块 36px 的绘制区域（有分隔线、悬停高亮），文字在剩余空间居中，菜单用 ✓ 标出当前时长，点击区域改由按下位置判定，不再依赖 Click / MouseClick 的触发顺序。
+- The screensaver's startup self-heal no longer resets the idle wait time, and the desktop-note toggle label is no longer clipped.
+- The agent rows in the Settings agent tab draw their dividers across the full card width and right-align the install button.
 
 ### Removed
 
 - Removed the headless "let iClock run the agent for you" track of the quote expansion: iClock no longer spawns `claude -p` / `ollama run` (that path could only ever hit its 35-second timeout), the agent dropdown and its running/ready list, the `唤起窗口` window-activation helper, the `settings.AiAgentType` / `settings.AiAgentCustomCmd` keys and the now-unused agent-CLI helpers. The agent list in the Settings agent tab is untouched — it belongs to the skill installer.
 - Removed the iClock MCP server and its agent-side tool/configuration workflow. Desktop collaboration is available through CLI commands with structured `--json` responses. Existing agent MCP entries are not migrated or deleted automatically.
+
+## [1.10] - 2026-10-21
+
+### Changed
+
+- **AI Collaboration Page Revamp (AI 协作页重构)**: the page was reordered as value → master switch → install skill, skills are installed per agent into that agent's own directory, and only the running agents are listed, each row doubling as its install state.
+- **Minimal Task Status HUD (极简任务状态浮层)**: the progress overlay lost its card, agent name and frame, gained real per-pixel alpha, and can now be moved, resized and re-styled with Alt (drag, edge drag, Ctrl+Alt+wheel), with the edits persisted.
+- **AI Quote Expansion Dialog (AI 扩充金句对话框)**: the preference became a free-form multi-line box (keywords or a whole sentence), and a quote count (5–100, default 30) was added and parameterised into the prompt.
+- **Daily Quote Persistence (每日金句持久化)**: the quote shown today is remembered, so the settings preview, the desktop pager and a restart all show the same line, and a new day continues from the next one.
+- **Quote Color Palette Independence (金句颜色独立色板)**: the quote colour decoupled from the countdown colour (default warm orange `#F77F00`) with its own 8-colour soft palette; the task HUD follows the quote colour.
+
+### Added
+
+- **Two Ways to Enable Collaboration (两种启用方式)**: install the skill for a durable setup, or copy a one-off instruction to the current session.
 
 ## [1.09] - 2026-10-19
 

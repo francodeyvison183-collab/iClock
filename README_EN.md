@@ -79,7 +79,7 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 
 ### Option A: Portable ZIP Archive (Recommended · Avoids browser false warnings)
 
-1. Download **`iClock-1.09-windows.zip`** from [GitHub Releases](../../releases/latest) (recommended to avoid SmartScreen warnings for unsigned `.exe` files).
+1. Download **`iClock-1.11-windows.zip`** from [GitHub Releases](../../releases/latest) (recommended to avoid SmartScreen warnings for unsigned `.exe` files).
 2. Extract the archive and double-click `iClock.exe` to run (100% portable, zero registry pollution).
 3. Upon launch, iClock sits quietly in the system tray ready for action.
 

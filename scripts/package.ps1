@@ -10,13 +10,13 @@ if (-not (Test-Path $exeSource)) {
     & (Join-Path $projectRoot 'build.ps1')
 }
 
-$targetExe = Join-Path $releaseDir 'iClock-1.10-windows.exe'
-$targetZip = Join-Path $releaseDir 'iClock-1.10-windows.zip'
-$targetSums = Join-Path $releaseDir 'iClock-1.10-SHA256SUMS.txt'
+$targetExe = Join-Path $releaseDir 'iClock-1.11-windows.exe'
+$targetZip = Join-Path $releaseDir 'iClock-1.11-windows.zip'
+$targetSums = Join-Path $releaseDir 'iClock-1.11-SHA256SUMS.txt'
 
 Copy-Item $exeSource $targetExe -Force
 
-$stage = Join-Path $env:TEMP 'iClock_v110_package_stage'
+$stage = Join-Path $env:TEMP 'iClock_v111_package_stage'
 if (Test-Path $stage) {
     Remove-Item $stage -Recurse -Force
 }
@@ -38,7 +38,7 @@ $zipHash = (Get-FileHash $targetZip -Algorithm SHA256).Hash.ToLowerInvariant()
 $exeSize = (Get-Item $targetExe).Length
 $zipSize = (Get-Item $targetZip).Length
 
-$sums = "$exeHash  iClock-1.10-windows.exe`r`n$zipHash  iClock-1.10-windows.zip`r`n"
+$sums = "$exeHash  iClock-1.11-windows.exe`r`n$zipHash  iClock-1.11-windows.zip`r`n"
 [System.IO.File]::WriteAllText($targetSums, $sums, [System.Text.Encoding]::ASCII)
 
 Write-Host "PACKAGE SUCCESS:"

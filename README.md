@@ -79,7 +79,7 @@
 
 ### 方式 A：绿色便携压缩包运行（官方推荐 · 防浏览器误报）
 
-1. 前往 [GitHub Releases](../../releases/latest) 下载 **`iClock-1.09-windows.zip` 便携压缩包**（推荐优先下载压缩包，可有效避免 Chrome / Edge 等浏览器对未签名独立 `.exe` 发出信任警告与 SmartScreen 误报拦截）。
+1. 前往 [GitHub Releases](../../releases/latest) 下载 **`iClock-1.11-windows.zip` 便携压缩包**（推荐优先下载压缩包，可有效避免 Chrome / Edge 等浏览器对未签名独立 `.exe` 发出信任警告与 SmartScreen 误报拦截）。
 2. 解压压缩包后，双击 `iClock.exe` 直接运行（绿色免安装，不写注册表垃圾）。
 3. 默认情况下，启动后倒计时处于待命状态（屏幕不显示文字）。
 
