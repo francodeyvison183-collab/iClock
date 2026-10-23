@@ -6582,7 +6582,7 @@ internal sealed class AiQuoteDialog : Form
         Font = AppContext.GetUiFont(lang, 9.5f);
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
-        Text = en ? "AI Quote Library Expansion" : "AI 扩充名言词库";
+        Text = en ? "AI Quote Library Expansion" : "AI 扩充金句库";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;
         MaximizeBox = false;
@@ -6639,7 +6639,7 @@ internal sealed class AiQuoteDialog : Form
         Controls.Add(panelSetup);
 
         Label lblHeader = new Label();
-        lblHeader.Text = en ? "✨ Expand Daily Quotes with AI" : "✨ AI 扩充名言词库";
+        lblHeader.Text = en ? "✨ Expand Daily Quotes with AI" : "✨ AI 扩充金句库";
         lblHeader.Font = AppContext.GetUiFont(lang, 11f, FontStyle.Bold);
         lblHeader.ForeColor = AppContext.Win11Accent;
         lblHeader.SetBounds(18, 12, 374, 22);
@@ -6990,7 +6990,7 @@ internal sealed class AiQuoteDialog : Form
         lblStatusTitle.Text = en ? "✨ Quotes Expansion Completed!" : "✨ 金句扩充完成！";
         lblCardMain.Text = en
             ? string.Format("Successfully added {0} new quotes to library!", count)
-            : string.Format("已成功将 {0} 条全新精选金句收录至名言词库！", count);
+            : string.Format("已成功将 {0} 条全新精选金句收录至金句库！", count);
         lblCardMain.ForeColor = Color.FromArgb(16, 124, 65);
 
         string preview = (sample != null && !string.IsNullOrEmpty(sample.Text))
