@@ -1845,7 +1845,8 @@ internal sealed class SettingsDialog : Form
     private Label lblQuoteSize, lblQuoteFont, lblQuoteColor, lblQuoteLayer, lblQuoteQuotes;
     private StyledTipLabel lblQuoteTip;
     private ComboBox quoteFontCombo, quoteColorCombo, quoteLayerCombo;
-    private ToggleSwitch quoteSaverToggle;
+    // The screensaver's on/off state and its idle wait are one control: "关闭" plus
+    // the minute options, the way macOS' screen saver offers "Never / 1 minute / ...".
     private ComboBox quoteSaverWaitCombo;
     private LinkLabel lnkPreviewSaver;
     private Label lblDailyQuote;
@@ -2256,9 +2257,10 @@ internal sealed class SettingsDialog : Form
             : "在桌面上常驻显示每日金句；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
         Controls.Add(dailyQuoteToggle);
 
-        // Screensaver row: label + idle-wait dropdown + on/off toggle. iClock owns
-        // the wait because Windows' own screen saver dialog only lists System32
-        // .scr files and so cannot show or edit this entry.
+        // Screensaver row: preview link + one dropdown that is both the on/off
+        // switch and the idle wait. iClock owns this because Windows' own screen
+        // saver dialog only lists System32 .scr files and so cannot show or edit
+        // this entry.
         lnkPreviewSaver = new LinkLabel();
         string saverLabel = SaverRowLabel(en);
         lnkPreviewSaver.Text = saverLabel;
@@ -2281,19 +2283,12 @@ internal sealed class SettingsDialog : Form
         quoteSaverWaitCombo.DropDownStyle = ComboBoxStyle.DropDownList;
         quoteSaverWaitCombo.DrawMode = DrawMode.OwnerDrawFixed;
         quoteSaverWaitCombo.ItemHeight = 22;
-        quoteSaverWaitCombo.SetBounds(172, 388, 136, 28);
+        quoteSaverWaitCombo.SetBounds(172, 388, 188, 28); // full column: this dropdown replaces the toggle too
         PopulateSaverWaitCombo(en);
-        quoteSaverWaitCombo.Enabled = Value.QuoteSaverEnabled;
         quoteSaverWaitCombo.DrawItem += OnDrawComboItem;
         quoteSaverWaitCombo.SelectedIndexChanged += OnSaverWaitChanged;
-        Controls.Add(quoteSaverWaitCombo);
-
-        quoteSaverToggle = new ToggleSwitch();
-        quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
-        quoteSaverToggle.SetBounds(322, 392, 40, 22);
-        quoteSaverToggle.CheckedChanged += OnQuoteSaverToggleChanged;
         UpdateSaverTooltip(en);
-        Controls.Add(quoteSaverToggle);
+        Controls.Add(quoteSaverWaitCombo);
 
         // Section 4: Tip (Y = 436)
         lblQuoteTip = new StyledTipLabel(en
@@ -2604,7 +2599,6 @@ internal sealed class SettingsDialog : Form
         btnEditQuotes.Visible = isQuote;
         if (lnkPreviewSaver != null) lnkPreviewSaver.Visible = isQuote;
         if (quoteSaverWaitCombo != null) quoteSaverWaitCombo.Visible = isQuote;
-        if (quoteSaverToggle != null) quoteSaverToggle.Visible = isQuote;
         if (btnAiQuotes != null) btnAiQuotes.Visible = isQuote;
         lblQuoteTip.Visible = isQuote;
         SyncQuoteStyleEnabled();
@@ -3090,44 +3084,48 @@ internal sealed class SettingsDialog : Form
         TriggerQuotePreview();
     }
     private void OnQuoteLayerChanged(object sender, EventArgs e) { TriggerQuotePreview(); }
-    private void OnQuoteSaverToggleChanged(object sender, EventArgs e)
+    // The dropdown is both the on/off switch and the idle wait, so one handler
+    // covers all three transitions: off, on, and moving the wait while on.
+    private void OnSaverWaitChanged(object sender, EventArgs e)
     {
-        // Toggle commit-first semantics: persist the choice, then take over (or give
-        // back) the Windows screensaver registration. Enabling registers
-        // iClock.scr (SCRNSAVE.EXE) so Windows runs the quote screen after the idle
-        // timeout; disabling restores whatever the user had before.
-        bool on = quoteSaverToggle != null && quoteSaverToggle.Checked;
-        if (quoteSaverWaitCombo != null) quoteSaverWaitCombo.Enabled = on;
-        Value.QuoteSaverEnabled = on;
+        if (quoteSaverWaitCombo == null || Value == null) return;
+        int idx = quoteSaverWaitCombo.SelectedIndex;
+        if (idx < 0) return;
+        bool en = language != null && language.SelectedIndex == 1;
+        bool wasOn = Value.QuoteSaverEnabled;
+        bool wantOn = idx > 0;
+        if (wantOn) Value.SaverMinutes = SaverWaitPresets[idx - 1];
+        Value.QuoteSaverEnabled = wantOn;
         Value.Save();
-        bool ok;
-        if (on) ok = Program.ApplySaverRegistry(Value);
-        else { Program.RestoreSaverRegistry(Value); ok = true; }
+        bool ok = true;
+        if (!wantOn) Program.RestoreSaverRegistry(Value);
+        else if (wasOn) Program.ApplySaverWait(Value); // only the wait moved: just push it
+        else ok = Program.ApplySaverRegistry(Value);
         if (!ok)
         {
-            if (quoteSaverToggle != null) quoteSaverToggle.Checked = false;
+            // Could not take over the Windows screensaver: fall back to 关闭 so the
+            // row never claims a state Windows is not actually in.
             Value.QuoteSaverEnabled = false;
             Value.Save();
+            SelectSaverWaitIndex(0);
             try
             {
                 MessageBox.Show(this,
-                    Value != null && Value.Language == "en"
-                        ? "Could not copy the screensaver file. Check disk permissions and try again."
-                        : "屏保文件复制失败，请检查目录权限后重试。",
+                    en ? "Could not copy the screensaver file. Check disk permissions and try again."
+                       : "屏保文件复制失败，请检查目录权限后重试。",
                     "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             catch { }
         }
+        UpdateSaverTooltip(en);
     }
-    // The wait time is the one thing the tooltip must keep current: the value lives
-    // on the toggle's right-click menu, not in any visible control.
+
     private void UpdateSaverTooltip(bool en)
     {
-        if (toolTip == null || quoteSaverToggle == null) return;
-        int mins = Value != null && Value.SaverMinutes > 0 ? Value.SaverMinutes : 10;
-        toolTip.SetToolTip(quoteSaverToggle, en
-            ? string.Format("Set iClock as the Windows screensaver: shows today's quote after {0} min idle; the dropdown beside it sets the wait. Windows' own lock screen (Win+L) cannot be replaced.", mins)
-            : string.Format("把 iClock 设为 Windows 屏保：空闲 {0} 分钟后全屏显示每日金句；左侧下拉框可改等待时间。Windows 锁屏（Win+L）是系统安全桌面，屏保无法替换它。", mins));
+        if (toolTip == null || quoteSaverWaitCombo == null) return;
+        toolTip.SetToolTip(quoteSaverWaitCombo, en
+            ? "Windows screensaver: shows today's quote in fullscreen after the chosen idle time. Windows' own lock screen (Win+L) cannot be replaced."
+            : "Windows 屏保：按所选空闲时间全屏显示每日金句。Windows 锁屏（Win+L）是系统安全桌面，屏保无法替换它。");
     }
 
     private static readonly int[] SaverWaitPresets = { 1, 5, 10, 15, 30 };
@@ -3138,19 +3136,31 @@ internal sealed class SettingsDialog : Form
         return en ? "Screensaver [Preview]" : "金句作为屏保 [预览]";
     }
 
-    // Refill the wait dropdown in the current language. The change handler is
-    // detached while the items are rebuilt: re-labelling must not look like the
-    // user picked a new wait and re-push the setting to Windows.
+    // Changing the selection without re-entering the change handler — used when a
+    // failed registration has to be rolled back to 关闭.
+    private void SelectSaverWaitIndex(int idx)
+    {
+        if (quoteSaverWaitCombo == null) return;
+        quoteSaverWaitCombo.SelectedIndexChanged -= OnSaverWaitChanged;
+        quoteSaverWaitCombo.SelectedIndex = idx;
+        quoteSaverWaitCombo.SelectedIndexChanged += OnSaverWaitChanged;
+    }
+
+    // Refill the dropdown in the current language. The change handler is detached
+    // while the items are rebuilt: re-labelling must not look like the user picked
+    // a new option and re-register the screensaver.
     private void PopulateSaverWaitCombo(bool en)
     {
         if (quoteSaverWaitCombo == null) return;
         int mins = Value != null && Value.SaverMinutes > 0 ? Value.SaverMinutes : 10;
         int sel = 0;
+        if (Value != null && Value.QuoteSaverEnabled)
+            for (int i = 0; i < SaverWaitPresets.Length; i++)
+                if (SaverWaitPresets[i] <= mins) sel = i + 1;
+        string[] items = new string[SaverWaitPresets.Length + 1];
+        items[0] = en ? "Off" : "关闭";
         for (int i = 0; i < SaverWaitPresets.Length; i++)
-            if (SaverWaitPresets[i] <= mins) sel = i;
-        string[] items = new string[SaverWaitPresets.Length];
-        for (int i = 0; i < SaverWaitPresets.Length; i++)
-            items[i] = string.Format(en ? "{0} min idle" : "空闲 {0} 分钟", SaverWaitPresets[i]);
+            items[i + 1] = string.Format(en ? "Start after {0} min idle" : "空闲 {0} 分钟后开启", SaverWaitPresets[i]);
         quoteSaverWaitCombo.SelectedIndexChanged -= OnSaverWaitChanged;
         quoteSaverWaitCombo.BeginUpdate();
         quoteSaverWaitCombo.Items.Clear();
@@ -3158,16 +3168,6 @@ internal sealed class SettingsDialog : Form
         quoteSaverWaitCombo.SelectedIndex = sel;
         quoteSaverWaitCombo.EndUpdate();
         quoteSaverWaitCombo.SelectedIndexChanged += OnSaverWaitChanged;
-    }
-
-    private void OnSaverWaitChanged(object sender, EventArgs e)
-    {
-        if (quoteSaverWaitCombo == null || Value == null) return;
-        int idx = quoteSaverWaitCombo.SelectedIndex;
-        if (idx < 0 || idx >= SaverWaitPresets.Length) return;
-        Value.SaverMinutes = SaverWaitPresets[idx];
-        Program.ApplySaverWait(Value);
-        UpdateSaverTooltip(language != null && language.SelectedIndex == 1);
     }
 
     private void OnPreviewSaverLinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
@@ -3621,8 +3621,7 @@ internal sealed class SettingsDialog : Form
             lnkPreviewSaver.LinkArea = new LinkArea(linkStart < 0 ? 0 : linkStart, linkLen);
             lnkPreviewSaver.SetBounds(18, 392, 148, 24);
         }
-        PopulateSaverWaitCombo(toEnglish);
-        if (quoteSaverToggle != null) quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
+        PopulateSaverWaitCombo(toEnglish); // also restores the selected option
         UpdateSaverTooltip(toEnglish);
         lblQuoteQuotes.Text = toEnglish ? "Quote library" : "名言词库";
         btnEditQuotes.Text = toEnglish ? "Edit Quotes" : "自定义…";
@@ -3805,7 +3804,7 @@ internal sealed class SettingsDialog : Form
         Value.QuoteFont = selectedQuoteFont ?? "";
         if (quoteFontSize != null) Value.QuoteFontSize = (float)quoteFontSize.Value;
         Value.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
-        Value.QuoteSaverEnabled = quoteSaverToggle != null && quoteSaverToggle.Checked;
+        Value.QuoteSaverEnabled = quoteSaverWaitCombo != null && quoteSaverWaitCombo.SelectedIndex > 0;
         return Value;
     }
 
@@ -3817,7 +3816,7 @@ internal sealed class SettingsDialog : Form
         Value.QuoteFont = selectedQuoteFont ?? "";
         if (quoteFontSize != null) Value.QuoteFontSize = (float)quoteFontSize.Value;
         Value.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
-        Value.QuoteSaverEnabled = quoteSaverToggle != null && quoteSaverToggle.Checked;
+        Value.QuoteSaverEnabled = quoteSaverWaitCombo != null && quoteSaverWaitCombo.SelectedIndex > 0;
         Value.Save();
     }
 
