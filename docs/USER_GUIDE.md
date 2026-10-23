@@ -44,7 +44,7 @@ Settings uses an authentic Windows 11 File Explorer multi-tab navigation / 设�
     - `桌面背景置底 (默认) / Desktop Layer (Default)`: Sits at `HWND_BOTTOM` directly above the wallpaper, serving as an ambient desk calendar that never covers windows or documents.
     - `始终置顶显示 / Always on Top`: Sets `HWND_TOPMOST` to float above active application windows.
     - *Smart Layering*: Morning 10-second wakeup popups always remain TopMost so open windows on boot do not hide them.
-  - **Quote library / 名言词库:** `自定义… (Edit Quotes)` button opens local `quotes.txt` in Notepad.
+  - **Quote library / 我的金句:** `自定义… (Edit Quotes)` button opens local `quotes.txt` in Notepad.
 - **Multi-Monitor Position Memory / 多显示器扩展屏位置记忆:**
   - Full support for multi-monitor setups including secondary screens placed to the left or above primary display (negative coordinates `QuoteX`/`QuoteY`). Automatically verifies visibility across `Screen.AllScreens` and recovers safely if a monitor is disconnected.
 

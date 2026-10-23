@@ -2238,7 +2238,7 @@ internal sealed class SettingsDialog : Form
         quoteLayerCombo.SelectedIndexChanged += OnQuoteLayerChanged;
 
         // Row 6: Quote Library (Y = 346)
-        lblQuoteQuotes = AddLabel(en ? "Quote library" : "名言词库", 18, 346);
+        lblQuoteQuotes = AddLabel(en ? "Quote library" : "我的金句", 18, 346);
         btnEditQuotes = new Button();
         btnEditQuotes.Text = en ? "Edit Quotes" : "自定义…";
         btnEditQuotes.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
@@ -2246,7 +2246,7 @@ internal sealed class SettingsDialog : Form
         AppContext.StyleSecondaryButton(btnEditQuotes);
         btnEditQuotes.Click += OnEditQuotesClick;
         if (toolTip == null) toolTip = new ToolTip();
-        toolTip.SetToolTip(btnEditQuotes, en ? "Open and edit quotes.txt in notepad" : "在记事本中自定义编辑名言 (quotes.txt)");
+        toolTip.SetToolTip(btnEditQuotes, en ? "Open and edit quotes.txt in notepad" : "在记事本中自定义编辑金句 (quotes.txt)");
         Controls.Add(btnEditQuotes);
 
         btnAiQuotes = new Button();
@@ -3628,7 +3628,7 @@ internal sealed class SettingsDialog : Form
         }
         PopulateSaverWaitCombo(toEnglish); // also restores the selected option
         UpdateSaverTooltip(toEnglish);
-        lblQuoteQuotes.Text = toEnglish ? "Quote library" : "名言词库";
+        lblQuoteQuotes.Text = toEnglish ? "Quote library" : "我的金句";
         btnEditQuotes.Text = toEnglish ? "Edit Quotes" : "自定义…";
         btnEditQuotes.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f);
         if (btnAiQuotes != null)
@@ -3649,7 +3649,7 @@ internal sealed class SettingsDialog : Form
         if (toolTip != null)
         {
             if (btnNextQuote != null) toolTip.SetToolTip(btnNextQuote, toEnglish ? "Next quote (↻)" : "换一句 (↻)");
-            toolTip.SetToolTip(btnEditQuotes, toEnglish ? "Open and edit quotes.txt in notepad" : "在记事本中自定义编辑名言 (quotes.txt)");
+            toolTip.SetToolTip(btnEditQuotes, toEnglish ? "Open and edit quotes.txt in notepad" : "在记事本中自定义编辑金句 (quotes.txt)");
             if (btnAiQuotes != null) toolTip.SetToolTip(btnAiQuotes, toEnglish ? "Generate quotes with AI Agent" : "通过 AI 智能体批量创作并扩充词库");
             if (dailyQuoteToggle != null) toolTip.SetToolTip(dailyQuoteToggle, toEnglish ? "Show the daily quote on the desktop; hold Alt + drag to move, drag edge to resize" : "在桌面上常驻显示每日金句；按住 Alt + 拖拽调整位置，拖动右边缘调节宽度");
         }
