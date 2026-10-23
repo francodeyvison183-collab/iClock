@@ -61,6 +61,10 @@ internal sealed class Settings
     // ScreenSaveTimeOut), captured before iClock takes them over so opting out can put
     // the user's own screensaver back. Empty when nothing was captured yet.
     public string SaverRegBackup = "";
+    // Idle wait before Windows starts the quote screensaver, in minutes. Windows' own
+    // screen saver dialog cannot list iClock (it only enumerates System32 .scr files),
+    // so iClock owns this value and writes ScreenSaveTimeOut itself.
+    public int SaverMinutes = 10;
     public int TaskStatusX = -99999;
     public int TaskStatusY = -99999;
     public float TaskStatusFontSize = 9.5f;
@@ -88,6 +92,7 @@ internal sealed class Settings
         QuoteIndex = src.QuoteIndex; QuoteDate = src.QuoteDate;
         QuoteSaverEnabled = src.QuoteSaverEnabled;
         SaverRegBackup = src.SaverRegBackup;
+        SaverMinutes = src.SaverMinutes > 0 ? src.SaverMinutes : 10;
         TaskStatusX = src.TaskStatusX; TaskStatusY = src.TaskStatusY;
         TaskStatusFontSize = src.TaskStatusFontSize > 0 ? src.TaskStatusFontSize : 9.5f;
         TaskStatusTextColor = src.TaskStatusTextColor; TaskStatusBarColor = src.TaskStatusBarColor;
@@ -173,6 +178,7 @@ internal sealed class Settings
                 else if (k == "QuoteDate") s.QuoteDate = v;
                 else if (k == "QuoteSaverEnabled" && bool.TryParse(v, out b)) s.QuoteSaverEnabled = b;
                 else if (k == "SaverRegBackup") s.SaverRegBackup = v;
+                else if (k == "SaverMinutes" && int.TryParse(v, out n)) s.SaverMinutes = (n >= 1 && n <= 60) ? n : 10;
                 else if (k == "QuoteSaverMode" && int.TryParse(v, out n)) s.QuoteSaverEnabled = n >= 1; // v1.11 迁移:旧三态 >=1 视为开启
                 else if (k == "TaskStatusX" && int.TryParse(v, out n)) s.TaskStatusX = n;
                 else if (k == "TaskStatusY" && int.TryParse(v, out n)) s.TaskStatusY = n;
@@ -207,6 +213,7 @@ internal sealed class Settings
             "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuotePinTopMost=" + QuotePinTopMost,
             "QuoteIndex=" + QuoteIndex, "QuoteDate=" + QuoteDate, "QuoteSaverEnabled=" + QuoteSaverEnabled,
             "SaverRegBackup=" + SaverRegBackup,
+            "SaverMinutes=" + SaverMinutes,
             "TaskStatusX=" + TaskStatusX, "TaskStatusY=" + TaskStatusY,
             "TaskStatusFontSize=" + (TaskStatusFontSize > 0 ? TaskStatusFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "9.5"),
             "TaskStatusTextColor=" + TaskStatusTextColor, "TaskStatusBarColor=" + TaskStatusBarColor,
@@ -2270,9 +2277,29 @@ internal sealed class SettingsDialog : Form
         quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
         quoteSaverToggle.SetBounds(322, 392, 40, 22);
         quoteSaverToggle.CheckedChanged += OnQuoteSaverToggleChanged;
-        toolTip.SetToolTip(quoteSaverToggle, en
-            ? "Set iClock as the Windows screensaver: shows today's quote after the idle time. Windows' own lock screen (Win+L) is a secure desktop a screensaver cannot replace."
-            : "把 iClock 设为 Windows 屏保：空闲指定时间后全屏显示每日金句。Windows 锁屏（Win+L）是系统安全桌面，屏保无法替换它。");
+        // Right-click the toggle to pick the idle wait. Windows' own screen saver
+        // dialog only lists System32 .scr files, so iClock has to own this value.
+        int[] waitPresets = { 1, 5, 10, 15, 30 };
+        ContextMenuStrip saverWaitMenu = new ContextMenuStrip();
+        saverWaitMenu.ShowImageMargin = false;
+        List<ToolStripMenuItem> waitItems = new List<ToolStripMenuItem>();
+        foreach (int p in waitPresets)
+        {
+            int mins = p;
+            ToolStripMenuItem it = new ToolStripMenuItem(string.Format(en ? "{0} minutes" : "{0} 分钟", mins));
+            it.Checked = Value.SaverMinutes == mins;
+            it.Click += delegate
+            {
+                Value.SaverMinutes = mins;
+                Program.ApplySaverWait(Value);
+                foreach (ToolStripMenuItem other in waitItems) other.Checked = other == it;
+                UpdateSaverTooltip(en);
+            };
+            waitItems.Add(it);
+            saverWaitMenu.Items.Add(it);
+        }
+        quoteSaverToggle.ContextMenuStrip = saverWaitMenu;
+        UpdateSaverTooltip(en);
         Controls.Add(quoteSaverToggle);
 
         // Section 4: Tip (Y = 436)
@@ -3097,6 +3124,17 @@ internal sealed class SettingsDialog : Form
             catch { }
         }
     }
+    // The wait time is the one thing the tooltip must keep current: the value lives
+    // on the toggle's right-click menu, not in any visible control.
+    private void UpdateSaverTooltip(bool en)
+    {
+        if (toolTip == null || quoteSaverToggle == null) return;
+        int mins = Value != null && Value.SaverMinutes > 0 ? Value.SaverMinutes : 10;
+        toolTip.SetToolTip(quoteSaverToggle, en
+            ? string.Format("Set iClock as the Windows screensaver: shows today's quote after {0} min idle; right-click to change. Windows' own lock screen (Win+L) cannot be replaced.", mins)
+            : string.Format("把 iClock 设为 Windows 屏保：空闲 {0} 分钟后全屏显示每日金句；右键可改等待时间。Windows 锁屏（Win+L）是系统安全桌面，屏保无法替换它。", mins));
+    }
+
     private void OnPreviewSaverLinkClicked(object sender, LinkLabelLinkClickedEventArgs e)
     {
         // WYSIWYG: the preview IS the real screensaver — full-screen black
@@ -3549,6 +3587,7 @@ internal sealed class SettingsDialog : Form
             lnkPreviewSaver.SetBounds(18, 392, 296, 24);
         }
         if (quoteSaverToggle != null) quoteSaverToggle.Checked = Value.QuoteSaverEnabled;
+        UpdateSaverTooltip(toEnglish);
         lblQuoteQuotes.Text = toEnglish ? "Quote library" : "名言词库";
         btnEditQuotes.Text = toEnglish ? "Edit Quotes" : "自定义…";
         btnEditQuotes.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f);
@@ -12024,10 +12063,6 @@ Examples:
     private const string SaverScrValue = "SCR";
     private const string SaverActiveValue = "ScreenSaveActive";
     private const string SaverTimeoutValue = "ScreenSaveTimeOut";
-    // 30 minutes: a first-run default only. ApplySaverRegistry writes it once, when
-    // iClock takes the registration over; whatever the user picks in Windows' own
-    // screen saver dialog afterwards is left alone.
-    private const string SaverIdleTimeoutSeconds = "1800";
 
     private static string ReadSaverRegValue(string name)
     {
@@ -12094,29 +12129,48 @@ Examples:
         try
         {
             string currentScr = ReadSaverRegValue(SaverScrValue);
-            // Already ours (startup self-heal, or the toggle was simply visited
-            // again): leave the wait time alone. The user may have picked their
-            // own value in Windows' screen saver dialog, and rewriting it on every
-            // launch would silently undo that.
-            bool alreadyOurs = string.Equals(currentScr, SaverScrPath, StringComparison.OrdinalIgnoreCase);
-            if (!alreadyOurs)
+            // Capture the user's own screensaver settings the first time iClock
+            // takes the registration over, so opting out can put them back.
+            if (!string.Equals(currentScr, SaverScrPath, StringComparison.OrdinalIgnoreCase) &&
+                settings != null && string.IsNullOrEmpty(settings.SaverRegBackup))
             {
-                if (settings != null && string.IsNullOrEmpty(settings.SaverRegBackup))
-                {
-                    settings.SaverRegBackup = string.Join("\x1f",
-                        currentScr ?? "",
-                        ReadSaverRegValue(SaverActiveValue) ?? "",
-                        ReadSaverRegValue(SaverTimeoutValue) ?? "");
-                    settings.Save();
-                }
-                WriteSaverRegValue(SaverTimeoutValue, SaverIdleTimeoutSeconds);
+                settings.SaverRegBackup = string.Join("\x1f",
+                    currentScr ?? "",
+                    ReadSaverRegValue(SaverActiveValue) ?? "",
+                    ReadSaverRegValue(SaverTimeoutValue) ?? "");
+                settings.Save();
             }
             WriteSaverRegValue(SaverScrValue, SaverScrPath);
             WriteSaverRegValue(SaverActiveValue, "1");
+            WriteSaverWaitSeconds(settings);
             BroadcastSaverRegChange();
             return true;
         }
         catch { return false; }
+    }
+
+    // The idle wait belongs to iClock, not to Windows: Windows' screen saver dialog
+    // only lists System32 .scr files, so it cannot show or edit iClock's entry.
+    private static void WriteSaverWaitSeconds(Settings settings)
+    {
+        int mins = settings != null && settings.SaverMinutes > 0 ? settings.SaverMinutes : 10;
+        mins = Math.Max(1, Math.Min(60, mins));
+        WriteSaverRegValue(SaverTimeoutValue, (mins * 60).ToString(CultureInfo.InvariantCulture));
+    }
+
+    // Called when the wait time is changed from the toggle's menu: persist it, and
+    // push it to Windows straight away when the saver is actually enabled.
+    internal static void ApplySaverWait(Settings settings)
+    {
+        try
+        {
+            if (settings == null) return;
+            settings.Save();
+            if (!settings.QuoteSaverEnabled) return;
+            WriteSaverWaitSeconds(settings);
+            BroadcastSaverRegChange();
+        }
+        catch { }
     }
 
     // Opt-out: put the captured values back (or remove ours when the user had
