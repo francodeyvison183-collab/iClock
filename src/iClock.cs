@@ -11832,9 +11832,11 @@ Examples:
             string firstRaw = args[0];
             if (string.Equals(firstRaw, "/s", StringComparison.OrdinalIgnoreCase))
             {
+                LogSaverEvent("start args=" + firstRaw + " entry=" + Assembly.GetExecutingAssembly().Location);
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
                 Application.Run(new QuoteScreensaverForm());
+                LogSaverEvent("exit");
                 return;
             }
             if (string.Equals(firstRaw, "/c", StringComparison.OrdinalIgnoreCase))
@@ -12149,6 +12151,21 @@ Examples:
         catch { return false; }
     }
 
+    // Diagnostics for the saver path: Windows launching a .scr is invisible from
+    // the tray app, and "the screen went black" cannot be told apart from the
+    // display powering down without a trace. Appends to saver.log next to iClock.scr.
+    internal static void LogSaverEvent(string message)
+    {
+        try
+        {
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "iClock");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "saver.log"),
+                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " pid=" + Process.GetCurrentProcess().Id + " " + message + "\r\n");
+        }
+        catch { }
+    }
+
     // The idle wait belongs to iClock, not to Windows: Windows' screen saver dialog
     // only lists System32 .scr files, so it cannot show or edit iClock's entry.
     private static void WriteSaverWaitSeconds(Settings settings)
@@ -12318,6 +12335,8 @@ internal sealed class QuoteScreensaverForm : Form
     {
         base.OnLoad(e);
         ForceForeground();
+        Program.LogSaverEvent(string.Format("form shown bounds={0} quotes={1} index={2}",
+            Bounds, saverQuotes != null ? saverQuotes.Count : 0, saverQuoteIndex));
     }
 
     private void ForceForeground()
