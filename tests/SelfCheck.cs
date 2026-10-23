@@ -2904,9 +2904,9 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: AiQuoteDialog title missing AI");
                 return 61;
             }
-            if (aiDlg.ClientSize.Width != 410 || aiDlg.ClientSize.Height != 360)
+            if (aiDlg.ClientSize.Width != 380 || aiDlg.ClientSize.Height != 280)
             {
-                Console.WriteLine("FAIL: AiQuoteDialog size should be 410x360, got: " + aiDlg.ClientSize.Width + "x" + aiDlg.ClientSize.Height);
+                Console.WriteLine("FAIL: AiQuoteDialog size should be 380x280, got: " + aiDlg.ClientSize.Width + "x" + aiDlg.ClientSize.Height);
                 return 61;
             }
             FieldInfo fTxtPreference = aiDlgType.GetField("txtPreference", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -2948,8 +2948,8 @@ internal static class TestCheck
             }
 
             // One footer baseline in both views: the setup buttons and every
-            // status view action sit at y=314, with the status card filling the
-            // space above them (38 + 262 = 300).
+            // status view action sit at y=234, with the status card filling the
+            // space above them (38 + 180 = 218).
             FieldInfo fCardC = aiDlgType.GetField("cardContainer", BindingFlags.NonPublic | BindingFlags.Instance);
             FieldInfo fBtnGenS = aiDlgType.GetField("btnGenerate", BindingFlags.NonPublic | BindingFlags.Instance);
             FieldInfo fBtnDoneS = aiDlgType.GetField("btnStatusDone", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -2963,8 +2963,8 @@ internal static class TestCheck
             showCompleted.Invoke(aiDlg, new object[] { 3, null });
             Panel cardLayout = (Panel)fCardC.GetValue(aiDlg);
             Button btnDoneLayout = (Button)fBtnDoneS.GetValue(aiDlg);
-            if (cardLayout.Height != 262 || cardLayout.Bottom != 300 ||
-                btnGenLayout.Top != 314 || btnDoneLayout.Top != 314)
+            if (cardLayout.Height != 180 || cardLayout.Bottom != 218 ||
+                btnGenLayout.Top != 234 || btnDoneLayout.Top != 234)
             {
                 Console.WriteLine("FAIL: AiQuoteDialog footer baseline drifted, cardBottom=" + cardLayout.Bottom +
                     " setupBtnTop=" + btnGenLayout.Top + " statusBtnTop=" + btnDoneLayout.Top);

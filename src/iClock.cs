@@ -6442,7 +6442,9 @@ internal sealed class AiQuoteDialog : Form
         MinimizeBox = false;
         ShowInTaskbar = false;
         ShowIcon = false;
-        ClientSize = new Size(410, 360);
+        // Compact on purpose: three fields do not need a tall window, and the
+        // status view reuses the same box for its own card.
+        ClientSize = new Size(380, 280);
 
         // Register event for realtime quote expansion callback
         AiAgentQuoteHelper.OnQuotesAdded += HandleQuotesAddedCallback;
@@ -6500,14 +6502,14 @@ internal sealed class AiQuoteDialog : Form
         lblHeader.Text = en ? "✨ Expand Daily Quotes with AI" : "✨ AI 扩充我的金句";
         lblHeader.Font = AppContext.GetUiFont(lang, 11f, FontStyle.Bold);
         lblHeader.ForeColor = AppContext.Win11Accent;
-        lblHeader.SetBounds(18, 12, 374, 22);
+        lblHeader.SetBounds(18, 12, 344, 22);
         panelSetup.Controls.Add(lblHeader);
 
         Label lblTags = new Label();
         lblTags.Text = en ? "Preference description or keywords:" : "偏好描述或关键词：";
         lblTags.Font = AppContext.GetUiFont(lang, 9f);
         lblTags.ForeColor = AppContext.Win11TextPrimary;
-        lblTags.SetBounds(18, 36, 374, 18);
+        lblTags.SetBounds(18, 36, 344, 18);
         panelSetup.Controls.Add(lblTags);
 
         txtPreference = new TextBox();
@@ -6516,8 +6518,8 @@ internal sealed class AiQuoteDialog : Form
         txtPreference.ScrollBars = ScrollBars.Vertical;
         txtPreference.Font = AppContext.GetUiFont(lang, 9f);
         // Without the agent picker this column has one input and one number, so
-        // the keyword box grows to fill the page it now owns.
-        txtPreference.SetBounds(18, 56, 374, 176);
+        // the keyword box gets the room the page has, not more.
+        txtPreference.SetBounds(18, 56, 344, 96);
         txtPreference.Text = currentKeywords != null && currentKeywords.Count > 0
             ? string.Join(Environment.NewLine, currentKeywords.ToArray())
             : "";
@@ -6527,7 +6529,7 @@ internal sealed class AiQuoteDialog : Form
         lblCount.Text = en ? "Quotes to generate:" : "扩充数量：";
         lblCount.Font = AppContext.GetUiFont(lang, 9f);
         lblCount.ForeColor = AppContext.Win11TextPrimary;
-        lblCount.SetBounds(18, 250, 90, 18);
+        lblCount.SetBounds(18, 168, 90, 18);
         panelSetup.Controls.Add(lblCount);
 
         nudQuoteCount = new NumericUpDown();
@@ -6537,7 +6539,7 @@ internal sealed class AiQuoteDialog : Form
         nudQuoteCount.Font = AppContext.GetUiFont(lang, 9f);
         int savedCount = settings != null && settings.AiQuoteCount > 0 ? settings.AiQuoteCount : 30;
         nudQuoteCount.Value = Math.Max(5, Math.Min(100, savedCount));
-        nudQuoteCount.SetBounds(112, 248, 80, 24);
+        nudQuoteCount.SetBounds(112, 168, 80, 24);
         panelSetup.Controls.Add(nudQuoteCount);
 
         // The range lives in the tooltip: the row reads as one sentence
@@ -6549,7 +6551,7 @@ internal sealed class AiQuoteDialog : Form
         lblCountUnit.Text = en ? "quotes" : "条";
         lblCountUnit.Font = AppContext.GetUiFont(lang, 8.5f);
         lblCountUnit.ForeColor = AppContext.Win11TextSecondary;
-        lblCountUnit.SetBounds(198, 250, 194, 18);
+        lblCountUnit.SetBounds(198, 168, 164, 18);
         panelSetup.Controls.Add(lblCountUnit);
 
         // No agent picker: iClock does not run the agent, it only hands over an
@@ -6558,17 +6560,17 @@ internal sealed class AiQuoteDialog : Form
         // dialog does not list them.
         lblHint = new Label();
         lblHint.Text = en
-            ? "Copies an instruction to the clipboard; paste it into any agent chat (Ctrl+V) and send."
-            : "复制指令到剪贴板，粘贴到智能体对话框（Ctrl+V）发送即可入库。";
+            ? "Copy the instruction, paste it into an agent chat (Ctrl+V), send."
+            : "复制指令，粘贴到智能体对话框（Ctrl+V）发送后自动入库。";
         lblHint.ForeColor = AppContext.Win11TextSecondary;
         lblHint.Font = AppContext.GetUiFont(lang, 8.5f);
-        lblHint.SetBounds(18, 280, 374, 20);
+        lblHint.SetBounds(18, 200, 344, 20);
         lblHint.AutoEllipsis = true;
         panelSetup.Controls.Add(lblHint);
 
         btnCancel = new Button();
         btnCancel.Text = en ? "Cancel" : "取消";
-        btnCancel.SetBounds(210, 314, 80, 30);
+        btnCancel.SetBounds(180, 234, 80, 30);
         AppContext.StyleSecondaryButton(btnCancel);
         btnCancel.Click += delegate { DialogResult = DialogResult.Cancel; Close(); };
         panelSetup.Controls.Add(btnCancel);
@@ -6576,7 +6578,7 @@ internal sealed class AiQuoteDialog : Form
         btnGenerate = new Button();
         // The button copies an instruction; the agent does the generating.
         btnGenerate.Text = en ? "Copy Prompt" : "复制指令";
-        btnGenerate.SetBounds(296, 314, 96, 30);
+        btnGenerate.SetBounds(266, 234, 96, 30);
         AppContext.StylePrimaryButton(btnGenerate);
         btnGenerate.Click += OnGenerateClick;
         panelSetup.Controls.Add(btnGenerate);
@@ -6594,23 +6596,22 @@ internal sealed class AiQuoteDialog : Form
         lblStatusTitle.Text = "";
         lblStatusTitle.Font = AppContext.GetUiFont(lang, 11f, FontStyle.Bold);
         lblStatusTitle.ForeColor = AppContext.Win11Accent;
-        lblStatusTitle.SetBounds(18, 12, 374, 22);
+        lblStatusTitle.SetBounds(18, 12, 344, 22);
         panelStatus.Controls.Add(lblStatusTitle);
 
-        // The card reaches down to the same 314px footer baseline the setup view
+        // The card stops above the same 234px footer baseline the setup view
         // uses, so the primary action never moves between the two views.
         cardContainer = new Panel();
-        cardContainer.SetBounds(18, 38, 374, 262);
+        cardContainer.SetBounds(18, 38, 344, 180);
         cardContainer.BackColor = Color.FromArgb(246, 248, 250);
         cardContainer.Paint += delegate(object sender, PaintEventArgs pe)
         {
             using (Pen p = new Pen(Color.FromArgb(228, 232, 236)))
             {
                 pe.Graphics.DrawRectangle(p, 0, 0, cardContainer.Width - 1, cardContainer.Height - 1);
-                // Divider above the pinned status line: with two lines of text the
-                // tall card would otherwise read as a hole with a caption at the
-                // bottom, instead of a content area over a footer.
-                pe.Graphics.DrawLine(p, 0, 214, cardContainer.Width - 1, 214);
+                // Divider above the pinned status line: it turns the card's
+                // spare space into a content area over a footer.
+                pe.Graphics.DrawLine(p, 0, 136, cardContainer.Width - 1, 136);
             }
         };
         panelStatus.Controls.Add(cardContainer);
@@ -6619,21 +6620,21 @@ internal sealed class AiQuoteDialog : Form
         lblCardMain.Text = "";
         lblCardMain.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Bold);
         lblCardMain.ForeColor = AppContext.Win11TextPrimary;
-        lblCardMain.SetBounds(14, 14, 346, 24);
+        lblCardMain.SetBounds(14, 12, 316, 24);
         cardContainer.Controls.Add(lblCardMain);
 
         lblCardSub = new Label();
         lblCardSub.Text = "";
         lblCardSub.Font = AppContext.GetUiFont(lang, 9f);
         lblCardSub.ForeColor = AppContext.Win11TextSecondary;
-        lblCardSub.SetBounds(14, 44, 346, 176);
+        lblCardSub.SetBounds(14, 42, 316, 84);
         cardContainer.Controls.Add(lblCardSub);
 
         lblCardBadge = new Label();
         lblCardBadge.Text = "";
         lblCardBadge.Font = AppContext.GetUiFont(lang, 8.5f);
         lblCardBadge.ForeColor = AppContext.Win11Accent;
-        lblCardBadge.SetBounds(14, 226, 346, 22);
+        lblCardBadge.SetBounds(14, 144, 316, 22);
         lblCardBadge.AutoEllipsis = true;
         cardContainer.Controls.Add(lblCardBadge);
 
@@ -6696,22 +6697,22 @@ internal sealed class AiQuoteDialog : Form
 
         btnStatusAction1.Visible = true;
         btnStatusAction1.Text = en ? "Copy Again" : "重新复制";
-        btnStatusAction1.SetBounds(18, 314, 110, 30);
+        btnStatusAction1.SetBounds(18, 234, 110, 30);
         AppContext.StyleSecondaryButton(btnStatusAction1);
 
         btnStatusAction2.Visible = true;
         btnStatusAction2.Text = en ? "❮ Back" : "❮ 返回修改";
-        btnStatusAction2.SetBounds(136, 314, 110, 30);
+        btnStatusAction2.SetBounds(136, 234, 110, 30);
         AppContext.StyleSecondaryButton(btnStatusAction2);
 
         btnStatusBack.Visible = false;
         btnStatusBack.Text = en ? "❮ Back" : "❮ 返回修改";
-        btnStatusBack.SetBounds(136, 314, 110, 30);
+        btnStatusBack.SetBounds(136, 234, 110, 30);
         AppContext.StyleSecondaryButton(btnStatusBack);
 
         btnStatusDone.Visible = true;
         btnStatusDone.Text = en ? "Close" : "关闭";
-        btnStatusDone.SetBounds(288, 314, 104, 30);
+        btnStatusDone.SetBounds(266, 234, 96, 30);
         AppContext.StylePrimaryButton(btnStatusDone);
 
         AcceptButton = null;
@@ -6747,7 +6748,7 @@ internal sealed class AiQuoteDialog : Form
 
         btnStatusAction1.Visible = true;
         btnStatusAction1.Text = en ? "Open Library" : "查看金句库";
-        btnStatusAction1.SetBounds(18, 314, 120, 30);
+        btnStatusAction1.SetBounds(18, 234, 120, 30);
         AppContext.StyleSecondaryButton(btnStatusAction1);
 
         btnStatusAction2.Visible = false;
@@ -6755,7 +6756,7 @@ internal sealed class AiQuoteDialog : Form
 
         btnStatusDone.Visible = true;
         btnStatusDone.Text = en ? "Done" : "完成";
-        btnStatusDone.SetBounds(288, 314, 104, 30);
+        btnStatusDone.SetBounds(266, 234, 96, 30);
         AppContext.StylePrimaryButton(btnStatusDone);
 
         AcceptButton = btnStatusDone;

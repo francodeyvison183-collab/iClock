@@ -6,7 +6,7 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 ### Changed
 
-- **AI 扩充金句改为「一段指令，任意智能体」**: the expansion dialog no longer lists or picks an agent. It builds one instruction, copies it to the clipboard (`复制指令`), and waits; the agent you are already using imports the quotes through the iClock command line (`--quote-add`), exactly as before. The dialog now shows the keyword box, the quote count (5–100) and one instruction line, and the waiting view spells out the three steps instead of naming an agent. / 扩充弹窗不再列出或选择智能体，只负责生成指令、复制到剪贴板并等待入库——导入仍由智能体执行 iClock 命令行完成，与此前一致。
+- **AI 扩充金句改为「一段指令，任意智能体」**: the expansion dialog no longer lists or picks an agent. It builds one instruction, copies it to the clipboard (`复制指令`), and waits; the agent you are already using imports the quotes through the iClock command line (`--quote-add`), exactly as before. The dialog now shows the keyword box, the quote count (5–100) and one instruction line, and the waiting view spells out the three steps instead of naming an agent. The window was tightened to **380 × 280** while doing so. / 扩充弹窗不再列出或选择智能体，只负责生成指令、复制到剪贴板并等待入库——导入仍由智能体执行 iClock 命令行完成，与此前一致；弹窗同时收紧为 380 × 280。
 
 - **每日格言 → 每日金句 (Daily Quotes renamed to Daily Golden Lines)**: user-facing Chinese wording now uses 「每日金句」 across the app UI (settings tab, desktop toggle, screensaver row, tooltips, AI expansion prompts and notices) and the current README / user guide / website copy. The desktop toggle label no longer carries the 「便签」 suffix. The AI expansion prompt now asks for `金句内容 | 作者或出处` lines, while the quote library itself (`quotes.txt`, CLI commands and settings keys) is unchanged, and the English UI keeps "Daily Quotes".
 
