@@ -293,6 +293,8 @@ internal static class NativeMethods
     [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, ref COPYDATASTRUCT lParam);
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     public static extern IntPtr SendMessageTimeout(IntPtr hWnd, int msg, IntPtr wParam, string lParam, int flags, int timeout, out IntPtr result);
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern bool SystemParametersInfo(uint uiAction, uint uiParam, IntPtr pvParam, uint fWinIni);
 
     [DllImport("kernel32.dll", SetLastError = true)] public static extern bool AttachConsole(int dwProcessId);
     [DllImport("kernel32.dll", SetLastError = true)] public static extern bool FreeConsole();
@@ -12172,6 +12174,7 @@ Examples:
             WriteSaverScr(SaverScrPath);
             WriteSaverRegValue(SaverActiveValue, "1");
             WriteSaverWaitSeconds(settings);
+            PushSaverActiveToSession(true);
             BroadcastSaverRegChange();
             return true;
         }
@@ -12200,6 +12203,31 @@ Examples:
         int mins = settings != null && settings.SaverMinutes > 0 ? settings.SaverMinutes : 10;
         mins = Math.Max(1, Math.Min(60, mins));
         WriteSaverRegValue(SaverTimeoutValue, (mins * 60).ToString(CultureInfo.InvariantCulture));
+        PushSaverTimeoutToSession(mins * 60);
+    }
+
+    // Writing ScreenSaveTimeOut to the registry does not arm the idle timer: the
+    // session keeps its own copy (SPI_GETSCREENSAVETIMEOUT still reported 1800 while
+    // the registry said 60, so the saver never fired). desk.cpl goes through
+    // SystemParametersInfo, and so must iClock.
+    private static void PushSaverTimeoutToSession(int seconds)
+    {
+        try
+        {
+            NativeMethods.SystemParametersInfo(0x000F /* SPI_SETSCREENSAVETIMEOUT */,
+                (uint)Math.Max(0, seconds), IntPtr.Zero, 0x0001 | 0x0002 /* UPDATEINIFILE | SENDCHANGE */);
+        }
+        catch { }
+    }
+
+    private static void PushSaverActiveToSession(bool active)
+    {
+        try
+        {
+            NativeMethods.SystemParametersInfo(0x0011 /* SPI_SETSCREENSAVEACTIVE */,
+                active ? 1u : 0u, IntPtr.Zero, 0x0001 | 0x0002 /* UPDATEINIFILE | SENDCHANGE */);
+        }
+        catch { }
     }
 
     // Called when the wait time is changed from the toggle's menu: persist it, and
@@ -12251,6 +12279,12 @@ Examples:
                     DeleteSaverRegValue(SaverScrLegacyValue);
                 }
             }
+            // The session's own copy has to go back too, or Windows keeps waiting
+            // for iClock's old timeout after the user switched it off.
+            PushSaverActiveToSession(string.Equals(ReadSaverRegValue(SaverActiveValue), "1", StringComparison.Ordinal));
+            int restoredTimeout;
+            if (int.TryParse(ReadSaverRegValue(SaverTimeoutValue), out restoredTimeout))
+                PushSaverTimeoutToSession(restoredTimeout);
             if (settings != null) { settings.SaverRegBackup = ""; settings.Save(); }
             BroadcastSaverRegChange();
         }
