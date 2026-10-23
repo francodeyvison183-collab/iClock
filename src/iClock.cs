@@ -56,6 +56,7 @@ internal sealed class Settings
     public int QuoteIndex = -1;
     public string QuoteDate = "";
     // Use today's quote as the Windows screensaver (installed as iClock.scr).
+    // Off by default: taking over the user's Windows screensaver is opt-in.
     public bool QuoteSaverEnabled;
     // Previous HKCU\Control Panel\Desktop screensaver values (SCR / ScreenSaveActive /
     // ScreenSaveTimeOut), captured before iClock takes them over so opting out can put
@@ -12165,14 +12166,22 @@ Examples:
         catch { }
     }
 
-    // Startup self-heal: if the toggle is still on but the registration was lost
-    // (a cleaner reset HKCU, or Windows fell back to "(None)"), put it back. If the
-    // user picked a different screensaver in Windows meanwhile, respect that.
+    // Startup self-heal, in both directions. With the toggle on, re-register when
+    // the registration was lost (a cleaner reset HKCU, or Windows fell back to
+    // "(None)") — unless the user picked a different screensaver in Windows
+    // meanwhile. With the toggle off, tear down a registration that is still ours
+    // (settings.ini deleted, or copied over from another machine), because "off"
+    // has to mean Windows is not running iClock.scr.
     internal static void EnsureSaverRegistry(Settings settings)
     {
         try
         {
-            if (settings == null || !settings.QuoteSaverEnabled) return;
+            if (settings == null) return;
+            if (!settings.QuoteSaverEnabled)
+            {
+                if (SaverScrIsOurs()) RestoreSaverRegistry(settings);
+                return;
+            }
             string current = ReadSaverScr();
             if (!string.IsNullOrEmpty(current) &&
                 !string.Equals(current, SaverScrPath, StringComparison.OrdinalIgnoreCase)) return;
