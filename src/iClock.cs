@@ -2250,7 +2250,7 @@ internal sealed class SettingsDialog : Form
         // LinkArea highlighting the trailing [预览] so the whole text lays out
         // in one control and never clips the link.
         lnkPreviewSaver = new LinkLabel();
-        string saverLabel = en ? "Use today's quote as screensaver [Preview]" : "开启每日金句作为锁屏+屏保 [预览]";
+        string saverLabel = en ? "Use today's quote as the Windows screensaver [Preview]" : "开启每日金句作为 Windows 屏保 [预览]";
         lnkPreviewSaver.Text = saverLabel;
         int linkStart = saverLabel.IndexOf('[');
         int linkLen = saverLabel.Length - linkStart;
@@ -2259,7 +2259,7 @@ internal sealed class SettingsDialog : Form
         lnkPreviewSaver.ActiveLinkColor = AppContext.Win11Accent;
         lnkPreviewSaver.LinkBehavior = LinkBehavior.HoverUnderline;
         lnkPreviewSaver.ForeColor = AppContext.Win11TextPrimary;
-        lnkPreviewSaver.SetBounds(18, 392, 296, 24); // full width up to the toggle: "锁屏+屏保 [预览]" needs the room
+        lnkPreviewSaver.SetBounds(18, 392, 296, 24); // full width up to the toggle: "Windows 屏保 [预览]" needs the room
         lnkPreviewSaver.TextAlign = ContentAlignment.MiddleLeft;
         lnkPreviewSaver.LinkClicked += OnPreviewSaverLinkClicked;
         toolTip.SetToolTip(lnkPreviewSaver, en
@@ -2271,8 +2271,8 @@ internal sealed class SettingsDialog : Form
         quoteSaverToggle.SetBounds(322, 392, 40, 22);
         quoteSaverToggle.CheckedChanged += OnQuoteSaverToggleChanged;
         toolTip.SetToolTip(quoteSaverToggle, en
-            ? "Set iClock as the Windows screensaver: shows today's quote when idle and on the lock screen"
-            : "把 iClock 设为 Windows 屏保：空闲和锁屏（Win+L）时全屏显示每日金句");
+            ? "Set iClock as the Windows screensaver: shows today's quote after the idle time. Windows' own lock screen (Win+L) is a secure desktop a screensaver cannot replace."
+            : "把 iClock 设为 Windows 屏保：空闲指定时间后全屏显示每日金句。Windows 锁屏（Win+L）是系统安全桌面，屏保无法替换它。");
         Controls.Add(quoteSaverToggle);
 
         // Section 4: Tip (Y = 436)
@@ -3073,7 +3073,7 @@ internal sealed class SettingsDialog : Form
     {
         // Toggle commit-first semantics: persist the choice, then take over (or give
         // back) the Windows screensaver registration. Enabling points HKCU SCR at
-        // iClock.scr so both the idle timeout AND Win+L show the quote screen;
+        // iClock.scr so Windows runs the quote screen after the idle timeout;
         // disabling restores whatever the user had before.
         bool on = quoteSaverToggle != null && quoteSaverToggle.Checked;
         Value.QuoteSaverEnabled = on;
@@ -3541,7 +3541,7 @@ internal sealed class SettingsDialog : Form
         }
         if (lnkPreviewSaver != null)
         {
-            string saverLabel = toEnglish ? "Use today's quote as screensaver [Preview]" : "开启每日金句作为锁屏+屏保 [预览]";
+            string saverLabel = toEnglish ? "Use today's quote as the Windows screensaver [Preview]" : "开启每日金句作为 Windows 屏保 [预览]";
             lnkPreviewSaver.Text = saverLabel;
             int linkStart = saverLabel.IndexOf('[');
             int linkLen = saverLabel.Length - linkStart;
@@ -7951,8 +7951,8 @@ internal sealed class AppContext : ApplicationContext
             settings.Save();
         }
         tray = new NotifyIcon(); tray.Icon = appIcon; tray.Text = isOneShot ? (settings.Language == "en" ? "iClock (One-shot mode)" : "iClock (单次运行模式)") : "iClock"; tray.Visible = true; tray.ContextMenuStrip = MakeMenu();
-        // The lock screen / screensaver registration can be wiped by a cleanup
-        // tool or a Windows reset; re-assert it while the toggle is still on.
+        // The screensaver registration can be wiped by a cleanup tool or a
+        // Windows reset; re-assert it while the toggle is still on.
         Program.EnsureSaverRegistry(settings);
         tray.MouseMove += delegate { if (!running && !sessionActive) { lastTrayMouseMove = Environment.TickCount; EnsureMouseHook(); } };
         tray.BalloonTipClicked += delegate { if (!string.IsNullOrEmpty(updateUrl)) { try { Process.Start(updateUrl); } catch { } } };
@@ -11855,7 +11855,7 @@ Examples:
                 {
                     regSettings.QuoteSaverEnabled = true;
                     regSettings.Save();
-                    WriteToConsole("[iClock] Screensaver installed and registered: today's quote now shows when idle and on the lock screen (Win+L).");
+                    WriteToConsole("[iClock] Screensaver installed and registered: today's quote now shows after the Windows idle timeout. The lock screen (Win+L) belongs to Windows and is not replaced.");
                 }
                 else
                 {
@@ -11973,9 +11973,8 @@ Examples:
 
     // ---- Screensaver (.scr) support -----------------------------------------
 
-    // Local per-user location for the .scr copy that Windows looks up. This
-    // folder already holds settings.ini and quotes.txt, so it is writable and
-    // survives updates of the portable exe.
+    // Local per-user location for the .scr copy that Windows looks up. It is
+    // writable without elevation and survives updates of the portable exe.
     internal static string SaverScrPath
     {
         get
@@ -11984,8 +11983,8 @@ Examples:
         }
     }
 
-    // Copy the running exe next to settings.ini as a .scr so Windows can pick it
-    // as a screensaver. Returns true when the copy at SaverScrPath is current.
+    // Copy the running exe into LocalAppData as a .scr so Windows can launch it.
+    // Returns true when the copy at SaverScrPath is current.
     internal static bool InstallSaverScr()
     {
         try
@@ -12025,9 +12024,9 @@ Examples:
     private const string SaverScrValue = "SCR";
     private const string SaverActiveValue = "ScreenSaveActive";
     private const string SaverTimeoutValue = "ScreenSaveTimeOut";
-    // 30 minutes: the Windows idle timer is a convenience backstop, not the main
-    // way this saver is used — locking with Win+L shows it on demand, and a short
-    // timeout would interrupt work too often.
+    // 30 minutes: a first-run default only. ApplySaverRegistry writes it once, when
+    // iClock takes the registration over; whatever the user picks in Windows' own
+    // screen saver dialog afterwards is left alone.
     private const string SaverIdleTimeoutSeconds = "1800";
 
     private static string ReadSaverRegValue(string name)
