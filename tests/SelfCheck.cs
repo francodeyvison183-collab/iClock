@@ -2956,6 +2956,30 @@ internal static class TestCheck
                 return 61;
             }
 
+            // One footer baseline in both views: the setup buttons and every
+            // status view action sit at y=314, with the status card filling the
+            // space above them (38 + 262 = 300).
+            FieldInfo fCardC = aiDlgType.GetField("cardContainer", BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo fBtnGenS = aiDlgType.GetField("btnGenerate", BindingFlags.NonPublic | BindingFlags.Instance);
+            FieldInfo fBtnDoneS = aiDlgType.GetField("btnStatusDone", BindingFlags.NonPublic | BindingFlags.Instance);
+            MethodInfo showCompleted = aiDlgType.GetMethod("ShowCompletedView", BindingFlags.NonPublic | BindingFlags.Instance);
+            if (fCardC == null || fBtnGenS == null || fBtnDoneS == null || showCompleted == null)
+            {
+                Console.WriteLine("FAIL: AiQuoteDialog missing cardContainer/btnGenerate/btnStatusDone/ShowCompletedView");
+                return 61;
+            }
+            Button btnGenLayout = (Button)fBtnGenS.GetValue(aiDlg);
+            showCompleted.Invoke(aiDlg, new object[] { 3, null });
+            Panel cardLayout = (Panel)fCardC.GetValue(aiDlg);
+            Button btnDoneLayout = (Button)fBtnDoneS.GetValue(aiDlg);
+            if (cardLayout.Height != 262 || cardLayout.Bottom != 300 ||
+                btnGenLayout.Top != 314 || btnDoneLayout.Top != 314)
+            {
+                Console.WriteLine("FAIL: AiQuoteDialog footer baseline drifted, cardBottom=" + cardLayout.Bottom +
+                    " setupBtnTop=" + btnGenLayout.Top + " statusBtnTop=" + btnDoneLayout.Top);
+                return 61;
+            }
+
             // Verify AiAgentQuoteHelper HasCliSupport method and OnQuotesAdded event
             MethodInfo mHasCli = helperType.GetMethod("HasCliSupport", BindingFlags.NonPublic | BindingFlags.Static);
             if (mHasCli == null)

@@ -6548,6 +6548,7 @@ internal sealed class AiQuoteDialog : Form
     private NumericUpDown nudQuoteCount;
     private ComboBox cboAgent;
     private Label lblAgentHint;
+    private ToolTip tipCount;
     private Button btnCancel;
     private Button btnGenerate;
 
@@ -6608,6 +6609,11 @@ internal sealed class AiQuoteDialog : Form
     {
         base.OnFormClosed(e);
         AiAgentQuoteHelper.OnQuotesAdded -= HandleQuotesAddedCallback;
+        if (tipCount != null)
+        {
+            tipCount.Dispose();
+            tipCount = null;
+        }
         if (timerStatus != null)
         {
             timerStatus.Stop();
@@ -6657,7 +6663,9 @@ internal sealed class AiQuoteDialog : Form
         txtPreference.AcceptsReturn = true;
         txtPreference.ScrollBars = ScrollBars.Vertical;
         txtPreference.Font = AppContext.GetUiFont(lang, 9f);
-        txtPreference.SetBounds(18, 56, 374, 92);
+        // The box takes the 60px the old layout left empty under the hint row;
+        // content now sits in one even column from the header to the footer.
+        txtPreference.SetBounds(18, 56, 374, 116);
         txtPreference.Text = currentKeywords != null && currentKeywords.Count > 0
             ? string.Join(Environment.NewLine, currentKeywords.ToArray())
             : "";
@@ -6667,7 +6675,7 @@ internal sealed class AiQuoteDialog : Form
         lblCount.Text = en ? "Quotes to generate:" : "扩充数量：";
         lblCount.Font = AppContext.GetUiFont(lang, 9f);
         lblCount.ForeColor = AppContext.Win11TextPrimary;
-        lblCount.SetBounds(18, 156, 90, 18);
+        lblCount.SetBounds(18, 188, 90, 18);
         panelSetup.Controls.Add(lblCount);
 
         nudQuoteCount = new NumericUpDown();
@@ -6677,27 +6685,32 @@ internal sealed class AiQuoteDialog : Form
         nudQuoteCount.Font = AppContext.GetUiFont(lang, 9f);
         int savedCount = settings != null && settings.AiQuoteCount > 0 ? settings.AiQuoteCount : 30;
         nudQuoteCount.Value = Math.Max(5, Math.Min(100, savedCount));
-        nudQuoteCount.SetBounds(112, 154, 80, 24);
+        nudQuoteCount.SetBounds(112, 186, 80, 24);
         panelSetup.Controls.Add(nudQuoteCount);
 
+        // The range lives in the tooltip: the row reads as one sentence
+        // (「扩充数量 30 条」) instead of carrying a parenthetical.
+        tipCount = new ToolTip();
+        tipCount.SetToolTip(nudQuoteCount, en ? "5 to 100 quotes per run" : "每次可扩充 5–100 条金句");
+
         Label lblCountUnit = new Label();
-        lblCountUnit.Text = en ? "per run (5–100)" : "条 / 次（5–100）";
+        lblCountUnit.Text = en ? "quotes" : "条";
         lblCountUnit.Font = AppContext.GetUiFont(lang, 8.5f);
         lblCountUnit.ForeColor = AppContext.Win11TextSecondary;
-        lblCountUnit.SetBounds(198, 156, 194, 18);
+        lblCountUnit.SetBounds(198, 188, 194, 18);
         panelSetup.Controls.Add(lblCountUnit);
 
         Label lblAgent = new Label();
         lblAgent.Text = en ? "AI Collaboration Agent:" : "AI 协作智能体：";
         lblAgent.Font = AppContext.GetUiFont(lang, 9f);
         lblAgent.ForeColor = AppContext.Win11TextPrimary;
-        lblAgent.SetBounds(18, 186, 374, 18);
+        lblAgent.SetBounds(18, 218, 374, 18);
         panelSetup.Controls.Add(lblAgent);
 
         cboAgent = new ComboBox();
         cboAgent.DropDownStyle = ComboBoxStyle.DropDownList;
         cboAgent.Font = AppContext.GetUiFont(lang, 9f);
-        cboAgent.SetBounds(18, 206, 374, 25);
+        cboAgent.SetBounds(18, 238, 374, 25);
         panelSetup.Controls.Add(cboAgent);
 
         // Show agents currently available on this computer.
@@ -6722,16 +6735,12 @@ internal sealed class AiQuoteDialog : Form
         {
             string name = detectedAgents[i];
             bool isRun = running.Contains(name);
-            bool hasCli = AiAgentQuoteHelper.HasCliSupport(name);
-            string modeStr = hasCli
-                ? (en ? "CLI Direct" : "支持后台直接扩充")
-                : (en ? "Chat Collab" : "对话框协作");
             string stateStr = isRun
                 ? (en ? "Running" : "运行中")
                 : (en ? "Ready" : "已就绪");
-            string display = en
-                ? string.Format("⚡ {0} ({1} · {2})", name, stateStr, modeStr)
-                : string.Format("⚡ {0} ({1} · {2})", name, stateStr, modeStr);
+            // Name and state only: the execution mode is spelled out in the hint
+            // line right below once the item is selected.
+            string display = string.Format("{0} · {1}", name, stateStr);
             cboAgent.Items.Add(display);
             if (!string.IsNullOrEmpty(savedAgent) && name.Equals(savedAgent, StringComparison.OrdinalIgnoreCase))
             {
@@ -6743,7 +6752,7 @@ internal sealed class AiQuoteDialog : Form
         lblAgentHint.Text = "";
         lblAgentHint.ForeColor = AppContext.Win11TextSecondary;
         lblAgentHint.Font = AppContext.GetUiFont(lang, 8.5f);
-        lblAgentHint.SetBounds(18, 234, 374, 20);
+        lblAgentHint.SetBounds(18, 268, 374, 20);
         lblAgentHint.AutoEllipsis = true;
         panelSetup.Controls.Add(lblAgentHint);
 
@@ -6755,7 +6764,9 @@ internal sealed class AiQuoteDialog : Form
         panelSetup.Controls.Add(btnCancel);
 
         btnGenerate = new Button();
-        btnGenerate.Text = en ? "✨ Expand" : "✨ 立即扩充";
+        // One fixed label whatever the selected agent runs in: the hint below
+        // explains the mode, the button only says what happens when you click.
+        btnGenerate.Text = en ? "Expand Quotes" : "开始扩充";
         btnGenerate.SetBounds(296, 314, 96, 30);
         AppContext.StylePrimaryButton(btnGenerate);
         btnGenerate.Click += OnGenerateClick;
@@ -6763,7 +6774,7 @@ internal sealed class AiQuoteDialog : Form
 
         if (detectedAgents.Count == 0)
         {
-            cboAgent.Items.Add(en ? "⚪ No available agents detected" : "⚪ 未检测到可用智能体");
+            cboAgent.Items.Add(en ? "No available agents detected" : "未检测到可用智能体");
             cboAgent.SelectedIndex = 0;
             lblAgentHint.Text = en
                 ? "Tip: Start an AI agent to use this feature."
@@ -6795,18 +6806,16 @@ internal sealed class AiQuoteDialog : Form
             if (hasCli)
             {
                 lblAgentHint.Text = en
-                    ? "✨ Supports direct headless generation. Click below to expand automatically."
-                    : "✨ 该智能体支持后台直接生成，点击下方扩充将在后台自动执行并在此汇报。";
+                    ? "Runs headless in the background and reports back here."
+                    : "支持后台直接生成，点击「开始扩充」后在此自动汇报。";
                 lblAgentHint.ForeColor = AppContext.Win11TextSecondary;
-                btnGenerate.Text = en ? "⚡ Direct Expand" : "⚡ 直接扩充";
             }
             else
             {
                 lblAgentHint.Text = en
-                    ? "✨ Chat collaboration: Click below to copy prompt, then press Ctrl+V in agent chat."
-                    : "✨ 对话框协作：点击下方扩充将自动复制指令，在智能体对话框按 Ctrl+V 发送即可自动入库。";
+                    ? "Chat mode: copies the prompt, then press Ctrl+V in the agent window."
+                    : "对话框协作：复制指令，在智能体窗口按 Ctrl+V 发送。";
                 lblAgentHint.ForeColor = AppContext.Win11TextSecondary;
-                btnGenerate.Text = en ? "✨ Chat Expand" : "✨ 对话扩充";
             }
             btnGenerate.Enabled = true;
         }
@@ -6827,14 +6836,20 @@ internal sealed class AiQuoteDialog : Form
         lblStatusTitle.SetBounds(18, 12, 374, 22);
         panelStatus.Controls.Add(lblStatusTitle);
 
+        // The card reaches down to the same 314px footer baseline the setup view
+        // uses, so the primary action never moves between the two views.
         cardContainer = new Panel();
-        cardContainer.SetBounds(18, 38, 374, 172);
+        cardContainer.SetBounds(18, 38, 374, 262);
         cardContainer.BackColor = Color.FromArgb(246, 248, 250);
         cardContainer.Paint += delegate(object sender, PaintEventArgs pe)
         {
             using (Pen p = new Pen(Color.FromArgb(228, 232, 236)))
             {
                 pe.Graphics.DrawRectangle(p, 0, 0, cardContainer.Width - 1, cardContainer.Height - 1);
+                // Divider above the pinned status line: with two lines of text the
+                // tall card would otherwise read as a hole with a caption at the
+                // bottom, instead of a content area over a footer.
+                pe.Graphics.DrawLine(p, 0, 214, cardContainer.Width - 1, 214);
             }
         };
         panelStatus.Controls.Add(cardContainer);
@@ -6843,21 +6858,21 @@ internal sealed class AiQuoteDialog : Form
         lblCardMain.Text = "";
         lblCardMain.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Bold);
         lblCardMain.ForeColor = AppContext.Win11TextPrimary;
-        lblCardMain.SetBounds(14, 12, 346, 24);
+        lblCardMain.SetBounds(14, 14, 346, 24);
         cardContainer.Controls.Add(lblCardMain);
 
         lblCardSub = new Label();
         lblCardSub.Text = "";
         lblCardSub.Font = AppContext.GetUiFont(lang, 9f);
         lblCardSub.ForeColor = AppContext.Win11TextSecondary;
-        lblCardSub.SetBounds(14, 38, 346, 96);
+        lblCardSub.SetBounds(14, 44, 346, 176);
         cardContainer.Controls.Add(lblCardSub);
 
         lblCardBadge = new Label();
         lblCardBadge.Text = "";
         lblCardBadge.Font = AppContext.GetUiFont(lang, 8.5f);
         lblCardBadge.ForeColor = AppContext.Win11Accent;
-        lblCardBadge.SetBounds(14, 138, 346, 22);
+        lblCardBadge.SetBounds(14, 226, 346, 22);
         lblCardBadge.AutoEllipsis = true;
         cardContainer.Controls.Add(lblCardBadge);
 
@@ -6905,34 +6920,38 @@ internal sealed class AiQuoteDialog : Form
         panelSetup.Visible = false;
         panelStatus.Visible = true;
 
-        lblStatusTitle.Text = en ? "✨ Collaborating with " + agentName : "✨ 正在与 " + agentName + " 协作扩充...";
-        lblCardMain.Text = en ? "✓ 30-quote prompt copied to clipboard!" : "✓ 30 条金句扩充指令已复制到剪贴板！";
+        // States what iClock did (copied the prompt), not what the agent is doing:
+        // it cannot see inside the other app.
+        lblStatusTitle.Text = en ? "✨ Prompt handed to " + agentName : "✨ 已把提示词交给 " + agentName;
+        lblCardMain.Text = en
+            ? string.Format("✓ Prompt for {0} quotes copied to clipboard!", currentQuoteCount)
+            : string.Format("✓ {0} 条金句的扩充指令已复制到剪贴板！", currentQuoteCount);
         lblCardMain.ForeColor = Color.FromArgb(16, 124, 65);
         lblCardSub.Text = en
-            ? string.Format("Switch to [{0}] chat and press Ctrl+V. The agent will import the quotes through iClock CLI.", agentName)
-            : string.Format("请切换至【{0}】对话框按 Ctrl+V 发送；智能体将通过 iClock 命令行导入金句。", agentName);
+            ? string.Format("Switch to [{0}] and press Ctrl+V. The quotes it returns are imported through iClock's command line.", agentName)
+            : string.Format("切换到【{0}】窗口按 Ctrl+V 发送；生成的金句会经由 iClock 命令行自动导入。", agentName);
         lblCardSub.ForeColor = AppContext.Win11TextSecondary;
-        lblCardBadge.Text = en ? "• Waiting for CLI import..." : "• 正在等待命令行导入...";
+        lblCardBadge.Text = en ? "• Waiting for import..." : "• 正在等待导入...";
         lblCardBadge.ForeColor = AppContext.Win11Accent;
 
         btnStatusAction1.Visible = true;
         btnStatusAction1.Text = en ? "Bring Window" : "唤起窗口";
-        btnStatusAction1.SetBounds(18, 222, 96, 30);
+        btnStatusAction1.SetBounds(18, 314, 96, 30);
         AppContext.StyleSecondaryButton(btnStatusAction1);
 
         btnStatusAction2.Visible = true;
         btnStatusAction2.Text = en ? "Copy Again" : "重新复制";
-        btnStatusAction2.SetBounds(120, 222, 96, 30);
+        btnStatusAction2.SetBounds(120, 314, 96, 30);
         AppContext.StyleSecondaryButton(btnStatusAction2);
 
         btnStatusBack.Visible = true;
         btnStatusBack.Text = en ? "❮ Back" : "❮ 返回修改";
-        btnStatusBack.SetBounds(222, 222, 94, 30);
+        btnStatusBack.SetBounds(222, 314, 94, 30);
         AppContext.StyleSecondaryButton(btnStatusBack);
 
         btnStatusDone.Visible = true;
         btnStatusDone.Text = en ? "Close" : "关闭";
-        btnStatusDone.SetBounds(322, 222, 70, 30);
+        btnStatusDone.SetBounds(322, 314, 70, 30);
         AppContext.StyleSecondaryButton(btnStatusDone);
 
         AcceptButton = null;
@@ -6951,12 +6970,16 @@ internal sealed class AiQuoteDialog : Form
         panelSetup.Visible = false;
         panelStatus.Visible = true;
 
+        // Here the name is certain: iClock starts this CLI itself and reads its
+        // stdout, so "via X" describes the process it launched, not a guess.
         lblStatusTitle.Text = en ? "⚡ Generating via " + agentName + "..." : "⚡ 正在通过 " + agentName + " 后台直接生成...";
-        lblCardMain.Text = en ? "⚡ Running agent CLI in background..." : "⚡ 正在调用智能体命令行直接生成 30 条金句...";
+        lblCardMain.Text = en
+            ? string.Format("⚡ {0} quotes in progress...", currentQuoteCount)
+            : string.Format("⚡ 正在生成 {0} 条金句...", currentQuoteCount);
         lblCardMain.ForeColor = AppContext.Win11Accent;
         lblCardSub.Text = en
-            ? "No manual action required. Generating 30 quotes in background...\nResults will be reported here once completed."
-            : "无需手动操作，智能体正在后台创作 30 条金句。\n完成后将自动收录并在此当场汇报。";
+            ? "No manual action required. Results are imported and reported here once completed."
+            : "无需手动操作，完成后将自动收录并在此汇报。";
         lblCardSub.ForeColor = AppContext.Win11TextSecondary;
         lblCardBadge.Text = en ? "• Generating in background..." : "• 正在后台生成中...";
         lblCardBadge.ForeColor = AppContext.Win11Accent;
@@ -6967,7 +6990,7 @@ internal sealed class AiQuoteDialog : Form
 
         btnStatusDone.Visible = true;
         btnStatusDone.Text = en ? "Cancel" : "取消";
-        btnStatusDone.SetBounds(318, 222, 74, 30);
+        btnStatusDone.SetBounds(318, 314, 74, 30);
         AppContext.StyleSecondaryButton(btnStatusDone);
 
         AcceptButton = null;
@@ -6995,7 +7018,7 @@ internal sealed class AiQuoteDialog : Form
 
         string preview = (sample != null && !string.IsNullOrEmpty(sample.Text))
             ? (string.IsNullOrEmpty(sample.Author) ? ("“" + sample.Text + "”") : ("“" + sample.Text + "”\r\n—— " + sample.Author))
-            : (en ? "New quotes have been added to the library." : "新金句已加入词库并刷新。");
+            : (en ? "New quotes have been added to the library." : "新金句已加入金句库并刷新。");
         lblCardSub.Text = preview;
         lblCardSub.ForeColor = AppContext.Win11TextPrimary;
 
@@ -7003,8 +7026,8 @@ internal sealed class AiQuoteDialog : Form
         lblCardBadge.ForeColor = Color.FromArgb(16, 124, 65);
 
         btnStatusAction1.Visible = true;
-        btnStatusAction1.Text = en ? "Open Library" : "查看词库";
-        btnStatusAction1.SetBounds(18, 222, 120, 30);
+        btnStatusAction1.Text = en ? "Open Library" : "查看金句库";
+        btnStatusAction1.SetBounds(18, 314, 120, 30);
         AppContext.StyleSecondaryButton(btnStatusAction1);
 
         btnStatusAction2.Visible = false;
@@ -7012,7 +7035,7 @@ internal sealed class AiQuoteDialog : Form
 
         btnStatusDone.Visible = true;
         btnStatusDone.Text = en ? "Done" : "完成";
-        btnStatusDone.SetBounds(288, 222, 104, 30);
+        btnStatusDone.SetBounds(288, 314, 104, 30);
         AppContext.StylePrimaryButton(btnStatusDone);
 
         AcceptButton = btnStatusDone;
@@ -7036,27 +7059,27 @@ internal sealed class AiQuoteDialog : Form
         lblCardSub.Text = !string.IsNullOrEmpty(errorMsg) ? errorMsg : "Unknown error";
         lblCardSub.ForeColor = AppContext.Win11TextSecondary;
 
-        lblCardBadge.Text = en ? "✨ Tip: You can fallback to chat collaboration." : "✨ 提示：您可以降级为复制指令并在智能体对话框中按 Ctrl+V 发送。";
+        lblCardBadge.Text = en ? "✨ Tip: fall back to copying the prompt." : "✨ 提示：可降级为复制指令，在智能体窗口按 Ctrl+V 发送。";
         lblCardBadge.ForeColor = Color.FromArgb(180, 100, 20);
 
         btnStatusAction1.Visible = true;
-        btnStatusAction1.Text = en ? "Fallback to Chat" : "降级为复制指令协作";
-        btnStatusAction1.SetBounds(18, 222, 150, 30);
+        btnStatusAction1.Text = en ? "Fallback to Chat" : "降级为复制";
+        btnStatusAction1.SetBounds(18, 314, 118, 30);
         AppContext.StylePrimaryButton(btnStatusAction1);
 
         btnStatusAction2.Visible = true;
         btnStatusAction2.Text = en ? "Retry" : "重试";
-        btnStatusAction2.SetBounds(174, 222, 80, 30);
+        btnStatusAction2.SetBounds(146, 314, 74, 30);
         AppContext.StyleSecondaryButton(btnStatusAction2);
 
         btnStatusBack.Visible = true;
         btnStatusBack.Text = en ? "❮ Back" : "❮ 返回";
-        btnStatusBack.SetBounds(260, 222, 68, 30);
+        btnStatusBack.SetBounds(230, 314, 82, 30);
         AppContext.StyleSecondaryButton(btnStatusBack);
 
         btnStatusDone.Visible = true;
         btnStatusDone.Text = en ? "Close" : "关闭";
-        btnStatusDone.SetBounds(334, 222, 58, 30);
+        btnStatusDone.SetBounds(322, 314, 70, 30);
         AppContext.StyleSecondaryButton(btnStatusDone);
 
         AcceptButton = btnStatusAction1;
@@ -7078,8 +7101,8 @@ internal sealed class AiQuoteDialog : Form
             waitingDots = (waitingDots + 1) % 4;
             string dots = new string('.', waitingDots);
             lblCardBadge.Text = en
-                ? ("• Waiting for CLI import" + dots)
-                : ("• 正在等待命令行导入" + dots);
+                ? ("• Waiting for import" + dots)
+                : ("• 正在等待导入" + dots);
         }
     }
 
