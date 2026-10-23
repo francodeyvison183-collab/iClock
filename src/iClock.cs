@@ -1807,6 +1807,7 @@ internal sealed class ToggleSwitch : CheckBox
     {
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
         AccessibleRole = AccessibleRole.CheckButton;
+        AutoSize = false;
         Text = "";
         Size = new Size(40, 22);
         TabStop = true;
@@ -2183,6 +2184,8 @@ internal sealed class SettingsDialog : Form
         noticeStyle.SelectionChangeCommitted += OnPreviewChanged;
 
         lblStartup = AddLabel(en ? "Auto start" : "开机自启动", 18, 422);
+        lblStartup.Cursor = Cursors.Hand;
+        lblStartup.Click += delegate { if (startup != null) startup.Checked = !startup.Checked; };
         startup = new ToggleSwitch();
         startup.Checked = Value.AutoStart;
         startup.AccessibleName = en ? "Auto start" : "开机自启动";
@@ -4071,8 +4074,15 @@ internal sealed class SettingsDialog : Form
         {
             ApplyCurrentSettings();
             Value.Save();
-            PreviewRequested();
-            if (SettingsCommitted != null) SettingsCommitted();
+            try
+            {
+                PreviewRequested();
+            }
+            finally
+            {
+                // 预览绘制失败时也要提交，否则开机自启只写进了 ini，注册表启动项不会更新。
+                if (SettingsCommitted != null) SettingsCommitted();
+            }
         }
     }
 
@@ -4123,6 +4133,7 @@ internal sealed class SettingsDialog : Form
         }
         language.DropDownWidth = dropW;
         language.BringToFront();
+        if (startup != null) startup.BringToFront();
     }
     private void CaptureHotkey(object sender, KeyEventArgs e)
     {
@@ -7907,7 +7918,6 @@ internal sealed class AppContext : ApplicationContext
     private int projectedAgentPid;
     private long lastSeconds = -1;
     private MessageWindow messageWindow;
-    private string exePath = Application.ExecutablePath;
     private Icon appIcon;
     private Timer trayClickTimer;
     private int lastTrayDoubleClickTick;
@@ -10147,7 +10157,9 @@ internal sealed class AppContext : ApplicationContext
             settings.HotkeyModifiers = activeHotkeyModifiers; settings.HotkeyKey = activeHotkeyKey;
             hotkeyFailed = true;
         }
-        settings.Save(); overlay.RefreshSettings(); ApplyStartup();
+        settings.Save();
+        ApplyStartup();
+        if (overlay != null) overlay.RefreshSettings();
         if (tray != null && tray.ContextMenuStrip != null)
         {
             tray.ContextMenuStrip.Font = GetUiFont(settings.Language, 9.5f);
@@ -10885,15 +10897,66 @@ internal sealed class AppContext : ApplicationContext
     }
     private void ApplyStartup()
     {
+        bool enable = settings != null && settings.AutoStart;
+        string exe = Application.ExecutablePath;
+        bool registered = false;
+        try { registered = TrySetRunKey(enable, exe); }
+        catch { registered = false; }
+        // 注册表写成功时只保留 Run 一项。写失败才放到「启动」文件夹，避免登录时拉起两次。
+        try { SetStartupShortcut(enable && !registered, exe); }
+        catch { }
+    }
+
+    // 写入 64 位视图，供 64 位 Explorer 在登录时读取。StartupApproved 的首字节 0x02 表示启用；
+    // 若用户曾在「启动应用」里关掉 iClock，只重写 Run 而留下 0x03，Windows 仍不会启动。
+    private static bool TrySetRunKey(bool enable, string exePath)
+    {
+        const string runSub = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        const string approvedSub = @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run";
+        const string name = "iClock";
+        string command = "\"" + exePath + "\"";
+        using (RegistryKey hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64))
+        using (RegistryKey run = hive.CreateSubKey(runSub))
+        {
+            if (run == null) return false;
+            if (enable) run.SetValue(name, command, RegistryValueKind.String);
+            else run.DeleteValue(name, false);
+            if (enable)
+            {
+                object written = run.GetValue(name);
+                if (!(written is string) || ((string)written).IndexOf(exePath, StringComparison.OrdinalIgnoreCase) < 0)
+                    return false;
+            }
+        }
         try
         {
-            using (RegistryKey k = Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Run", true))
+            using (RegistryKey hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64))
+            using (RegistryKey approved = hive.CreateSubKey(approvedSub))
             {
-                if (k == null) return;
-                if (settings.AutoStart) k.SetValue("iClock", "\"" + exePath + "\""); else k.DeleteValue("iClock", false);
+                if (approved != null)
+                {
+                    if (enable)
+                        approved.SetValue(name, new byte[] { 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }, RegistryValueKind.Binary);
+                    else
+                        approved.DeleteValue(name, false);
+                }
             }
         }
         catch { }
+        return true;
+    }
+
+    private static void SetStartupShortcut(bool enable, string exePath)
+    {
+        string startupDir = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+        if (string.IsNullOrEmpty(startupDir)) return;
+        string link = Path.Combine(startupDir, "iClock.lnk");
+        if (!enable)
+        {
+            if (File.Exists(link)) File.Delete(link);
+            return;
+        }
+        EnsureStartMenuShortcut(true, link, exePath);
     }
     private void Exit()
     {
