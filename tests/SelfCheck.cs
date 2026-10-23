@@ -1263,6 +1263,71 @@ internal static class TestCheck
             restDlg.Dispose();
             Console.WriteLine("PASS: rest-length arrow zone opens the preset menu without starting the break.");
 
+            // 24c. Auto-update: the download url, the version comparison, the
+            // pending-update marker and the in-place exe swap. The swap is what
+            // happens when the user clicks "restart to update", and what the app
+            // does to itself on the next launch.
+            string updRoot = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "iclock_update_check_" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(updRoot);
+            string updCur = System.IO.Path.Combine(updRoot, "iClock.exe");
+            string updNew = System.IO.Path.Combine(updRoot, "iClock-new.exe");
+            string updMarker = System.IO.Path.Combine(updRoot, "pending-update.ini");
+            System.IO.File.WriteAllText(updCur, "OLD");
+            System.IO.File.WriteAllText(updNew, "NEW");
+            MethodInfo markFile = appType.GetMethod("MarkPendingUpdateFile", sbf);
+            MethodInfo swapInPlace = appType.GetMethod("SwapUpdateInPlace", sbf);
+            MethodInfo buildUrl = appType.GetMethod("BuildUpdateExeUrl", sbf);
+            if (markFile == null || swapInPlace == null || buildUrl == null)
+            {
+                Console.WriteLine("FAIL: the auto-update helpers are missing");
+                return 34;
+            }
+            string wantUrl = "https://github.com/francodeyvison183-collab/iClock/releases/download/v1.11/iClock-1.11-windows.exe";
+            string builtUrl = (string)buildUrl.Invoke(null, new object[] { "1.11" });
+            if (builtUrl != wantUrl)
+            {
+                Console.WriteLine("FAIL: the update url is wrong: " + builtUrl);
+                return 34;
+            }
+            if ((string)buildUrl.Invoke(null, new object[] { "v1.11" }) != wantUrl)
+            {
+                Console.WriteLine("FAIL: a leading v must not change the update url");
+                return 34;
+            }
+            if (!(bool)isNewer.Invoke(null, new object[] { "1.12", "1.11" }) || (bool)isNewer.Invoke(null, new object[] { "1.11", "1.11" }))
+            {
+                Console.WriteLine("FAIL: the version comparison is wrong");
+                return 34;
+            }
+            // the marker has to record the version and the downloaded file
+            markFile.Invoke(null, new object[] { updMarker, "1.11", updNew });
+            string markerText = System.IO.File.ReadAllText(updMarker);
+            if (markerText.IndexOf("version=1.11") < 0 || markerText.IndexOf("exe=" + updNew) < 0)
+            {
+                Console.WriteLine("FAIL: the pending-update marker is wrong: " + markerText);
+                return 34;
+            }
+            // the swap puts the new file in place and consumes the new one
+            object[] swapArgs = new object[] { updCur, updNew, null };
+            bool swapped = (bool)swapInPlace.Invoke(null, swapArgs);
+            if (!swapped || System.IO.File.ReadAllText(updCur) != "NEW" || System.IO.File.Exists(updNew))
+            {
+                Console.WriteLine("FAIL: the update was not swapped in place: " + (swapArgs[2] == null ? "" : swapArgs[2].ToString()));
+                return 34;
+            }
+            // a failed swap must leave the installed app where it is
+            string updCur2 = System.IO.Path.Combine(updRoot, "iClock2.exe");
+            System.IO.File.WriteAllText(updCur2, "OLD2");
+            object[] swapArgs2 = new object[] { updCur2, System.IO.Path.Combine(updRoot, "missing.exe"), null };
+            bool swapped2 = (bool)swapInPlace.Invoke(null, swapArgs2);
+            if (swapped2 || !System.IO.File.Exists(updCur2))
+            {
+                Console.WriteLine("FAIL: a failed swap must not take the installed app away");
+                return 34;
+            }
+            try { System.IO.Directory.Delete(updRoot, true); } catch { }
+            Console.WriteLine("PASS: the update url, version check, pending marker and in-place swap are correct.");
+
             // 25. Test SettingsDialog Plan B-1 Dual Tabs & Agent Collaboration UI
             Form tabDlg = (Form)Activator.CreateInstance(settingsDialogType, new object[] { settings });
             Button btnTabTimer = (Button)settingsDialogType.GetField("btnTabTimer", bf).GetValue(tabDlg);

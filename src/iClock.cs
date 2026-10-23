@@ -7281,7 +7281,7 @@ internal class AboutDialog : Form
                     if (AppContext.IsNewer(ver, AppContext.CURRENT_VERSION))
                     {
                         updateNewVersion = ver;
-                        updateExeUrl = "https://github.com/francodeyvison183-collab/iClock/releases/download/v" + ver + "/iClock-" + ver + "-windows.exe";
+                        updateExeUrl = AppContext.BuildUpdateExeUrl(ver);
                         btnCheck.Text = en ? ("Download v" + ver) : ("下载 v" + ver);
                         btnCheck.Click -= OnCheckUpdates;
                         btnCheck.Click += OnDownloadUpdate;
@@ -7382,7 +7382,6 @@ internal class AboutDialog : Form
     {
         bool en = language == "en";
         string currentExe = Application.ExecutablePath;
-        string oldExe = currentExe + ".old";
         string newExe = updateDestExe;
         if (string.IsNullOrEmpty(newExe) || !File.Exists(newExe))
         {
@@ -7390,24 +7389,20 @@ internal class AboutDialog : Form
             return;
         }
         btnCheck.Enabled = false;
-        try
+        string error;
+        if (AppContext.SwapUpdateInPlace(currentExe, newExe, out error))
         {
-            if (File.Exists(oldExe)) File.Delete(oldExe);
-            File.Move(currentExe, oldExe);
-            File.Move(newExe, currentExe);
             // Clean up the pending marker now that the swap is in place.
             try { AppContext.ClearPendingUpdate(); } catch { }
             Process.Start(currentExe);
             Application.Exit();
+            return;
         }
-        catch
-        {
-            // Hot-swap failed (file locked, etc.): keep the pending marker so the
-            // next launch applies the update, and tell the user.
-            btnCheck.Enabled = true;
-            try { AppContext.MarkPendingUpdate(updateNewVersion, newExe); } catch { }
-            MessageBox.Show(this, en ? "Could not replace the running file. The update will be applied on the next launch of iClock." : "无法替换正在运行的文件，更新将在下次启动 iClock 时自动应用。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
+        // Hot-swap failed (file locked, etc.): keep the pending marker so the
+        // next launch applies the update, and tell the user.
+        btnCheck.Enabled = true;
+        try { AppContext.MarkPendingUpdate(updateNewVersion, newExe); } catch { }
+        MessageBox.Show(this, en ? "Could not replace the running file. The update will be applied on the next launch of iClock." : "无法替换正在运行的文件，更新将在下次启动 iClock 时自动应用。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private static Image LoadSponsorImage()
@@ -10959,8 +10954,25 @@ internal sealed class AppContext : ApplicationContext
         });
     }
 
+    // The last known release is kept for a while. GitHub throttles repeated
+    // requests from one address, and the launch check followed by a manual
+    // check would otherwise ask twice in a row and get a 403 for the second
+    // one - which the user would read as "no update available".
+    private static string cachedLatest;
+    private static string cachedUrl;
+    private static DateTime cachedAt = DateTime.MinValue;
+    private static readonly TimeSpan FreshVersionWindow = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan KnownVersionWindow = TimeSpan.FromMinutes(30);
+
     internal static bool QueryLatestVersion(string eventType, out string latest, out string url)
     {
+        // A very recent answer is reused instead of asking again.
+        if (!string.IsNullOrEmpty(cachedLatest) && (DateTime.Now - cachedAt) < FreshVersionWindow)
+        {
+            latest = cachedLatest;
+            url = cachedUrl;
+            return true;
+        }
         latest = null;
         url = null;
         try
@@ -10986,6 +10998,42 @@ internal sealed class AppContext : ApplicationContext
 
         if (string.IsNullOrEmpty(latest))
         {
+            // The release page redirects to the newest release, so the tag can
+            // be read from the final url. Unlike the api this is not rate
+            // limited: the anonymous api allows 60 calls an hour per ip and
+            // answers 403 as soon as that is used up.
+            try
+            {
+                ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create("https://github.com/francodeyvison183-collab/iClock/releases/latest");
+                req.Method = "GET";
+                req.UserAgent = "iClock-Desktop-v" + CURRENT_VERSION;
+                req.Timeout = 6000;
+                req.ReadWriteTimeout = 6000;
+                req.AllowAutoRedirect = true;
+                using (WebResponse resp = req.GetResponse())
+                {
+                    string finalUrl = resp.ResponseUri == null ? "" : resp.ResponseUri.AbsoluteUri;
+                    int p = finalUrl.IndexOf("/releases/tag/");
+                    if (p >= 0)
+                    {
+                        string tag = finalUrl.Substring(p + "/releases/tag/".Length);
+                        int q = tag.IndexOf('?');
+                        if (q >= 0) tag = tag.Substring(0, q);
+                        tag = tag.TrimEnd('/');
+                        if (tag.Length > 0)
+                        {
+                            latest = tag;
+                            url = "https://github.com/francodeyvison183-collab/iClock/releases/tag/" + tag;
+                        }
+                    }
+                }
+            }
+            catch { }
+        }
+
+        if (string.IsNullOrEmpty(latest))
+        {
             try
             {
                 ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072;
@@ -11004,7 +11052,22 @@ internal sealed class AppContext : ApplicationContext
             }
             catch { }
         }
-        return !string.IsNullOrEmpty(latest);
+        if (!string.IsNullOrEmpty(latest))
+        {
+            cachedLatest = latest;
+            cachedUrl = url;
+            cachedAt = DateTime.Now;
+            return true;
+        }
+        // The network may be throttling us. A version we already know is a
+        // better answer than a failure the user has to retry.
+        if (!string.IsNullOrEmpty(cachedLatest) && (DateTime.Now - cachedAt) < KnownVersionWindow)
+        {
+            latest = cachedLatest;
+            url = cachedUrl;
+            return true;
+        }
+        return false;
     }
 
     internal void NotifyUpdateFound(string newVersion, string url)
@@ -11031,8 +11094,77 @@ internal sealed class AppContext : ApplicationContext
         {
             string appDir = Path.GetDirectoryName(Application.ExecutablePath);
             if (string.IsNullOrEmpty(appDir)) return;
-            string iniPath = Path.Combine(appDir, PendingUpdateIni);
+            MarkPendingUpdateFile(Path.Combine(appDir, PendingUpdateIni), version, exePath);
+        }
+        catch { }
+    }
+
+    /// <summary>Write the pending-update marker to an explicit path.</summary>
+    internal static void MarkPendingUpdateFile(string iniPath, string version, string exePath)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(iniPath)) return;
             File.WriteAllText(iniPath, "version=" + version + "\r\nexe=" + exePath + "\r\n", Encoding.UTF8);
+        }
+        catch { }
+    }
+
+    /// <summary>The download url of a release's Windows executable.</summary>
+    internal static string BuildUpdateExeUrl(string version)
+    {
+        string ver = (version == null ? "" : version).TrimStart('v', 'V');
+        if (ver.Length == 0) return null;
+        return "https://github.com/francodeyvison183-collab/iClock/releases/download/v" + ver + "/iClock-" + ver + "-windows.exe";
+    }
+
+    /// <summary>Put a downloaded executable in place of the running one. Windows
+    /// will not let a running exe be overwritten, so the current file is renamed
+    /// aside first and moved back if the second step fails: the app is never
+    /// left without its executable.</summary>
+    internal static bool SwapUpdateInPlace(string currentExe, string newExe, out string error)
+    {
+        error = null;
+        if (string.IsNullOrEmpty(currentExe) || string.IsNullOrEmpty(newExe) || !File.Exists(newExe))
+        {
+            error = "update file not found";
+            return false;
+        }
+        string oldExe = currentExe + ".old";
+        try
+        {
+            if (File.Exists(oldExe)) { try { File.Delete(oldExe); } catch { } }
+            File.Move(currentExe, oldExe);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+        try
+        {
+            File.Move(newExe, currentExe);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            try { File.Move(oldExe, currentExe); } catch { }
+            return false;
+        }
+        // The old file may still be locked (it was the running image); the next
+        // launch cleans it up.
+        try { File.Delete(oldExe); } catch { }
+        return true;
+    }
+
+    /// <summary>Remove a leftover iClock.exe.old from an earlier update.</summary>
+    internal static void CleanupUpdateBackup(string appDir)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(appDir)) return;
+            string oldExe = Path.Combine(appDir, "iClock.exe.old");
+            if (File.Exists(oldExe)) { try { File.Delete(oldExe); } catch { } }
         }
         catch { }
     }
@@ -11057,6 +11189,8 @@ internal sealed class AppContext : ApplicationContext
         {
             string appDir = AppDir;
             if (string.IsNullOrEmpty(appDir)) return;
+            // A previous update may have left its renamed original behind.
+            CleanupUpdateBackup(appDir);
             string iniPath = Path.Combine(appDir, PendingUpdateIni);
             if (!File.Exists(iniPath)) return;
             string version = null, exePath = null;
@@ -11080,20 +11214,13 @@ internal sealed class AppContext : ApplicationContext
                 return;
             }
             string currentExe = Application.ExecutablePath;
-            string oldExe = currentExe + ".old";
-            try
+            string error;
+            if (SwapUpdateInPlace(currentExe, exePath, out error))
             {
-                if (File.Exists(oldExe)) File.Delete(oldExe);
-                File.Move(currentExe, oldExe);
-                File.Move(exePath, currentExe);
-                File.Delete(iniPath);
-                try { File.Delete(oldExe); } catch { }
+                try { File.Delete(iniPath); } catch { }
             }
-            catch
-            {
-                // File locked or otherwise unavailable: keep the marker and try
-                // again on the next launch.
-            }
+            // Otherwise the file was locked: keep the marker and try again on
+            // the next launch.
         }
         catch { }
     }
