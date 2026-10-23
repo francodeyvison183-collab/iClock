@@ -1345,7 +1345,7 @@ internal static class TestCheck
             Label guideHint = (Label)settingsDialogType.GetField("lblCliGuideHint", bf).GetValue(tabDlg);
             Button copyGuide = (Button)settingsDialogType.GetField("btnCopyCliGuide", bf).GetValue(tabDlg);
             CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
-            Control noticeCtrl = (Control)settingsDialogType.GetField("notice", bf).GetValue(tabDlg);
+            Control goalCtrl = (Control)settingsDialogType.GetField("dailyGoal", bf).GetValue(tabDlg);
             Label tool1 = (Label)settingsDialogType.GetField("lblTool1Name", bf).GetValue(tabDlg);
             Label tool2 = (Label)settingsDialogType.GetField("lblTool2Name", bf).GetValue(tabDlg);
             Label tool3 = (Label)settingsDialogType.GetField("lblTool3Name", bf).GetValue(tabDlg);
@@ -1377,10 +1377,10 @@ internal static class TestCheck
                 return 33;
             }
 
-            // Verify auto-start checkbox is at bottom of Tab 1 (below notice)
-            if (startupBox.Top <= noticeCtrl.Top)
+            // Verify auto-start switch is at the bottom of Tab 1 (below the daily goal)
+            if (goalCtrl == null || startupBox.Top <= goalCtrl.Top)
             {
-                Console.WriteLine("FAIL: Startup checkbox should be located at the bottom of the countdown settings");
+                Console.WriteLine("FAIL: Startup switch should be located at the bottom of the countdown settings");
                 return 33;
             }
 
@@ -1801,56 +1801,62 @@ internal static class TestCheck
             Type setDlgType = asm.GetType("SettingsDialog");
             Form setDlg = (Form)Activator.CreateInstance(setDlgType, new object[] { settings });
             ComboBox sndStyleCombo = (ComboBox)setDlgType.GetField("soundStyle", bf).GetValue(setDlg);
-            if (sndStyleCombo == null || sndStyleCombo.Items.Count < 5)
+            if (sndStyleCombo == null || sndStyleCombo.Items.Count < 6)
             {
-                Console.WriteLine("FAIL: soundStyle combo not found or incomplete in SettingsDialog (expected at least 5 items)");
+                Console.WriteLine("FAIL: soundStyle combo not found or incomplete in SettingsDialog (expected at least 6 items)");
                 return 52;
             }
             string item0 = sndStyleCombo.Items[0].ToString();
-            if (!item0.Contains("门铃") && !item0.Contains("Doorbell"))
+            if (!item0.Contains("关闭") && !item0.Contains("Off"))
             {
-                Console.WriteLine("FAIL: soundStyle Item[0] should be Doorbell chime, got: " + item0);
+                Console.WriteLine("FAIL: soundStyle Item[0] should be Off, got: " + item0);
                 return 52;
             }
             string item1 = sndStyleCombo.Items[1].ToString();
-            if (!item1.Contains("QQ"))
+            if (!item1.Contains("门铃") && !item1.Contains("Doorbell"))
             {
-                Console.WriteLine("FAIL: soundStyle Item[1] should be QQ, got: " + item1);
+                Console.WriteLine("FAIL: soundStyle Item[1] should be Doorbell chime, got: " + item1);
                 return 52;
             }
             string item2 = sndStyleCombo.Items[2].ToString();
-            if (!item2.Contains("电话铃") && !item2.Contains("Telephone Ring"))
+            if (!item2.Contains("QQ"))
             {
-                Console.WriteLine("FAIL: soundStyle Item[2] should be classic telephone ring, got: " + item2);
+                Console.WriteLine("FAIL: soundStyle Item[2] should be QQ, got: " + item2);
                 return 52;
             }
             string item3 = sndStyleCombo.Items[3].ToString();
-            if (!item3.Contains("敲门声") && !item3.Contains("Knock"))
+            if (!item3.Contains("电话铃") && !item3.Contains("Telephone Ring"))
             {
-                Console.WriteLine("FAIL: soundStyle Item[3] should be door knock, got: " + item3);
+                Console.WriteLine("FAIL: soundStyle Item[3] should be classic telephone ring, got: " + item3);
                 return 52;
             }
             string item4 = sndStyleCombo.Items[4].ToString();
-            if (!item4.Contains("闹铃") && !item4.Contains("Alarm"))
+            if (!item4.Contains("敲门声") && !item4.Contains("Knock"))
             {
-                Console.WriteLine("FAIL: soundStyle Item[4] should be alarm ring, got: " + item4);
+                Console.WriteLine("FAIL: soundStyle Item[4] should be door knock, got: " + item4);
+                return 52;
+            }
+            string item5 = sndStyleCombo.Items[5].ToString();
+            if (!item5.Contains("闹铃") && !item5.Contains("Alarm"))
+            {
+                Console.WriteLine("FAIL: soundStyle Item[5] should be alarm ring, got: " + item5);
                 return 52;
             }
             if (sndStyleCombo.SelectedIndex != 0)
             {
-                Console.WriteLine("FAIL: soundStyle default SelectedIndex should be 0 (Doorbell), got: " + sndStyleCombo.SelectedIndex);
+                Console.WriteLine("FAIL: soundStyle SelectedIndex should be 0 when EndSound is off, got: " + sndStyleCombo.SelectedIndex);
                 return 52;
             }
             setDlg.Close();
 
-            // Verify Settings with Knock style maps to SelectedIndex 3
+            // Verify Settings with Knock style maps to SelectedIndex 4 (0 is Off)
             object knockSettings = Activator.CreateInstance(settingsType);
             settingsType.GetField("EndSoundStyle").SetValue(knockSettings, "Knock");
             Form setDlgKnock = (Form)Activator.CreateInstance(setDlgType, new object[] { knockSettings });
             ComboBox sndComboKnock = (ComboBox)setDlgType.GetField("soundStyle", bf).GetValue(setDlgKnock);
-            if (sndComboKnock == null || sndComboKnock.SelectedIndex != 3)
+            if (sndComboKnock == null || sndComboKnock.SelectedIndex != 4)
             {
-                Console.WriteLine("FAIL: soundStyle SelectedIndex for Knock should be 3, got: " + (sndComboKnock != null ? sndComboKnock.SelectedIndex.ToString() : "null"));
+                Console.WriteLine("FAIL: soundStyle SelectedIndex for Knock should be 4, got: " + (sndComboKnock != null ? sndComboKnock.SelectedIndex.ToString() : "null"));
                 return 52;
             }
             setDlgKnock.Close();
@@ -3166,6 +3172,105 @@ internal static class TestCheck
             qDlgMoveTest.Dispose();
 
             Console.WriteLine("PASS: Desktop quote Alt + Drag mode, MoveMode synchronization, and 0-polling background optimization verified.");
+
+            // 45. Verify the daily focus goal: the settings field (off by default),
+            // the day-total reader and the streak calculation.
+            FieldInfo fDailyGoal = settings.GetType().GetField("DailyGoalMinutes");
+            if (fDailyGoal == null)
+            {
+                Console.WriteLine("FAIL: Settings is missing the DailyGoalMinutes field");
+                return 63;
+            }
+            if ((int)fDailyGoal.GetValue(defaultSettings) != 0)
+            {
+                Console.WriteLine("FAIL: DailyGoalMinutes should default to 0 (feature off)");
+                return 63;
+            }
+            // The setting must survive a save/load round trip.
+            fDailyGoal.SetValue(settings, 240);
+            settings.GetType().GetMethod("Save").Invoke(settings, null);
+            object reloadedGoalSettings = settings.GetType().GetMethod("Load", BindingFlags.Public | BindingFlags.Static).Invoke(null, null);
+            if ((int)fDailyGoal.GetValue(reloadedGoalSettings) != 240)
+            {
+                Console.WriteLine("FAIL: DailyGoalMinutes did not survive the save/load round trip");
+                return 63;
+            }
+            fDailyGoal.SetValue(settings, 0);
+            settings.GetType().GetMethod("Save").Invoke(settings, null);
+
+            MethodInfo getDayFocus = appType.GetMethod("GetDayFocusSecs", sbf);
+            MethodInfo computeStreak = appType.GetMethod("ComputeStreak", sbf);
+            if (getDayFocus == null || computeStreak == null)
+            {
+                Console.WriteLine("FAIL: the daily-goal helpers are missing");
+                return 63;
+            }
+            // The day total has to read the same TSV the history dialog reads.
+            string goalRoot = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "iclock_goal_check_" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(goalRoot);
+            string todayKey = DateTime.Today.ToString("yyyyMMdd");
+            string yesterdayKey = DateTime.Today.AddDays(-1).ToString("yyyyMMdd");
+            string twoDaysAgoKey = DateTime.Today.AddDays(-2).ToString("yyyyMMdd");
+            string threeDaysAgoKey = DateTime.Today.AddDays(-3).ToString("yyyyMMdd");
+            string fourDaysAgoKey = DateTime.Today.AddDays(-4).ToString("yyyyMMdd");
+            // start \t end \t minutes \t actualSeconds \t result
+            System.IO.File.WriteAllText(System.IO.Path.Combine(goalRoot, "history-" + todayKey + ".tsv"),
+                "09:00:00\t09:25:00\t25\t1500\tCompleted" + Environment.NewLine);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(goalRoot, "history-" + yesterdayKey + ".tsv"),
+                "09:00:00\t09:30:00\t30\t1800\tCompleted" + Environment.NewLine);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(goalRoot, "history-" + twoDaysAgoKey + ".tsv"),
+                "09:00:00\t09:25:00\t25\t1500\tCompleted" + Environment.NewLine);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(goalRoot, "history-" + threeDaysAgoKey + ".tsv"),
+                "09:00:00\t09:25:00\t25\t1500\tCompleted" + Environment.NewLine);
+            // Four days ago only reached 5 minutes: it breaks the chain.
+            System.IO.File.WriteAllText(System.IO.Path.Combine(goalRoot, "history-" + fourDaysAgoKey + ".tsv"),
+                "09:00:00\t09:05:00\t5\t300\tCompleted" + Environment.NewLine);
+            long todaySecs = (long)getDayFocus.Invoke(null, new object[] { goalRoot, todayKey });
+            if (todaySecs != 1500L)
+            {
+                Console.WriteLine("FAIL: today's focus seconds should be 1500, got: " + todaySecs);
+                return 63;
+            }
+            if ((long)getDayFocus.Invoke(null, new object[] { goalRoot, "19990101" }) != 0L)
+            {
+                Console.WriteLine("FAIL: a day without history must count as 0");
+                return 63;
+            }
+            // The streak takes a day lookup function, so build one over the temp dir.
+            Func<string, long> dayLookup = delegate(string dk)
+            {
+                return (long)getDayFocus.Invoke(null, new object[] { goalRoot, dk });
+            };
+            // Goal 20 minutes: the last four days qualify, the fifth does not -> 4.
+            int streak4 = (int)computeStreak.Invoke(null, new object[] { dayLookup, 20, todayKey });
+            if (streak4 != 4)
+            {
+                Console.WriteLine("FAIL: the streak should be 4 days, got: " + streak4);
+                return 63;
+            }
+            // Goal 30 minutes: today (25 min) is still in progress, so the streak
+            // starts at yesterday; the day before that missed the goal -> 1.
+            int streak1 = (int)computeStreak.Invoke(null, new object[] { dayLookup, 30, todayKey });
+            if (streak1 != 1)
+            {
+                Console.WriteLine("FAIL: a day in progress must not break the streak, expected 1, got: " + streak1);
+                return 63;
+            }
+            // A day that genuinely missed the goal breaks the chain.
+            int streak0 = (int)computeStreak.Invoke(null, new object[] { dayLookup, 25, fourDaysAgoKey });
+            if (streak0 != 0)
+            {
+                Console.WriteLine("FAIL: a missed day must break the streak, got: " + streak0);
+                return 63;
+            }
+            // The feature off means no streak at all.
+            if ((int)computeStreak.Invoke(null, new object[] { dayLookup, 0, todayKey }) != 0)
+            {
+                Console.WriteLine("FAIL: the streak must be 0 while the goal is off");
+                return 63;
+            }
+            try { System.IO.Directory.Delete(goalRoot, true); } catch { }
+            Console.WriteLine("PASS: the daily focus goal, day totals and the streak calculation are correct.");
 
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);
             if (sActiveField != null) sActiveField.SetValue(app, false);

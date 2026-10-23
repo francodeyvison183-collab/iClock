@@ -74,6 +74,8 @@ internal sealed class Settings
     public int TaskStatusWidth = 300;
     public string AiQuoteKeywords = "";
     public int AiQuoteCount = 30;
+    // 每日专注目标（分钟）。0 = 关闭：不画进度条、托盘不显示打卡文案。
+    public int DailyGoalMinutes = 0;
 
     public void CopyFrom(Settings src)
     {
@@ -98,6 +100,7 @@ internal sealed class Settings
         TaskStatusWidth = src.TaskStatusWidth > 0 ? Math.Max(160, Math.Min(800, src.TaskStatusWidth)) : 300;
         AiQuoteKeywords = src.AiQuoteKeywords;
         AiQuoteCount = src.AiQuoteCount > 0 ? src.AiQuoteCount : 30;
+        DailyGoalMinutes = src.DailyGoalMinutes;
     }
 
     public static string FilePath
@@ -186,6 +189,7 @@ internal sealed class Settings
                 else if (k == "TaskStatusWidth" && int.TryParse(v, out n)) s.TaskStatusWidth = n > 0 ? Math.Max(160, Math.Min(800, n)) : 300;
                 else if (k == "AiQuoteKeywords") s.AiQuoteKeywords = v;
                 else if (k == "AiQuoteCount" && int.TryParse(v, out n)) s.AiQuoteCount = n > 0 ? n : 30;
+                else if (k == "DailyGoalMinutes" && int.TryParse(v, out n)) s.DailyGoalMinutes = Math.Max(0, Math.Min(1440, n));
             }
             if ((s.X == 80 && s.Y == 80) || (s.X == -1 && s.Y == 90)) { s.X = -1; s.Y = 60; }
         }
@@ -216,6 +220,7 @@ internal sealed class Settings
             "TaskStatusWidth=" + TaskStatusWidth,
             "AiQuoteKeywords=" + AiQuoteKeywords
             , "AiQuoteCount=" + AiQuoteCount
+            , "DailyGoalMinutes=" + DailyGoalMinutes
         };
         string tmp = Path.Combine(dir, "settings.ini.tmp");
         try
@@ -391,6 +396,8 @@ internal sealed class Overlay : Form
     private StringFormat cachedFormat;
     private float cachedDigitCenterY;
     private float cachedDigitHeight;
+    // 模板文本宽度：进度条与数字同宽，窗口尺寸变化时也不会跳动。
+    private float cachedTextWidth;
     public bool MoveMode { get; private set; }
     public event Action<Point> PositionChanged;
     public event Action<int> TimeAdjustRequested;
@@ -584,12 +591,17 @@ internal sealed class Overlay : Form
         cachedShadowBrush = new SolidBrush(shadowColor);
 
         string template = settings.Format == "Chinese" ? (settings.Language == "en" ? "00h 00m 00s" : "00时00分00秒") : (settings.Format == "MM:SS" ? "00:00" : "00:00:00");
+        // 每日目标进度条占据数字下方的一条空间；关闭（0）时窗口高度回到纯文字。
+        bool showProgress = settings.DailyGoalMinutes > 0 && progressFraction >= 0f;
         using (Bitmap bmp = new Bitmap(1, 1))
         using (Graphics g = Graphics.FromImage(bmp))
         {
             SizeF size = g.MeasureString(template, cachedFont);
             float extraPauseWidth = (float)Math.Ceiling(cachedFont.Size * 0.75f);
-            Size = new Size(Math.Max(100, (int)Math.Ceiling(size.Width + extraPauseWidth) + 16), Math.Max(50, (int)Math.Ceiling(size.Height) + 10));
+            cachedTextWidth = size.Width;
+            int textH = Math.Max(50, (int)Math.Ceiling(size.Height) + 10);
+            if (showProgress) textH += 8;
+            Size = new Size(Math.Max(100, (int)Math.Ceiling(size.Width + extraPauseWidth) + 16), textH);
         }
 
         using (GraphicsPath path = new GraphicsPath())
@@ -617,6 +629,32 @@ internal sealed class Overlay : Form
         }
     }
 
+    // 每日专注目标进度条：画在数字下方，与文字同宽。整段等高、两端平直，没有末端圆点。
+    private void DrawDailyProgressBar(Graphics g)
+    {
+        const int barHeight = 2;
+        // 条宽固定为模板文字宽度：倒计时每秒都在变，若跟着实际文字量，
+        // 进度条会随位数变化抖动。
+        int barW = Math.Max(20, (int)Math.Round(cachedTextWidth > 0 ? cachedTextWidth : Width));
+        int barX = (Width - barW) / 2;
+        int barY = Height - barHeight - 3;
+        // 关掉抗锯齿，避免扁椭圆或半像素边缘把同一条线画成中间粗、两头细。
+        SmoothingMode prev = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.None;
+        Color trackColor = Color.FromArgb(60, cachedShadowBrush != null ? cachedShadowBrush.Color : Color.Gray);
+        using (SolidBrush trackBrush = new SolidBrush(trackColor))
+        {
+            g.FillRectangle(trackBrush, barX, barY, barW, barHeight);
+        }
+        int fillW = (int)Math.Round(barW * Math.Max(0f, Math.Min(1f, progressFraction)));
+        if (fillW > barW) fillW = barW;
+        if (fillW > 0 && cachedBrush != null)
+        {
+            g.FillRectangle(cachedBrush, barX, barY, fillW, barHeight);
+        }
+        g.SmoothingMode = prev;
+    }
+
     public void UpdateText(string value)
     {
         if (text == value) return;
@@ -625,6 +663,22 @@ internal sealed class Overlay : Form
     }
 
     public bool IsPaused { get; private set; }
+
+    // 今日专注进度（0..1）；< 0 表示未设置/未计算，不画进度条。
+    private float progressFraction = -1f;
+    private bool progressFull; // 当日已达标：进度条画满
+
+    public void SetDailyProgress(float fraction, bool full)
+    {
+        fraction = Math.Max(-1f, Math.Min(1f, fraction));
+        if (!full) fraction = Math.Min(fraction, 0.999f);
+        bool changed = progressFraction != fraction || progressFull != full;
+        progressFraction = fraction;
+        progressFull = full;
+        if (!changed && renderBitmap != null) return;
+        RebuildGdiResources();
+        RenderLayeredWindow();
+    }
 
     public void SetPaused(bool paused)
     {
@@ -679,7 +733,11 @@ internal sealed class Overlay : Form
 
         if (!string.IsNullOrEmpty(text) && cachedFont != null && cachedBrush != null)
         {
-            Rectangle rect = new Rectangle(0, 0, Width, Height);
+            // 进度条占掉底部 8px 时，文字仍在上面那块区域里居中，
+            // 这样开关目标不会让数字上下跳动。
+            bool barVisible = progressFraction >= 0f && settings.DailyGoalMinutes > 0;
+            int textAreaH = barVisible ? Math.Max(1, Height - 8) : Height;
+            Rectangle rect = new Rectangle(0, 0, Width, textAreaH);
             if (MoveMode)
             {
                 renderGraphics.DrawString(text, cachedFont, cachedBrush, rect, cachedFormat);
@@ -701,10 +759,10 @@ internal sealed class Overlay : Form
                     SizeF textSize = renderGraphics.MeasureString(text, cachedFont, PointF.Empty, StringFormat.GenericTypographic);
                     float totalWidth = iconWidth + spacing + textSize.Width;
                     float startX = (Width - totalWidth) / 2f;
-                    float centerY = cachedDigitCenterY > 0 ? cachedDigitCenterY : (Height / 2f);
+                    float centerY = cachedDigitCenterY > 0 ? cachedDigitCenterY : (textAreaH / 2f);
                     float iconY = centerY - barHeight / 2f;
                     float textX = startX + iconWidth + spacing;
-                    RectangleF textRect = new RectangleF(textX, 0, textSize.Width, Height);
+                    RectangleF textRect = new RectangleF(textX, 0, textSize.Width, textAreaH);
 
                     using (StringFormat sf = new StringFormat(StringFormat.GenericTypographic))
                     {
@@ -713,7 +771,7 @@ internal sealed class Overlay : Form
 
                         FillRoundedBar(renderGraphics, shadowBrush, startX + 1.5f, iconY + 2.0f, barWidth, barHeight);
                         FillRoundedBar(renderGraphics, shadowBrush, startX + barWidth + barGap + 1.5f, iconY + 2.0f, barWidth, barHeight);
-                        RectangleF shadowTextRect = new RectangleF(textX + 1.5f, 2.0f, textSize.Width, Height);
+                        RectangleF shadowTextRect = new RectangleF(textX + 1.5f, 2.0f, textSize.Width, textAreaH);
                         renderGraphics.DrawString(text, cachedFont, shadowBrush, shadowTextRect, sf);
 
                         FillRoundedBar(renderGraphics, cachedBrush, startX, iconY, barWidth, barHeight);
@@ -723,9 +781,14 @@ internal sealed class Overlay : Form
                 }
                 else
                 {
-                    RectangleF shadowRect = new RectangleF(1.5f, 2.0f, Width, Height);
+                    RectangleF shadowRect = new RectangleF(1.5f, 2.0f, Width, textAreaH);
                     renderGraphics.DrawString(text, cachedFont, shadowBrush, shadowRect, cachedFormat);
                     renderGraphics.DrawString(text, cachedFont, cachedBrush, rect, cachedFormat);
+                }
+
+                if (barVisible)
+                {
+                    DrawDailyProgressBar(renderGraphics);
                 }
             }
         }
@@ -1778,6 +1841,72 @@ internal sealed class ToggleSwitch : CheckBox
     }
 }
 
+// 每日专注目标的分钟框：上下按钮每次 10 分钟，0 显示为「关闭」或 Off。
+internal sealed class MinuteGoalBox : NumericUpDown
+{
+    public string OffText = "关闭";
+
+    public MinuteGoalBox()
+    {
+        Minimum = 0;
+        Maximum = 1440;
+        Increment = 10;
+        DecimalPlaces = 0;
+        ThousandsSeparator = false;
+    }
+
+    public void SetCaptions(bool english)
+    {
+        OffText = english ? "Off" : "关闭";
+        UpdateEditText();
+    }
+
+    protected override void UpdateEditText()
+    {
+        if (Value <= 0) Text = OffText;
+        else Text = ((int)Value).ToString(CultureInfo.InvariantCulture);
+    }
+
+    public override void UpButton()
+    {
+        CommitTypedValue();
+        base.UpButton();
+    }
+
+    public override void DownButton()
+    {
+        CommitTypedValue();
+        base.DownButton();
+    }
+
+    protected override void ValidateEditText()
+    {
+        CommitTypedValue();
+        UpdateEditText();
+    }
+
+    private void CommitTypedValue()
+    {
+        int n;
+        if (!TryParseMinutes(Text, out n)) return;
+        if (n < (int)Minimum) n = (int)Minimum;
+        if (n > (int)Maximum) n = (int)Maximum;
+        Value = n;
+        UserEdit = false;
+    }
+
+    private bool TryParseMinutes(string text, out int minutes)
+    {
+        string t = (text ?? "").Trim();
+        minutes = 0;
+        if (t.Length == 0 || t == "0" || t == OffText || t == "关闭" || string.Equals(t, "Off", StringComparison.OrdinalIgnoreCase))
+            return true;
+        if (t.EndsWith("分钟")) t = t.Substring(0, t.Length - 2).Trim();
+        else if (t.EndsWith("min", StringComparison.OrdinalIgnoreCase)) t = t.Substring(0, t.Length - 3).Trim();
+        return int.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out minutes);
+    }
+}
+
 internal sealed class SettingsDialog : Form
 {
     private NumericUpDown minutes, size;
@@ -1786,7 +1915,7 @@ internal sealed class SettingsDialog : Form
     private string selectedColor;
     private TextBox endMessage;
     private ComboBox format, language, fontCombo;
-    private CheckBox startup, sound, notice;
+    private ToggleSwitch startup;
     private ToggleSwitch dailyQuoteToggle;
     private Button btnEditQuotes, btnAiQuotes;
     private ComboBox soundStyle, noticeStyle;
@@ -1794,6 +1923,10 @@ internal sealed class SettingsDialog : Form
     private int hotkeyModifiers, hotkeyKey, candidateMods, candidateKey;
     private bool hotkeyActive;
     private Label lblMinutes, lblSize, lblFont, lblColor, lblFormat, lblEndMsg, lblHotkey, lblLanguage;
+    private Label lblSound, lblNotice, lblStartup, lblDailyGoal;
+    private MinuteGoalBox dailyGoal;
+    private Panel panelTimerDivider;
+    private Label lblTimerSection;
     public Settings Value { get; private set; }
     public event Action PreviewRequested;
     public event Action SettingsCommitted;
@@ -2005,11 +2138,11 @@ internal sealed class SettingsDialog : Form
         endMessage.TextChanged += OnPreviewChanged;
         ApplyInputPadding(endMessage);
         Controls.Add(endMessage);
-        lblHotkey = AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 18, 270);
+        lblHotkey = AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 18, 338);
         hotkeyBox = new TextBox();
         hotkeyBox.ReadOnly = true;
         hotkeyBox.Multiline = true;
-        hotkeyBox.SetBounds(172, 266, 188, 28);
+        hotkeyBox.SetBounds(172, 334, 188, 28);
         if (!hotkeyActive)
         {
             hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey) + (en ? " (Occupied)" : " (已被占用)");
@@ -2027,41 +2160,66 @@ internal sealed class SettingsDialog : Form
         hotkeyBox.KeyDown += CaptureHotkey;
         ApplyInputPadding(hotkeyBox);
         Controls.Add(hotkeyBox);
-        lblLanguage = AddLabel(en ? "Interface language" : "界面语言", 18, 304);
-        language = AddCombo(300);
+        // 「界面语言」与「开机自启动」并到同一行，两个通用配置项各占一半宽度、两端对齐。
+        // 上方用一条 1px 分割线 + 区块标题，把通用配置与倒计时专属设置分开。
+        lblLanguage = AddLabel(en ? "Language" : "界面语言", 18, 422);
+        language = AddCombo(418);
         language.Items.AddRange(new object[] { "简体中文", "English" });
         language.SelectedIndex = Value.Language == "en" ? 1 : 0;
         language.SelectedIndexChanged += OnLanguageChanged;
         language.DrawItem += OnDrawComboItem;
-        sound = AddCheck(en ? "Play sound at end" : "结束时声音提醒", Value.EndSound, 18, 334);
-        sound.SetBounds(18, 334, 150, 24);
-
-        soundStyle = AddCombo(334);
-        soundStyle.Items.AddRange(en
-            ? new object[] { "Doorbell Chime (Default)", "QQ Message (Classic)", "Telephone Ring (Classic)", "Door Knock (咚咚咚)", "Alarm Ring (Strong)" }
-            : new object[] { "门铃叮咚 (默认)", "QQ 经典提示 (嘀嘀)", "经典电话铃 (叮铃铃)", "敲门声 (咚咚咚)", "醒目闹铃 (强力)" });
-        soundStyle.SelectedIndex = (Value.EndSoundStyle == "QQ") ? 1 : ((Value.EndSoundStyle == "Phone" || Value.EndSoundStyle == "Pager" || Value.EndSoundStyle == "Classic") ? 2 : ((Value.EndSoundStyle == "Knock") ? 3 : (Value.EndSoundStyle == "Alarm" ? 4 : 0)));
-        soundStyle.Enabled = sound.Checked;
+        lblSound = AddLabel(en ? "End sound" : "结束声音", 18, 270);
+        soundStyle = AddCombo(266);
+        PopulateSoundStyleCombo(en);
+        soundStyle.SelectedIndex = SoundStyleIndex(Value.EndSound, Value.EndSoundStyle);
         soundStyle.DrawItem += OnDrawComboItem;
-        sound.CheckedChanged += OnSoundCheckChanged;
         soundStyle.SelectionChangeCommitted += OnSoundStyleCommitted;
 
-        notice = AddCheck(en ? "End notification" : "结束时系统通知", Value.EndNotice, 18, 368);
-        notice.SetBounds(18, 368, 150, 24);
-
-        noticeStyle = AddCombo(368);
-        noticeStyle.Items.AddRange(en
-            ? new object[] { "Popup (Auto DND Fullscreen)", "In-Place Pulse" }
-            : new object[] { "弹窗强提醒 (全屏免打扰)", "原位呼吸轻提醒" });
-        noticeStyle.SelectedIndex = Value.NoticeStyle == "Pulse" ? 1 : 0;
-        noticeStyle.Enabled = notice.Checked;
+        lblNotice = AddLabel(en ? "End notice" : "结束通知", 18, 304);
+        noticeStyle = AddCombo(300);
+        PopulateNoticeStyleCombo(en);
+        noticeStyle.SelectedIndex = NoticeStyleIndex(Value.EndNotice, Value.NoticeStyle);
         noticeStyle.DrawItem += OnDrawComboItem;
         noticeStyle.SelectionChangeCommitted += OnPreviewChanged;
-        notice.CheckedChanged += OnNoticeCheckChanged;
 
-        startup = AddCheck(en ? "Start with Windows" : "开机自启动", Value.AutoStart, 18, 402);
-        startup.SetBounds(18, 402, 344, 24);
+        lblStartup = AddLabel(en ? "Auto start" : "开机自启动", 18, 422);
+        startup = new ToggleSwitch();
+        startup.Checked = Value.AutoStart;
+        startup.AccessibleName = en ? "Auto start" : "开机自启动";
         startup.CheckedChanged += OnStartupCheckedChanged;
+        Controls.Add(startup);
+        LayoutGeneralRow();
+
+        // 通用配置分组线：倒计时专属设置在上，通用配置（语言 / 开机自启）在下。
+        panelTimerDivider = new Panel();
+        panelTimerDivider.SetBounds(18, 404, 344, 1);
+        panelTimerDivider.BackColor = AppContext.Win11Border;
+        Controls.Add(panelTimerDivider);
+
+        // 分组标题嵌在分割线上：标签底色与窗体一致，1px 细线在文字处断开。
+        lblTimerSection = new Label();
+        lblTimerSection.Text = en ? "General" : "通用配置";
+        lblTimerSection.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
+        lblTimerSection.ForeColor = AppContext.Win11TextSecondary;
+        lblTimerSection.BackColor = BackColor;
+        lblTimerSection.TextAlign = ContentAlignment.MiddleLeft;
+        lblTimerSection.SetBounds(18, 397, TextRenderer.MeasureText(lblTimerSection.Text, lblTimerSection.Font).Width + 12, 16);
+        Controls.Add(lblTimerSection);
+
+        // 每日专注目标：按分钟填写，上下按钮每次 10 分钟。0 显示为「关闭」。
+        lblDailyGoal = AddLabel(en ? "Daily focus goal (min)" : "每日专注目标（分钟）", 18, 372);
+        lblDailyGoal.SetBounds(18, 372, 154, 24);
+        dailyGoal = new MinuteGoalBox();
+        int goalMinutes = Value.DailyGoalMinutes;
+        if (goalMinutes < 0) goalMinutes = 0;
+        if (goalMinutes > 1440) goalMinutes = 1440;
+        dailyGoal.SetCaptions(en);
+        dailyGoal.Value = goalMinutes;
+        dailyGoal.SetBounds(172, 368, 188, 28);
+        ApplyInputPadding(dailyGoal);
+        dailyGoal.ValueChanged += delegate { TriggerPreview(); UpdateStreakLabel(); };
+        Controls.Add(dailyGoal);
+        UpdateStreakLabel();
 
 
         dialogQuoteList = DailyQuoteDialog.LoadQuotes();
@@ -2576,11 +2734,16 @@ internal sealed class SettingsDialog : Form
         hotkeyBox.Visible = isTimer;
         lblLanguage.Visible = isTimer;
         language.Visible = isTimer;
-        sound.Visible = isTimer;
+        if (lblSound != null) lblSound.Visible = isTimer;
         soundStyle.Visible = isTimer;
-        notice.Visible = isTimer;
+        if (lblNotice != null) lblNotice.Visible = isTimer;
         noticeStyle.Visible = isTimer;
+        if (lblStartup != null) lblStartup.Visible = isTimer;
         startup.Visible = isTimer;
+        if (panelTimerDivider != null) panelTimerDivider.Visible = isTimer;
+        if (lblTimerSection != null) lblTimerSection.Visible = isTimer;
+        if (lblDailyGoal != null) lblDailyGoal.Visible = isTimer;
+        if (dailyGoal != null) dailyGoal.Visible = isTimer;
 
         if (lblDailyQuote != null) lblDailyQuote.Visible = isQuote;
         if (dailyQuoteToggle != null) dailyQuoteToggle.Visible = isQuote;
@@ -3013,17 +3176,12 @@ internal sealed class SettingsDialog : Form
 
     private void OnPreviewChanged(object sender, EventArgs e) { TriggerPreview(); }
     private void OnQuoteFontComboChanged(object sender, EventArgs e) { TriggerQuotePreview(); TriggerPreview(); }
-    private void OnSoundCheckChanged(object sender, EventArgs e) { soundStyle.Enabled = sound.Checked; TriggerPreview(); }
     private void OnSoundStyleCommitted(object sender, EventArgs e)
     {
-        if (sound.Checked)
-        {
-            string st = soundStyle.SelectedIndex == 1 ? "QQ" : (soundStyle.SelectedIndex == 2 ? "Phone" : (soundStyle.SelectedIndex == 3 ? "Knock" : (soundStyle.SelectedIndex == 4 ? "Alarm" : "Doorbell")));
-            AppContext.PlaySoundStyle(st);
-        }
+        if (soundStyle != null && soundStyle.SelectedIndex > 0)
+            AppContext.PlaySoundStyle(SoundStyleFromIndex(soundStyle.SelectedIndex));
         TriggerPreview();
     }
-    private void OnNoticeCheckChanged(object sender, EventArgs e) { noticeStyle.Enabled = notice.Checked; TriggerPreview(); }
     private void OnStartupCheckedChanged(object sender, EventArgs e)
     {
         if (startup.Checked && !Value.AutoStart && AppContext.IsInEphemeralFolder(Application.ExecutablePath))
@@ -3587,10 +3745,21 @@ internal sealed class SettingsDialog : Form
         lblFormat.Text = toEnglish ? "Display format" : "显示格式";
         lblEndMsg.Text = toEnglish ? "End message" : "结束时弹出消息";
         lblHotkey.Text = toEnglish ? "Start/pause hotkey" : "启动/暂停快捷键";
-        lblLanguage.Text = toEnglish ? "Interface language" : "界面语言";
-        startup.Text = toEnglish ? "Start with Windows" : "开机自启动";
-        sound.Text = toEnglish ? "Play sound at end" : "结束时声音提醒";
-        notice.Text = toEnglish ? "End notification" : "结束时系统通知";
+        lblLanguage.Text = toEnglish ? "Language" : "界面语言";
+        if (lblStartup != null) lblStartup.Text = toEnglish ? "Auto start" : "开机自启动";
+        if (startup != null) startup.AccessibleName = toEnglish ? "Auto start" : "开机自启动";
+        LayoutGeneralRow();
+        if (lblTimerSection != null)
+        {
+            lblTimerSection.Text = toEnglish ? "General" : "通用配置";
+            lblTimerSection.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f);
+            lblTimerSection.Width = TextRenderer.MeasureText(lblTimerSection.Text, lblTimerSection.Font).Width + 12;
+        }
+        if (lblDailyGoal != null) lblDailyGoal.Text = toEnglish ? "Daily focus goal (min)" : "每日专注目标（分钟）";
+        if (lblSound != null) lblSound.Text = toEnglish ? "End sound" : "结束声音";
+        if (lblNotice != null) lblNotice.Text = toEnglish ? "End notice" : "结束通知";
+        if (dailyGoal != null) dailyGoal.SetCaptions(toEnglish);
+        UpdateStreakLabel();
 
         if (lblDailyQuote != null)
         {
@@ -3742,19 +3911,8 @@ internal sealed class SettingsDialog : Form
             : new object[] { "跟随倒计时 (默认)", "微软雅黑 (现代简约)", "楷体 (文雅墨韵)", "仿宋 (典雅诗意)", "宋体 (传统印刷)", "隶书 (汉风古韵)", "幼圆 (温和圆融)", "Georgia (经典衬线)", "Constantia (优雅书卷)", "Segoe UI (清爽利落)" });
         quoteFontCombo.SelectedIndex = qfSel >= 0 ? qfSel : 0;
 
-        int ssSel = soundStyle.SelectedIndex;
-        soundStyle.Items.Clear();
-        soundStyle.Items.AddRange(toEnglish
-            ? new object[] { "Doorbell Chime (Default)", "QQ Message (Classic)", "Telephone Ring (Classic)", "Door Knock (咚咚咚)", "Alarm Ring (Strong)" }
-            : new object[] { "门铃叮咚 (默认)", "QQ 经典提示 (嘀嘀)", "经典电话铃 (叮铃铃)", "敲门声 (咚咚咚)", "醒目闹铃 (强力)" });
-        soundStyle.SelectedIndex = ssSel >= 0 ? ssSel : 0;
-
-        int nsSel = noticeStyle.SelectedIndex;
-        noticeStyle.Items.Clear();
-        noticeStyle.Items.AddRange(toEnglish
-            ? new object[] { "Popup (Auto DND Fullscreen)", "In-Place Pulse" }
-            : new object[] { "弹窗强提醒 (全屏免打扰)", "原位呼吸轻提醒" });
-        noticeStyle.SelectedIndex = nsSel >= 0 ? nsSel : 0;
+        PopulateSoundStyleCombo(toEnglish);
+        PopulateNoticeStyleCombo(toEnglish);
         if (hotkeyActive)
         {
             hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey);
@@ -3776,6 +3934,7 @@ internal sealed class SettingsDialog : Form
         UpdateInputPadding(quoteFontSize);
         UpdateInputPadding(endMessage);
         UpdateInputPadding(hotkeyBox);
+        UpdateInputPadding(dailyGoal);
         TriggerPreview();
     }
 
@@ -3789,13 +3948,14 @@ internal sealed class SettingsDialog : Form
             : (Value.FontFamily ?? "Segoe UI");
         Value.HotkeyModifiers = hotkeyModifiers;
         Value.HotkeyKey = hotkeyKey;
-        Value.AutoStart = startup != null ? startup.Checked : Value.AutoStart;
+        Value.AutoStart = startup != null && startup.Checked;
         Value.Format = (format != null && format.SelectedIndex == 1) ? "MM:SS" : ((format != null && format.SelectedIndex == 2) ? "Chinese" : "HH:MM:SS");
         Value.Language = (language != null && language.SelectedIndex == 1) ? "en" : "zh";
-        Value.EndSound = sound != null ? sound.Checked : Value.EndSound;
-        Value.EndSoundStyle = (soundStyle != null && soundStyle.SelectedIndex == 1) ? "QQ" : ((soundStyle != null && soundStyle.SelectedIndex == 2) ? "Phone" : ((soundStyle != null && soundStyle.SelectedIndex == 3) ? "Knock" : ((soundStyle != null && soundStyle.SelectedIndex == 4) ? "Alarm" : "Doorbell")));
-        Value.EndNotice = notice != null ? notice.Checked : Value.EndNotice;
-        Value.NoticeStyle = (noticeStyle != null && noticeStyle.SelectedIndex == 1) ? "Pulse" : "Popup";
+        Value.EndSound = soundStyle != null && soundStyle.SelectedIndex > 0;
+        if (soundStyle != null && soundStyle.SelectedIndex > 0) Value.EndSoundStyle = SoundStyleFromIndex(soundStyle.SelectedIndex);
+        Value.EndNotice = noticeStyle != null && noticeStyle.SelectedIndex > 0;
+        if (noticeStyle != null && noticeStyle.SelectedIndex == 2) Value.NoticeStyle = "Pulse";
+        else if (noticeStyle != null && noticeStyle.SelectedIndex == 1) Value.NoticeStyle = "Popup";
         Value.EndMessage = endMessage != null ? endMessage.Text.Trim() : Value.EndMessage;
         Value.DailyQuote = dailyQuoteToggle != null ? dailyQuoteToggle.Checked : Value.DailyQuote;
         Value.QuoteColor = selectedQuoteColor ?? "";
@@ -3803,7 +3963,94 @@ internal sealed class SettingsDialog : Form
         if (quoteFontSize != null) Value.QuoteFontSize = (float)quoteFontSize.Value;
         Value.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
         Value.QuoteSaverEnabled = quoteSaverWaitCombo != null && quoteSaverWaitCombo.SelectedIndex > 0;
+        Value.DailyGoalMinutes = ReadDailyGoalSelection();
         return Value;
+    }
+
+    // 读取「每日专注目标」：0 = 关闭，其余为分钟数。
+    private int ReadDailyGoalSelection()
+    {
+        if (dailyGoal == null) return Value != null ? Value.DailyGoalMinutes : 0;
+        return Math.Max(0, Math.Min(1440, (int)dailyGoal.Value));
+    }
+
+    private static int SoundStyleIndex(bool enabled, string style)
+    {
+        if (!enabled) return 0;
+        if (style == "QQ") return 2;
+        if (style == "Phone" || style == "Pager" || style == "Classic") return 3;
+        if (style == "Knock") return 4;
+        if (style == "Alarm") return 5;
+        return 1;
+    }
+
+    private static string SoundStyleFromIndex(int index)
+    {
+        if (index == 2) return "QQ";
+        if (index == 3) return "Phone";
+        if (index == 4) return "Knock";
+        if (index == 5) return "Alarm";
+        return "Doorbell";
+    }
+
+    private static int NoticeStyleIndex(bool enabled, string style)
+    {
+        if (!enabled) return 0;
+        return style == "Pulse" ? 2 : 1;
+    }
+
+    private void PopulateSoundStyleCombo(bool en)
+    {
+        if (soundStyle == null) return;
+        int sel = soundStyle.Items.Count > 0 ? soundStyle.SelectedIndex : -1;
+        soundStyle.BeginUpdate();
+        soundStyle.Items.Clear();
+        soundStyle.Items.AddRange(en
+            ? new object[] { "Off", "Doorbell Chime (Default)", "QQ Message (Classic)", "Telephone Ring (Classic)", "Door Knock (咚咚咚)", "Alarm Ring (Strong)" }
+            : new object[] { "关闭", "门铃叮咚 (默认)", "QQ 经典提示 (嘀嘀)", "经典电话铃 (叮铃铃)", "敲门声 (咚咚咚)", "醒目闹铃 (强力)" });
+        if (sel >= 0 && sel < soundStyle.Items.Count) soundStyle.SelectedIndex = sel;
+        soundStyle.EndUpdate();
+    }
+
+    private void PopulateNoticeStyleCombo(bool en)
+    {
+        if (noticeStyle == null) return;
+        int sel = noticeStyle.Items.Count > 0 ? noticeStyle.SelectedIndex : -1;
+        noticeStyle.BeginUpdate();
+        noticeStyle.Items.Clear();
+        noticeStyle.Items.AddRange(en
+            ? new object[] { "Off", "Popup (Auto DND Fullscreen)", "In-Place Pulse" }
+            : new object[] { "关闭", "弹窗强提醒 (全屏免打扰)", "原位呼吸轻提醒" });
+        if (sel >= 0 && sel < noticeStyle.Items.Count) noticeStyle.SelectedIndex = sel;
+        noticeStyle.EndUpdate();
+    }
+
+    // 设置页里的「连续 N 天」提示：写在目标下拉框的悬浮提示里，标签保持单行。
+    private void UpdateStreakLabel()
+    {
+        if (lblDailyGoal == null) return;
+        bool en = (language != null) ? language.SelectedIndex == 1 : (Value != null && Value.Language == "en");
+        lblDailyGoal.Text = en ? "Daily focus goal (min)" : "每日专注目标（分钟）";
+        if (dailyGoal == null) return;
+        int goal = ReadDailyGoalSelection();
+        string tip;
+        if (goal <= 0)
+        {
+            tip = en ? "Off: no daily progress bar" : "关闭：不显示每日进度条";
+        }
+        else
+        {
+            tip = en ? "No streak yet" : "还没有连续达标记录";
+            try
+            {
+                string dir = Path.GetDirectoryName(Settings.FilePath);
+                int streak = AppContext.ComputeStreak(delegate(string dk) { return AppContext.GetDayFocusSecs(dir, dk); }, goal, DateTime.Today.ToString("yyyyMMdd"));
+                if (streak > 0) tip = en ? "Streak: " + streak + " day(s)" : "已连续达标 " + streak + " 天";
+            }
+            catch { }
+        }
+        if (toolTip == null) toolTip = new ToolTip();
+        toolTip.SetToolTip(dailyGoal, tip);
     }
 
     private void CommitQuoteSettings()
@@ -3845,6 +4092,38 @@ internal sealed class SettingsDialog : Form
     private NumericUpDown AddNumber(int v, int min, int max, int x, int y) { NumericUpDown n = new NumericUpDown(); n.Minimum = min; n.Maximum = max; n.Value = Math.Min(max, Math.Max(min, v)); n.SetBounds(x, y, 188, 28); ApplyInputPadding(n); Controls.Add(n); return n; }
     private CheckBox AddCheck(string t, bool v, int x, int y) { CheckBox c = new CheckBox(); c.Text = t; c.Checked = v; c.ForeColor = AppContext.Win11TextPrimary; c.SetBounds(x, y, 344, 24); Controls.Add(c); return c; }
     private ComboBox AddCombo(int y) { ComboBox c = new ComboBox(); c.DropDownStyle = ComboBoxStyle.DropDownList; c.DrawMode = DrawMode.OwnerDrawFixed; c.ItemHeight = 22; c.SetBounds(172, y, 188, 28); Controls.Add(c); return c; }
+
+    // 语言下拉贴在「界面语言」右边，宽度够放下「简体中文」；开机自启贴在行的右端。
+    // 标签只占文字本身的宽度，避免 148px 的标签盖住下拉框，把选中项画成空白。
+    private void LayoutGeneralRow()
+    {
+        if (lblLanguage != null)
+        {
+            int labelW = TextRenderer.MeasureText(lblLanguage.Text, lblLanguage.Font).Width;
+            lblLanguage.SetBounds(18, 422, labelW, 24);
+        }
+        if (startup != null) startup.SetBounds(322, 421, 40, 22);
+        int comboRight = 314;
+        if (lblStartup != null)
+        {
+            int startupW = TextRenderer.MeasureText(lblStartup.Text, lblStartup.Font).Width;
+            int startupX = 314 - startupW;
+            lblStartup.SetBounds(startupX, 422, startupW, 24);
+            comboRight = startupX - 10;
+        }
+        if (language == null || lblLanguage == null) return;
+        int comboX = lblLanguage.Right + 8;
+        int comboW = Math.Max(112, comboRight - comboX);
+        language.SetBounds(comboX, 418, comboW, 28);
+        int dropW = comboW;
+        foreach (object item in language.Items)
+        {
+            int w = TextRenderer.MeasureText(Convert.ToString(item), language.Font).Width + 28;
+            if (w > dropW) dropW = w;
+        }
+        language.DropDownWidth = dropW;
+        language.BringToFront();
+    }
     private void CaptureHotkey(object sender, KeyEventArgs e)
     {
         Keys key = e.KeyCode;
@@ -7851,6 +8130,7 @@ internal sealed class AppContext : ApplicationContext
         ApplyStartup();
         EnsureStartMenuShortcut(false);
         ResetDisplay();
+        UpdateDailyProgress();
         TrackAndCheckUpdates();
         displaySettingsHandler = delegate
         {
@@ -8070,7 +8350,7 @@ internal sealed class AppContext : ApplicationContext
         menuReset.Enabled = running || sessionActive;
         menuMove.Text = overlay.MoveMode ? (en ? "✓ Finish position adjustment" : "✓ 完成位置调整") : (en ? "Adjust text position" : "调整文字位置");
         menuMove.ShortcutKeyDisplayString = overlay.MoveMode ? "" : (en ? "Alt + Drag" : "Alt + 拖拽");
-        menuHistory.Text = en ? "View today's history" : "查看今日记录";
+        menuHistory.Text = BuildHistoryMenuText(en);
         menuSettings.Text = en ? "Settings…" : "设置…";
         menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
         menuExit.Text = en ? "Exit" : "退出";
@@ -8080,6 +8360,40 @@ internal sealed class AppContext : ApplicationContext
         tray.Text = hotkeyRegistered
             ? (en ? "iClock (" + actionTip + ")" : "iClock（" + actionTip + "）")
             : (en ? "iClock (" + actionTip + " · Hotkey conflict)" : "iClock（" + actionTip + " · 快捷键未生效）");
+    }
+
+    // 托盘打卡文案：有目标时显示「今日 2.4 小时 / 4 小时 · 连续 23 天」，无目标时保持原样。
+    private string BuildHistoryMenuText(bool en)
+    {
+        string baseText = en ? "View today's history" : "查看今日记录";
+        if (settings.DailyGoalMinutes <= 0) return baseText;
+        string dir = Path.GetDirectoryName(Settings.FilePath);
+        long today = AppContext.GetDayFocusSecs(dir, DateTime.Today.ToString("yyyyMMdd"));
+        int streak = AppContext.ComputeStreak(delegate(string dk) { return AppContext.GetDayFocusSecs(dir, dk); }, settings.DailyGoalMinutes, DateTime.Today.ToString("yyyyMMdd"));
+        string todayPart = en
+            ? "Today " + FormatDurationMinutes(today, true) + " / " + FormatDurationMinutes(settings.DailyGoalMinutes * 60L, true)
+            : "今日 " + FormatDurationMinutes(today, false) + " / " + FormatDurationMinutes(settings.DailyGoalMinutes * 60L, false);
+        string streakPart = streak > 0
+            ? (en ? " · " + streak + "-day streak" : " · 连续 " + streak + " 天")
+            : (en ? " · no streak yet" : " · 未连续");
+        return todayPart + streakPart;
+    }
+
+    // 重算今日进度并刷新悬浮条与托盘文案；在会话开始/结束/被打断和启动时调用。
+    private void UpdateDailyProgress()
+    {
+        try
+        {
+            if (overlay == null || overlay.IsDisposed) return;
+            if (settings.DailyGoalMinutes <= 0) { overlay.SetDailyProgress(-1f, false); UpdateMenuText(); return; }
+            string dir = Path.GetDirectoryName(Settings.FilePath);
+            long today = AppContext.GetDayFocusSecs(dir, DateTime.Today.ToString("yyyyMMdd"));
+            long goal = settings.DailyGoalMinutes * 60L;
+            bool full = today >= goal;
+            overlay.SetDailyProgress(Math.Min(1f, (float)((double)today / goal)), full);
+            UpdateMenuText();
+        }
+        catch { }
     }
 
     internal void Pause()
@@ -8118,7 +8432,7 @@ internal sealed class AppContext : ApplicationContext
         overlay.SetPaused(false);
         overlay.Show();
         Tick(null, EventArgs.Empty);
-        UpdateMenuText();
+        UpdateDailyProgress();
     }
 
     internal void StartRest(int minutes = 5)
@@ -9753,6 +10067,7 @@ internal sealed class AppContext : ApplicationContext
         d.PreviewRequested += delegate
         {
             RefreshTimerVisual();
+            UpdateDailyProgress();
         };
         d.SettingsCommitted += delegate
         {
@@ -10566,6 +10881,7 @@ internal sealed class AppContext : ApplicationContext
             File.AppendAllText(path, row, new UTF8Encoding(false));
         }
         catch { }
+        UpdateDailyProgress();
     }
     private void ApplyStartup()
     {
@@ -11155,6 +11471,79 @@ internal sealed class AppContext : ApplicationContext
         // launch cleans it up.
         try { File.Delete(oldExe); } catch { }
         return true;
+    }
+
+    /// <summary>Parse one history-TSV session row; mirrors Main.ParseSessionRow
+    /// (kept separate so AppContext stays UI-free).</summary>
+    internal static bool TryParseSessionRow(string row, out long secs)
+    {
+        secs = 0L;
+        if (string.IsNullOrEmpty(row)) return false;
+        string[] cols = row.Split('\t');
+        if (cols.Length < 4) return false;
+        string start = cols[0], end = cols[1], dur = cols[2];
+        if (cols.Length >= 5)
+        {
+            long.TryParse(cols[3], out secs);
+        }
+        else
+        {
+            long m;
+            long.TryParse(dur, out m);
+            string res = cols[3];
+            if (res == "Completed" || res == "已完成") secs = m * 60L;
+            else
+            {
+                DateTime t1, t2;
+                if (DateTime.TryParse(start, out t1) && DateTime.TryParse(end, out t2))
+                    secs = Math.Max(0L, Math.Min(m * 60L, (long)(t2 - t1).TotalSeconds));
+            }
+        }
+        return true;
+    }
+
+    /// <summary>Total actual focus seconds logged for one yyyyMMdd date.
+    /// Reads the same history TSV the history dialog uses, so the daily-goal
+    /// progress always agrees with what the user sees under 查看记录.</summary>
+    internal static long GetDayFocusSecs(string dir, string dateKey)
+    {
+        if (string.IsNullOrEmpty(dir) || string.IsNullOrEmpty(dateKey)) return 0L;
+        try
+        {
+            string path = Path.Combine(dir, "history-" + dateKey + ".tsv");
+            if (!File.Exists(path)) return 0L;
+            long sum = 0L;
+            foreach (string row in File.ReadAllLines(path, Encoding.UTF8))
+            {
+                long s;
+                if (TryParseSessionRow(row, out s)) sum += Math.Max(0L, s);
+            }
+            return sum;
+        }
+        catch { return 0L; }
+    }
+
+    /// <summary>Consecutive days (counting back from today, locale dates in
+    /// yyyyMMdd) whose actual focus reached the goal. Today is allowed to fail
+    /// — the day is still in progress — everything behind today has to hold.
+    /// goalMinutes &lt;= 0 means the feature is off: streak 0.</summary>
+    internal static int ComputeStreak(Func<string, long> dayFocus, int goalMinutes, string todayKey)
+    {
+        if (goalMinutes <= 0 || string.IsNullOrEmpty(todayKey)) return 0;
+        long goal = goalMinutes * 60L;
+        DateTime day;
+        if (!DateTime.TryParseExact(todayKey, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out day)) return 0;
+        // Today not meeting the goal does not break the streak (day in progress).
+        if (dayFocus(todayKey) < goal) day = day.AddDays(-1);
+        int streak = 0;
+        while (true)
+        {
+            if (dayFocus(day.ToString("yyyyMMdd")) < goal) break;
+            streak++;
+            day = day.AddDays(-1);
+            if (streak >= 3650) break; // ~10 years of perfect days: guard the loop
+        }
+        return streak;
     }
 
     /// <summary>Remove a leftover iClock.exe.old from an earlier update.</summary>
