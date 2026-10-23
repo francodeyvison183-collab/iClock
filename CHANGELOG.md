@@ -8,6 +8,10 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 ### Added
 
+- **自动更新 (Auto Update)**: the About dialog's 「检查更新」 button now goes all the way — when a newer release exists the button turns into 「下载 v1.x」, shows the download progress, and becomes 「重启应用更新」; one click replaces the running program and restarts it. / 「关于」对话框的「检查更新」现在能走完全程：发现新版本后按钮变成「下载 v1.x」，下载过程显示进度，完成后变成「重启应用更新」，点一下即替换正在运行的程序并重启。
+  - Windows does not allow overwriting a running executable, so iClock renames itself aside and moves the new build into place. If the file is locked the swap is applied on the next launch, and a failed swap now moves the original back instead of leaving the program without its file. / Windows 不允许覆盖正在运行的 exe，iClock 会先改名让位再放入新版本；文件被占用时会在下次启动自动补上，替换失败也会把原文件放回去，不会让程序丢失文件。
+  - The latest version is read from the release page redirect instead of the anonymous GitHub api, which answers 403 once its 60 calls per hour and ip quota is used up; a short cache keeps a launch check and a manual check from asking twice in a row. / 最新版本号改从 release 页跳转读取，绕开匿名 API 每 IP 每小时 60 次的配额（用尽即 403）；短时间内重复检查走缓存。
+
 - **每日金句屏保 (Daily Quotes Screensaver)**: iClock can register itself as the Windows screensaver and show the day's quote full-screen.
   - The quote page now leads with the master switch, the screensaver toggle is a single switch (default **off**), and the idle wait moved into a dropdown in the quote page — right-click the toggle for 1 / 5 / 10 / 15 / 30 minutes.
   - The wait time is written to `SCRNSAVE.EXE` (the value Windows actually reads) as well as the registry, and `/s` launches are logged to `saver.log` so a Windows-side launch failure can be diagnosed.
