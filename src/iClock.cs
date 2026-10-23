@@ -2291,7 +2291,7 @@ internal sealed class SettingsDialog : Form
         UpdateSaverTooltip(en);
         Controls.Add(quoteSaverWaitCombo);
 
-        // Section 3: Tip (Y = 414) — same 34px pitch as the rows above.
+        // Section 3: Tip (Y = 428)
         lblQuoteTip = new StyledTipLabel(en
             ? new string[] { "Alt + Ctrl + wheel", "Alt + drag" }
             : new string[] { "Alt + Ctrl + 滚轮", "Alt + 拖拽" });
@@ -2301,7 +2301,9 @@ internal sealed class SettingsDialog : Form
             : "提示：在桌面金句文字上按住 Alt + 拖拽，Alt + Ctrl + 滚轮缩放字号。";
         lblQuoteTip.ForeColor = AppContext.Win11TextSecondary;
         lblQuoteTip.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblQuoteTip.SetBounds(16, 414, 348, 22);
+        // 48px above the saver row (the grid's own pitch is 34), 18px gutter like
+        // the labels above.
+        lblQuoteTip.SetBounds(18, 428, 344, 22);
         Controls.Add(lblQuoteTip);
 
 
@@ -2373,9 +2375,11 @@ internal sealed class SettingsDialog : Form
         Controls.Add(panelSessionCard);
 
         panelAgentRows = new Panel();
-        // Full card width: the row dividers must reach the card's right edge
-        // (a 320px panel inside a 344px card left a 24px gap).
-        panelAgentRows.SetBounds(0, 0, panelSkillCard.Width, 10);
+        // Wide enough for the row dividers to reach the card's right edge, but not
+        // past the client area AutoScroll leaves once a vertical scrollbar appears:
+        // at the card's full 344px the panel overflowed by the bar's 17px and
+        // WinForms answered with a horizontal scrollbar.
+        panelAgentRows.SetBounds(0, 0, panelSkillCard.Width - SystemInformation.VerticalScrollBarWidth, 10);
         panelAgentRows.BackColor = Color.Transparent;
         panelSkillCard.Controls.Add(panelAgentRows);
 
