@@ -1227,29 +1227,16 @@ internal static class TestCheck
             bool restBreakStarted = false;
             Action restCallback = delegate { restBreakStarted = true; };
             ConstructorInfo restNoticeCtor = noticeType.GetConstructor(new Type[] { settings.GetType(), typeof(DateTime), typeof(string), typeof(IntPtr), typeof(Action) });
-            if (restNoticeCtor == null)
-            {
-                Console.WriteLine("FAIL: NoticeDialog missing rest callback constructor");
-                return 33;
-            }
-            Form restDlg = (Form)restNoticeCtor.Invoke(new object[] { settings, DateTime.Now, null, IntPtr.Zero, restCallback });
+            Form restDlg = restNoticeCtor == null ? null : (Form)restNoticeCtor.Invoke(new object[] { settings, DateTime.Now, null, IntPtr.Zero, restCallback });
             Button restBtn = null;
-            foreach (Control c in restDlg.Controls)
-                if (c.GetType().Name == "RestLengthButton") restBtn = (Button)c;
-            if (restBtn == null)
+            if (restDlg != null)
+                foreach (Control c in restDlg.Controls)
+                    if (c.GetType().Name == "RestLengthButton") restBtn = (Button)c;
+            int arrowLeft = restBtn == null ? -1 : (int)restBtn.GetType().GetProperty("ArrowZoneLeft").GetValue(restBtn, null);
+            ContextMenuStrip restMenu = restDlg == null ? null : (ContextMenuStrip)noticeType.GetField("restMenu", bf).GetValue(restDlg);
+            if (restBtn == null || restBtn.Bounds != new Rectangle(30, 150, 150, 36) || arrowLeft != 114 || restMenu == null || restMenu.Items.Count < 5)
             {
-                Console.WriteLine("FAIL: NoticeDialog missing the rest-length button");
-                return 33;
-            }
-            if (restBtn.Bounds != new Rectangle(30, 150, 150, 36))
-            {
-                Console.WriteLine("FAIL: rest-length button geometry changed: " + restBtn.Bounds);
-                return 33;
-            }
-            int arrowLeft = (int)restBtn.GetType().GetProperty("ArrowZoneLeft").GetValue(restBtn, null);
-            if (arrowLeft != 114)
-            {
-                Console.WriteLine("FAIL: rest-length arrow zone starts at " + arrowLeft + " instead of 114");
+                Console.WriteLine("FAIL: rest-length button geometry or preset menu is wrong");
                 return 33;
             }
             // Shown off-screen: the check must never flash a popup on screen.
@@ -1258,22 +1245,11 @@ internal static class TestCheck
             restDlg.Show();
             MethodInfo onMouseDown = typeof(Control).GetMethod("OnMouseDown", bf);
             MethodInfo onClick = typeof(Control).GetMethod("OnClick", bf);
-            ContextMenuStrip restMenu = (ContextMenuStrip)noticeType.GetField("restMenu", bf).GetValue(restDlg);
-            if (restMenu == null || restMenu.Items.Count < 5)
-            {
-                Console.WriteLine("FAIL: rest preset menu missing or empty");
-                return 33;
-            }
             onMouseDown.Invoke(restBtn, new object[] { new MouseEventArgs(MouseButtons.Left, 1, arrowLeft + 10, 18, 0) });
             onClick.Invoke(restBtn, new object[] { EventArgs.Empty });
-            if (!restMenu.Visible)
+            if (!restMenu.Visible || restBreakStarted)
             {
-                Console.WriteLine("FAIL: clicking the arrow zone did not open the preset menu");
-                return 33;
-            }
-            if (restBreakStarted)
-            {
-                Console.WriteLine("FAIL: clicking the arrow zone started the break instead of opening the menu");
+                Console.WriteLine("FAIL: clicking the arrow zone must open the preset menu without starting the break");
                 return 33;
             }
             restMenu.Close();

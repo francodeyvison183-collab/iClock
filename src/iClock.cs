@@ -3979,82 +3979,57 @@ internal sealed class SettingsDialog : Form
 
 /// <summary>
 /// Primary button that shows the chosen rest length and opens the preset
-/// menu from a dedicated arrow zone on its right edge. The arrow used to be
-/// part of the button text while the clickable zone was the last 24 pixels,
-/// so the visible arrow sat outside the area that opened the menu and the
-/// menu was practically impossible to hit. The zone is now drawn, separated
-/// by a hairline and highlighted on hover.
+/// menu from a drawn arrow zone on its right edge. The arrow used to be part
+/// of the button text while the clickable zone was the last 24 pixels, so
+/// the visible arrow sat outside it and the menu was impossible to hit.
 /// </summary>
 internal sealed class RestLengthButton : Button
 {
     public const int ArrowZoneWidth = 36;
 
     private bool arrowHot;
-    private bool mouseInside;
 
     public RestLengthButton()
     {
         FlatStyle = FlatStyle.Flat;
         FlatAppearance.BorderSize = 0;
-        // The button paints itself: UserPaint plus an OnPaint that never
-        // calls the base, so ButtonBase's own drawing is skipped.
+        // Paints itself: UserPaint plus an OnPaint that never calls the base.
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
     }
 
-    /// <summary>Left edge of the arrow zone, in client coordinates.</summary>
     public int ArrowZoneLeft { get { return Width - ArrowZoneWidth; } }
 
     public bool InArrowZone(int x) { return x >= ArrowZoneLeft; }
-
-    protected override void OnMouseEnter(EventArgs e)
-    {
-        base.OnMouseEnter(e);
-        mouseInside = true;
-        Invalidate();
-    }
 
     protected override void OnMouseMove(MouseEventArgs mevent)
     {
         base.OnMouseMove(mevent);
         bool hot = InArrowZone(mevent.X);
-        if (hot != arrowHot)
-        {
-            arrowHot = hot;
-            Invalidate();
-        }
+        if (hot != arrowHot) { arrowHot = hot; Invalidate(); }
     }
 
     protected override void OnMouseLeave(EventArgs e)
     {
         base.OnMouseLeave(e);
-        mouseInside = false;
-        arrowHot = false;
-        Invalidate();
+        if (arrowHot) { arrowHot = false; Invalidate(); }
     }
 
     protected override void OnPaint(PaintEventArgs pevent)
     {
         Graphics g = pevent.Graphics;
-        Color face = BackColor;
-        if (mouseInside)
-        {
-            Color hover = FlatAppearance.MouseOverBackColor;
-            if (hover != Color.Empty && hover != BackColor) face = hover;
-        }
-        g.Clear(face);
+        g.Clear(BackColor);
         if (arrowHot)
         {
-            using (SolidBrush hot = new SolidBrush(ControlPaint.Dark(face, 0.18f)))
+            using (SolidBrush hot = new SolidBrush(ControlPaint.Dark(BackColor, 0.18f)))
                 g.FillRectangle(hot, ArrowZoneLeft, 0, ArrowZoneWidth, Height);
         }
         // The text keeps the centred look it had before the arrow was split
-        // off: it is centred in the space that is left of the arrow zone.
+        // off: it is centred in the space left of the arrow zone.
         TextRenderer.DrawText(g, Text, Font, new Rectangle(0, 0, ArrowZoneLeft, Height), ForeColor,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
         using (Pen separator = new Pen(Color.FromArgb(90, 255, 255, 255)))
             g.DrawLine(separator, ArrowZoneLeft - 0.5f, 8, ArrowZoneLeft - 0.5f, Height - 8);
-        // A small filled triangle instead of a glyph: it stays crisp at any
-        // DPI and cannot fall back to a missing-glyph box.
+        // A filled triangle rather than a glyph: crisp at any DPI, no tofu box.
         float cx = ArrowZoneLeft + ArrowZoneWidth / 2f;
         float cy = Height / 2f;
         using (SolidBrush arrow = new SolidBrush(arrowHot ? Color.White : Color.FromArgb(210, 255, 255, 255)))
@@ -4161,8 +4136,11 @@ internal sealed class NoticeDialog : Form
 
             restMenu = new ContextMenuStrip();
             restMenu.ShowImageMargin = false;
-            List<int> restItemMinutes = new List<int>();
-            List<ToolStripMenuItem> restItems = new List<ToolStripMenuItem>();
+            int[] presets = { 5, 10, 15, 20, 30 };
+            // A saved custom length keeps a slot in the menu so it stays reachable.
+            List<int> menuMinutes = new List<int>(presets);
+            if (Array.IndexOf(presets, restMinutes) < 0) menuMinutes.Add(restMinutes);
+            List<ToolStripMenuItem> menuItems = new List<ToolStripMenuItem>();
             Action<int> pickRest = delegate(int mins)
             {
                 restMinutes = Math.Max(1, Math.Min(60, mins));
@@ -4171,31 +4149,19 @@ internal sealed class NoticeDialog : Form
                 s.RestMinutes = restMinutes;
                 try { s.Save(); } catch { }
                 // Mark the length in use so the menu shows what is active.
-                for (int i = 0; i < restItems.Count; i++)
-                    restItems[i].Text = string.Format(en ? "{0} minutes" : "{0} 分钟", restItemMinutes[i]) + (restItemMinutes[i] == restMinutes ? "  ✓" : "");
+                for (int i = 0; i < menuItems.Count; i++)
+                    menuItems[i].Text = string.Format(en ? "{0} minutes" : "{0} 分钟", menuMinutes[i]) + (menuMinutes[i] == restMinutes ? "  ✓" : "");
             };
-            int[] presets = { 5, 10, 15, 20, 30 };
-            foreach (int p in presets)
+            foreach (int m in menuMinutes)
             {
-                int mins = p;
+                int mins = m;
                 ToolStripMenuItem it = new ToolStripMenuItem(string.Format(en ? "{0} minutes" : "{0} 分钟", mins));
                 it.Click += delegate { pickRest(mins); };
                 restMenu.Items.Add(it);
-                restItemMinutes.Add(mins);
-                restItems.Add(it);
+                menuItems.Add(it);
             }
-            if (Array.IndexOf(presets, restMinutes) < 0)
-            {
-                // A saved custom length keeps a slot in the menu so it stays reachable.
-                int mins = restMinutes;
-                ToolStripMenuItem custom = new ToolStripMenuItem(string.Format(en ? "{0} minutes" : "{0} 分钟", mins));
-                custom.Click += delegate { pickRest(mins); };
-                restMenu.Items.Add(custom);
-                restItemMinutes.Add(mins);
-                restItems.Add(custom);
-            }
-            for (int i = 0; i < restItems.Count; i++)
-                if (restItemMinutes[i] == restMinutes) restItems[i].Text += "  ✓";
+            for (int i = 0; i < menuItems.Count; i++)
+                if (menuMinutes[i] == restMinutes) menuItems[i].Text += "  ✓";
 
             restTip = new ToolTip();
             restTip.SetToolTip(btnRest, en ? "Click to start the break · click the arrow to change the length" : "点击开始休息 · 点击箭头更换时长");
