@@ -6582,7 +6582,7 @@ internal sealed class AiQuoteDialog : Form
         Font = AppContext.GetUiFont(lang, 9.5f);
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
-        Text = en ? "AI Quote Library Expansion" : "AI 扩充金句库";
+        Text = en ? "AI Quote Library Expansion" : "AI 扩充我的金句";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;
         MaximizeBox = false;
@@ -6639,7 +6639,7 @@ internal sealed class AiQuoteDialog : Form
         Controls.Add(panelSetup);
 
         Label lblHeader = new Label();
-        lblHeader.Text = en ? "✨ Expand Daily Quotes with AI" : "✨ AI 扩充金句库";
+        lblHeader.Text = en ? "✨ Expand Daily Quotes with AI" : "✨ AI 扩充我的金句";
         lblHeader.Font = AppContext.GetUiFont(lang, 11f, FontStyle.Bold);
         lblHeader.ForeColor = AppContext.Win11Accent;
         lblHeader.SetBounds(18, 12, 374, 22);
