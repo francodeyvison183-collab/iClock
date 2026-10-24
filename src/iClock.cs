@@ -2953,8 +2953,7 @@ internal sealed class AppContext : ApplicationContext
         int segW2 = en ? 98 : 84;
         Panel segHost = new Panel();
         segHost.Size = new Size(segW1 + segW2, 24);
-        segHost.Location = new Point(lblUsage.Left - 12 - segHost.Width, 51);
-        segHost.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        segHost.Location = new Point(btnTabOverview.Right + 8, 12);
         segHost.Visible = false;
         segHost.Paint += delegate(object s, PaintEventArgs e)
         {
