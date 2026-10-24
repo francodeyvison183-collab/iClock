@@ -827,7 +827,7 @@ internal sealed class SettingsDialog : Form
         if (quoteSaverWaitCombo != null) quoteSaverWaitCombo.Visible = isQuote;
         if (btnAiQuotes != null) btnAiQuotes.Visible = isQuote;
         lblQuoteTip.Visible = isQuote;
-        SyncQuoteStyleEnabled();
+        SyncQuoteStyleEnabled(dailyQuoteToggle != null && dailyQuoteToggle.Checked && activeTab == 1);
 
         if (panelSkillCard != null) panelSkillCard.Visible = isAgent;
         if (panelSessionCard != null) panelSessionCard.Visible = isAgent;
@@ -1232,24 +1232,11 @@ internal sealed class SettingsDialog : Form
     {
         // Style rows only make sense while the desktop note is on; gray them out
         // when it is off. The screensaver toggle stays independent of this state.
-        bool noteOn = dailyQuoteToggle != null && dailyQuoteToggle.Checked;
-        if (lblQuoteSize != null) lblQuoteSize.Enabled = noteOn;
-        if (quoteFontSize != null) quoteFontSize.Enabled = noteOn;
-        if (lblQuoteFont != null) lblQuoteFont.Enabled = noteOn;
-        if (quoteFontCombo != null) quoteFontCombo.Enabled = noteOn;
-        if (lblQuoteColor != null) lblQuoteColor.Enabled = noteOn;
-        if (quoteColorCombo != null) quoteColorCombo.Enabled = noteOn;
-        if (lblQuoteLayer != null) lblQuoteLayer.Enabled = noteOn;
-        if (quoteLayerCombo != null) quoteLayerCombo.Enabled = noteOn;
-        if (lblQuoteQuotes != null) lblQuoteQuotes.Enabled = noteOn;
-        if (btnEditQuotes != null) btnEditQuotes.Enabled = noteOn;
-        if (btnAiQuotes != null) btnAiQuotes.Enabled = noteOn;
+        SyncQuoteStyleEnabled(dailyQuoteToggle != null && dailyQuoteToggle.Checked);
         TriggerQuotePreview();
     }
-    private void SyncQuoteStyleEnabled()
+    private void SyncQuoteStyleEnabled(bool noteOn)
     {
-        // Initial graying state for the style rows, matched to the toggle value.
-        bool noteOn = dailyQuoteToggle != null && dailyQuoteToggle.Checked && activeTab == 1;
         if (lblQuoteSize != null) lblQuoteSize.Enabled = noteOn;
         if (quoteFontSize != null) quoteFontSize.Enabled = noteOn;
         if (lblQuoteFont != null) lblQuoteFont.Enabled = noteOn;

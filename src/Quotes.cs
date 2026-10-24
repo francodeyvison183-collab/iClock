@@ -1200,23 +1200,7 @@ internal sealed class DailyQuoteDialog : Form
 
     private void OnSnapGuidePaint(object sender, PaintEventArgs e)
     {
-        if (!snapGuideH && !snapGuideV) return;
-        Form f = (Form)sender;
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using (Pen pen = new Pen(Color.FromArgb(180, 0, 180, 255), 1.0f))
-        {
-            pen.DashStyle = System.Drawing.Drawing2D.DashStyle.Dash;
-            if (snapGuideV)
-            {
-                int x = f.Width / 2;
-                e.Graphics.DrawLine(pen, x, 0, x, f.Height);
-            }
-            if (snapGuideH)
-            {
-                int y = f.Height / 2;
-                e.Graphics.DrawLine(pen, 0, y, f.Width, y);
-            }
-        }
+        AppContext.DrawSnapGuideLines((Form)sender, e, snapGuideV, snapGuideH);
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)

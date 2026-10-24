@@ -263,14 +263,7 @@ internal sealed class AgentTaskStatusHud : Form
     private void OnSnapGuidePaint(object sender, PaintEventArgs e)
     {
         if (!snapV) return;
-        Form f = (Form)sender;
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using (Pen pen = new Pen(Color.FromArgb(180, 0, 180, 255), 1.0f))
-        {
-            pen.DashStyle = DashStyle.Dash;
-            int x = f.Width / 2;
-            e.Graphics.DrawLine(pen, x, 0, x, f.Height);
-        }
+        AppContext.DrawSnapGuideLines((Form)sender, e, snapV, false);
     }
 
     internal void SetTasks(IList<AgentTaskStatus> values)

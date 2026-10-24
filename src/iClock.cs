@@ -63,6 +63,27 @@ internal sealed class AppContext : ApplicationContext
         return g;
     }
 
+    // Dashed snap guides: vertical line for X-axis snap, horizontal for Y-axis.
+    internal static void DrawSnapGuideLines(Form f, PaintEventArgs e, bool showVertical, bool showHorizontal)
+    {
+        if (!showVertical && !showHorizontal) return;
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using (Pen pen = new Pen(Color.FromArgb(180, 0, 180, 255), 1.0f))
+        {
+            pen.DashStyle = DashStyle.Dash;
+            if (showVertical)
+            {
+                int x = f.Width / 2;
+                e.Graphics.DrawLine(pen, x, 0, x, f.Height);
+            }
+            if (showHorizontal)
+            {
+                int y = f.Height / 2;
+                e.Graphics.DrawLine(pen, 0, y, f.Width, y);
+            }
+        }
+    }
+
     internal const byte AC_SRC_OVER = 0x00;
     internal const byte AC_SRC_ALPHA = 0x01;
     internal const uint ULW_ALPHA = 0x02;
@@ -2457,6 +2478,39 @@ internal sealed class AppContext : ApplicationContext
         overlay.SetVisualPreview(value);
     }
 
+    // Shared wiring so the preview dialog and the standalone dialog behave identically;
+    // onClosedExtra runs after activeQuoteDialog is cleared (used by --once mode to exit).
+    private void WireDailyQuoteDialog(Action onClosedExtra)
+    {
+        activeQuoteDialog.FontSizeChanged += delegate(float sz)
+        {
+            try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncQuoteFontSize(sz); } catch { }
+        };
+        activeQuoteDialog.QuoteChanged += delegate
+        {
+            try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncNextQuote(); } catch { }
+        };
+        activeQuoteDialog.PinChanged += delegate(bool pinned)
+        {
+            try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncQuotePin(pinned); } catch { }
+        };
+        activeQuoteDialog.FormClosed += delegate
+        {
+            try
+            {
+                if (activeQuoteDialog != null && activeQuoteDialog.WasDismissedByUser)
+                {
+                    settings.DailyQuote = false;
+                    settings.Save();
+                }
+                if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SetDailyQuoteChecked(settings.DailyQuote);
+            }
+            catch { }
+            activeQuoteDialog = null;
+            if (onClosedExtra != null) onClosedExtra();
+        };
+    }
+
     private void SetQuotePreview(bool visible)
     {
         if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
@@ -2504,32 +2558,7 @@ internal sealed class AppContext : ApplicationContext
                 SettingsDialog sd = (SettingsDialog)activeDialog;
                 activeQuoteDialog.CurrentQuoteIndex = sd.DialogQuoteIndex;
             }
-            activeQuoteDialog.FontSizeChanged += delegate(float sz)
-            {
-                try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncQuoteFontSize(sz); } catch { }
-            };
-            activeQuoteDialog.QuoteChanged += delegate
-            {
-                try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncNextQuote(); } catch { }
-            };
-            activeQuoteDialog.PinChanged += delegate(bool pinned)
-            {
-                try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncQuotePin(pinned); } catch { }
-            };
-            activeQuoteDialog.FormClosed += delegate
-            {
-                try
-                {
-                    if (activeQuoteDialog != null && activeQuoteDialog.WasDismissedByUser)
-                    {
-                        settings.DailyQuote = false;
-                        settings.Save();
-                    }
-                    if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SetDailyQuoteChecked(settings.DailyQuote);
-                }
-                catch { }
-                activeQuoteDialog = null;
-            };
+            WireDailyQuoteDialog(null);
             if (overlay.MoveMode) activeQuoteDialog.SetMoveMode(true);
             activeQuoteDialog.Show();
         }
@@ -3657,33 +3686,7 @@ internal sealed class AppContext : ApplicationContext
             }
 
             activeQuoteDialog = new DailyQuoteDialog(settings);
-            activeQuoteDialog.FontSizeChanged += delegate(float sz)
-            {
-                try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncQuoteFontSize(sz); } catch { }
-            };
-            activeQuoteDialog.QuoteChanged += delegate
-            {
-                try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncNextQuote(); } catch { }
-            };
-            activeQuoteDialog.PinChanged += delegate(bool pinned)
-            {
-                try { if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SyncQuotePin(pinned); } catch { }
-            };
-            activeQuoteDialog.FormClosed += delegate
-            {
-                try
-                {
-                    if (activeQuoteDialog != null && activeQuoteDialog.WasDismissedByUser)
-                    {
-                        settings.DailyQuote = false;
-                        settings.Save();
-                    }
-                    if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SetDailyQuoteChecked(settings.DailyQuote);
-                }
-                catch { }
-                activeQuoteDialog = null;
-                if (isOneShot) Exit();
-            };
+            WireDailyQuoteDialog(delegate { if (isOneShot) Exit(); });
             if (overlay.MoveMode) activeQuoteDialog.SetMoveMode(true);
             activeQuoteDialog.Show();
             activeQuoteDialog.EnsureVisible();
