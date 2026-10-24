@@ -14,7 +14,7 @@ $outputDir = Join-Path $projectRoot 'dist'
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 $outputExe = Join-Path $outputDir 'iClock.exe'
 $legacyCli = Join-Path $outputDir 'iclock.com'
-$source = Join-Path $projectRoot 'src\iClock.cs'
+$sources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName }
 $zan = Join-Path $projectRoot 'src\zan.jpg'
 $appIco = Join-Path $projectRoot 'src\app.ico'
 $logoPng = Join-Path $projectRoot 'docs\icon-32.png'
@@ -37,7 +37,7 @@ if (Test-Path -LiteralPath $appIco) {
 if (Test-Path -LiteralPath $logoPng) {
     $compilerArgs += "/resource:$logoPng,logo32.png"
 }
-$compilerArgs += $source
+$compilerArgs += $sources
 
 & $compiler $compilerArgs
 if ($LASTEXITCODE -ne 0) { throw "Compilation failed with exit code $LASTEXITCODE." }
