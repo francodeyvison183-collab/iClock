@@ -2934,7 +2934,9 @@ internal sealed class AppContext : ApplicationContext
         list.View = View.Details; list.FullRowSelect = true; list.GridLines = true;
         UsageAxisPanel usageAxis = new UsageAxisPanel();
         int contentW = f.ClientSize.Width - 24;
-        usageAxis.SetBounds(12, 82, contentW, 32);
+        // 16px below the title row; 40px tall so the hour ticks under the bar
+        // are not clipped.
+        usageAxis.SetBounds(12, 54, contentW, 40);
         usageAxis.Anchor = AnchorStyles.Top | AnchorStyles.Left;
         usageAxis.Visible = false;
         usageAxis.MouseMove += delegate(object s, MouseEventArgs e)
@@ -2950,7 +2952,7 @@ internal sealed class AppContext : ApplicationContext
         // between the axis and the list, styled lighter than the accent top tabs.
         Panel segHost = new Panel();
         segHost.Size = new Size(contentW, 30);
-        segHost.Location = new Point(12, 120);
+        segHost.Location = new Point(12, 102);
         segHost.Visible = false;
         f.Controls.Add(segHost);
 
@@ -3440,7 +3442,7 @@ internal sealed class AppContext : ApplicationContext
             segHost.Visible = show;
             btnSegCountdown.Invalidate();
             btnSegUsage.Invalidate();
-            int top = show ? 156 : 82;
+            int top = show ? 140 : 54;
             list.Top = top;
             list.Height = Math.Max(80, summaryPanel.Top - top - 8);
         };
