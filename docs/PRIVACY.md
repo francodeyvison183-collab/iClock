@@ -5,6 +5,7 @@ iClock is designed to work locally.
 - The application does not make network requests, collect telemetry, or require an account.
 - Settings are stored in `%APPDATA%\iClock\settings.ini` for the current Windows user.
 - Countdown history is stored in `%APPDATA%\iClock\history-YYYYMMDD.tsv` and contains session start time, end time, configured duration, and result.
+- Optional computer usage tracking (off by default) is stored in `%APPDATA%\iClock\usage-YYYYMMDD.tsv`. Each row is a time range, a state (`active` / `idle` / `locked` / `sleep`), a process file name for active segments, and duration in seconds. Window titles are not recorded.
 - If startup is enabled, iClock creates or removes its value under the current user's `Software\Microsoft\Windows\CurrentVersion\Run` registry key. It does not configure startup for other users.
 - Removing the application executable does not automatically remove settings, history, or the startup entry. Turn off startup from Settings and delete `%APPDATA%\iClock` yourself if you want to remove local data.
 

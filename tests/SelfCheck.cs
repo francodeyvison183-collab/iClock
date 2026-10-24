@@ -61,15 +61,16 @@ internal static class TestCheck
             Type settingsType = asm.GetType("Settings");
             object defaultSettings = Activator.CreateInstance(settingsType);
             bool defaultCollaborationEnabled = (bool)settingsType.GetField("DesktopCollaborationEnabled").GetValue(defaultSettings);
+            bool defaultUsageTrack = (bool)settingsType.GetField("UsageTrackEnabled").GetValue(defaultSettings);
             int defSize = (int)settingsType.GetField("FontSize").GetValue(defaultSettings);
             string defColor = (string)settingsType.GetField("Color").GetValue(defaultSettings);
             string defFont = (string)settingsType.GetField("FontFamily").GetValue(defaultSettings);
             int defX = (int)settingsType.GetField("X").GetValue(defaultSettings);
             int defY = (int)settingsType.GetField("Y").GetValue(defaultSettings);
             string defFormat = (string)settingsType.GetField("Format").GetValue(defaultSettings);
-            if (!defaultCollaborationEnabled || defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 60 || defFormat != "MM:SS")
+            if (!defaultCollaborationEnabled || defaultUsageTrack || defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 60 || defFormat != "MM:SS")
             {
-                Console.WriteLine("FAIL: Default collaboration setting or timer appearance settings are incorrect");
+                Console.WriteLine("FAIL: Default collaboration, usage-track, or timer appearance settings are incorrect");
                 return 18;
             }
             Rectangle screen = Screen.PrimaryScreen.Bounds;
@@ -867,6 +868,58 @@ internal static class TestCheck
                 else if (System.IO.File.Exists(testHistoryPath)) System.IO.File.Delete(testHistoryPath);
             }
             Console.WriteLine("PASS: FormatDuration helper, 5-column session tracking (actual duration calculation), and logging verified.");
+
+            Type usageLogType = asm.GetType("UsageLog");
+            Type usageSegType = asm.GetType("UsageSegment");
+            if (usageLogType == null || usageSegType == null)
+            {
+                Console.WriteLine("FAIL: UsageLog types missing");
+                return 26;
+            }
+            MethodInfo merge = usageLogType.GetMethod("MergeConsecutive");
+            MethodInfo flicker = usageLogType.GetMethod("AbsorbFlickers");
+            MethodInfo split = usageLogType.GetMethod("SplitAtDayBoundary");
+            MethodInfo fmt = usageLogType.GetMethod("FormatRow");
+            MethodInfo parse = usageLogType.GetMethod("TryParseRow");
+            IList src = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(usageSegType));
+            src.Add(MakeUsageSeg(usageSegType, "active", "chrome.exe", 0, 60));
+            src.Add(MakeUsageSeg(usageSegType, "active", "chrome.exe", 60, 120));
+            IList merged = (IList)merge.Invoke(null, new object[] { src });
+            if (merged.Count != 1)
+            {
+                Console.WriteLine("FAIL: MergeConsecutive should collapse adjacent same-app segments");
+                return 26;
+            }
+            IList flickSrc = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(usageSegType));
+            flickSrc.Add(MakeUsageSeg(usageSegType, "active", "chrome.exe", 0, 60));
+            flickSrc.Add(MakeUsageSeg(usageSegType, "active", "notepad.exe", 60, 61));
+            flickSrc.Add(MakeUsageSeg(usageSegType, "active", "cursor.exe", 61, 180));
+            IList flicked = (IList)flicker.Invoke(null, new object[] { flickSrc });
+            if (flicked.Count != 2)
+            {
+                Console.WriteLine("FAIL: AbsorbFlickers should drop sub-2s app switches, got " + flicked.Count);
+                return 26;
+            }
+            object cross = MakeUsageSeg(usageSegType, "active", "a.exe", 0, 60);
+            usageSegType.GetField("Start").SetValue(cross, new DateTime(2026, 10, 24, 23, 50, 0));
+            usageSegType.GetField("End").SetValue(cross, new DateTime(2026, 10, 25, 0, 10, 0));
+            IList parts = (IList)split.Invoke(null, new object[] { cross });
+            if (parts.Count != 2)
+            {
+                Console.WriteLine("FAIL: SplitAtDayBoundary should return 2 parts");
+                return 26;
+            }
+            object rowSeg = MakeUsageSeg(usageSegType, "idle", "", 0, 180);
+            string row = (string)fmt.Invoke(null, new object[] { rowSeg });
+            string[] cols = row.Split('\t');
+            object[] parseArgs = new object[] { row, DateTime.Today, null };
+            bool parsedOk = (bool)parse.Invoke(null, parseArgs);
+            if (!parsedOk || parseArgs[2] == null || cols.Length != 5 || cols[2] != "idle" || cols[4] != "180")
+            {
+                Console.WriteLine("FAIL: Usage TSV format incorrect: " + row);
+                return 26;
+            }
+            Console.WriteLine("PASS: UsageLog merge, flicker absorb, day split, and TSV columns verified.");
 
             // 19. Verify single active dialog mutual exclusion & activation
             FieldInfo activeDlgField = appType.GetField("activeDialog", bf);
@@ -3337,5 +3390,16 @@ internal static class TestCheck
                 try { System.IO.File.Delete(todayHistoryPath); } catch { }
             }
         }
+    }
+
+    private static object MakeUsageSeg(Type usageSegType, string state, string exe, int startSec, int endSec)
+    {
+        object seg = Activator.CreateInstance(usageSegType);
+        DateTime baseT = DateTime.Today.AddHours(10);
+        usageSegType.GetField("Start").SetValue(seg, baseT.AddSeconds(startSec));
+        usageSegType.GetField("End").SetValue(seg, baseT.AddSeconds(endSec));
+        usageSegType.GetField("State").SetValue(seg, state);
+        usageSegType.GetField("Exe").SetValue(seg, exe);
+        return seg;
     }
 }

@@ -99,12 +99,14 @@ Choose **Today's history** from the tray menu to open the comprehensive history 
 - **Days Summary / 按天汇总**: Switch tabs to inspect daily aggregated focus metrics over selected ranges (Last 7 Days, 14 Days, 30 Days, or All History). Shows total focus time, cycle counts, completion rates, and achievement evaluations (● Excellent, ● Good, ● Fair, ● Needs work).
 - **Drill-Down / 穿透钻取**: Double-click any day in the Days Summary table to immediately jump to that day's granular breakdown in Daily Details.
 - **Keyboard Shortcuts / 快捷交互**: Press `Left`/`Right` arrow keys to step through dates, `Ctrl+Tab` to switch views, and `Ctrl+C` to copy selected rows to clipboard.
+- **Time tracking / 时间跟踪统计**: Off by default. Turn on **Usage** at the top-right of the history window. iClock then records foreground process names (not window titles) from unlock until lock or sleep. Daily Details shows a color axis; under it, switch **Countdown** / **Time tracking**. While tracking is on, the tray menu draws a color strip under Today's history. Idle after 3 minutes is counted as idle, not as the last app.
 
 从托盘菜单选择「今日记录」，即可打开专注历史记录与统计窗口。菜单右侧提示当天累计时长（设了每日目标时带上 `/ 目标`）。
 - **单日明细**：通过顶部的日期切换器（`◀`、下拉菜单、`▶`）查看任意日期的具体倒计时明细，包含开始与结束时间、设定时长、实际专注时长及结果（已完成、已重置、已中断、**进行中**）。已经开始、尚未结束的倒计时会作为「进行中」出现，并计入当天累计。底部汇总栏动态呈现当日累计专注时长、完成周期数与达成率。
 - **按天汇总**：切换至该标签页可宏观查看按天聚合的专注指标，支持切换统计范围（最近 7 天、14 天、30 天、全部历史）。直观呈现每日专注总时长、完成/总数、完成率以及达成状态（● 卓越、● 良好、● 及格、● 待提升）。
 - **穿透钻取**：在按天汇总表中双击任意一行日期，即可无缝穿透跳转至该日的“单日明细”查看具体会话。
 - **快捷交互**：支持通过键盘 `←` / `→` 键前后切换日期，`Ctrl+Tab` 快速切换视图，选中文本支持 `Ctrl+C` 复制到剪贴板。
+- **时间跟踪统计**：默认关闭。在今日记录窗口右上角打开「开启使用时间跟踪&统计」后，iClock 只记前台进程名（不记窗口标题）。单日明细顶部出现色轴，轴下可切换「倒计时记录 / 时间跟踪统计」。开启后托盘「今日记录」下方出现通栏色带。空闲超过 3 分钟记为空闲，不算给最后一个应用。
 
 ## Command Line & Script Pipeline (IPC) / 命令行与脚本联动
 

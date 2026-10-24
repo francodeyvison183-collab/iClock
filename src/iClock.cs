@@ -76,6 +76,8 @@ internal sealed class Settings
     public int AiQuoteCount = 30;
     // 每日专注目标（分钟）。0 = 关闭：不画进度条、托盘不显示打卡文案。
     public int DailyGoalMinutes = 0;
+    // 电脑使用时间跟踪。默认关闭，避免未同意时后台装钩。
+    public bool UsageTrackEnabled;
 
     public void CopyFrom(Settings src)
     {
@@ -101,6 +103,7 @@ internal sealed class Settings
         AiQuoteKeywords = src.AiQuoteKeywords;
         AiQuoteCount = src.AiQuoteCount > 0 ? src.AiQuoteCount : 30;
         DailyGoalMinutes = src.DailyGoalMinutes;
+        UsageTrackEnabled = src.UsageTrackEnabled;
     }
 
     public static string FilePath
@@ -190,6 +193,7 @@ internal sealed class Settings
                 else if (k == "AiQuoteKeywords") s.AiQuoteKeywords = v;
                 else if (k == "AiQuoteCount" && int.TryParse(v, out n)) s.AiQuoteCount = n > 0 ? n : 30;
                 else if (k == "DailyGoalMinutes" && int.TryParse(v, out n)) s.DailyGoalMinutes = Math.Max(0, Math.Min(1440, n));
+                else if (k == "UsageTrackEnabled" && bool.TryParse(v, out b)) s.UsageTrackEnabled = b;
             }
             if ((s.X == 80 && s.Y == 80) || (s.X == -1 && s.Y == 90)) { s.X = -1; s.Y = 60; }
         }
@@ -221,6 +225,7 @@ internal sealed class Settings
             "AiQuoteKeywords=" + AiQuoteKeywords
             , "AiQuoteCount=" + AiQuoteCount
             , "DailyGoalMinutes=" + DailyGoalMinutes
+            , "UsageTrackEnabled=" + UsageTrackEnabled
         };
         string tmp = Path.Combine(dir, "settings.ini.tmp");
         try
@@ -356,6 +361,26 @@ internal static class NativeMethods
     public static extern bool GetProcessTimes(IntPtr hProcess, out long lpCreationTime, out long lpExitTime, out long lpKernelTime, out long lpUserTime);
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     public static extern bool QueryFullProcessImageName(IntPtr hProcess, int flags, StringBuilder text, ref int size);
+    [DllImport("kernel32.dll")]
+    public static extern ulong GetTickCount64();
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct LASTINPUTINFO
+    {
+        public uint cbSize;
+        public uint dwTime;
+    }
+    [DllImport("user32.dll")]
+    public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+
+    public const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+    public const uint WINEVENT_OUTOFCONTEXT = 0x0000;
+    public const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
+    public delegate void WinEventDelegate(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetWinEventHook(uint eventMin, uint eventMax, IntPtr hmodWinEventProc, WinEventDelegate lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
+    [DllImport("user32.dll")]
+    public static extern bool UnhookWinEvent(IntPtr hWinEventHook);
 
     public delegate void ProcessEnumCallback(int pid, string exeName);
 }
@@ -7729,13 +7754,24 @@ internal sealed class ModernContextMenu : ContextMenuStrip
     {
         base.OnLayout(e);
         int w = ClientSize.Width;
+        // 第一次测量时客户区可能被撑得比菜单宽，按那个宽度排会让定位用的宽度偏大。
+        if (MaximumSize.Width > 0 && w > MaximumSize.Width)
+            w = MaximumSize.Width;
+        if (w <= 0) return;
         foreach (ToolStripItem item in Items)
         {
             if (item != null && item.Width != w)
-            {
                 item.Size = new Size(w, item.Height);
-            }
         }
+    }
+
+    public override Size GetPreferredSize(Size proposedSize)
+    {
+        Size size = base.GetPreferredSize(proposedSize);
+        // 弹出位置用的是建议宽度。把它收成菜单的实际宽度，方向仍走原来的计算。
+        if (MaximumSize.Width > 0)
+            size.Width = MaximumSize.Width;
+        return size;
     }
 }
 
@@ -7744,8 +7780,9 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
     public ModernMenuRenderer() : base(new ModernMenuColorTable()) { }
 
     // 快捷键与开机开关共用这条右边线，和「Alt + 拖拽」右缘对齐。
-    private const int MenuShortcutRight = 24;
-    private const int MenuSwitchWidth = 40;
+    internal const int MenuTextLeft = 32;
+    internal const int MenuShortcutRight = 24;
+    internal const int MenuSwitchWidth = 40;
 
     protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
     {
@@ -7766,7 +7803,7 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
-        int left = 32;
+        int left = MenuTextLeft;
         MenuSwitchItem sw = e.Item as MenuSwitchItem;
         ToolStripMenuItem mi = e.Item as ToolStripMenuItem;
         int rightPad = sw != null ? MenuShortcutRight + MenuSwitchWidth + 8
@@ -7878,6 +7915,738 @@ internal enum ClockState
     MoveMode
 }
 
+internal sealed class UsageSegment
+{
+    public DateTime Start;
+    public DateTime End;
+    public string State;
+    public string Exe;
+    public long Seconds
+    {
+        get { return Math.Max(0L, (long)Math.Round((End - Start).TotalSeconds)); }
+    }
+}
+
+internal sealed class UsageSummary
+{
+    public string State;
+    public string Exe;
+    public long Seconds;
+}
+
+internal static class UsageLog
+{
+    public const int IdleMinutes = 3;
+    public const int FlickerSeconds = 2;
+    public const string Active = "active";
+    public const string Idle = "idle";
+    public const string Locked = "locked";
+    public const string Sleep = "sleep";
+
+    private static readonly Dictionary<string, string> DisplayCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, Color> ColorCache = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase);
+
+    public static string DataDir()
+    {
+        return Path.GetDirectoryName(Settings.FilePath);
+    }
+
+    public static string PathFor(string dateKey)
+    {
+        return Path.Combine(DataDir(), "usage-" + dateKey + ".tsv");
+    }
+
+    public static string FormatRow(UsageSegment s)
+    {
+        return s.Start.ToString("HH:mm:ss") + "\t" + s.End.ToString("HH:mm:ss") + "\t" + (s.State ?? "") + "\t" + (s.Exe ?? "") + "\t" + s.Seconds;
+    }
+
+    public static bool TryParseRow(string line, DateTime day, out UsageSegment seg)
+    {
+        seg = null;
+        if (string.IsNullOrEmpty(line)) return false;
+        string[] p = line.Split('\t');
+        if (p.Length < 5) return false;
+        DateTime t0, t1;
+        if (!DateTime.TryParseExact(p[0].Trim(), "HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out t0)) return false;
+        if (!DateTime.TryParseExact(p[1].Trim(), "HH:mm:ss", CultureInfo.InvariantCulture, DateTimeStyles.None, out t1)) return false;
+        string state = (p[2] ?? "").Trim();
+        if (state != Active && state != Idle && state != Locked && state != Sleep) return false;
+        seg = new UsageSegment();
+        seg.Start = day.Date.Add(t0.TimeOfDay);
+        seg.End = day.Date.Add(t1.TimeOfDay);
+        if (seg.End < seg.Start) seg.End = seg.End.AddDays(1);
+        seg.State = state;
+        seg.Exe = state == Active ? (p[3] ?? "").Trim() : "";
+        return true;
+    }
+
+    public static List<UsageSegment> LoadDay(string dateKey)
+    {
+        List<UsageSegment> list = new List<UsageSegment>();
+        DateTime day;
+        if (!DateTime.TryParseExact(dateKey, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out day))
+            return list;
+        string path = PathFor(dateKey);
+        if (!File.Exists(path)) return list;
+        try
+        {
+            foreach (string row in File.ReadAllLines(path, new UTF8Encoding(false)))
+            {
+                UsageSegment seg;
+                if (TryParseRow(row, day, out seg)) list.Add(seg);
+            }
+        }
+        catch { }
+        return list;
+    }
+
+    public static void Append(UsageSegment s)
+    {
+        if (s == null || s.Seconds <= 0) return;
+        try
+        {
+            string dir = DataDir();
+            Directory.CreateDirectory(dir);
+            string path = PathFor(s.Start.ToString("yyyyMMdd"));
+            File.AppendAllText(path, FormatRow(s) + Environment.NewLine, new UTF8Encoding(false));
+        }
+        catch { }
+    }
+
+    public static List<UsageSegment> SplitAtDayBoundary(UsageSegment s)
+    {
+        List<UsageSegment> list = new List<UsageSegment>();
+        if (s == null) return list;
+        if (s.End.Date <= s.Start.Date)
+        {
+            list.Add(s);
+            return list;
+        }
+        UsageSegment a = new UsageSegment();
+        a.Start = s.Start;
+        a.End = s.Start.Date.AddDays(1);
+        a.State = s.State;
+        a.Exe = s.Exe;
+        UsageSegment b = new UsageSegment();
+        b.Start = a.End;
+        b.End = s.End;
+        b.State = s.State;
+        b.Exe = s.Exe;
+        list.Add(a);
+        list.AddRange(SplitAtDayBoundary(b));
+        return list;
+    }
+
+    public static List<UsageSegment> MergeConsecutive(List<UsageSegment> src)
+    {
+        List<UsageSegment> dst = new List<UsageSegment>();
+        if (src == null) return dst;
+        for (int i = 0; i < src.Count; i++)
+        {
+            UsageSegment cur = CloneSeg(src[i]);
+            if (dst.Count > 0 && SameKey(dst[dst.Count - 1], cur))
+                dst[dst.Count - 1].End = cur.End;
+            else
+                dst.Add(cur);
+        }
+        return dst;
+    }
+
+    public static List<UsageSegment> AbsorbFlickers(List<UsageSegment> src)
+    {
+        List<UsageSegment> work = new List<UsageSegment>();
+        if (src == null) return work;
+        for (int i = 0; i < src.Count; i++) work.Add(CloneSeg(src[i]));
+        for (int i = 0; i < work.Count; )
+        {
+            UsageSegment cur = work[i];
+            if (cur.State == Active && cur.Seconds > 0 && cur.Seconds < FlickerSeconds)
+            {
+                if (i + 1 < work.Count && work[i + 1].State == Active)
+                {
+                    work[i + 1].Start = cur.Start;
+                    work.RemoveAt(i);
+                    continue;
+                }
+                if (i > 0 && work[i - 1].State == Active)
+                {
+                    work[i - 1].End = cur.End;
+                    work.RemoveAt(i);
+                    continue;
+                }
+            }
+            i++;
+        }
+        return MergeConsecutive(work);
+    }
+
+    public static List<UsageSummary> Summarize(List<UsageSegment> segs)
+    {
+        Dictionary<string, UsageSummary> map = new Dictionary<string, UsageSummary>(StringComparer.OrdinalIgnoreCase);
+        List<UsageSummary> order = new List<UsageSummary>();
+        if (segs == null) return order;
+        for (int i = 0; i < segs.Count; i++)
+        {
+            UsageSegment s = segs[i];
+            long sec = s.Seconds;
+            if (sec <= 0) continue;
+            string key = s.State == Active ? ("a:" + (s.Exe ?? "")) : s.State;
+            UsageSummary row;
+            if (!map.TryGetValue(key, out row))
+            {
+                row = new UsageSummary();
+                row.State = s.State;
+                row.Exe = s.Exe ?? "";
+                map[key] = row;
+                order.Add(row);
+            }
+            row.Seconds += sec;
+        }
+        order.Sort(delegate(UsageSummary a, UsageSummary b) { return b.Seconds.CompareTo(a.Seconds); });
+        return order;
+    }
+
+    public static DateTime EstimateBootOrMidnight()
+    {
+        DateTime now = DateTime.Now;
+        try
+        {
+            DateTime boot = now - TimeSpan.FromMilliseconds((double)NativeMethods.GetTickCount64());
+            if (boot.Date == now.Date) return boot;
+        }
+        catch { }
+        return now.Date;
+    }
+
+    public static Color ColorFor(string state, string exe)
+    {
+        if (state == Idle) return Color.FromArgb(200, 204, 210);
+        if (state == Locked) return Color.FromArgb(160, 166, 176);
+        if (state == Sleep) return Color.FromArgb(120, 126, 136);
+        if (state != Active) return Color.FromArgb(230, 232, 236);
+        string key = string.IsNullOrEmpty(exe) ? "unknown" : exe;
+        Color c;
+        if (ColorCache.TryGetValue(key, out c)) return c;
+        int h = 0;
+        string low = key.ToLowerInvariant();
+        for (int i = 0; i < low.Length; i++) h = unchecked(h * 33 + low[i]);
+        float hue = (h & 0xFF) / 255f * 360f;
+        c = ColorFromHsv(hue, 0.52f, 0.84f);
+        ColorCache[key] = c;
+        return c;
+    }
+
+    public static string LabelFor(string state, string exe, bool en)
+    {
+        if (state == Idle) return en ? "Idle" : "空闲";
+        if (state == Locked) return en ? "Locked" : "已锁屏";
+        if (state == Sleep) return en ? "Sleep" : "睡眠";
+        if (state != Active) return en ? "Untracked" : "未记录";
+        return DisplayName(exe);
+    }
+
+    public static string DisplayName(string exe)
+    {
+        if (string.IsNullOrEmpty(exe)) return "unknown";
+        string cached;
+        if (DisplayCache.TryGetValue(exe, out cached)) return cached;
+        string name = exe;
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            name = name.Substring(0, name.Length - 4);
+        DisplayCache[exe] = name;
+        return name;
+    }
+
+    public static void RememberDisplayName(string exe, string fullPath)
+    {
+        if (string.IsNullOrEmpty(exe) || string.IsNullOrEmpty(fullPath)) return;
+        if (DisplayCache.ContainsKey(exe)) return;
+        try
+        {
+            FileVersionInfo info = FileVersionInfo.GetVersionInfo(fullPath);
+            string d = info.FileDescription;
+            if (string.IsNullOrEmpty(d)) d = info.ProductName;
+            if (!string.IsNullOrEmpty(d))
+            {
+                DisplayCache[exe] = d.Trim();
+                return;
+            }
+        }
+        catch { }
+        DisplayName(exe);
+    }
+
+    public static bool IsIgnoredExe(string exe)
+    {
+        if (string.IsNullOrEmpty(exe)) return false;
+        string low = exe.ToLowerInvariant();
+        return low == "lockapp.exe" || low == "logonui.exe" || low == "scrnsave.scr"
+            || low == "iclock.scr" || low.EndsWith(".scr");
+    }
+
+    private static bool SameKey(UsageSegment a, UsageSegment b)
+    {
+        if (a == null || b == null) return false;
+        if (a.State != b.State) return false;
+        if (a.State == Active)
+            return string.Equals(a.Exe ?? "", b.Exe ?? "", StringComparison.OrdinalIgnoreCase);
+        return true;
+    }
+
+    private static UsageSegment CloneSeg(UsageSegment s)
+    {
+        UsageSegment n = new UsageSegment();
+        n.Start = s.Start; n.End = s.End; n.State = s.State; n.Exe = s.Exe;
+        return n;
+    }
+
+    private static Color ColorFromHsv(float h, float s, float v)
+    {
+        float c = v * s;
+        float x = c * (1f - Math.Abs((h / 60f) % 2f - 1f));
+        float m = v - c;
+        float r = 0, g = 0, b = 0;
+        if (h < 60) { r = c; g = x; }
+        else if (h < 120) { r = x; g = c; }
+        else if (h < 180) { g = c; b = x; }
+        else if (h < 240) { g = x; b = c; }
+        else if (h < 300) { r = x; b = c; }
+        else { r = c; b = x; }
+        return Color.FromArgb(255, (int)((r + m) * 255), (int)((g + m) * 255), (int)((b + m) * 255));
+    }
+}
+
+internal sealed class UsageTracker
+{
+    private readonly Control invokeTarget;
+    private NativeMethods.WinEventDelegate hookProc;
+    private IntPtr hook = IntPtr.Zero;
+    private Timer idleTimer;
+    private PowerModeChangedEventHandler powerHandler;
+    private UsageSegment open;
+    private bool running;
+    private bool suppressChanged;
+
+    public event Action Changed;
+
+    public UsageTracker(Control invokeTarget)
+    {
+        this.invokeTarget = invokeTarget;
+    }
+
+    public bool IsRunning { get { return running; } }
+
+    public void Start()
+    {
+        if (running) return;
+        running = true;
+        suppressChanged = true;
+        hookProc = OnWinEvent;
+        try
+        {
+            hook = NativeMethods.SetWinEventHook(
+                NativeMethods.EVENT_SYSTEM_FOREGROUND, NativeMethods.EVENT_SYSTEM_FOREGROUND,
+                IntPtr.Zero, hookProc, 0, 0,
+                NativeMethods.WINEVENT_OUTOFCONTEXT | NativeMethods.WINEVENT_SKIPOWNPROCESS);
+        }
+        catch { hook = IntPtr.Zero; }
+        idleTimer = new Timer();
+        idleTimer.Interval = 30000;
+        idleTimer.Tick += delegate { CheckIdle(); };
+        idleTimer.Start();
+        powerHandler = OnPower;
+        try { SystemEvents.PowerModeChanged += powerHandler; } catch { powerHandler = null; }
+        SampleForeground();
+        suppressChanged = false;
+        RaiseChanged();
+    }
+
+    public void Stop()
+    {
+        if (!running) return;
+        Flush();
+        running = false;
+        if (hook != IntPtr.Zero)
+        {
+            try { NativeMethods.UnhookWinEvent(hook); } catch { }
+            hook = IntPtr.Zero;
+        }
+        hookProc = null;
+        if (idleTimer != null)
+        {
+            try { idleTimer.Stop(); idleTimer.Dispose(); } catch { }
+            idleTimer = null;
+        }
+        if (powerHandler != null)
+        {
+            try { SystemEvents.PowerModeChanged -= powerHandler; } catch { }
+            powerHandler = null;
+        }
+        open = null;
+        RaiseChanged();
+    }
+
+    public void Flush()
+    {
+        if (open == null) return;
+        CloseOpen(DateTime.Now);
+    }
+
+    public void OnSessionSwitch(SessionSwitchReason reason)
+    {
+        if (!running) return;
+        if (reason == SessionSwitchReason.SessionLock)
+            Transition(UsageLog.Locked, "");
+        else if (reason == SessionSwitchReason.SessionUnlock)
+            SampleForeground();
+    }
+
+    public List<UsageSegment> GetDayWithOpen(string dateKey)
+    {
+        List<UsageSegment> list = UsageLog.LoadDay(dateKey);
+        if (open != null && open.Start.ToString("yyyyMMdd") == dateKey)
+        {
+            UsageSegment live = new UsageSegment();
+            live.Start = open.Start;
+            live.End = DateTime.Now;
+            live.State = open.State;
+            live.Exe = open.Exe;
+            if (live.Seconds > 0) list.Add(live);
+        }
+        return UsageLog.MergeConsecutive(list);
+    }
+
+    private void OnWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+    {
+        if (!running) return;
+        if (invokeTarget != null && invokeTarget.IsHandleCreated && invokeTarget.InvokeRequired)
+        {
+            try { invokeTarget.BeginInvoke(new Action(SampleForeground)); } catch { }
+            return;
+        }
+        SampleForeground();
+    }
+
+    private void OnPower(object sender, PowerModeChangedEventArgs e)
+    {
+        if (!running) return;
+        if (e.Mode == PowerModes.Suspend) Transition(UsageLog.Sleep, "");
+        else if (e.Mode == PowerModes.Resume) SampleForeground();
+    }
+
+    private void CheckIdle()
+    {
+        if (!running) return;
+        if (open != null && (open.State == UsageLog.Locked || open.State == UsageLog.Sleep)) return;
+        try
+        {
+            NativeMethods.LASTINPUTINFO li = new NativeMethods.LASTINPUTINFO();
+            li.cbSize = (uint)Marshal.SizeOf(typeof(NativeMethods.LASTINPUTINFO));
+            if (!NativeMethods.GetLastInputInfo(ref li)) return;
+            uint idleMs = ((uint)Environment.TickCount) - li.dwTime;
+            if (idleMs >= (uint)(UsageLog.IdleMinutes * 60 * 1000))
+            {
+                if (open == null || open.State != UsageLog.Idle)
+                    Transition(UsageLog.Idle, "");
+            }
+            else if (open != null && open.State == UsageLog.Idle)
+            {
+                SampleForeground();
+            }
+        }
+        catch { }
+        RaiseChanged();
+    }
+
+    private void SampleForeground()
+    {
+        if (!running) return;
+        string exe, path;
+        if (!TryGetForeground(out exe, out path))
+        {
+            Transition(UsageLog.Active, "unknown");
+            return;
+        }
+        if (UsageLog.IsIgnoredExe(exe)) return;
+        UsageLog.RememberDisplayName(exe, path);
+        Transition(UsageLog.Active, exe);
+    }
+
+    private bool TryGetForeground(out string exe, out string fullPath)
+    {
+        exe = null;
+        fullPath = null;
+        try
+        {
+            IntPtr fg = NativeMethods.GetForegroundWindow();
+            if (fg == IntPtr.Zero) return false;
+            uint pid = 0;
+            NativeMethods.GetWindowThreadProcessId(fg, out pid);
+            if (pid == 0) return false;
+            fullPath = GetImagePath((int)pid);
+            if (!string.IsNullOrEmpty(fullPath))
+            {
+                exe = Path.GetFileName(fullPath);
+                return true;
+            }
+            exe = FindExeByPid((int)pid);
+            return !string.IsNullOrEmpty(exe);
+        }
+        catch { return false; }
+    }
+
+    private static string GetImagePath(int pid)
+    {
+        IntPtr hProc = NativeMethods.OpenProcess(0x1000, false, pid);
+        if (hProc == IntPtr.Zero) return null;
+        try
+        {
+            StringBuilder sb = new StringBuilder(1024);
+            int size = sb.Capacity;
+            if (NativeMethods.QueryFullProcessImageName(hProc, 0, sb, ref size))
+                return sb.ToString();
+        }
+        catch { }
+        finally { NativeMethods.CloseHandle(hProc); }
+        return null;
+    }
+
+    private static string FindExeByPid(int pid)
+    {
+        string found = null;
+        AppContext.EnumerateSystemProcesses(delegate(int p, string name)
+        {
+            if (p == pid && !string.IsNullOrEmpty(name)) found = name;
+        });
+        return found;
+    }
+
+    private void Transition(string state, string exe)
+    {
+        DateTime now = DateTime.Now;
+        if (open != null
+            && open.State == UsageLog.Active && state == UsageLog.Active
+            && open.Seconds < UsageLog.FlickerSeconds)
+        {
+            open.Exe = exe;
+            RaiseChanged();
+            return;
+        }
+        if (open != null && open.State == state
+            && (state != UsageLog.Active || string.Equals(open.Exe ?? "", exe ?? "", StringComparison.OrdinalIgnoreCase)))
+        {
+            RaiseChanged();
+            return;
+        }
+        CloseOpen(now);
+        open = new UsageSegment();
+        open.Start = now;
+        open.End = now;
+        open.State = state;
+        open.Exe = state == UsageLog.Active ? (exe ?? "") : "";
+        RaiseChanged();
+    }
+
+    private void CloseOpen(DateTime now)
+    {
+        if (open == null) return;
+        open.End = now;
+        List<UsageSegment> parts = UsageLog.SplitAtDayBoundary(open);
+        for (int i = 0; i < parts.Count; i++)
+            UsageLog.Append(parts[i]);
+        open = null;
+    }
+
+    private void RaiseChanged()
+    {
+        if (suppressChanged) return;
+        Action h = Changed;
+        if (h == null) return;
+        try { h(); } catch { }
+    }
+}
+
+internal sealed class UsageStripItem : ToolStripItem
+{
+    private List<UsageSegment> segments = new List<UsageSegment>();
+    private DateTime axisStart = DateTime.Today;
+    private DateTime axisEnd = DateTime.Now;
+
+    public UsageStripItem()
+    {
+        AutoSize = true;
+        Height = 10;
+        Overflow = ToolStripItemOverflow.Never;
+        Margin = Padding.Empty;
+        Padding = Padding.Empty;
+        DisplayStyle = ToolStripItemDisplayStyle.None;
+        Text = "";
+    }
+
+    public override Size GetPreferredSize(Size constrainingSize)
+    {
+        return new Size(0, Height);
+    }
+
+    public void SetSegments(List<UsageSegment> segs, DateTime start, DateTime end)
+    {
+        segments = segs != null ? segs : new List<UsageSegment>();
+        axisStart = start;
+        axisEnd = end <= start ? start.AddMinutes(1) : end;
+        Invalidate();
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        // 这条不是菜单项，布局把它放在 Padding.Left（X=8），文字项在 X=0。
+        // 绘制时扣掉这个偏移，左边才和文字对齐，右边才和开关胶囊对齐。
+        int shift = Bounds.X;
+        int left = ModernMenuRenderer.MenuTextLeft - shift;
+        int right = Width - ModernMenuRenderer.MenuShortcutRight - 2 - shift;
+        if (left < 0) left = 0;
+        int barH = 6;
+        int y = Math.Max(0, (Height - barH) / 2);
+        Rectangle rc = new Rectangle(left, y, Math.Max(8, right - left), barH);
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using (GraphicsPath path = AppContext.GetRoundedRectPath(rc, 4))
+        {
+            using (SolidBrush bg = new SolidBrush(Color.FromArgb(230, 232, 236)))
+                e.Graphics.FillPath(bg, path);
+            if (segments != null && segments.Count > 0)
+            {
+                double span = Math.Max(1.0, (axisEnd - axisStart).TotalSeconds);
+                Region old = e.Graphics.Clip;
+                e.Graphics.SetClip(path);
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    UsageSegment s = segments[i];
+                    double a = (s.Start - axisStart).TotalSeconds / span;
+                    double b = (s.End - axisStart).TotalSeconds / span;
+                    if (b <= 0 || a >= 1) continue;
+                    if (a < 0) a = 0;
+                    if (b > 1) b = 1;
+                    int x = rc.X + (int)Math.Round(a * rc.Width);
+                    int w = Math.Max(1, (int)Math.Round((b - a) * rc.Width));
+                    using (SolidBrush br = new SolidBrush(UsageLog.ColorFor(s.State, s.Exe)))
+                        e.Graphics.FillRectangle(br, x, rc.Y, w, rc.Height);
+                }
+                e.Graphics.Clip = old;
+            }
+        }
+    }
+}
+
+internal sealed class UsageAxisPanel : Panel
+{
+    private List<UsageSegment> segments = new List<UsageSegment>();
+    private DateTime axisStart = DateTime.Today;
+    private DateTime axisEnd = DateTime.Now;
+    private string highlightKey = "";
+    private bool en;
+
+    public UsageAxisPanel()
+    {
+        DoubleBuffered = true;
+        BackColor = Color.White;
+    }
+
+    public void SetData(List<UsageSegment> segs, DateTime start, DateTime end, string highlight, bool english)
+    {
+        segments = segs != null ? segs : new List<UsageSegment>();
+        axisStart = start;
+        axisEnd = end <= start ? start.AddMinutes(1) : end;
+        highlightKey = highlight ?? "";
+        en = english;
+        Invalidate();
+    }
+
+    public void SetHighlight(string highlight)
+    {
+        highlightKey = highlight ?? "";
+        Invalidate();
+    }
+
+    public UsageSegment HitTest(int x)
+    {
+        Rectangle bar = BarRect();
+        if (bar.Width <= 0 || !bar.Contains(x, bar.Y + bar.Height / 2)) return null;
+        double span = Math.Max(1.0, (axisEnd - axisStart).TotalSeconds);
+        double t = (x - bar.X) / (double)bar.Width;
+        DateTime at = axisStart.AddSeconds(t * span);
+        for (int i = 0; i < segments.Count; i++)
+        {
+            if (at >= segments[i].Start && at < segments[i].End) return segments[i];
+        }
+        return null;
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        Graphics g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        Rectangle bar = BarRect();
+        using (SolidBrush bg = new SolidBrush(Color.FromArgb(236, 238, 242)))
+            g.FillRectangle(bg, bar);
+        double span = Math.Max(1.0, (axisEnd - axisStart).TotalSeconds);
+        DateTime untrackedEnd = segments.Count > 0 ? segments[0].Start : axisEnd;
+        if (untrackedEnd > axisStart)
+        {
+            int x0 = bar.X;
+            int w0 = Math.Max(1, (int)Math.Round((untrackedEnd - axisStart).TotalSeconds / span * bar.Width));
+            using (SolidBrush br = new SolidBrush(UsageLog.ColorFor("", "")))
+                g.FillRectangle(br, x0, bar.Y, w0, bar.Height);
+        }
+        for (int i = 0; i < segments.Count; i++)
+        {
+            UsageSegment s = segments[i];
+            double a = (s.Start - axisStart).TotalSeconds / span;
+            double b = (s.End - axisStart).TotalSeconds / span;
+            if (b <= 0 || a >= 1) continue;
+            if (a < 0) a = 0;
+            if (b > 1) b = 1;
+            int x = bar.X + (int)Math.Round(a * bar.Width);
+            int w = Math.Max(1, (int)Math.Round((b - a) * bar.Width));
+            Color col = UsageLog.ColorFor(s.State, s.Exe);
+            string key = s.State == UsageLog.Active ? ("a:" + (s.Exe ?? "")) : s.State;
+            if (!string.IsNullOrEmpty(highlightKey) && !string.Equals(key, highlightKey, StringComparison.OrdinalIgnoreCase))
+                col = Color.FromArgb(90, col);
+            using (SolidBrush br = new SolidBrush(col))
+                g.FillRectangle(br, x, bar.Y, w, bar.Height);
+        }
+        using (Pen p = new Pen(Color.FromArgb(215, 220, 228)))
+            g.DrawRectangle(p, bar.X, bar.Y, bar.Width - 1, bar.Height - 1);
+
+        Font tickFont = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        try
+        {
+            int hours = Math.Max(1, (int)Math.Ceiling(span / 3600.0));
+            int step = hours <= 8 ? 1 : (hours <= 16 ? 2 : 4);
+            DateTime tick = new DateTime(axisStart.Year, axisStart.Month, axisStart.Day, axisStart.Hour, 0, 0);
+            if (tick < axisStart) tick = tick.AddHours(1);
+            TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
+            while (tick <= axisEnd)
+            {
+                double a = (tick - axisStart).TotalSeconds / span;
+                int x = bar.X + (int)Math.Round(a * bar.Width);
+                using (Pen p = new Pen(Color.FromArgb(200, 204, 210)))
+                    g.DrawLine(p, x, bar.Bottom, x, bar.Bottom + 3);
+                string label = tick.ToString("HH:mm");
+                Size sz = TextRenderer.MeasureText(label, tickFont, Size.Empty, flags);
+                TextRenderer.DrawText(g, label, tickFont, new Rectangle(x - sz.Width / 2, bar.Bottom + 3, sz.Width, 14), AppContext.Win11ShortcutGray, flags);
+                tick = tick.AddHours(step);
+            }
+        }
+        finally { tickFont.Dispose(); }
+    }
+
+    private Rectangle BarRect()
+    {
+        return new Rectangle(8, 4, Math.Max(8, Width - 16), 16);
+    }
+}
+
 internal sealed class AppContext : ApplicationContext
 {
     private static AppContext currentInstance;
@@ -7986,6 +8755,10 @@ internal sealed class AppContext : ApplicationContext
     private static int lastTrayMouseMove;
     private EventHandler displaySettingsHandler;
     private SessionSwitchEventHandler sessionSwitchHandler;
+    private UsageTracker usageTracker;
+    private UsageStripItem menuUsageStrip;
+    private bool openHistoryOnUsageTab;
+    private Action<bool> historySetUsageTab;
     private bool pausedByLock;
 
     private void EnsureMouseHook()
@@ -8227,8 +9000,17 @@ internal sealed class AppContext : ApplicationContext
                     else CheckDailyQuote(false);
                 }
             }
+            if (usageTracker != null) usageTracker.OnSessionSwitch(se.Reason);
         };
         SystemEvents.SessionSwitch += sessionSwitchHandler;
+        usageTracker = new UsageTracker(overlay);
+        if (settings.UsageTrackEnabled && !isOneShot && !IsSelfCheckRunning)
+            usageTracker.Start();
+        if (tray != null && tray.ContextMenuStrip != null)
+        {
+            RefreshUsageStrip(tray.ContextMenuStrip);
+            FitTrayMenuWidth(tray.ContextMenuStrip);
+        }
         if (fallbackUsed && !settings.FirstRun)
         {
             bool en = settings.Language == "en";
@@ -8311,10 +9093,16 @@ internal sealed class AppContext : ApplicationContext
         m.Opened += delegate { ApplyModernWindowStyle(m); };
         m.Opening += delegate
         {
-            m.Font = GetUiFont(settings.Language, 9.5f);
-            if (menuStart != null) menuStart.Font = new Font(m.Font, FontStyle.Bold);
-            UpdateMenuText();
+            m.SuspendLayout();
+            try
+            {
+                m.Font = GetUiFont(settings.Language, 9.5f);
+                if (menuStart != null) menuStart.Font = new Font(m.Font, FontStyle.Bold);
+                UpdateMenuText();
+            }
+            finally { m.ResumeLayout(false); }
             FitTrayMenuWidth(m);
+            RefreshUsageStrip(m);
         };
         m.Closing += delegate(object sender, ToolStripDropDownClosingEventArgs e)
         {
@@ -8332,7 +9120,11 @@ internal sealed class AppContext : ApplicationContext
         menuReset = AddMenuItem(m, delegate { Reset(); });
         menuMove = AddMenuItem(m, delegate { ToggleMove(); });
         m.Items.Add(new ToolStripSeparator());
-        menuHistory = AddMenuItem(m, delegate { ShowHistory(); });
+        menuHistory = AddMenuItem(m, delegate { openHistoryOnUsageTab = false; ShowHistory(); });
+        menuUsageStrip = new UsageStripItem();
+        menuUsageStrip.Click += delegate { openHistoryOnUsageTab = true; ShowHistory(); };
+        menuUsageStrip.Visible = false;
+        m.Items.Add(menuUsageStrip);
         menuSettings = AddMenuItem(m, delegate { ShowSettings(); });
         m.Items.Add(new ToolStripSeparator());
         menuLanguage = AddMenuItem(m, null);
@@ -8359,6 +9151,7 @@ internal sealed class AppContext : ApplicationContext
         m.Items.Add(new ToolStripSeparator());
         menuExit = AddMenuItem(m, delegate { Exit(); });
         UpdateMenuText();
+        FitTrayMenuWidth(m);
         return m;
     }
 
@@ -8430,7 +9223,8 @@ internal sealed class AppContext : ApplicationContext
             enBold.Dispose();
         }
         m.MinimumSize = new Size(w, 0);
-        if (m.Width < w) m.Width = w;
+        m.MaximumSize = new Size(w, 4096);
+        if (m.Width != w) m.Width = w;
         m.PerformLayout();
     }
 
@@ -8576,6 +9370,36 @@ internal sealed class AppContext : ApplicationContext
         tray.Text = hotkeyRegistered
             ? (en ? "iClock (" + actionTip + ")" : "iClock（" + actionTip + "）")
             : (en ? "iClock (" + actionTip + " · Hotkey conflict)" : "iClock（" + actionTip + " · 快捷键未生效）");
+    }
+
+    private void SetUsageTracking(bool on)
+    {
+        settings.UsageTrackEnabled = on;
+        settings.Save();
+        if (usageTracker == null) return;
+        if (on && !isOneShot && !IsSelfCheckRunning) usageTracker.Start();
+        else usageTracker.Stop();
+    }
+
+    private void RefreshUsageStrip(ContextMenuStrip m)
+    {
+        if (menuUsageStrip == null) return;
+        bool show = settings.UsageTrackEnabled && !isOneShot;
+        menuUsageStrip.Available = show;
+        menuUsageStrip.Visible = show;
+        if (!show) return;
+        string today = DateTime.Today.ToString("yyyyMMdd");
+        List<UsageSegment> segs = usageTracker != null ? usageTracker.GetDayWithOpen(today) : UsageLog.LoadDay(today);
+        DateTime start = UsageLog.EstimateBootOrMidnight();
+        if (start.Date != DateTime.Today) start = DateTime.Today;
+        DateTime end = DateTime.Now;
+        if (segs.Count > 0)
+        {
+            if (segs[0].Start < start) start = segs[0].Start;
+            DateTime last = segs[segs.Count - 1].End;
+            if (last > end) end = last;
+        }
+        menuUsageStrip.SetSegments(segs, start, end);
     }
 
     // 左侧固定「今日记录」，右侧提示位写当天累计；有目标时带上 / 目标。连胜只在历史窗口里看。
@@ -10520,6 +11344,15 @@ internal sealed class AppContext : ApplicationContext
                         if (!dates.Contains(k)) dates.Add(k);
                     }
                 }
+                foreach (string file in Directory.GetFiles(dir, "usage-*.tsv"))
+                {
+                    string name = Path.GetFileNameWithoutExtension(file);
+                    if (name.StartsWith("usage-") && name.Length == 14)
+                    {
+                        string k = name.Substring(6);
+                        if (!dates.Contains(k)) dates.Add(k);
+                    }
+                }
             }
         }
         catch { }
@@ -10532,7 +11365,13 @@ internal sealed class AppContext : ApplicationContext
     {
         if (activeDialog != null && !activeDialog.IsDisposed)
         {
-            if (activeDialog.Tag as string == "history") { ActivateWindow(activeDialog); return; }
+            if (activeDialog.Tag as string == "history")
+            {
+                if (openHistoryOnUsageTab && historySetUsageTab != null) historySetUsageTab(true);
+                openHistoryOnUsageTab = false;
+                ActivateWindow(activeDialog);
+                return;
+            }
             activeDialog.Close();
         }
         bool en = settings.Language == "en";
@@ -10544,8 +11383,8 @@ internal sealed class AppContext : ApplicationContext
         f.BackColor = Win11Bg;
         f.Text = en ? "iClock - Countdown History & Statistics" : "iClock - 专注历史记录与统计";
         f.StartPosition = FormStartPosition.CenterScreen;
-        f.ClientSize = new Size(680, 440);
-        f.MinimumSize = new Size(620, 380);
+        f.ClientSize = new Size(760, 500);
+        f.MinimumSize = new Size(720, 440);
         f.MinimizeBox = false; f.MaximizeBox = false;
         f.ShowInTaskbar = false;
         f.TopMost = true;
@@ -10555,16 +11394,22 @@ internal sealed class AppContext : ApplicationContext
         Font headerFont = new Font(f.Font, FontStyle.Bold);
         Font boldFont = new Font(f.Font, FontStyle.Bold);
         ToolTip tip = new ToolTip();
+        ToolTip axisTip = new ToolTip();
         f.FormClosed += delegate
         {
             headerFont.Dispose();
             boldFont.Dispose();
             tip.Dispose();
+            axisTip.Dispose();
             if (activeDialog == f) activeDialog = null;
+            historySetUsageTab = null;
         };
         f.KeyPreview = true;
 
         int currentViewMode = 0; // 0: Day View, 1: Overview View
+        int currentDaySubMode = openHistoryOnUsageTab ? 1 : 0; // 0: countdown, 1: usage
+        openHistoryOnUsageTab = false;
+        string usageHighlight = "";
         StatSpan[] currentSpans = new StatSpan[0];
 
         Button btnTabDay = new Button();
@@ -10587,10 +11432,28 @@ internal sealed class AppContext : ApplicationContext
         btnTabOverview.MouseEnter += delegate { if (currentViewMode != 1) btnTabOverview.BackColor = Color.FromArgb(228, 232, 238); };
         btnTabOverview.MouseLeave += delegate { if (currentViewMode != 1) btnTabOverview.BackColor = Color.FromArgb(240, 242, 245); };
 
+        ToggleSwitch usageSwitch = new ToggleSwitch();
+        usageSwitch.Size = new Size(40, 22);
+        usageSwitch.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        usageSwitch.Checked = settings.UsageTrackEnabled;
+        usageSwitch.TabStop = true;
+
+        Label lblUsage = new Label();
+        lblUsage.AutoSize = false;
+        lblUsage.UseMnemonic = false;
+        lblUsage.TextAlign = ContentAlignment.MiddleRight;
+        lblUsage.Text = en ? "Enable usage tracking" : "开启使用时间跟踪&统计";
+        lblUsage.Font = f.Font;
+        lblUsage.ForeColor = Win11TextSecondary;
+        lblUsage.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        int usageLabelW = TextRenderer.MeasureText(lblUsage.Text, f.Font, new Size(int.MaxValue, 24), TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width + 8;
+        usageSwitch.Location = new Point(f.ClientSize.Width - 12 - usageSwitch.Width, 13);
+        lblUsage.SetBounds(usageSwitch.Left - 6 - usageLabelW, 12, usageLabelW, 24);
+
         Button btnNext = new Button();
         btnNext.Text = "▶";
         btnNext.Size = new Size(28, 28);
-        btnNext.Location = new Point(f.ClientSize.Width - 12 - btnNext.Width, 10);
+        btnNext.Location = new Point(lblUsage.Left - 8 - btnNext.Width, 10);
         btnNext.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         btnNext.FlatStyle = FlatStyle.Flat;
         btnNext.BackColor = Color.FromArgb(240, 242, 245);
@@ -10645,7 +11508,7 @@ internal sealed class AppContext : ApplicationContext
         cboRange.DropDownStyle = ComboBoxStyle.DropDownList;
         cboRange.Width = en ? 140 : 120;
         cboRange.Font = f.Font;
-        cboRange.Location = new Point(f.ClientSize.Width - 12 - cboRange.Width, 10);
+        cboRange.Location = new Point(lblUsage.Left - 8 - cboRange.Width, 10);
         cboRange.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         cboRange.Items.AddRange(en ? new object[] { "Last 7 Days", "Last 14 Days", "Last 30 Days", "All History" }
                                    : new object[] { "最近 7 天", "最近 14 天", "最近 30 天", "全部历史" });
@@ -10658,7 +11521,39 @@ internal sealed class AppContext : ApplicationContext
         list.ForeColor = Win11TextPrimary;
         list.BorderStyle = BorderStyle.FixedSingle;
         list.View = View.Details; list.FullRowSelect = true; list.GridLines = true;
-        list.SetBounds(12, 48, 656, 334);
+        UsageAxisPanel usageAxis = new UsageAxisPanel();
+        int contentW = f.ClientSize.Width - 24;
+        usageAxis.SetBounds(12, 44, contentW, 38);
+        usageAxis.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        usageAxis.Visible = false;
+        usageAxis.MouseMove += delegate(object s, MouseEventArgs e)
+        {
+            UsageSegment hit = usageAxis.HitTest(e.X);
+            if (hit == null) { axisTip.SetToolTip(usageAxis, ""); return; }
+            axisTip.SetToolTip(usageAxis, UsageLog.LabelFor(hit.State, hit.Exe, en) + "\r\n"
+                + hit.Start.ToString("HH:mm") + " – " + hit.End.ToString("HH:mm") + "\r\n"
+                + FormatDuration(hit.Seconds, en));
+        };
+
+        Button btnSegCountdown = new Button();
+        btnSegCountdown.FlatStyle = FlatStyle.Flat;
+        btnSegCountdown.FlatAppearance.BorderSize = 0;
+        btnSegCountdown.Font = f.Font;
+        btnSegCountdown.Cursor = Cursors.Hand;
+        btnSegCountdown.Text = en ? "Countdown" : "倒计时记录";
+        btnSegCountdown.SetBounds(12, 86, en ? 96 : 84, 26);
+        btnSegCountdown.Visible = false;
+
+        Button btnSegUsage = new Button();
+        btnSegUsage.FlatStyle = FlatStyle.Flat;
+        btnSegUsage.FlatAppearance.BorderSize = 0;
+        btnSegUsage.Font = f.Font;
+        btnSegUsage.Cursor = Cursors.Hand;
+        btnSegUsage.Text = en ? "Time tracking" : "时间跟踪统计";
+        btnSegUsage.SetBounds(btnSegCountdown.Right + 6, 86, en ? 110 : 100, 26);
+        btnSegUsage.Visible = false;
+
+        list.SetBounds(12, 48, contentW, 394);
         list.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         list.OwnerDraw = true;
 
@@ -10674,7 +11569,14 @@ internal sealed class AppContext : ApplicationContext
             int w = list.ClientSize.Width;
             if (w <= 0 || list.Columns.Count < 6) return;
             list.Columns[5].Width = 10;
-            if (currentViewMode == 0)
+            if (currentViewMode == 0 && currentDaySubMode == 1)
+            {
+                int c0 = 28, c1 = 160, c2 = 110, c3 = 70, c4 = 120;
+                list.Columns[0].Width = c0; list.Columns[1].Width = c1; list.Columns[2].Width = c2;
+                list.Columns[3].Width = c3; list.Columns[4].Width = c4;
+                list.Columns[5].Width = Math.Max(40, w - c0 - c1 - c2 - c3 - c4);
+            }
+            else if (currentViewMode == 0)
             {
                 int c0 = 45, c1 = 110, c2 = 110, c3 = 85, c4 = 95;
                 list.Columns[0].Width = c0; list.Columns[1].Width = c1; list.Columns[2].Width = c2;
@@ -10699,7 +11601,7 @@ internal sealed class AppContext : ApplicationContext
                 e.Graphics.DrawLine(p, e.Bounds.Left, e.Bounds.Bottom - 1, e.Bounds.Right, e.Bounds.Bottom - 1);
                 e.Graphics.DrawLine(p, e.Bounds.Right - 1, e.Bounds.Top + 3, e.Bounds.Right - 1, e.Bounds.Bottom - 4);
             }
-            bool centerCol0 = (currentViewMode == 0 && e.ColumnIndex == 0);
+            bool centerCol0 = (currentViewMode == 0 && currentDaySubMode == 0 && e.ColumnIndex == 0);
             TextFormatFlags flags = centerCol0
                 ? (TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine)
                 : (TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.WordEllipsis);
@@ -10710,7 +11612,43 @@ internal sealed class AppContext : ApplicationContext
         list.DrawSubItem += delegate(object s, DrawListViewSubItemEventArgs e)
         {
             bool isSel = (e.ItemState & ListViewItemStates.Selected) != 0;
-            if (currentViewMode == 0 && e.ColumnIndex == 0)
+            if (currentViewMode == 0 && currentDaySubMode == 1)
+            {
+                e.DrawBackground();
+                Color fg = isSel ? SystemColors.HighlightText : Win11TextPrimary;
+                if (e.ColumnIndex == 0)
+                {
+                    Color dot = e.Item.Tag is Color ? (Color)e.Item.Tag : Win11ShortcutGray;
+                    int d = 8;
+                    int dx = e.Bounds.X + (e.Bounds.Width - d) / 2;
+                    int dy = e.Bounds.Y + (e.Bounds.Height - d) / 2;
+                    e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                    using (SolidBrush br = new SolidBrush(dot))
+                        e.Graphics.FillEllipse(br, dx, dy, d, d);
+                }
+                else if (e.ColumnIndex == 4)
+                {
+                    string pctTxt = e.Item.SubItems.Count > 3 ? e.Item.SubItems[3].Text : "";
+                    int pct = 0;
+                    if (pctTxt.EndsWith("%")) int.TryParse(pctTxt.Substring(0, pctTxt.Length - 1), out pct);
+                    Rectangle bar = new Rectangle(e.Bounds.X + 6, e.Bounds.Y + e.Bounds.Height / 2 - 4, Math.Max(0, e.Bounds.Width - 14), 8);
+                    using (SolidBrush bg = new SolidBrush(Color.FromArgb(230, 232, 236)))
+                        e.Graphics.FillRectangle(bg, bar);
+                    int fw = (int)Math.Round(bar.Width * Math.Min(100, Math.Max(0, pct)) / 100.0);
+                    if (fw > 0)
+                    {
+                        Color barc = e.Item.Tag is Color ? (Color)e.Item.Tag : Win11Accent;
+                        using (SolidBrush br = new SolidBrush(barc))
+                            e.Graphics.FillRectangle(br, bar.X, bar.Y, fw, bar.Height);
+                    }
+                }
+                else
+                {
+                    Rectangle r = new Rectangle(e.Bounds.X + 8, e.Bounds.Y, Math.Max(0, e.Bounds.Width - 16), e.Bounds.Height);
+                    TextRenderer.DrawText(e.Graphics, e.SubItem.Text, e.Item.Font, r, fg, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.WordEllipsis);
+                }
+            }
+            else if (currentViewMode == 0 && e.ColumnIndex == 0)
             {
                 e.DrawBackground();
                 Color fg = isSel ? SystemColors.HighlightText : Win11ShortcutGray;
@@ -10738,7 +11676,7 @@ internal sealed class AppContext : ApplicationContext
         };
 
         Panel summaryPanel = new Panel();
-        summaryPanel.SetBounds(12, 390, 656, 36);
+        summaryPanel.SetBounds(12, 450, contentW, 36);
         summaryPanel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
         summaryPanel.BackColor = Color.FromArgb(243, 244, 246);
         summaryPanel.Paint += delegate(object s, PaintEventArgs e)
@@ -10771,14 +11709,6 @@ internal sealed class AppContext : ApplicationContext
 
             if (currentViewMode == 0)
             {
-                list.Columns[0].TextAlign = HorizontalAlignment.Center;
-                list.Columns[0].Text = "#";
-                list.Columns[1].Text = en ? "Start time" : "开始时间";
-                list.Columns[2].Text = en ? "End time" : "结束时间";
-                list.Columns[3].Text = en ? "Duration" : "设定时长";
-                list.Columns[4].Text = en ? "Actual duration" : "实际时长";
-                list.Columns[5].Text = en ? "Result" : "结果";
-
                 string selText = cboDate.SelectedItem != null ? cboDate.SelectedItem.ToString() : "";
                 string selKey = selText.Length >= 10 ? selText.Substring(0, 10).Replace("-", "") : todayStr;
                 string selDisplay = selText.Length >= 10 ? selText.Substring(0, 10) : DateTime.Today.ToString("yyyy-MM-dd");
@@ -10787,6 +11717,92 @@ internal sealed class AppContext : ApplicationContext
                 btnNext.Enabled = (cboDate.SelectedIndex > 0);
                 btnPrev.ForeColor = btnPrev.Enabled ? Win11TextPrimary : Win11ShortcutGray;
                 btnNext.ForeColor = btnNext.Enabled ? Win11TextPrimary : Win11ShortcutGray;
+
+                List<UsageSegment> daySegs = (usageTracker != null && selKey == todayStr)
+                    ? usageTracker.GetDayWithOpen(selKey) : UsageLog.LoadDay(selKey);
+                DateTime axisStart = selKey == todayStr ? UsageLog.EstimateBootOrMidnight() : DateTime.Today;
+                DateTime axisEnd = DateTime.Now;
+                DateTime selDay;
+                if (DateTime.TryParseExact(selKey, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out selDay))
+                {
+                    if (selKey != todayStr)
+                    {
+                        axisStart = selDay.Date;
+                        axisEnd = selDay.Date.AddDays(1);
+                    }
+                    else if (axisStart.Date != DateTime.Today)
+                        axisStart = DateTime.Today;
+                }
+                if (daySegs.Count > 0)
+                {
+                    if (daySegs[0].Start < axisStart) axisStart = daySegs[0].Start;
+                    DateTime last = daySegs[daySegs.Count - 1].End;
+                    if (last > axisEnd) axisEnd = last;
+                }
+                usageAxis.SetData(daySegs, axisStart, axisEnd, usageHighlight, en);
+
+                if (currentDaySubMode == 1 && settings.UsageTrackEnabled)
+                {
+                    list.Columns[0].TextAlign = HorizontalAlignment.Center;
+                    list.Columns[0].Text = "";
+                    list.Columns[1].Text = en ? "App" : "应用";
+                    list.Columns[2].Text = en ? "Duration" : "时长";
+                    list.Columns[3].Text = en ? "Share" : "占比";
+                    list.Columns[4].Text = "";
+                    list.Columns[5].Text = "";
+
+                    List<UsageSummary> rows = UsageLog.Summarize(daySegs);
+                    long total = 0;
+                    long activeSecs = 0, idleSecs = 0;
+                    for (int i = 0; i < rows.Count; i++)
+                    {
+                        total += rows[i].Seconds;
+                        if (rows[i].State == UsageLog.Active) activeSecs += rows[i].Seconds;
+                        else if (rows[i].State == UsageLog.Idle) idleSecs += rows[i].Seconds;
+                    }
+                    if (rows.Count == 0)
+                    {
+                        list.Items.Add(new ListViewItem(new string[] { "", en ? "Recording starts after the switch is on" : "从打开开关时开始记录", "", "", "", "" }));
+                        currentSpans = new StatSpan[]
+                        {
+                            new StatSpan(en ? "Time tracking: no samples yet" : "时间跟踪统计：暂无样本", f.Font, Win11TextSecondary)
+                        };
+                    }
+                    else
+                    {
+                        for (int i = 0; i < rows.Count; i++)
+                        {
+                            int pct = total > 0 ? (int)Math.Round(rows[i].Seconds * 100.0 / total) : 0;
+                            ListViewItem lvi = new ListViewItem(new string[] {
+                                "",
+                                UsageLog.LabelFor(rows[i].State, rows[i].Exe, en),
+                                FormatDuration(rows[i].Seconds, en),
+                                pct + "%",
+                                "",
+                                ""
+                            });
+                            lvi.Tag = UsageLog.ColorFor(rows[i].State, rows[i].Exe);
+                            lvi.Name = rows[i].State == UsageLog.Active ? ("a:" + (rows[i].Exe ?? "")) : rows[i].State;
+                            list.Items.Add(lvi);
+                        }
+                        currentSpans = new StatSpan[]
+                        {
+                            new StatSpan(en ? rows.Count + " items · Active " : rows.Count + " 项 · 使用 ", f.Font, Win11TextPrimary),
+                            new StatSpan(FormatDuration(activeSecs, en), boldFont, Win11Accent),
+                            new StatSpan(en ? " · Idle " : " · 空闲 ", f.Font, Win11TextSecondary),
+                            new StatSpan(FormatDuration(idleSecs, en), boldFont, Win11TextPrimary)
+                        };
+                    }
+                }
+                else
+                {
+                list.Columns[0].TextAlign = HorizontalAlignment.Center;
+                list.Columns[0].Text = "#";
+                list.Columns[1].Text = en ? "Start time" : "开始时间";
+                list.Columns[2].Text = en ? "End time" : "结束时间";
+                list.Columns[3].Text = en ? "Duration" : "设定时长";
+                list.Columns[4].Text = en ? "Actual duration" : "实际时长";
+                list.Columns[5].Text = en ? "Result" : "结果";
 
                 string path = Path.Combine(historyDir, "history-" + selKey + ".tsv");
                 int totalSessions = 0, completedSessions = 0;
@@ -10848,6 +11864,7 @@ internal sealed class AppContext : ApplicationContext
                         new StatSpan(en ? "   |   Rate " : "   ｜   完成率 ", f.Font, Win11TextSecondary),
                         new StatSpan(rate + "%", boldFont, rateColor)
                     };
+                }
                 }
             }
             else
@@ -10934,6 +11951,7 @@ internal sealed class AppContext : ApplicationContext
             summaryPanel.Invalidate();
         };
 
+        MethodInvoker applyUsageLayout = null;
         Action<int> switchView = delegate(int mode)
         {
             currentViewMode = mode;
@@ -10948,11 +11966,63 @@ internal sealed class AppContext : ApplicationContext
             btnNext.Visible = isDay;
             cboRange.Visible = !isDay;
 
+            applyUsageLayout();
             refreshData();
+        };
+
+        applyUsageLayout = delegate
+        {
+            bool show = settings.UsageTrackEnabled && currentViewMode == 0;
+            usageAxis.Visible = show;
+            btnSegCountdown.Visible = show;
+            btnSegUsage.Visible = show;
+            btnSegCountdown.BackColor = currentDaySubMode == 0 ? Win11Accent : Color.FromArgb(235, 238, 242);
+            btnSegCountdown.ForeColor = currentDaySubMode == 0 ? Color.White : Win11TextPrimary;
+            btnSegUsage.BackColor = currentDaySubMode == 1 ? Win11Accent : Color.FromArgb(235, 238, 242);
+            btnSegUsage.ForeColor = currentDaySubMode == 1 ? Color.White : Win11TextPrimary;
+            int top = show ? 118 : 48;
+            list.Top = top;
+            list.Height = Math.Max(80, summaryPanel.Top - top - 8);
         };
 
         btnTabDay.Click += delegate { switchView(0); };
         btnTabOverview.Click += delegate { switchView(1); };
+        btnSegCountdown.Click += delegate
+        {
+            currentDaySubMode = 0;
+            usageHighlight = "";
+            applyUsageLayout();
+            refreshData();
+        };
+        btnSegUsage.Click += delegate
+        {
+            currentDaySubMode = 1;
+            applyUsageLayout();
+            refreshData();
+        };
+        usageSwitch.CheckedChanged += delegate
+        {
+            SetUsageTracking(usageSwitch.Checked);
+            if (!usageSwitch.Checked) { currentDaySubMode = 0; usageHighlight = ""; }
+            applyUsageLayout();
+            refreshData();
+        };
+        historySetUsageTab = delegate(bool usage)
+        {
+            if (!settings.UsageTrackEnabled) return;
+            currentDaySubMode = usage ? 1 : 0;
+            if (currentViewMode != 0) switchView(0);
+            else { applyUsageLayout(); refreshData(); }
+        };
+        list.SelectedIndexChanged += delegate
+        {
+            string next = "";
+            if (currentViewMode == 0 && currentDaySubMode == 1 && list.SelectedItems.Count > 0)
+                next = list.SelectedItems[0].Name ?? "";
+            if (next == usageHighlight) return;
+            usageHighlight = next;
+            usageAxis.SetHighlight(usageHighlight);
+        };
 
         cboDate.SelectedIndexChanged += delegate { if (currentViewMode == 0) refreshData(); };
         btnPrev.Click += delegate { if (cboDate.SelectedIndex < cboDate.Items.Count - 1) cboDate.SelectedIndex++; };
@@ -10981,12 +12051,27 @@ internal sealed class AppContext : ApplicationContext
 
         f.Controls.Add(btnTabDay);
         f.Controls.Add(btnTabOverview);
+        f.Controls.Add(lblUsage);
+        f.Controls.Add(usageSwitch);
         f.Controls.Add(btnPrev);
         f.Controls.Add(cboDate);
         f.Controls.Add(btnNext);
         f.Controls.Add(cboRange);
+        f.Controls.Add(usageAxis);
+        f.Controls.Add(btnSegCountdown);
+        f.Controls.Add(btnSegUsage);
         f.Controls.Add(list);
         f.Controls.Add(summaryPanel);
+
+        Action onUsageChanged = null;
+        onUsageChanged = delegate
+        {
+            if (f.IsDisposed) return;
+            if (f.InvokeRequired) { try { f.BeginInvoke(onUsageChanged); } catch { } return; }
+            if (currentViewMode == 0 && settings.UsageTrackEnabled) refreshData();
+        };
+        if (usageTracker != null) usageTracker.Changed += onUsageChanged;
+        f.FormClosed += delegate { if (usageTracker != null) usageTracker.Changed -= onUsageChanged; };
         f.KeyDown += delegate(object s, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Escape) f.Close();
@@ -11273,6 +12358,7 @@ internal sealed class AppContext : ApplicationContext
         if (mouseHookHandle != IntPtr.Zero) { try { NativeMethods.UnhookWindowsHookEx(mouseHookHandle); } catch { } mouseHookHandle = IntPtr.Zero; }
         if (displaySettingsHandler != null) { try { SystemEvents.DisplaySettingsChanged -= displaySettingsHandler; } catch { } displaySettingsHandler = null; }
         if (sessionSwitchHandler != null) { try { SystemEvents.SessionSwitch -= sessionSwitchHandler; } catch { } sessionSwitchHandler = null; }
+        if (usageTracker != null) { try { usageTracker.Stop(); } catch { } usageTracker = null; }
         if (trayClickTimer != null) { try { trayClickTimer.Stop(); trayClickTimer.Dispose(); } catch { } trayClickTimer = null; }
         if (taskStatusHud != null && !taskStatusHud.IsDisposed) { taskStatusHud.Close(); taskStatusHud.Dispose(); taskStatusHud = null; }
         overlay.Close(); overlay.Dispose(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); timer.Dispose(); ExitThread();
