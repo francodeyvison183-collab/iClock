@@ -663,17 +663,13 @@ internal sealed class UsageAxisPanel : Panel
     public void SetData(List<UsageSegment> segs, DateTime start, DateTime end, string highlight, bool english)
     {
         segments = segs != null ? segs : new List<UsageSegment>();
-        axisStart = start;
-        axisEnd = end <= start ? start.AddMinutes(1) : end;
         highlightKey = highlight ?? "";
         en = english;
-        // Remember the activity window so clicking can toggle between it and
-        // the full-day view without the caller re-feeding data.
-        if (!fullDay)
-        {
-            dayStart = start;
-            dayEnd = end;
-        }
+        // start/end is the activity window (first-to-last record); remember it
+        // so clicking can toggle between it and the full-day view without the
+        // caller re-feeding data.
+        dayStart = start;
+        dayEnd = end;
         ApplyRange();
     }
 

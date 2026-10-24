@@ -843,15 +843,9 @@ internal sealed class AppContext : ApplicationContext
         if (!show) return;
         string today = DateTime.Today.ToString("yyyyMMdd");
         List<UsageSegment> segs = usageTracker != null ? usageTracker.GetDayWithOpen(today) : UsageLog.LoadDay(today);
-        // Tray ribbon covers only today's actual activity window, not midnight/boot.
-        DateTime start = DateTime.Now.Date;
-        DateTime end = DateTime.Now;
-        if (segs.Count > 0)
-        {
-            if (segs[0].Start < start) start = segs[0].Start;
-            DateTime last = segs[segs.Count - 1].End;
-            if (last > end) end = last;
-        }
+        // Tray ribbon covers only today's actual activity window.
+        DateTime start = segs.Count > 0 ? segs[0].Start : DateTime.Now.Date;
+        DateTime end = segs.Count > 0 ? segs[segs.Count - 1].End : DateTime.Now;
         menuUsageStrip.SetSegments(segs, start, end);
     }
 
@@ -3198,14 +3192,10 @@ internal sealed class AppContext : ApplicationContext
                         dayHi = selDay.Date.AddDays(1);
                     }
                 }
-                DateTime axisStart = dayLo;
-                DateTime axisEnd = dayHi;
-                if (daySegs.Count > 0)
-                {
-                    if (daySegs[0].Start < axisStart) axisStart = daySegs[0].Start;
-                    DateTime last = daySegs[daySegs.Count - 1].End;
-                    if (last > axisEnd) axisEnd = last;
-                }
+                // The panel picks the activity window (first-to-last record)
+                // itself; for empty days fall back to the whole day span.
+                DateTime axisStart = daySegs.Count > 0 ? daySegs[0].Start : dayLo;
+                DateTime axisEnd = daySegs.Count > 0 ? daySegs[daySegs.Count - 1].End : dayHi;
                 usageAxis.SetDayBounds(dayLo, dayHi);
                 usageAxis.SetData(daySegs, axisStart, axisEnd, usageHighlight, en);
 
