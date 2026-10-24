@@ -914,9 +914,18 @@ internal static class TestCheck
             string[] cols = row.Split('\t');
             object[] parseArgs = new object[] { row, DateTime.Today, null };
             bool parsedOk = (bool)parse.Invoke(null, parseArgs);
-            if (!parsedOk || parseArgs[2] == null || cols.Length != 5 || cols[2] != "idle" || cols[4] != "180")
+            if (!parsedOk || parseArgs[2] == null || cols.Length != 7 || cols[2] != "idle" || cols[4] != "180")
             {
                 Console.WriteLine("FAIL: Usage TSV format incorrect: " + row);
+                return 26;
+            }
+            // Legacy 5-column rows (pre input-sampling) must still parse.
+            string legacyRow = "10:00:00\t10:01:00\tactive\tapp.exe\t60";
+            object[] legacyArgs = new object[] { legacyRow, DateTime.Today, null };
+            bool legacyOk = (bool)parse.Invoke(null, legacyArgs);
+            if (!legacyOk || legacyArgs[2] == null)
+            {
+                Console.WriteLine("FAIL: Legacy 5-column usage row no longer parses");
                 return 26;
             }
             Console.WriteLine("PASS: UsageLog merge, flicker absorb, day split, and TSV columns verified.");
