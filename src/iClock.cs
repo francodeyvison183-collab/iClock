@@ -1520,14 +1520,6 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
-    internal void ClearProjectedNote()
-    {
-        if (activeProjectedNote != null && !activeProjectedNote.IsDisposed)
-        {
-            try { activeProjectedNote.Close(); } catch { }
-        }
-    }
-
     internal void ShowCustomQuote(string text, string author, string agentName = null, int agentPid = 0)
     {
         // 1. Temporarily hide daily quote if active
@@ -2390,26 +2382,6 @@ internal sealed class AppContext : ApplicationContext
         {
             NativeMethods.CloseHandle(hSnap);
         }
-    }
-
-    internal static TimeSpan GetProcessCpuTime(int pid)
-    {
-        IntPtr hProc = NativeMethods.OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, false, pid);
-        if (hProc == IntPtr.Zero) return TimeSpan.Zero;
-        try
-        {
-            long c, e, k, u;
-            if (NativeMethods.GetProcessTimes(hProc, out c, out e, out k, out u))
-            {
-                return TimeSpan.FromTicks(k + u);
-            }
-        }
-        catch { }
-        finally
-        {
-            NativeMethods.CloseHandle(hProc);
-        }
-        return TimeSpan.Zero;
     }
 
     private static HashSet<string> cachedRunningAgents = null;

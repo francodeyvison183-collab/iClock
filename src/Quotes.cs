@@ -1340,15 +1340,6 @@ internal static class AiAgentQuoteHelper
         return list;
     }
 
-    internal static void SaveKeywords(Settings s, List<string> keywords)
-    {
-        if (s == null) return;
-        s.AiQuoteKeywords = (keywords != null && keywords.Count > 0)
-            ? string.Join(",", keywords.ToArray())
-            : "";
-        s.Save();
-    }
-
     internal static string BuildAgentPrompt(List<string> keywords, int count, string lang)
     {
         bool en = (lang == "en");

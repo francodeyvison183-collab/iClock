@@ -357,8 +357,6 @@ internal static class NativeMethods
     public static extern bool CloseHandle(IntPtr hObject);
     [DllImport("kernel32.dll", SetLastError = true)]
     public static extern IntPtr OpenProcess(uint processAccess, bool bInheritHandle, int processId);
-    [DllImport("kernel32.dll", SetLastError = true)]
-    public static extern bool GetProcessTimes(IntPtr hProcess, out long lpCreationTime, out long lpExitTime, out long lpKernelTime, out long lpUserTime);
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
     public static extern bool QueryFullProcessImageName(IntPtr hProcess, int flags, StringBuilder text, ref int size);
     [DllImport("kernel32.dll")]
