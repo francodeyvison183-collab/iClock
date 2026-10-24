@@ -782,18 +782,6 @@ internal sealed class UsageAxisPanel : Panel
         }
         finally { tickFont.Dispose(); }
 
-        // Zoom-state badge in the top-right corner: a hint that clicking the
-        // ribbon toggles between the activity window and the full day.
-        string badge = fullDay ? (en ? "Full day  ⤒" : "全天  ⤒") : (en ? "Activity  ⤒" : "活动时段  ⤒");
-        Font badgeFont = AppContext.GetUiFont(en ? "en" : "zh", 7.5f);
-        try
-        {
-            Size bsz = TextRenderer.MeasureText(badge, badgeFont, Size.Empty, TextFormatFlags.NoPadding);
-            Point bpos = new Point(Width - bsz.Width - 10, 2);
-            TextRenderer.DrawText(g, badge, badgeFont, bpos, Color.FromArgb(150, 156, 168),
-                TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
-        }
-        finally { badgeFont.Dispose(); }
     }
 
     private Rectangle BarRect()
