@@ -410,6 +410,9 @@ internal sealed class AppContext : ApplicationContext
         Timer startupTrim = new Timer(); startupTrim.Interval = 3500;
         startupTrim.Tick += delegate { startupTrim.Stop(); startupTrim.Dispose(); TrimMemory(); };
         startupTrim.Start();
+        Timer memTrim = new Timer(); memTrim.Interval = 300000;
+        memTrim.Tick += delegate { if (Process.GetCurrentProcess().WorkingSet64 > 8L * 1024 * 1024) TrimMemory(); };
+        memTrim.Start();
         ApplyStartup();
         EnsureStartMenuShortcut(false);
         ResetDisplay();
