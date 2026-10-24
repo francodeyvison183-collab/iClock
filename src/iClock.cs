@@ -2935,7 +2935,7 @@ internal sealed class AppContext : ApplicationContext
         UsageAxisPanel usageAxis = new UsageAxisPanel();
         int contentW = f.ClientSize.Width - 24;
         usageAxis.SetBounds(12, 44, contentW, 38);
-        usageAxis.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+        usageAxis.Anchor = AnchorStyles.Top | AnchorStyles.Left;
         usageAxis.Visible = false;
         usageAxis.MouseMove += delegate(object s, MouseEventArgs e)
         {
@@ -2946,23 +2946,86 @@ internal sealed class AppContext : ApplicationContext
                 + FormatDuration(hit.Seconds, en));
         };
 
+        // Day-view sub-mode switch as a light segmented control on the axis
+        // row: secondary styling (gray track + white pill) keeps it visually
+        // below the accent top tabs instead of mimicking them.
+        int segW1 = en ? 88 : 84;
+        int segW2 = en ? 98 : 84;
+        Panel segHost = new Panel();
+        segHost.Size = new Size(segW1 + segW2, 24);
+        segHost.Location = new Point(lblUsage.Left - 12 - segHost.Width, 51);
+        segHost.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        segHost.Visible = false;
+        segHost.Paint += delegate(object s, PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            Rectangle track = new Rectangle(0, 0, segHost.Width - 1, segHost.Height - 1);
+            using (GraphicsPath path = AppContext.GetRoundedRectPath(track, 5))
+            {
+                using (SolidBrush fill = new SolidBrush(Color.FromArgb(235, 238, 242))) e.Graphics.FillPath(fill, path);
+                using (Pen pen = new Pen(Color.FromArgb(214, 218, 226), 1f)) e.Graphics.DrawPath(pen, path);
+            }
+        };
+        f.Controls.Add(segHost);
+
+        PaintEventHandler segPaint = delegate(object s, PaintEventArgs e)
+        {
+            Button b = (Button)s;
+            bool sel = (int)b.Tag == currentDaySubMode;
+            bool hov = !sel && b.ClientRectangle.Contains(b.PointToClient(Cursor.Position));
+            if (sel || hov)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                Rectangle pill = new Rectangle(2, 2, b.Width - 4, b.Height - 4);
+                using (GraphicsPath path = AppContext.GetRoundedRectPath(pill, 4))
+                {
+                    if (sel)
+                    {
+                        using (SolidBrush fill = new SolidBrush(Color.White)) e.Graphics.FillPath(fill, path);
+                        using (Pen pen = new Pen(Color.FromArgb(206, 211, 220), 1f)) e.Graphics.DrawPath(pen, path);
+                    }
+                    else
+                    {
+                        using (SolidBrush fill = new SolidBrush(Color.FromArgb(226, 230, 237))) e.Graphics.FillPath(fill, path);
+                    }
+                }
+            }
+            Color col = sel ? Color.FromArgb(24, 28, 36) : Color.FromArgb(95, 107, 124);
+            TextRenderer.DrawText(e.Graphics, b.Text, b.Font, b.ClientRectangle, col,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+        };
+
         Button btnSegCountdown = new Button();
         btnSegCountdown.FlatStyle = FlatStyle.Flat;
         btnSegCountdown.FlatAppearance.BorderSize = 0;
+        btnSegCountdown.BackColor = Color.Transparent;
         btnSegCountdown.Font = f.Font;
         btnSegCountdown.Cursor = Cursors.Hand;
         btnSegCountdown.Text = en ? "Countdown" : "倒计时记录";
-        btnSegCountdown.SetBounds(12, 86, en ? 96 : 84, 26);
+        btnSegCountdown.Tag = 0;
+        btnSegCountdown.SetBounds(0, 0, segW1, 24);
+        btnSegCountdown.Paint += segPaint;
+        btnSegCountdown.MouseEnter += delegate { btnSegCountdown.Invalidate(); };
+        btnSegCountdown.MouseLeave += delegate { btnSegCountdown.Invalidate(); };
         btnSegCountdown.Visible = false;
+        segHost.Controls.Add(btnSegCountdown);
+        tip.SetToolTip(btnSegCountdown, en ? "Countdown sessions of the selected day" : "查看所选日期的专注周期明细");
 
         Button btnSegUsage = new Button();
         btnSegUsage.FlatStyle = FlatStyle.Flat;
         btnSegUsage.FlatAppearance.BorderSize = 0;
+        btnSegUsage.BackColor = Color.Transparent;
         btnSegUsage.Font = f.Font;
         btnSegUsage.Cursor = Cursors.Hand;
-        btnSegUsage.Text = en ? "Time tracking" : "时间跟踪统计";
-        btnSegUsage.SetBounds(btnSegCountdown.Right + 6, 86, en ? 110 : 100, 26);
+        btnSegUsage.Text = en ? "Time tracking" : "时间统计";
+        btnSegUsage.Tag = 1;
+        btnSegUsage.SetBounds(segW1, 0, segW2, 24);
+        btnSegUsage.Paint += segPaint;
+        btnSegUsage.MouseEnter += delegate { btnSegUsage.Invalidate(); };
+        btnSegUsage.MouseLeave += delegate { btnSegUsage.Invalidate(); };
         btnSegUsage.Visible = false;
+        segHost.Controls.Add(btnSegUsage);
+        tip.SetToolTip(btnSegUsage, en ? "Per-app usage of the selected day" : "查看所选日期的各应用使用时长");
 
         list.SetBounds(12, 48, contentW, 394);
         list.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
@@ -3387,11 +3450,11 @@ internal sealed class AppContext : ApplicationContext
             usageAxis.Visible = show;
             btnSegCountdown.Visible = show;
             btnSegUsage.Visible = show;
-            btnSegCountdown.BackColor = currentDaySubMode == 0 ? Win11Accent : Color.FromArgb(235, 238, 242);
-            btnSegCountdown.ForeColor = currentDaySubMode == 0 ? Color.White : Win11TextPrimary;
-            btnSegUsage.BackColor = currentDaySubMode == 1 ? Win11Accent : Color.FromArgb(235, 238, 242);
-            btnSegUsage.ForeColor = currentDaySubMode == 1 ? Color.White : Win11TextPrimary;
-            int top = show ? 118 : 48;
+            segHost.Visible = show;
+            btnSegCountdown.Invalidate();
+            btnSegUsage.Invalidate();
+            segHost.Invalidate();
+            int top = 82;
             list.Top = top;
             list.Height = Math.Max(80, summaryPanel.Top - top - 8);
         };
@@ -3469,8 +3532,6 @@ internal sealed class AppContext : ApplicationContext
         f.Controls.Add(btnNext);
         f.Controls.Add(cboRange);
         f.Controls.Add(usageAxis);
-        f.Controls.Add(btnSegCountdown);
-        f.Controls.Add(btnSegUsage);
         f.Controls.Add(list);
         f.Controls.Add(summaryPanel);
 
