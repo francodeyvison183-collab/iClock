@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Text;
@@ -146,7 +146,7 @@ internal sealed class AppContext : ApplicationContext
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuLanguage, menuLangZh, menuLangEn, menuAbout, menuExit, menuUpdate;
     private MenuSwitchItem menuStartup;
     private bool holdTrayMenuOpen;
-    internal const string CURRENT_VERSION = "1.12";
+    internal const string CURRENT_VERSION = "1.13";
     private string updateUrl;
     private string latestVersion;
     private Timer timer;
