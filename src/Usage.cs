@@ -224,18 +224,6 @@ internal static class UsageLog
         return order;
     }
 
-    public static DateTime EstimateBootOrMidnight()
-    {
-        DateTime now = DateTime.Now;
-        try
-        {
-            DateTime boot = now - TimeSpan.FromMilliseconds((double)NativeMethods.GetTickCount64());
-            if (boot.Date == now.Date) return boot;
-        }
-        catch { }
-        return now.Date;
-    }
-
     public static Color ColorFor(string state, string exe)
     {
         if (state == Idle) return Color.FromArgb(200, 204, 210);

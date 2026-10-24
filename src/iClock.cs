@@ -843,8 +843,8 @@ internal sealed class AppContext : ApplicationContext
         if (!show) return;
         string today = DateTime.Today.ToString("yyyyMMdd");
         List<UsageSegment> segs = usageTracker != null ? usageTracker.GetDayWithOpen(today) : UsageLog.LoadDay(today);
-        DateTime start = UsageLog.EstimateBootOrMidnight();
-        if (start.Date != DateTime.Today) start = DateTime.Today;
+        // Tray ribbon covers only today's actual activity window, not midnight/boot.
+        DateTime start = DateTime.Now.Date;
         DateTime end = DateTime.Now;
         if (segs.Count > 0)
         {
@@ -2934,7 +2934,7 @@ internal sealed class AppContext : ApplicationContext
         list.View = View.Details; list.FullRowSelect = true; list.GridLines = true;
         UsageAxisPanel usageAxis = new UsageAxisPanel();
         int contentW = f.ClientSize.Width - 24;
-        usageAxis.SetBounds(12, 44, contentW, 38);
+        usageAxis.SetBounds(12, 82, contentW, 32);
         usageAxis.Anchor = AnchorStyles.Top | AnchorStyles.Left;
         usageAxis.Visible = false;
         usageAxis.MouseMove += delegate(object s, MouseEventArgs e)
@@ -2946,25 +2946,12 @@ internal sealed class AppContext : ApplicationContext
                 + FormatDuration(hit.Seconds, en));
         };
 
-        // Day-view sub-mode switch as a light segmented control on the axis
-        // row: secondary styling (gray track + white pill) keeps it visually
-        // below the accent top tabs instead of mimicking them.
-        int segW1 = en ? 88 : 84;
-        int segW2 = en ? 98 : 84;
+        // Day-view sub-mode switch: two full-width pills on their own row
+        // between the axis and the list, styled lighter than the accent top tabs.
         Panel segHost = new Panel();
-        segHost.Size = new Size(segW1 + segW2, 24);
-        segHost.Location = new Point(btnTabOverview.Right + 8, 12);
+        segHost.Size = new Size(contentW, 30);
+        segHost.Location = new Point(12, 120);
         segHost.Visible = false;
-        segHost.Paint += delegate(object s, PaintEventArgs e)
-        {
-            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            Rectangle track = new Rectangle(0, 0, segHost.Width - 1, segHost.Height - 1);
-            using (GraphicsPath path = AppContext.GetRoundedRectPath(track, 5))
-            {
-                using (SolidBrush fill = new SolidBrush(Color.FromArgb(235, 238, 242))) e.Graphics.FillPath(fill, path);
-                using (Pen pen = new Pen(Color.FromArgb(214, 218, 226), 1f)) e.Graphics.DrawPath(pen, path);
-            }
-        };
         f.Controls.Add(segHost);
 
         PaintEventHandler segPaint = delegate(object s, PaintEventArgs e)
@@ -2975,13 +2962,13 @@ internal sealed class AppContext : ApplicationContext
             if (sel || hov)
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                Rectangle pill = new Rectangle(2, 2, b.Width - 4, b.Height - 4);
-                using (GraphicsPath path = AppContext.GetRoundedRectPath(pill, 4))
+                Rectangle pill = new Rectangle(1, 2, b.Width - 3, b.Height - 5);
+                using (GraphicsPath path = AppContext.GetRoundedRectPath(pill, 6))
                 {
                     if (sel)
                     {
                         using (SolidBrush fill = new SolidBrush(Color.White)) e.Graphics.FillPath(fill, path);
-                        using (Pen pen = new Pen(Color.FromArgb(206, 211, 220), 1f)) e.Graphics.DrawPath(pen, path);
+                        using (Pen pen = new Pen(AppContext.Win11Accent, 1.4f)) e.Graphics.DrawPath(pen, path);
                     }
                     else
                     {
@@ -2989,7 +2976,7 @@ internal sealed class AppContext : ApplicationContext
                     }
                 }
             }
-            Color col = sel ? Color.FromArgb(24, 28, 36) : Color.FromArgb(95, 107, 124);
+            Color col = sel ? AppContext.Win11Accent : (hov ? Color.FromArgb(60, 66, 76) : Color.FromArgb(95, 107, 124));
             TextRenderer.DrawText(e.Graphics, b.Text, b.Font, b.ClientRectangle, col,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
         };
@@ -3002,7 +2989,7 @@ internal sealed class AppContext : ApplicationContext
         btnSegCountdown.Cursor = Cursors.Hand;
         btnSegCountdown.Text = en ? "Countdown" : "倒计时记录";
         btnSegCountdown.Tag = 0;
-        btnSegCountdown.SetBounds(0, 0, segW1, 24);
+        btnSegCountdown.SetBounds(0, 0, (contentW - 8) / 2, 30);
         btnSegCountdown.Paint += segPaint;
         btnSegCountdown.MouseEnter += delegate { btnSegCountdown.Invalidate(); };
         btnSegCountdown.MouseLeave += delegate { btnSegCountdown.Invalidate(); };
@@ -3018,7 +3005,7 @@ internal sealed class AppContext : ApplicationContext
         btnSegUsage.Cursor = Cursors.Hand;
         btnSegUsage.Text = en ? "Time tracking" : "时间统计";
         btnSegUsage.Tag = 1;
-        btnSegUsage.SetBounds(segW1, 0, segW2, 24);
+        btnSegUsage.SetBounds((contentW - 8) / 2 + 8, 0, contentW - 8 - (contentW - 8) / 2, 30);
         btnSegUsage.Paint += segPaint;
         btnSegUsage.MouseEnter += delegate { btnSegUsage.Invalidate(); };
         btnSegUsage.MouseLeave += delegate { btnSegUsage.Invalidate(); };
@@ -3193,7 +3180,10 @@ internal sealed class AppContext : ApplicationContext
 
                 List<UsageSegment> daySegs = (usageTracker != null && selKey == todayStr)
                     ? usageTracker.GetDayWithOpen(selKey) : UsageLog.LoadDay(selKey);
-                DateTime axisStart = selKey == todayStr ? UsageLog.EstimateBootOrMidnight() : DateTime.Today;
+                // The ribbon starts at the day's earliest recorded activity, not
+                // midnight/boot, so the visible range tracks when iClock (and the
+                // machine) actually began doing things that day.
+                DateTime axisStart = selKey == todayStr ? DateTime.Now.Date : DateTime.Today;
                 DateTime axisEnd = DateTime.Now;
                 DateTime selDay;
                 if (DateTime.TryParseExact(selKey, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out selDay))
@@ -3203,8 +3193,6 @@ internal sealed class AppContext : ApplicationContext
                         axisStart = selDay.Date;
                         axisEnd = selDay.Date.AddDays(1);
                     }
-                    else if (axisStart.Date != DateTime.Today)
-                        axisStart = DateTime.Today;
                 }
                 if (daySegs.Count > 0)
                 {
@@ -3452,8 +3440,7 @@ internal sealed class AppContext : ApplicationContext
             segHost.Visible = show;
             btnSegCountdown.Invalidate();
             btnSegUsage.Invalidate();
-            segHost.Invalidate();
-            int top = 82;
+            int top = show ? 156 : 82;
             list.Top = top;
             list.Height = Math.Max(80, summaryPanel.Top - top - 8);
         };
