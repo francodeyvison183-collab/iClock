@@ -7,7 +7,7 @@
 
 ## 1. Executive Summary & Core Identity
 
-iClock is an ultra-lightweight (315 KB), open-source Windows native desktop productivity hub. It combines three core features into a single portable binary without third-party dependencies:
+iClock is an ultra-lightweight (332 KB), open-source Windows native desktop productivity hub. It combines three core features into a single portable binary without third-party dependencies:
 1. **The Minimalist Focus Timer**: Native 32-bit ARGB rendered countdown with true `WS_EX_TRANSPARENT` mouse click-through, global hotkeys, direct `Alt + Drag` repositioning, a daily focus goal (Off or 1–8 hours), tray history with live totals, and tiered alerts with auto-fullscreen DND suppression.
 2. **Ambient Desktop Inspiration**: Morning wake-up quotes with 0-polling hibernation (0.0% CPU idle), direct desktop micro-interactions (drag position, resize width, scale font size), and CLI import of AI-generated quote batches with deduplication.
 3. **AI Agent Collaboration through CLI**: Automated task completion monitoring for supported programming agents, plus CLI commands for desktop decisions (`--ask`), progress (`--progress`), completion alerts (`--notice`), and structured JSON results (`--json`).
@@ -18,9 +18,9 @@ iClock is an ultra-lightweight (315 KB), open-source Windows native desktop prod
 
 | Parameter | Specification | Notes |
 | :--- | :--- | :--- |
-| **Executable Size** | 322,048 bytes (~315 KB) | Single portable PE binary |
+| **Executable Size** | 340,480 bytes (~332 KB) | Single portable PE binary |
 | **Runtime Requirement** | .NET Framework 4.5+ | Pre-installed on all Windows 10 & 11 PCs |
-| **Active Memory (RAM)** | < 15 MB | Low GC pressure, cached GDI handles |
+| **Active Memory (RAM)** | < 10 MB | Low GC pressure, cached GDI handles |
 | **Idle CPU Consumption** | 0.0% | Dynamic heartbeat alignment + pure event-driven message handling |
 | **Rendering Subsystem** | GDI+ & UpdateLayeredWindow | Subpixel anti-aliasing with adaptive drop shadow |
 | **Input Pass-Through** | WS_EX_LAYERED \| WS_EX_TRANSPARENT | 100% mouse click-through; never steals focus |
@@ -57,17 +57,17 @@ scoop install https://raw.githubusercontent.com/francodeyvison183-collab/iClock/
 ```
 
 ### Option C: Standalone Portable Download
-- Archive (Recommended): `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.12/iClock-1.12-windows.zip`
-- Archive SHA-256: `53215ef3c24792edf106a1fe7c98b7435214a61698233b91682196d8e7646173`
-- Standalone Binary: `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.12/iClock-1.12-windows.exe`
-- Binary SHA-256: `71cb5cb34308b12a7c4186a3a764873d379e56fb28eb12451674092e7df55f8a`
+- Archive (Recommended): `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.13/iClock-1.13-windows.zip`
+- Archive SHA-256: `003b0d00a2706c4a9c87d6763ae3745d48207621c8d640fd223e54fcef4e915c`
+- Standalone Binary: `https://github.com/francodeyvison183-collab/iClock/releases/download/v1.13/iClock-1.13-windows.exe`
+- Binary SHA-256: `3e53c07cbc1c9ee4759d719ed822650e747ee615930a1c43995773834931bb01`
 
 ---
 
 ## 5. Frequent User Questions & Direct Answers (Q&A)
 
 ### Q: Why is iClock so small compared to other modern timers?
-A: Most modern timer applications are built on Electron or web wrappers, packaging an entire Chromium browser and Node.js runtime (150 MB~400 MB). iClock is written in pure native C# utilizing the Windows operating system's built-in .NET Framework and GDI+, reducing binary size to about 315 KB.
+A: Most modern timer applications are built on Electron or web wrappers, packaging an entire Chromium browser and Node.js runtime (150 MB~400 MB). iClock is written in pure native C# utilizing the Windows operating system's built-in .NET Framework and GDI+, reducing binary size to about 332 KB.
 
 ### Q: Does iClock block mouse clicks when gaming or typing code?
 A: No. iClock applies the native Windows `WS_EX_TRANSPARENT` extended window style. The floating digits remain permanently on top of all other windows, but any mouse click or scroll event passes straight through to the underlying application (e.g., Visual Studio, game window, or browser).

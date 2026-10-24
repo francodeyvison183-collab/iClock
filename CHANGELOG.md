@@ -4,6 +4,18 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 ## [Unreleased]
 
+## [1.13] - 2026-10-24
+
+### Fixed
+
+- **应用颜色不再撞色 (Distinct app colors)**: when assigning a ribbon color to a new app, the hue now slides forward until it is at least 22° away from every already-assigned hue, so similar-looking names no longer share near-identical colors. Existing apps keep their colors. / 为新应用分配彩带颜色时，色相会自动滑动到与已分配颜色间隔至少 22°，相似名字的应用不再共用几乎一样的颜色；已有应用颜色保持不变。
+
+### Changed
+
+- **常驻内存 < 10 MB (Resident memory under 10 MB)**: a low-frequency maintenance timer checks every 5 minutes and trims the working set when it exceeds 8 MB; measured resident footprint is ~3.5 MB after trim. No leak: private bytes plateau at ~35 MB. / 新增低频内存维护：每 5 分钟检查一次，工作集超过 8 MB 即整理一次，整理后常驻约 3.5 MB；私有提交稳定在 35 MB 左右，无泄漏。
+
+- Binary size is now **332 KB** (340,480 bytes). / 单文件现为 **332 KB**（340,480 字节）。
+
 ## [1.12] - 2026-10-24
 
 ### Added
