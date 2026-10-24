@@ -3155,7 +3155,13 @@ internal sealed class AppContext : ApplicationContext
             int y = (summaryPanel.Height - f.Font.Height) / 2;
             for (int i = 0; i < currentSpans.Length; i++)
             {
-                TextRenderer.DrawText(e.Graphics, currentSpans[i].Text, currentSpans[i].Font, new Point(curX, y), currentSpans[i].Color, flags);
+                // Never clip mid-character: ellipsize when the remaining width
+                // runs out.
+                int avail = summaryPanel.Width - 8 - curX;
+                string txt = widths[i] > avail && i == currentSpans.Length - 1
+                    ? currentSpans[i].Text + "…"
+                    : currentSpans[i].Text;
+                TextRenderer.DrawText(e.Graphics, txt, currentSpans[i].Font, new Point(curX, y), currentSpans[i].Color, flags);
                 curX += widths[i];
             }
         };
@@ -3258,15 +3264,18 @@ internal sealed class AppContext : ApplicationContext
                             heavy += appRows[i].ActiveSamples;
                             light += appRows[i].InputSamples - appRows[i].ActiveSamples;
                         }
+                        // The 4-part picture can overflow the 736px summary bar,
+                        // so start with compact labels; the paint handler still
+                        // ellipsizes as a last resort.
                         currentSpans = new StatSpan[]
                         {
-                            new StatSpan(en ? "At the computer " : "在电脑前 ", f.Font, Win11TextPrimary),
+                            new StatSpan(en ? "At PC " : "在座 ", f.Font, Win11TextPrimary),
                             new StatSpan(FormatDuration(activeSecs + notOpSecs, en), boldFont, Win11Accent),
-                            new StatSpan(en ? " ｜ Operating " : " ｜ 操作使用 ", f.Font, Win11TextSecondary),
+                            new StatSpan(en ? " ｜ Operating " : " ｜操作 ", f.Font, Win11TextSecondary),
                             new StatSpan(FormatDuration(activeSecs, en), boldFont, Win11Accent),
-                            new StatSpan(en ? " ｜ Not operating " : " ｜ 未操作 ", f.Font, Win11TextSecondary),
+                            new StatSpan(en ? " ｜ Not operating " : " ｜未操作 ", f.Font, Win11TextSecondary),
                             new StatSpan(FormatDuration(notOpSecs, en), boldFont, Win11TextPrimary),
-                            new StatSpan(en ? " ｜ Away (locked/sleep) " : " ｜ 离开（锁屏/睡眠） ", f.Font, Win11TextSecondary),
+                            new StatSpan(en ? " ｜ Away " : " ｜离开 ", f.Font, Win11TextSecondary),
                             new StatSpan(FormatDuration(awaySecs, en), boldFont, Win11TextPrimary)
                         };
                     }
