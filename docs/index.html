@@ -517,6 +517,10 @@
       .metric-item:not(:last-child)::after {
         display: none;
       }
+      .board-header {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
     }
 
     /* 交互沙盒 (Apple Clean Preview Window) */
@@ -570,7 +574,7 @@
     }
 
     .board-tab {
-      padding: 4px 11px;
+      padding: 4px 9px;
       font-size: 11.5px;
       font-weight: 500;
       color: var(--text-muted);
@@ -707,6 +711,110 @@
     .sim-quote-author {
       font-size: 13.5px;
       color: var(--text-muted);
+    }
+
+    .simulated-agent-card {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      padding: 16px 22px 14px;
+      z-index: 2;
+    }
+
+    .sim-agent-stage {
+      width: min(400px, 92%);
+      min-height: 132px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .sim-agent-panel {
+      width: 100%;
+      padding: 16px 18px 14px;
+      border-radius: 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+    }
+
+    .sim-agent-kicker {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--brand-blue);
+      letter-spacing: 0.02em;
+    }
+
+    .sim-hud-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .sim-hud-name {
+      font-size: 15px;
+      font-weight: 650;
+      color: var(--text-main);
+    }
+
+    .sim-hud-step {
+      font-size: 12.5px;
+      color: var(--text-muted);
+    }
+
+    .sim-hud-bar {
+      height: 6px;
+      margin-top: 12px;
+      border-radius: 999px;
+      background: var(--bg-tertiary);
+      overflow: hidden;
+    }
+
+    .sim-hud-fill {
+      height: 100%;
+      width: 60%;
+      border-radius: inherit;
+      background: var(--brand-blue);
+      transition: width 0.45s ease;
+    }
+
+    .sim-ask-q {
+      font-size: 16px;
+      font-weight: 650;
+      color: var(--text-main);
+      margin: 8px 0 14px;
+    }
+
+    .sim-ask-actions {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .sim-notice {
+      text-align: center;
+    }
+
+    .sim-notice-mark {
+      font-size: 22px;
+      margin-bottom: 6px;
+    }
+
+    .sim-notice-title {
+      font-size: 17px;
+      font-weight: 650;
+      color: var(--text-main);
+    }
+
+    .sim-notice-sub {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-top: 6px;
     }
 
     .real-screenshot-view {
@@ -1612,6 +1720,7 @@
             <div class="board-view-switch">
               <button class="board-tab active" id="tabInteractive" data-i18n="sandbox_tab_demo">倒计时沙盒</button>
               <button class="board-tab" id="tabQuote" data-i18n="sandbox_tab_quote">每日金句</button>
+              <button class="board-tab" id="tabAgent" data-i18n="sandbox_tab_agent">AI 协作</button>
               <button class="board-tab" id="tabScreenshot" data-i18n="sandbox_tab_shot">软件实图</button>
             </div>
           </div>
@@ -1642,6 +1751,38 @@
                 <button class="sim-btn" id="simNextQuoteBtn">🎲 换一句金句</button>
                 <button class="sim-btn" id="simCopyQuoteBtn">📋 复制金句</button>
               </div>
+            </div>
+
+            <div class="simulated-agent-card" id="simAgentCard">
+              <div class="sim-agent-stage">
+                <div class="sim-agent-panel" id="simAgentProgress">
+                  <div class="sim-agent-kicker" data-i18n="sandbox_agent_progress_label">任务进度</div>
+                  <div class="sim-hud-top">
+                    <div class="sim-hud-name">Codex</div>
+                    <div class="sim-hud-step" id="simAgentStep" data-i18n="sandbox_agent_progress_step">3/5 正在运行测试</div>
+                  </div>
+                  <div class="sim-hud-bar"><div class="sim-hud-fill" id="simAgentFill"></div></div>
+                </div>
+                <div class="sim-agent-panel" id="simAgentAsk" style="display: none;">
+                  <div class="sim-agent-kicker" data-i18n="sandbox_agent_ask_label">智能体请示</div>
+                  <div class="sim-ask-q" data-i18n="sandbox_agent_ask_q">是否继续部署？</div>
+                  <div class="sim-ask-actions">
+                    <button class="sim-btn primary" id="simAgentYes" data-i18n="sandbox_agent_ask_yes">继续</button>
+                    <button class="sim-btn" id="simAgentNo" data-i18n="sandbox_agent_ask_no">取消</button>
+                  </div>
+                </div>
+                <div class="sim-agent-panel sim-notice" id="simAgentNotice" style="display: none;">
+                  <div class="sim-notice-mark">✨</div>
+                  <div class="sim-notice-title" data-i18n="sandbox_agent_notice_title">任务已完成</div>
+                  <div class="sim-notice-sub" data-i18n="sandbox_agent_notice_sub">Codex · 测试已全部通过</div>
+                </div>
+              </div>
+              <div class="simulated-controls" style="margin-top: 14px;">
+                <button class="sim-btn" id="simAgentAskBtn" data-i18n="sandbox_agent_ask_btn">请示决策</button>
+                <button class="sim-btn primary" id="simAgentProgressBtn" data-i18n="sandbox_agent_progress_btn">任务进度</button>
+                <button class="sim-btn" id="simAgentNoticeBtn" data-i18n="sandbox_agent_notice_btn">完成提醒</button>
+              </div>
+              <div class="sim-tip" data-i18n="sandbox_agent_tip">点按钮体验智能体如何在桌面请示、汇报进度与完成提醒</div>
             </div>
 
             <!-- 实物截图模式 -->
@@ -2198,8 +2339,21 @@
         sandbox_drag_hint: "按住自由拖动",
         sandbox_tab_demo: "倒计时沙盒",
         sandbox_tab_quote: "每日金句",
+        sandbox_tab_agent: "AI 协作",
         sandbox_tab_shot: "软件实图",
         sandbox_tip: "💡 提示：在上方可按住时钟自由拖动定位，感受半透明悬浮体验",
+        sandbox_agent_tip: "点按钮体验智能体如何在桌面请示、汇报进度与完成提醒",
+        sandbox_agent_ask_btn: "请示决策",
+        sandbox_agent_progress_btn: "任务进度",
+        sandbox_agent_notice_btn: "完成提醒",
+        sandbox_agent_progress_label: "任务进度",
+        sandbox_agent_progress_step: "3/5 正在运行测试",
+        sandbox_agent_ask_label: "智能体请示",
+        sandbox_agent_ask_q: "是否继续部署？",
+        sandbox_agent_ask_yes: "继续",
+        sandbox_agent_ask_no: "取消",
+        sandbox_agent_notice_title: "任务已完成",
+        sandbox_agent_notice_sub: "Codex · 测试已全部通过",
 
         why_tag: "Philosophy",
         why_title: "为什么选择 iClock？",
@@ -2403,8 +2557,21 @@
         sandbox_drag_hint: "Drag to Reposition",
         sandbox_tab_demo: "Timer Sandbox",
         sandbox_tab_quote: "Daily Quotes",
+        sandbox_tab_agent: "AI Collab",
         sandbox_tab_shot: "Screenshots",
         sandbox_tip: "💡 Tip: Click and drag the clock above to experience translucent floating positioning",
+        sandbox_agent_tip: "Try how an agent asks, reports progress, and announces completion on the desktop",
+        sandbox_agent_ask_btn: "Ask",
+        sandbox_agent_progress_btn: "Progress",
+        sandbox_agent_notice_btn: "Notice",
+        sandbox_agent_progress_label: "Task progress",
+        sandbox_agent_progress_step: "3/5 Running tests",
+        sandbox_agent_ask_label: "Agent asking",
+        sandbox_agent_ask_q: "Continue deployment?",
+        sandbox_agent_ask_yes: "Continue",
+        sandbox_agent_ask_no: "Cancel",
+        sandbox_agent_notice_title: "Task completed",
+        sandbox_agent_notice_sub: "Codex · All tests passed",
 
         why_tag: "Philosophy",
         why_title: "Why Choose iClock?",
@@ -2750,45 +2917,59 @@
       if (isDragging) isDragging = false;
     });
 
-    // 视图切换：倒计时沙盒 vs 每日金句 vs 软件实图
+    // 视图切换：倒计时沙盒 vs 每日金句 vs AI 协作 vs 软件实图
     const tabInteractive = document.getElementById('tabInteractive');
     const tabQuote = document.getElementById('tabQuote');
+    const tabAgent = document.getElementById('tabAgent');
     const tabScreenshot = document.getElementById('tabScreenshot');
     const simQuoteCard = document.getElementById('simQuoteCard');
+    const simAgentCard = document.getElementById('simAgentCard');
     const realScreenshot = document.getElementById('realScreenshot');
     const simControls = document.getElementById('simControls');
-    const simTip = document.querySelector('.sim-tip');
+    const simTip = document.querySelector('#simControls + .sim-tip');
+
+    function showAgentScene(scene) {
+      const progress = document.getElementById('simAgentProgress');
+      const ask = document.getElementById('simAgentAsk');
+      const notice = document.getElementById('simAgentNotice');
+      progress.style.display = scene === 'progress' ? 'block' : 'none';
+      ask.style.display = scene === 'ask' ? 'block' : 'none';
+      notice.style.display = scene === 'notice' ? 'block' : 'none';
+      document.getElementById('simAgentAskBtn').classList.toggle('primary', scene === 'ask');
+      document.getElementById('simAgentProgressBtn').classList.toggle('primary', scene === 'progress');
+      document.getElementById('simAgentNoticeBtn').classList.toggle('primary', scene === 'notice');
+      if (scene === 'progress') {
+        const fill = document.getElementById('simAgentFill');
+        fill.style.width = '18%';
+        requestAnimationFrame(() => { fill.style.width = '60%'; });
+      }
+    }
 
     function showTab(tabName) {
       tabInteractive.classList.toggle('active', tabName === 'timer');
       tabQuote.classList.toggle('active', tabName === 'quote');
+      tabAgent.classList.toggle('active', tabName === 'agent');
       tabScreenshot.classList.toggle('active', tabName === 'screenshot');
 
-      if (tabName === 'timer') {
-        clockEl.style.display = 'block';
-        simControls.style.display = 'flex';
-        simTip.style.display = 'block';
-        simQuoteCard.style.display = 'none';
-        realScreenshot.style.display = 'none';
-      } else if (tabName === 'quote') {
-        clockEl.style.display = 'none';
-        simControls.style.display = 'none';
-        simTip.style.display = 'none';
-        simQuoteCard.style.display = 'flex';
-        realScreenshot.style.display = 'none';
-        updateQuoteDisplay();
-      } else if (tabName === 'screenshot') {
-        clockEl.style.display = 'none';
-        simControls.style.display = 'none';
-        simTip.style.display = 'none';
-        simQuoteCard.style.display = 'none';
-        realScreenshot.style.display = 'block';
-      }
+      clockEl.style.display = tabName === 'timer' ? 'block' : 'none';
+      simControls.style.display = tabName === 'timer' ? 'flex' : 'none';
+      if (simTip) simTip.style.display = tabName === 'timer' ? 'block' : 'none';
+      simQuoteCard.style.display = tabName === 'quote' ? 'flex' : 'none';
+      simAgentCard.style.display = tabName === 'agent' ? 'flex' : 'none';
+      realScreenshot.style.display = tabName === 'screenshot' ? 'block' : 'none';
+      if (tabName === 'quote') updateQuoteDisplay();
+      if (tabName === 'agent') showAgentScene('progress');
     }
 
     tabInteractive.addEventListener('click', () => showTab('timer'));
     tabQuote.addEventListener('click', () => showTab('quote'));
+    tabAgent.addEventListener('click', () => showTab('agent'));
     tabScreenshot.addEventListener('click', () => showTab('screenshot'));
+    document.getElementById('simAgentAskBtn').addEventListener('click', () => showAgentScene('ask'));
+    document.getElementById('simAgentProgressBtn').addEventListener('click', () => showAgentScene('progress'));
+    document.getElementById('simAgentNoticeBtn').addEventListener('click', () => showAgentScene('notice'));
+    document.getElementById('simAgentYes').addEventListener('click', () => showAgentScene('notice'));
+    document.getElementById('simAgentNo').addEventListener('click', () => showAgentScene('progress'));
 
     function updateQuoteDisplay() {
       const qList = quotes[currentLang] || quotes.zh;
