@@ -108,7 +108,6 @@ internal sealed class SettingsDialog : Form
     private static readonly string[] quoteColorNamesEn = { "Warm Orange (Default)", "White", "Mist Blue", "Apricot", "Sage", "Lotus Pink", "Oat", "Dusk Blue", "Custom…" };
 
     private const int EM_SETMARGINS = 0x00D3;
-    private const int EM_SETRECTNP = 0x00B4;
     private const int EC_LEFTMARGIN = 0x0001;
     private const int EC_RIGHTMARGIN = 0x0002;
 
@@ -1221,25 +1220,6 @@ internal sealed class SettingsDialog : Form
         }
     }
 
-    private static void OnBadgePaint(object sender, PaintEventArgs pe)
-    {
-        Label lbl = (Label)sender;
-        object[] tag = lbl.Tag as object[];
-        if (tag == null) return;
-        pe.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        pe.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
-        using (SolidBrush bg = new SolidBrush((Color)tag[0]))
-        using (GraphicsPath path = AppContext.GetRoundedRectPath(new Rectangle(0, 0, lbl.Width - 1, lbl.Height - 1), 3))
-        {
-            pe.Graphics.FillPath(bg, path);
-        }
-        using (SolidBrush fg = new SolidBrush((Color)tag[1]))
-        using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap })
-        {
-            pe.Graphics.DrawString((string)tag[2], lbl.Font, fg, new Rectangle(0, 0, lbl.Width, lbl.Height), sf);
-        }
-    }
-
     private void OnPreviewChanged(object sender, EventArgs e) { TriggerPreview(); }
     private void OnQuoteFontComboChanged(object sender, EventArgs e) { TriggerQuotePreview(); TriggerPreview(); }
     private void OnSoundStyleCommitted(object sender, EventArgs e)
@@ -2247,7 +2227,6 @@ internal sealed class SettingsDialog : Form
 
     private Label AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.ForeColor = AppContext.Win11TextPrimary; l.SetBounds(x, y, 148, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); return l; }
     private NumericUpDown AddNumber(int v, int min, int max, int x, int y) { NumericUpDown n = new SettingsNumberBox(); n.Minimum = min; n.Maximum = max; n.Value = Math.Min(max, Math.Max(min, v)); n.SetBounds(x, y, 188, SettingsInputHeight); ApplyInputPadding(n); ApplySettingsInputSize(n); Controls.Add(n); return n; }
-    private CheckBox AddCheck(string t, bool v, int x, int y) { CheckBox c = new CheckBox(); c.Text = t; c.Checked = v; c.ForeColor = AppContext.Win11TextPrimary; c.SetBounds(x, y, 344, 24); Controls.Add(c); return c; }
     private ComboBox AddCombo(int y)
     {
         ComboBox c = new ComboBox();

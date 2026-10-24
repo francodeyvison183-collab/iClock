@@ -27,6 +27,63 @@ internal sealed class AppContext : ApplicationContext
     private static AppContext currentInstance;
     internal static AppContext Current { get { return currentInstance; } }
 
+    // Shared layered-window prep: premultiply a 32bpp ARGB bitmap in place so
+    // UpdateLayeredWindow blends semi-transparent pixels correctly.
+    internal static void PremultiplyBitmap(Bitmap bmp, ref byte[] buffer)
+    {
+        BitmapData data = bmp.LockBits(new Rectangle(0, 0, bmp.Width, bmp.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+        int byteCount = data.Stride * data.Height;
+        if (buffer == null || buffer.Length < byteCount) buffer = new byte[byteCount];
+        Marshal.Copy(data.Scan0, buffer, 0, byteCount);
+        for (int i = 0; i < byteCount; i += 4)
+        {
+            byte a = buffer[i + 3];
+            if (a > 0)
+            {
+                buffer[i] = (byte)(buffer[i] * a / 255);
+                buffer[i + 1] = (byte)(buffer[i + 1] * a / 255);
+                buffer[i + 2] = (byte)(buffer[i + 2] * a / 255);
+            }
+        }
+        Marshal.Copy(buffer, 0, data.Scan0, byteCount);
+        bmp.UnlockBits(data);
+    }
+
+    // Borderless fullscreen snap guide; the owner draws the dashed lines via paintHook.
+    internal static Form CreateSnapGuide(PaintEventHandler paintHook)
+    {
+        Form g = new Form();
+        g.FormBorderStyle = FormBorderStyle.None;
+        g.ShowInTaskbar = false;
+        g.TopMost = true;
+        g.BackColor = Color.Black;
+        g.TransparencyKey = Color.Black;
+        g.StartPosition = FormStartPosition.Manual;
+        g.Paint += paintHook;
+        return g;
+    }
+
+    internal const byte AC_SRC_OVER = 0x00;
+    internal const byte AC_SRC_ALPHA = 0x01;
+    internal const uint ULW_ALPHA = 0x02;
+
+    // Push a premultiplied 32bpp bitmap to a layered window and release the GDI copies.
+    internal static void UpdateLayered(int left, int top, int width, int height, IntPtr hwnd, Bitmap bmp, byte alpha)
+    {
+        IntPtr screenDc = IntPtr.Zero;
+        IntPtr memDc = NativeMethods.CreateCompatibleDC(screenDc);
+        IntPtr hBitmap = bmp.GetHbitmap(Color.FromArgb(0));
+        IntPtr oldBitmap = NativeMethods.SelectObject(memDc, hBitmap);
+        POINT ptDst = new POINT(left, top);
+        SIZE size = new SIZE(width, height);
+        POINT ptSrc = new POINT(0, 0);
+        BLENDFUNCTION blend = new BLENDFUNCTION { BlendOp = AC_SRC_OVER, BlendFlags = 0, SourceConstantAlpha = alpha, AlphaFormat = AC_SRC_ALPHA };
+        NativeMethods.UpdateLayeredWindow(hwnd, screenDc, ref ptDst, ref size, memDc, ref ptSrc, 0, ref blend, ULW_ALPHA);
+        NativeMethods.SelectObject(memDc, oldBitmap);
+        NativeMethods.DeleteObject(hBitmap);
+        NativeMethods.DeleteDC(memDc);
+    }
+
     // Resolve today's quote index: same-day reuse saved index, new day advance by one.
     // Persists immediately so the setting page and overlay stay in sync.
     internal static int ResolveTodayQuoteIndex(Settings s, int count)

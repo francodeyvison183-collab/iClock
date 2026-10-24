@@ -34,9 +34,6 @@ internal sealed class AgentTaskStatusHud : Form
     private const int DefaultHudWidth = 300;
     private const int MinHudWidth = 160;
     private const int MaxHudWidth = 800;
-    private const byte AC_SRC_OVER_HUD = 0x00;
-    private const byte AC_SRC_ALPHA_HUD = 0x01;
-    private const uint ULW_ALPHA_HUD = 0x02;
     private readonly Settings settings;
     private List<AgentTaskStatus> tasks = new List<AgentTaskStatus>();
     private bool moving;
@@ -233,14 +230,7 @@ internal sealed class AgentTaskStatusHud : Form
         {
             if (snapGuideForm == null)
             {
-                snapGuideForm = new Form();
-                snapGuideForm.FormBorderStyle = FormBorderStyle.None;
-                snapGuideForm.ShowInTaskbar = false;
-                snapGuideForm.TopMost = true;
-                snapGuideForm.BackColor = Color.Black;
-                snapGuideForm.TransparencyKey = Color.Black;
-                snapGuideForm.StartPosition = FormStartPosition.Manual;
-                snapGuideForm.Paint += OnSnapGuidePaint;
+                snapGuideForm = AppContext.CreateSnapGuide(OnSnapGuidePaint);
             }
             snapGuideForm.Bounds = screen;
             if (!snapGuideForm.Visible) snapGuideForm.Show();
@@ -318,36 +308,9 @@ internal sealed class AgentTaskStatusHud : Form
             DrawTasks(g);
         }
 
-        // Premultiply alpha so semi-transparent pixels blend correctly.
-        BitmapData data = renderBitmap.LockBits(new Rectangle(0, 0, Width, Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
-        int byteCount = data.Stride * data.Height;
-        if (premulBuffer == null || premulBuffer.Length < byteCount) premulBuffer = new byte[byteCount];
-        Marshal.Copy(data.Scan0, premulBuffer, 0, byteCount);
-        for (int i = 0; i < byteCount; i += 4)
-        {
-            byte a = premulBuffer[i + 3];
-            if (a > 0)
-            {
-                premulBuffer[i] = (byte)(premulBuffer[i] * a / 255);
-                premulBuffer[i + 1] = (byte)(premulBuffer[i + 1] * a / 255);
-                premulBuffer[i + 2] = (byte)(premulBuffer[i + 2] * a / 255);
-            }
-        }
-        Marshal.Copy(premulBuffer, 0, data.Scan0, byteCount);
-        renderBitmap.UnlockBits(data);
+        AppContext.PremultiplyBitmap(renderBitmap, ref premulBuffer);
 
-        IntPtr screenDc = IntPtr.Zero;
-        IntPtr memDc = NativeMethods.CreateCompatibleDC(screenDc);
-        IntPtr hBitmap = renderBitmap.GetHbitmap(Color.FromArgb(0));
-        IntPtr oldBitmap = NativeMethods.SelectObject(memDc, hBitmap);
-        POINT ptDst = new POINT(Left, Top);
-        SIZE size = new SIZE(Width, Height);
-        POINT ptSrc = new POINT(0, 0);
-        BLENDFUNCTION blend = new BLENDFUNCTION { BlendOp = AC_SRC_OVER_HUD, BlendFlags = 0, SourceConstantAlpha = 255, AlphaFormat = AC_SRC_ALPHA_HUD };
-        NativeMethods.UpdateLayeredWindow(Handle, screenDc, ref ptDst, ref size, memDc, ref ptSrc, 0, ref blend, ULW_ALPHA_HUD);
-        NativeMethods.SelectObject(memDc, oldBitmap);
-        NativeMethods.DeleteObject(hBitmap);
-        NativeMethods.DeleteDC(memDc);
+        AppContext.UpdateLayered(Left, Top, Width, Height, Handle, renderBitmap, 255);
     }
 
     private void DrawTasks(Graphics g)

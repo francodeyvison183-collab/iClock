@@ -33,9 +33,6 @@ internal sealed class Overlay : Form
     private const int VK_MENU = 0x12;
     private const int WM_DISPLAYCHANGE = 0x007E;
 
-    private const byte AC_SRC_OVER = 0x00;
-    private const byte AC_SRC_ALPHA = 0x01;
-    private const uint ULW_ALPHA = 0x02;
 
     private Bitmap renderBitmap;
     private Graphics renderGraphics;
@@ -454,43 +451,10 @@ internal sealed class Overlay : Form
             }
         }
 
-        BitmapData data = renderBitmap.LockBits(new Rectangle(0, 0, Width, Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
-        int byteCount = data.Stride * data.Height;
-        if (premulBuffer == null || premulBuffer.Length < byteCount)
-        {
-            premulBuffer = new byte[byteCount];
-        }
-        Marshal.Copy(data.Scan0, premulBuffer, 0, byteCount);
-        for (int i = 0; i < byteCount; i += 4)
-        {
-            byte a = premulBuffer[i + 3];
-            if (a > 0)
-            {
-                premulBuffer[i] = (byte)(premulBuffer[i] * a / 255);
-                premulBuffer[i + 1] = (byte)(premulBuffer[i + 1] * a / 255);
-                premulBuffer[i + 2] = (byte)(premulBuffer[i + 2] * a / 255);
-            }
-        }
-        Marshal.Copy(premulBuffer, 0, data.Scan0, byteCount);
-        renderBitmap.UnlockBits(data);
+        AppContext.PremultiplyBitmap(renderBitmap, ref premulBuffer);
 
-        IntPtr screenDc = IntPtr.Zero;
-        IntPtr memDc = NativeMethods.CreateCompatibleDC(screenDc);
-        IntPtr hBitmap = renderBitmap.GetHbitmap(Color.FromArgb(0));
-        IntPtr oldBitmap = NativeMethods.SelectObject(memDc, hBitmap);
-
-        POINT ptDst = new POINT(Left, Top);
-        SIZE size = new SIZE(Width, Height);
-        POINT ptSrc = new POINT(0, 0);
         byte alpha = (byte)Math.Max(0, Math.Min(255, (int)(Opacity * 255)));
-        BLENDFUNCTION blend = new BLENDFUNCTION { BlendOp = AC_SRC_OVER, BlendFlags = 0, SourceConstantAlpha = alpha, AlphaFormat = AC_SRC_ALPHA };
-
-        bool updated = NativeMethods.UpdateLayeredWindow(Handle, screenDc, ref ptDst, ref size, memDc, ref ptSrc, 0, ref blend, ULW_ALPHA);
-        int updateError = updated ? 0 : Marshal.GetLastWin32Error();
-
-        NativeMethods.SelectObject(memDc, oldBitmap);
-        NativeMethods.DeleteObject(hBitmap);
-        NativeMethods.DeleteDC(memDc);
+        AppContext.UpdateLayered(Left, Top, Width, Height, Handle, renderBitmap, alpha);
     }
 
     public void StartBreathingPulse(Action onDismiss)
@@ -647,14 +611,7 @@ internal sealed class Overlay : Form
     {
         if (snapGuideForm == null)
         {
-            snapGuideForm = new Form();
-            snapGuideForm.FormBorderStyle = FormBorderStyle.None;
-            snapGuideForm.ShowInTaskbar = false;
-            snapGuideForm.TopMost = true;
-            snapGuideForm.BackColor = Color.Black;
-            snapGuideForm.TransparencyKey = Color.Black; // background transparent, drawn lines visible
-            snapGuideForm.StartPosition = FormStartPosition.Manual;
-            snapGuideForm.Paint += OnSnapGuidePaint;
+            snapGuideForm = AppContext.CreateSnapGuide(OnSnapGuidePaint);
         }
         Rectangle scr = Screen.FromPoint(Cursor.Position).WorkingArea;
         snapGuideForm.Bounds = scr;
