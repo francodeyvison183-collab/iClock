@@ -2,18 +2,18 @@
 
 # <img src="docs/icon-64.png" width="36" height="36" style="vertical-align: -6px;" alt="iClock Logo" /> iClock
 
-### Ultra-Lightweight (300 KB) Windows Native Productivity Hub
+### Ultra-Lightweight (315 KB) Windows Native Productivity Hub
 **⏱ Transparent Floating Timer · 💬 Ambient Daily Quotes · 🤖 AI Agent Monitor & CLI Collaboration**
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-275%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-315%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![Author](https://img.shields.io/badge/Author-gujiangwen-blue.svg)](mailto:francodeyvison183@gmail.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>Single 300 KB Binary · RAM &lt; 15 MB · 0.0% CPU Idle · Full Mouse Click-Through · Zero-Polling Daily Quotes · CLI Agent Collaboration</b>
+  <b>Single 315 KB Binary · RAM &lt; 15 MB · 0.0% CPU Idle · Full Mouse Click-Through · Zero-Polling Daily Quotes · CLI Agent Collaboration</b>
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@
 
 Desktop tools often fall into two extremes: either crude and single-purpose, or bloated **100MB+** Electron packages that continuously consume CPU and hundreds of megabytes of RAM, often bundled with telemetry or ads, while their opaque windows obstruct your code and web workspace.
 
-**iClock adheres to extreme engineering minimalism**: built on Windows native Win32 and GDI+ APIs with zero external runtimes or dependencies, packing a **300 KB** standalone executable with an active RAM footprint under **15 MB**. It is not merely a click-through desktop countdown timer, but a cohesive productivity hub integrating **zero-polling ambient daily quotes** and **CLI-driven desktop collaboration for AI agents**.
+**iClock adheres to extreme engineering minimalism**: built on Windows native Win32 and GDI+ APIs with zero external runtimes or dependencies, packing a **315 KB** standalone executable with an active RAM footprint under **15 MB**. It is not merely a click-through desktop countdown timer, but a cohesive productivity hub integrating **zero-polling ambient daily quotes** and **CLI-driven desktop collaboration for AI agents**.
 
 ---
 
@@ -45,7 +45,7 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 * 🪟 **Native 32-bit ARGB & Full Click-Through**: Powered by Windows native `UpdateLayeredWindow`, delivering pristine subpixel anti-aliasing without jagged monochrome edges; adaptive soft drop shadows ensure crystal-clear contrast across light, dark, or busy backgrounds; default `WS_EX_TRANSPARENT` click-through never steals focus from your IDE, terminal, or full-screen games.
 * ⌨️ **Ergonomic Direct Drag & Tray Scroll**: Reposition instantly by **holding `Alt` + left-click dragging** anywhere on the digits; hover over the tray icon and **scroll your mouse wheel to adjust duration** (`±1m`, or `±5m` with `Shift`); default `Ctrl + Shift + T` global hotkey.
 * 🔔 **Tiered Alerts & Auto Fullscreen DND**: Choose between a **TopMost Popup Dialog** (with classic mechanical telephone ring or chime for critical deadlines) or an **In-Place Breathing Pulse** (desktop digits gently breathe for 5 seconds with a soft chime without stealing window focus). Built-in **Auto Fullscreen DND** automatically downgrades popups to subtle breathing pulses whenever full-screen DirectX/Vulkan games, PPT slideshows, or video playback are detected in the foreground.
-* 📊 **History Logs & Multi-Day Analytics**: Review both [Daily Breakdown] and [Multi-Day Aggregate] (7, 14, 30 days or all-time) with total focus duration, completed sessions, achievement ratings, and TSV archival.
+* 📊 **History Logs & Multi-Day Analytics**: Set a daily focus goal (Off or 1–8 hours); the overlay bar and tray 「Today's history」 row show today's total. Review [Daily Details] (including in-progress countdowns) and [Days Summary] (7 / 14 / 30 days or all-time). Language and auto-start live on the tray menu.
 
 ### 2. 💬 Ambient Desktop Inspiration (Daily Quotes)
 * 🌅 **Morning Unlock & Desktop Pinning**: Gracefully fades in centered upon morning system unlock; pin to wallpaper or leave floating permanently.
@@ -64,7 +64,7 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 
 | Metric | **iClock (This Project)** | Typical Electron Timer | Windows Clock App | Web Pomodoro Timer |
 | :--- | :--- | :--- | :--- | :--- |
-| **Package Size** | ⚡ **300 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed | Several MBs on load |
+| **Package Size** | ⚡ **315 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed | Several MBs on load |
 | **Memory (RAM)** | ⚡ **~15 MB** (Physical baseline) | 150 MB ~ 300 MB | ~30 MB | 80 MB ~ 200 MB (Browser tab) |
 | **CPU Usage** | ⚡ **0.0%** (Heartbeat aligned) | 0.5% ~ 3.0% (Polling) | 0.0% | 0.3% ~ 1.5% |
 | **Interaction** | ⚡ **Full click-through, borderless** | Solid window blocking view | Minimized or full window | Must switch tab to view |
@@ -79,7 +79,7 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 
 ### Option A: Portable ZIP Archive (Recommended · Avoids browser false warnings)
 
-1. Download **`iClock-1.11-windows.zip`** from [GitHub Releases](../../releases/latest) (recommended to avoid SmartScreen warnings for unsigned `.exe` files).
+1. Download **`iClock-1.12-windows.zip`** from [GitHub Releases](../../releases/latest) (recommended to avoid SmartScreen warnings for unsigned `.exe` files).
 2. Extract the archive and double-click `iClock.exe` to run (100% portable, zero registry pollution).
 3. Upon launch, iClock sits quietly in the system tray ready for action.
 
@@ -169,7 +169,7 @@ iclock -s 50
 
 * **Q: Why doesn't it block mouse clicks while gaming or coding?**
   **A**: iClock leverages the native Windows `WS_EX_TRANSPARENT` style. Digits render TopMost above all windows, but all mouse clicks and scroll events pass through directly to underlying games, IDEs, and browser tabs.
-* **Q: Why is the file size only 300 KB?**
+* **Q: Why is the file size only 315 KB?**
   **A**: Pure native C# WinForms and GDI+ rendering. Zero Electron, zero Chromium runtime, zero bulky third-party DLLs. Memory stays strictly below 15 MB.
 * **Q: Does desktop quote hibernation consume laptop battery?**
   **A**: No. It relies purely on Windows native event messages (0-Polling). Idle CPU consumption is 0.0%, preserving battery life.
@@ -189,7 +189,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> Builds in less than a second into `dist/iClock.exe` (about 300 KB). See [BUILDING.md](docs/BUILDING.md).
+> Builds in less than a second into `dist/iClock.exe` (about 315 KB). See [BUILDING.md](docs/BUILDING.md).
 
 ---
 

@@ -319,14 +319,19 @@ internal static class TestCheck
                     }
                 }
             }
-            ComboBox langBox = (ComboBox)settingsDialogType.GetField("language", bf).GetValue(settingsDialog);
-            langBox.SelectedIndex = 1; // English
+            MethodInfo applyLang = settingsDialogType.GetMethod("ApplyInterfaceLanguage", bf | BindingFlags.Public);
+            if (applyLang == null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog missing ApplyInterfaceLanguage");
+                return 15;
+            }
+            applyLang.Invoke(settingsDialog, new object[] { true });
             if (settingsDialog.Font.FontFamily.Name != "Segoe UI" || settingsDialog.Text != "iClock Settings")
             {
                 Console.WriteLine("FAIL: SettingsDialog did not update font/title on language switch to en");
                 return 15;
             }
-            langBox.SelectedIndex = 0; // Chinese
+            applyLang.Invoke(settingsDialog, new object[] { false });
             if (!settingsDialog.Font.FontFamily.Name.Contains("YaHei") && settingsDialog.Font.FontFamily.Name != SystemFonts.MessageBoxFont.FontFamily.Name)
             {
                 Console.WriteLine("FAIL: SettingsDialog did not update font on language switch to zh");
@@ -339,11 +344,6 @@ internal static class TestCheck
             if (formatBox.DrawMode != DrawMode.OwnerDrawFixed || formatBox.ItemHeight != 22)
             {
                 Console.WriteLine("FAIL: format combo should have DrawMode OwnerDrawFixed and ItemHeight 22");
-                return 15;
-            }
-            if (langBox.DrawMode != DrawMode.OwnerDrawFixed || langBox.ItemHeight != 22)
-            {
-                Console.WriteLine("FAIL: language combo should have DrawMode OwnerDrawFixed and ItemHeight 22");
                 return 15;
             }
             if (fontBox.DrawMode != DrawMode.OwnerDrawFixed || fontBox.ItemHeight != 22)
@@ -377,9 +377,21 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: SettingsDialog should not have manual update check option");
                 return 15;
             }
-            if (!hasLanguageCombo || !hasFontCombo)
+            if (hasLanguageCombo)
             {
-                Console.WriteLine("FAIL: SettingsDialog missing language or font option");
+                Console.WriteLine("FAIL: language should live on the tray menu, not SettingsDialog");
+                return 15;
+            }
+            if (!hasFontCombo)
+            {
+                Console.WriteLine("FAIL: SettingsDialog missing font option");
+                return 15;
+            }
+            object menuLanguage = appType.GetField("menuLanguage", bf).GetValue(app);
+            object menuStartup = appType.GetField("menuStartup", bf).GetValue(app);
+            if (menuLanguage == null || menuStartup == null)
+            {
+                Console.WriteLine("FAIL: tray menu missing language or auto-start items");
                 return 15;
             }
             FieldInfo launchField = appType.GetField("launchReported", BindingFlags.NonPublic | BindingFlags.Static);
@@ -388,14 +400,14 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: launchReported was not set on startup or field missing");
                 return 15;
             }
-            Console.WriteLine("PASS: SettingsDialog contains language and font selection (OwnerDraw preview), and launchReported is de-duplicated.");
+            Console.WriteLine("PASS: tray menu holds language and auto-start; SettingsDialog still previews fonts; launchReported is de-duplicated.");
 
             // 10. Verify version comparison and JSON parsing
             BindingFlags sbf = BindingFlags.NonPublic | BindingFlags.Static;
             FieldInfo verField = appType.GetField("CURRENT_VERSION", sbf);
-            if (verField == null || (string)verField.GetValue(null) != "1.11")
+            if (verField == null || (string)verField.GetValue(null) != "1.12")
             {
-                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.11");
+                Console.WriteLine("FAIL: CURRENT_VERSION should be 1.12");
                 return 16;
             }
             MethodInfo isNewer = appType.GetMethod("IsNewer", sbf);
@@ -614,9 +626,14 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: menuAbout text must be '关于 iClock…' / 'About iClock…', got: " + menuAbout.Text);
                 return 24;
             }
-            if (menuHistory.Text != "查看今日记录" && menuHistory.Text != "View today's history")
+            if (menuHistory.Text != "今日记录" && menuHistory.Text != "Today's history")
             {
-                Console.WriteLine("FAIL: menuHistory text should be '查看今日记录' / 'View today\'s history' without ellipsis, got: " + menuHistory.Text);
+                Console.WriteLine("FAIL: menuHistory text should be '今日记录' / 'Today\'s history' without ellipsis, got: " + menuHistory.Text);
+                return 24;
+            }
+            if (string.IsNullOrEmpty(menuHistory.ShortcutKeyDisplayString))
+            {
+                Console.WriteLine("FAIL: menuHistory should show today's focus time as ShortcutKeyDisplayString");
                 return 24;
             }
             if (menuExit.Text != "退出" && menuExit.Text != "Exit")
@@ -1344,7 +1361,7 @@ internal static class TestCheck
             Label method2 = (Label)settingsDialogType.GetField("lblSkillMethod2", bf).GetValue(tabDlg);
             Label guideHint = (Label)settingsDialogType.GetField("lblCliGuideHint", bf).GetValue(tabDlg);
             Button copyGuide = (Button)settingsDialogType.GetField("btnCopyCliGuide", bf).GetValue(tabDlg);
-            CheckBox startupBox = (CheckBox)settingsDialogType.GetField("startup", bf).GetValue(tabDlg);
+            FieldInfo startupField = settingsDialogType.GetField("startup", bf);
             Control goalCtrl = (Control)settingsDialogType.GetField("dailyGoal", bf).GetValue(tabDlg);
             Label tool1 = (Label)settingsDialogType.GetField("lblTool1Name", bf).GetValue(tabDlg);
             Label tool2 = (Label)settingsDialogType.GetField("lblTool2Name", bf).GetValue(tabDlg);
@@ -1377,10 +1394,26 @@ internal static class TestCheck
                 return 33;
             }
 
-            // Verify auto-start switch is at the bottom of Tab 1 (below the daily goal)
-            if (goalCtrl == null || startupBox.Top <= goalCtrl.Top)
+            if (startupField != null)
             {
-                Console.WriteLine("FAIL: Startup switch should be located at the bottom of the countdown settings");
+                Console.WriteLine("FAIL: Startup switch should live in the tray menu, not the countdown settings");
+                return 33;
+            }
+            if (goalCtrl == null)
+            {
+                Console.WriteLine("FAIL: SettingsDialog missing the daily focus goal");
+                return 33;
+            }
+            ComboBox goalCombo = goalCtrl as ComboBox;
+            if (goalCombo == null || goalCombo.Items.Count != 7)
+            {
+                Console.WriteLine("FAIL: daily focus goal should be Off + 6 hour presets, got: " + (goalCtrl == null ? "null" : goalCtrl.GetType().Name + " x" + (goalCombo != null ? goalCombo.Items.Count.ToString() : "?")));
+                return 33;
+            }
+            string goalFirst = goalCombo.Items[0].ToString();
+            if (goalFirst != "关闭" && goalFirst != "Off")
+            {
+                Console.WriteLine("FAIL: daily focus goal first item should be 关闭 / Off, got: " + goalFirst);
                 return 33;
             }
 

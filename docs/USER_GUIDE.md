@@ -6,9 +6,9 @@ Run `iClock.exe`. The overlay is hidden before countdown starts. Press the globa
 
 运行 `iClock.exe` 后，倒计时开始前桌面不显示文字；按全局快捷键后才开始倒计时。默认快捷键为 `Ctrl+Shift+T`，同一快捷键也可暂停和继续。倒计时结束后文字自动隐藏，并弹出置顶消息提示，需要用户确认后才消失。
 
-Right-click the iClock tray icon to open the menu. The menu allows you to start/pause, reset the countdown, adjust position, view today's history, open settings, view about & updates, or exit.
+Right-click the iClock tray icon to open the menu. Groups are: start/pause, reset and position; today's history (with a live duration hint) and settings; language and the auto-start switch; About; Exit.
 
-右键点击托盘中的 iClock 图标可打开菜单，用于开始/暂停、重置倒计时、调整位置、查看今日记录、打开设置、关于与检查更新或退出。
+右键点击托盘中的 iClock 图标可打开菜单。分组为：开始/暂停、重置、调整位置；今日记录（右侧显示当天累计）与设置；语言与开机自启动开关；关于；退出。
 
 ## Settings / 设置面板
 
@@ -22,9 +22,10 @@ Settings uses an authentic Windows 11 File Explorer multi-tab navigation / 设�
 - **Display format / 显示格式:** total minutes and seconds (`MM:SS`, default / 默认), hours/minutes/seconds (`HH:MM:SS`), or unit labels (`Chinese units`).
 - **End message / 结束提示词:** optional text shown in the prompt when the countdown finishes.
 - **Start/pause hotkey / 快捷键:** click the hotkey field and press a key combination containing Ctrl, Alt, or Shift. Default is `Ctrl + Shift + T`.
-- **Interface language / 界面语言:** choose **简体中文** or **English**.
 - **End sound & notification / 声音与通知:** independently control the prompt sound style (**QQ Message / QQ 经典提示 (嘀嘀)**, **Classic Telephone Ring / 经典电话铃 (叮铃铃)**, **Alarm Ring / 醒目闹铃**, all >= 3s duration) and notification mode (**Popup / Auto DND Fullscreen** vs **In-Place Pulse**).
-- **Start with Windows / 开机自启动:** located at the bottom of the countdown settings tab, controls automatic start on user logon.
+- **Daily focus goal / 每日专注目标:** Off, or 1 / 2 / 3 / 4 / 6 / 8 hours. When on, a flat progress line appears under the overlay digits and the tray 「今日记录」 row shows today's total next to the goal. / 关闭，或 1 / 2 / 3 / 4 / 6 / 8 小时。开启后悬浮数字下方出现平直进度线，托盘「今日记录」右侧显示当天累计与目标。
+- **Interface language / 界面语言:** on the tray menu, choose **简体中文** or **English**. The menu stays open after a switch. / 在托盘菜单中选择，切换后菜单保持打开。
+- **Start with Windows / 开机自启动:** a capsule switch on the tray menu. Enabling it writes the 64-bit HKCU Run key so Explorer launches iClock at logon. / 托盘菜单上的胶囊开关。打开后写入 64 位 HKCU Run，登录时由资源管理器拉起。
 
 ### 💬 每日金句 / Daily Quotes Tab
 - **Hero Banner & Dual Switches / 每日金句展台与顶栏双开关:**
@@ -93,14 +94,14 @@ iClock features an ultra-minimalist Daily Quotes popup designed to inspire your 
 
 ## History & Daily Statistics / 专注历史记录与统计
 
-Choose **View today's history** from the tray menu to open the comprehensive history window.
-- **Daily Details / 单日明细**: Inspect granular session logs for any day using the date switcher (`◀`, dropdown, `▶`). Each record logs start/end times, configured duration, actual focused duration, and result (completed, reset, interrupted). The summary footer dynamically displays total focus time, completed cycles, and completion rate.
+Choose **Today's history** from the tray menu to open the comprehensive history window. The right-hand hint shows today's accumulated focus time (and `/ goal` when a daily goal is set).
+- **Daily Details / 单日明细**: Inspect granular session logs for any day using the date switcher (`◀`, dropdown, `▶`). Each record logs start/end times, configured duration, actual focused duration, and result (completed, reset, interrupted, or **in progress**). A started but unfinished countdown appears as 「进行中」 and counts toward today's total. The summary footer dynamically displays total focus time, completed cycles, and completion rate.
 - **Days Summary / 按天汇总**: Switch tabs to inspect daily aggregated focus metrics over selected ranges (Last 7 Days, 14 Days, 30 Days, or All History). Shows total focus time, cycle counts, completion rates, and achievement evaluations (● Excellent, ● Good, ● Fair, ● Needs work).
 - **Drill-Down / 穿透钻取**: Double-click any day in the Days Summary table to immediately jump to that day's granular breakdown in Daily Details.
 - **Keyboard Shortcuts / 快捷交互**: Press `Left`/`Right` arrow keys to step through dates, `Ctrl+Tab` to switch views, and `Ctrl+C` to copy selected rows to clipboard.
 
-从托盘菜单选择“查看今日记录”，即可打开专注历史记录与统计窗口：
-- **单日明细**：通过顶部的日期切换器（`◀`、下拉菜单、`▶`）查看任意日期的具体倒计时明细，包含开始与结束时间、设定时长、实际专注时长及结果（已完成、已重置、已中断）。底部汇总栏动态呈现当日累计专注时长、完成周期数与达成率。
+从托盘菜单选择「今日记录」，即可打开专注历史记录与统计窗口。菜单右侧提示当天累计时长（设了每日目标时带上 `/ 目标`）。
+- **单日明细**：通过顶部的日期切换器（`◀`、下拉菜单、`▶`）查看任意日期的具体倒计时明细，包含开始与结束时间、设定时长、实际专注时长及结果（已完成、已重置、已中断、**进行中**）。已经开始、尚未结束的倒计时会作为「进行中」出现，并计入当天累计。底部汇总栏动态呈现当日累计专注时长、完成周期数与达成率。
 - **按天汇总**：切换至该标签页可宏观查看按天聚合的专注指标，支持切换统计范围（最近 7 天、14 天、30 天、全部历史）。直观呈现每日专注总时长、完成/总数、完成率以及达成状态（● 卓越、● 良好、● 及格、● 待提升）。
 - **穿透钻取**：在按天汇总表中双击任意一行日期，即可无缝穿透跳转至该日的“单日明细”查看具体会话。
 - **快捷交互**：支持通过键盘 `←` / `→` 键前后切换日期，`Ctrl+Tab` 快速切换视图，选中文本支持 `Ctrl+C` 复制到剪贴板。

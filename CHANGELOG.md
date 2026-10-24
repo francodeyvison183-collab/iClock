@@ -4,6 +4,24 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 ## [Unreleased]
 
+## [1.12] - 2026-10-24
+
+### Added
+
+- **每日专注目标 (Daily Focus Goal)**: countdown settings now have a daily focus goal dropdown — Off, or 1 / 2 / 3 / 4 / 6 / 8 hours. When a goal is on, the overlay draws a flat progress line under the digits, and the tray 「今日记录」 row shows today's total beside the goal (`1h20m / 4h`). Irregular values from the old minute spinner snap to the nearest preset. / 倒计时设置新增每日专注目标：关闭，或 1 / 2 / 3 / 4 / 6 / 8 小时。开启后悬浮数字下方画一条平直进度线，托盘「今日记录」右侧显示当天累计与目标。旧数字框里的不规则分钟会靠到最近一档。
+
+- **进行中的倒计时写入今日记录 (In-progress sessions in Today's History)**: a started but unfinished countdown appears in Daily Details as 「进行中」, with elapsed time counted into today's total. The tray hint and overlay bar refresh on the minute. / 已开始、尚未结束的倒计时会作为「进行中」出现在单日明细里，已走时长计入当天累计；托盘提示与进度条按整分钟刷新。
+
+### Changed
+
+- **托盘菜单收纳语言与开机自启动 (Language and Auto-start on the tray menu)**: both settings moved out of the countdown tab onto the tray menu. Language is a submenu that stays open after a switch; Auto-start is a capsule switch that stays open when toggled. Menu groups are now: session controls | History + Settings | Language + Auto-start | About | Exit. Width stays the same in Chinese and English. / 语言与开机自启动从倒计时设置挪到托盘菜单。语言用子菜单切换且保持菜单打开；自启动是胶囊开关，切换后菜单也不收。分组为：倒计时操作 | 历史与设置 | 语言与自启动 | 关于 | 退出。中英文宽度一致。
+
+- **设置页输入对齐 (Settings inputs aligned)**: timer fields share a 28 px row height; the end-message box shows a caret when clicked. Binary size is now **315 KB** (322,048 bytes). / 倒计时设置输入框统一 28 像素高，结束消息框点击后能看到光标。单文件现为 **315 KB**（322,048 字节）。
+
+### Fixed
+
+- **开机自启动真正写入 Windows (Auto-start actually registers)**: enabling Auto-start now writes the 64-bit HKCU Run key and clears a leftover StartupApproved block, so Windows Explorer launches iClock at logon. / 打开开机自启动会写入 64 位 HKCU Run，并清掉 StartupApproved 里的禁用标记，登录后资源管理器会真正拉起 iClock。
+
 ## [1.11] - 2026-10-23
 
 ### Added

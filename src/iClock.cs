@@ -1842,69 +1842,34 @@ internal sealed class ToggleSwitch : CheckBox
     }
 }
 
-// 每日专注目标的分钟框：上下按钮每次 10 分钟，0 显示为「关闭」或 Off。
-internal sealed class MinuteGoalBox : NumericUpDown
+// 设置页数字框：WinForms 会按字体把高度锁成 24，这里固定成与下拉框相同的 28。
+internal class SettingsNumberBox : NumericUpDown
 {
-    public string OffText = "关闭";
+    public const int BoxHeight = 28;
+    private bool lockingHeight;
 
-    public MinuteGoalBox()
+    protected override void OnHandleCreated(EventArgs e)
     {
-        Minimum = 0;
-        Maximum = 1440;
-        Increment = 10;
-        DecimalPlaces = 0;
-        ThousandsSeparator = false;
+        base.OnHandleCreated(e);
+        LockHeight();
     }
 
-    public void SetCaptions(bool english)
+    protected override void OnLayout(LayoutEventArgs levent)
     {
-        OffText = english ? "Off" : "关闭";
-        UpdateEditText();
+        base.OnLayout(levent);
+        LockHeight();
     }
 
-    protected override void UpdateEditText()
+    private void LockHeight()
     {
-        if (Value <= 0) Text = OffText;
-        else Text = ((int)Value).ToString(CultureInfo.InvariantCulture);
-    }
-
-    public override void UpButton()
-    {
-        CommitTypedValue();
-        base.UpButton();
-    }
-
-    public override void DownButton()
-    {
-        CommitTypedValue();
-        base.DownButton();
-    }
-
-    protected override void ValidateEditText()
-    {
-        CommitTypedValue();
-        UpdateEditText();
-    }
-
-    private void CommitTypedValue()
-    {
-        int n;
-        if (!TryParseMinutes(Text, out n)) return;
-        if (n < (int)Minimum) n = (int)Minimum;
-        if (n > (int)Maximum) n = (int)Maximum;
-        Value = n;
-        UserEdit = false;
-    }
-
-    private bool TryParseMinutes(string text, out int minutes)
-    {
-        string t = (text ?? "").Trim();
-        minutes = 0;
-        if (t.Length == 0 || t == "0" || t == OffText || t == "关闭" || string.Equals(t, "Off", StringComparison.OrdinalIgnoreCase))
-            return true;
-        if (t.EndsWith("分钟")) t = t.Substring(0, t.Length - 2).Trim();
-        else if (t.EndsWith("min", StringComparison.OrdinalIgnoreCase)) t = t.Substring(0, t.Length - 3).Trim();
-        return int.TryParse(t, NumberStyles.Integer, CultureInfo.InvariantCulture, out minutes);
+        if (lockingHeight || !IsHandleCreated || Height == BoxHeight) return;
+        lockingHeight = true;
+        try
+        {
+            NativeMethods.SetWindowPos(Handle, IntPtr.Zero, 0, 0, Width, BoxHeight, 0x0016);
+        }
+        catch { }
+        lockingHeight = false;
     }
 }
 
@@ -1915,19 +1880,16 @@ internal sealed class SettingsDialog : Form
     private bool updatingTimerColorCombo;
     private string selectedColor;
     private TextBox endMessage;
-    private ComboBox format, language, fontCombo;
-    private ToggleSwitch startup;
+    private ComboBox format, fontCombo;
     private ToggleSwitch dailyQuoteToggle;
     private Button btnEditQuotes, btnAiQuotes;
     private ComboBox soundStyle, noticeStyle;
     private TextBox hotkeyBox;
     private int hotkeyModifiers, hotkeyKey, candidateMods, candidateKey;
     private bool hotkeyActive;
-    private Label lblMinutes, lblSize, lblFont, lblColor, lblFormat, lblEndMsg, lblHotkey, lblLanguage;
-    private Label lblSound, lblNotice, lblStartup, lblDailyGoal;
-    private MinuteGoalBox dailyGoal;
-    private Panel panelTimerDivider;
-    private Label lblTimerSection;
+    private Label lblMinutes, lblSize, lblFont, lblColor, lblFormat, lblEndMsg, lblHotkey;
+    private Label lblSound, lblNotice, lblDailyGoal;
+    private ComboBox dailyGoal;
     public Settings Value { get; private set; }
     public event Action PreviewRequested;
     public event Action SettingsCommitted;
@@ -2011,11 +1973,6 @@ internal sealed class SettingsDialog : Form
             if (tb.IsHandleCreated)
             {
                 NativeMethods.SendMessage(tb.Handle, EM_SETMARGINS, (IntPtr)(EC_LEFTMARGIN | EC_RIGHTMARGIN), (IntPtr)(4 | (4 << 16)));
-                if (tb.Multiline)
-                {
-                    RECT r = new RECT { Left = 4, Top = 4, Right = Math.Max(0, tb.ClientSize.Width - 4), Bottom = Math.Max(0, tb.ClientSize.Height - 4) };
-                    NativeMethods.SendMessage(tb.Handle, EM_SETRECTNP, IntPtr.Zero, ref r);
-                }
             }
         }
         else if (ctrl is NumericUpDown)
@@ -2101,12 +2058,12 @@ internal sealed class SettingsDialog : Form
             }
         };
 
-        lblMinutes = AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 18, 66); minutes = AddNumber(Value.Minutes, 1, 1440, 172, 62);
+        lblMinutes = AddLabel(en ? "Duration (minutes)" : "倒计时（分钟）", 18, TimerLabelY(0)); minutes = AddNumber(Value.Minutes, 1, 1440, 172, TimerRowY(0));
         minutes.ValueChanged += OnPreviewChanged;
-        lblSize = AddLabel(en ? "Text size" : "文字大小", 18, 100); size = AddNumber(Value.FontSize, 12, 120, 172, 96);
+        lblSize = AddLabel(en ? "Text size" : "文字大小", 18, TimerLabelY(1)); size = AddNumber(Value.FontSize, 12, 120, 172, TimerRowY(1));
         size.ValueChanged += OnPreviewChanged;
-        lblFont = AddLabel(en ? "Font style" : "字体样式", 18, 134);
-        fontCombo = AddCombo(130);
+        lblFont = AddLabel(en ? "Font style" : "字体样式", 18, TimerLabelY(2));
+        fontCombo = AddCombo(TimerRowY(2));
         fontCombo.Items.AddRange(en
             ? new object[] { "Segoe UI (Default)", "Consolas (Monospace)", "Arial", "Impact", "Microsoft YaHei" }
             : new object[] { "Segoe UI (默认)", "Consolas (极客等宽)", "Arial", "Impact (醒目粗黑)", "微软雅黑" });
@@ -2116,34 +2073,38 @@ internal sealed class SettingsDialog : Form
             (Value.FontFamily == "Microsoft YaHei" ? 4 : 0)));
         fontCombo.DrawItem += OnDrawFontItem;
         fontCombo.SelectedIndexChanged += OnQuoteFontComboChanged;
-        lblColor = AddLabel(en ? "Text color" : "文字颜色", 18, 168); selectedColor = Value.Color;
-        timerColorCombo = AddCombo(164);
+        lblColor = AddLabel(en ? "Text color" : "文字颜色", 18, TimerLabelY(3)); selectedColor = Value.Color;
+        timerColorCombo = AddCombo(TimerRowY(3));
         PopulateTimerColorCombo(en);
         timerColorCombo.SelectedIndex = GetTimerColorIndex(selectedColor);
         timerColorCombo.DrawItem += OnDrawTimerColorItem;
         timerColorCombo.SelectedIndexChanged += OnTimerColorComboChanged;
-        lblFormat = AddLabel(en ? "Display format" : "显示格式", 18, 202);
-        format = AddCombo(198);
+        lblFormat = AddLabel(en ? "Display format" : "显示格式", 18, TimerLabelY(4));
+        format = AddCombo(TimerRowY(4));
         format.Items.AddRange(en ? new object[] { "HH:MM:SS", "MM:SS", "H:M:S units (00h 25m 00s)" } : new object[] { "HH:MM:SS", "MM:SS", "中文单位 (00时25分00秒)" });
         format.SelectedIndex = Value.Format == "MM:SS" ? 1 : (Value.Format == "Chinese" ? 2 : 0);
         format.DrawItem += OnDrawComboItem;
         format.SelectedIndexChanged += OnPreviewChanged;
         hotkeyModifiers = Value.HotkeyModifiers; hotkeyKey = Value.HotkeyKey;
         candidateMods = hotkeyModifiers; candidateKey = hotkeyKey;
-        lblEndMsg = AddLabel(en ? "End message" : "结束时弹出消息", 18, 236);
+        lblEndMsg = AddLabel(en ? "End message" : "结束时弹出消息", 18, TimerLabelY(5));
         endMessage = new TextBox();
-        endMessage.SetBounds(172, 232, 188, 28);
-        endMessage.Multiline = true;
+        endMessage.AutoSize = false;
+        endMessage.Multiline = false;
         endMessage.MaxLength = 200;
+        endMessage.Cursor = Cursors.IBeam;
         endMessage.Text = Value.EndMessage;
+        endMessage.SetBounds(172, TimerRowY(5), 188, 28);
         endMessage.TextChanged += OnPreviewChanged;
         ApplyInputPadding(endMessage);
+        ApplySettingsInputSize(endMessage);
         Controls.Add(endMessage);
-        lblHotkey = AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 18, 338);
+        lblHotkey = AddLabel(en ? "Start/pause hotkey" : "启动/暂停快捷键", 18, TimerLabelY(8));
         hotkeyBox = new TextBox();
+        hotkeyBox.AutoSize = false;
         hotkeyBox.ReadOnly = true;
-        hotkeyBox.Multiline = true;
-        hotkeyBox.SetBounds(172, 334, 188, 28);
+        hotkeyBox.Multiline = false;
+        hotkeyBox.SetBounds(172, TimerRowY(8), 188, 28);
         if (!hotkeyActive)
         {
             hotkeyBox.Text = AppContext.HotkeyText(hotkeyModifiers, hotkeyKey) + (en ? " (Occupied)" : " (已被占用)");
@@ -2160,68 +2121,28 @@ internal sealed class SettingsDialog : Form
         }
         hotkeyBox.KeyDown += CaptureHotkey;
         ApplyInputPadding(hotkeyBox);
+        ApplySettingsInputSize(hotkeyBox);
         Controls.Add(hotkeyBox);
-        // 「界面语言」与「开机自启动」并到同一行，两个通用配置项各占一半宽度、两端对齐。
-        // 上方用一条 1px 分割线 + 区块标题，把通用配置与倒计时专属设置分开。
-        lblLanguage = AddLabel(en ? "Language" : "界面语言", 18, 422);
-        language = AddCombo(418);
-        language.Items.AddRange(new object[] { "简体中文", "English" });
-        language.SelectedIndex = Value.Language == "en" ? 1 : 0;
-        language.SelectedIndexChanged += OnLanguageChanged;
-        language.DrawItem += OnDrawComboItem;
-        lblSound = AddLabel(en ? "End sound" : "结束声音", 18, 270);
-        soundStyle = AddCombo(266);
+        lblSound = AddLabel(en ? "End sound" : "结束声音", 18, TimerLabelY(6));
+        soundStyle = AddCombo(TimerRowY(6));
         PopulateSoundStyleCombo(en);
         soundStyle.SelectedIndex = SoundStyleIndex(Value.EndSound, Value.EndSoundStyle);
         soundStyle.DrawItem += OnDrawComboItem;
         soundStyle.SelectionChangeCommitted += OnSoundStyleCommitted;
 
-        lblNotice = AddLabel(en ? "End notice" : "结束通知", 18, 304);
-        noticeStyle = AddCombo(300);
+        lblNotice = AddLabel(en ? "End notice" : "结束通知", 18, TimerLabelY(7));
+        noticeStyle = AddCombo(TimerRowY(7));
         PopulateNoticeStyleCombo(en);
         noticeStyle.SelectedIndex = NoticeStyleIndex(Value.EndNotice, Value.NoticeStyle);
         noticeStyle.DrawItem += OnDrawComboItem;
         noticeStyle.SelectionChangeCommitted += OnPreviewChanged;
 
-        lblStartup = AddLabel(en ? "Auto start" : "开机自启动", 18, 422);
-        lblStartup.Cursor = Cursors.Hand;
-        lblStartup.Click += delegate { if (startup != null) startup.Checked = !startup.Checked; };
-        startup = new ToggleSwitch();
-        startup.Checked = Value.AutoStart;
-        startup.AccessibleName = en ? "Auto start" : "开机自启动";
-        startup.CheckedChanged += OnStartupCheckedChanged;
-        Controls.Add(startup);
-        LayoutGeneralRow();
-
-        // 通用配置分组线：倒计时专属设置在上，通用配置（语言 / 开机自启）在下。
-        panelTimerDivider = new Panel();
-        panelTimerDivider.SetBounds(18, 404, 344, 1);
-        panelTimerDivider.BackColor = AppContext.Win11Border;
-        Controls.Add(panelTimerDivider);
-
-        // 分组标题嵌在分割线上：标签底色与窗体一致，1px 细线在文字处断开。
-        lblTimerSection = new Label();
-        lblTimerSection.Text = en ? "General" : "通用配置";
-        lblTimerSection.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
-        lblTimerSection.ForeColor = AppContext.Win11TextSecondary;
-        lblTimerSection.BackColor = BackColor;
-        lblTimerSection.TextAlign = ContentAlignment.MiddleLeft;
-        lblTimerSection.SetBounds(18, 397, TextRenderer.MeasureText(lblTimerSection.Text, lblTimerSection.Font).Width + 12, 16);
-        Controls.Add(lblTimerSection);
-
-        // 每日专注目标：按分钟填写，上下按钮每次 10 分钟。0 显示为「关闭」。
-        lblDailyGoal = AddLabel(en ? "Daily focus goal (min)" : "每日专注目标（分钟）", 18, 372);
-        lblDailyGoal.SetBounds(18, 372, 154, 24);
-        dailyGoal = new MinuteGoalBox();
-        int goalMinutes = Value.DailyGoalMinutes;
-        if (goalMinutes < 0) goalMinutes = 0;
-        if (goalMinutes > 1440) goalMinutes = 1440;
-        dailyGoal.SetCaptions(en);
-        dailyGoal.Value = goalMinutes;
-        dailyGoal.SetBounds(172, 368, 188, 28);
-        ApplyInputPadding(dailyGoal);
-        dailyGoal.ValueChanged += delegate { TriggerPreview(); UpdateStreakLabel(); };
-        Controls.Add(dailyGoal);
+        // 每日专注目标：关闭 + 1/2/3/4/6/8 小时，和结束通知同一套下拉。
+        lblDailyGoal = AddLabel(en ? "Daily focus goal" : "每日专注目标", 18, TimerLabelY(9));
+        dailyGoal = AddCombo(TimerRowY(9));
+        PopulateDailyGoalCombo(en, Value.DailyGoalMinutes);
+        dailyGoal.DrawItem += OnDrawComboItem;
+        dailyGoal.SelectionChangeCommitted += OnDailyGoalChanged;
         UpdateStreakLabel();
 
 
@@ -2253,7 +2174,7 @@ internal sealed class SettingsDialog : Form
             GraphicsState st = pe.Graphics.Save();
             pe.Graphics.TranslateTransform(11.5f, 11.5f);
             pe.Graphics.RotateTransform(-45);
-            bool isEn = (language != null && language.SelectedIndex == 1) || (language == null && Value != null && Value.Language == "en");
+            bool isEn = DialogEnglish();
             string tagText = isEn ? "TODAY" : "今日";
             using (Font f = AppContext.GetUiFont(isEn ? "en" : "zh", isEn ? 6.5f : 7.5f, FontStyle.Bold))
             using (SolidBrush tb = new SolidBrush(Color.White))
@@ -2349,7 +2270,7 @@ internal sealed class SettingsDialog : Form
 
         // Row 2: Font Size (Y = 210)
         lblQuoteSize = AddLabel(en ? "Text size" : "文字大小", 18, 210);
-        quoteFontSize = new NumericUpDown();
+        quoteFontSize = new SettingsNumberBox();
         quoteFontSize.DecimalPlaces = 1;
         quoteFontSize.Increment = 0.5M;
         quoteFontSize.Minimum = 8.0M;
@@ -2735,16 +2656,10 @@ internal sealed class SettingsDialog : Form
         endMessage.Visible = isTimer;
         lblHotkey.Visible = isTimer;
         hotkeyBox.Visible = isTimer;
-        lblLanguage.Visible = isTimer;
-        language.Visible = isTimer;
         if (lblSound != null) lblSound.Visible = isTimer;
         soundStyle.Visible = isTimer;
         if (lblNotice != null) lblNotice.Visible = isTimer;
         noticeStyle.Visible = isTimer;
-        if (lblStartup != null) lblStartup.Visible = isTimer;
-        startup.Visible = isTimer;
-        if (panelTimerDivider != null) panelTimerDivider.Visible = isTimer;
-        if (lblTimerSection != null) lblTimerSection.Visible = isTimer;
         if (lblDailyGoal != null) lblDailyGoal.Visible = isTimer;
         if (dailyGoal != null) dailyGoal.Visible = isTimer;
 
@@ -2894,7 +2809,7 @@ internal sealed class SettingsDialog : Form
         string label = btn.Text ?? "";
 
         Color textCol = isActive ? Color.FromArgb(24, 28, 36) : (isHov ? Color.FromArgb(32, 36, 44) : Color.FromArgb(95, 107, 124));
-        Font tabFont = AppContext.GetUiFont(language != null && language.SelectedIndex == 1 ? "en" : "zh", 9.5f, isActive ? FontStyle.Bold : FontStyle.Regular);
+        Font tabFont = AppContext.GetUiFont(DialogEnglish() ? "en" : "zh", 9.5f, isActive ? FontStyle.Bold : FontStyle.Regular);
         using (tabFont)
         using (SolidBrush textBrush = new SolidBrush(textCol))
         using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
@@ -3185,22 +3100,6 @@ internal sealed class SettingsDialog : Form
             AppContext.PlaySoundStyle(SoundStyleFromIndex(soundStyle.SelectedIndex));
         TriggerPreview();
     }
-    private void OnStartupCheckedChanged(object sender, EventArgs e)
-    {
-        if (startup.Checked && !Value.AutoStart && AppContext.IsInEphemeralFolder(Application.ExecutablePath))
-        {
-            bool toEnglish = language != null && language.SelectedIndex == 1;
-            string msg = toEnglish
-                ? "iClock is currently located in a temporary or download folder:\r\n" + Application.ExecutablePath + "\r\n\r\nIt is recommended to move iClock.exe to a permanent folder (such as Documents or Tools) before enabling auto-start, to prevent accidental deletion during cleanup.\r\n\r\nDo you still want to enable auto-start?"
-                : "检测到当前程序位于临时或下载目录：\r\n" + Application.ExecutablePath + "\r\n\r\n建议将 iClock.exe 移动到固定文件夹（如个人工具目录或文档）后再开启自启，以防清理下载文件时误删。\r\n\r\n是否仍要开启开机自启？";
-            string caption = toEnglish ? "iClock Auto-Start Tip" : "iClock 开机自启提示";
-            if (MessageBox.Show(this, msg, caption, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.No)
-            {
-                startup.Checked = false;
-            }
-        }
-        TriggerPreview();
-    }
     private void OnDailyQuoteCheckChanged(object sender, EventArgs e)
     {
         // Style rows only make sense while the desktop note is on; gray them out
@@ -3250,7 +3149,7 @@ internal sealed class SettingsDialog : Form
         if (quoteSaverWaitCombo == null || Value == null) return;
         int idx = quoteSaverWaitCombo.SelectedIndex;
         if (idx < 0) return;
-        bool en = language != null && language.SelectedIndex == 1;
+        bool en = DialogEnglish();
         bool wasOn = Value.QuoteSaverEnabled;
         bool wantOn = idx > 0;
         if (wantOn) Value.SaverMinutes = SaverWaitPresets[idx - 1];
@@ -3728,9 +3627,14 @@ internal sealed class SettingsDialog : Form
         }
     }
 
-    private void OnLanguageChanged(object sender, EventArgs e)
+    private bool DialogEnglish()
     {
-        bool toEnglish = language.SelectedIndex == 1;
+        return Value != null && Value.Language == "en";
+    }
+
+    internal void ApplyInterfaceLanguage(bool toEnglish)
+    {
+        if (Value != null) Value.Language = toEnglish ? "en" : "zh";
         Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9.5f);
         Text = toEnglish ? "iClock Settings" : "iClock 设置";
         if (toEnglish && endMessage.Text == "倒计时结束") endMessage.Text = "Countdown finished";
@@ -3748,20 +3652,10 @@ internal sealed class SettingsDialog : Form
         lblFormat.Text = toEnglish ? "Display format" : "显示格式";
         lblEndMsg.Text = toEnglish ? "End message" : "结束时弹出消息";
         lblHotkey.Text = toEnglish ? "Start/pause hotkey" : "启动/暂停快捷键";
-        lblLanguage.Text = toEnglish ? "Language" : "界面语言";
-        if (lblStartup != null) lblStartup.Text = toEnglish ? "Auto start" : "开机自启动";
-        if (startup != null) startup.AccessibleName = toEnglish ? "Auto start" : "开机自启动";
-        LayoutGeneralRow();
-        if (lblTimerSection != null)
-        {
-            lblTimerSection.Text = toEnglish ? "General" : "通用配置";
-            lblTimerSection.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f);
-            lblTimerSection.Width = TextRenderer.MeasureText(lblTimerSection.Text, lblTimerSection.Font).Width + 12;
-        }
-        if (lblDailyGoal != null) lblDailyGoal.Text = toEnglish ? "Daily focus goal (min)" : "每日专注目标（分钟）";
+        if (lblDailyGoal != null) lblDailyGoal.Text = toEnglish ? "Daily focus goal" : "每日专注目标";
         if (lblSound != null) lblSound.Text = toEnglish ? "End sound" : "结束声音";
         if (lblNotice != null) lblNotice.Text = toEnglish ? "End notice" : "结束通知";
-        if (dailyGoal != null) dailyGoal.SetCaptions(toEnglish);
+        PopulateDailyGoalCombo(toEnglish, ReadDailyGoalSelection());
         UpdateStreakLabel();
 
         if (lblDailyQuote != null)
@@ -3938,6 +3832,21 @@ internal sealed class SettingsDialog : Form
         UpdateInputPadding(endMessage);
         UpdateInputPadding(hotkeyBox);
         UpdateInputPadding(dailyGoal);
+        ApplySettingsInputSize(minutes);
+        ApplySettingsInputSize(size);
+        ApplySettingsInputSize(fontCombo);
+        ApplySettingsInputSize(timerColorCombo);
+        ApplySettingsInputSize(format);
+        ApplySettingsInputSize(endMessage);
+        ApplySettingsInputSize(soundStyle);
+        ApplySettingsInputSize(noticeStyle);
+        ApplySettingsInputSize(hotkeyBox);
+        ApplySettingsInputSize(dailyGoal);
+        ApplySettingsInputSize(quoteFontSize);
+        ApplySettingsInputSize(quoteFontCombo);
+        ApplySettingsInputSize(quoteColorCombo);
+        ApplySettingsInputSize(quoteLayerCombo);
+        ApplySettingsInputSize(quoteSaverWaitCombo);
         TriggerPreview();
     }
 
@@ -3951,9 +3860,7 @@ internal sealed class SettingsDialog : Form
             : (Value.FontFamily ?? "Segoe UI");
         Value.HotkeyModifiers = hotkeyModifiers;
         Value.HotkeyKey = hotkeyKey;
-        Value.AutoStart = startup != null && startup.Checked;
         Value.Format = (format != null && format.SelectedIndex == 1) ? "MM:SS" : ((format != null && format.SelectedIndex == 2) ? "Chinese" : "HH:MM:SS");
-        Value.Language = (language != null && language.SelectedIndex == 1) ? "en" : "zh";
         Value.EndSound = soundStyle != null && soundStyle.SelectedIndex > 0;
         if (soundStyle != null && soundStyle.SelectedIndex > 0) Value.EndSoundStyle = SoundStyleFromIndex(soundStyle.SelectedIndex);
         Value.EndNotice = noticeStyle != null && noticeStyle.SelectedIndex > 0;
@@ -3970,11 +3877,68 @@ internal sealed class SettingsDialog : Form
         return Value;
     }
 
+    private static readonly int[] DailyGoalPresets = { 60, 120, 180, 240, 360, 480 };
+
+    private void OnDailyGoalChanged(object sender, EventArgs e)
+    {
+        TriggerPreview();
+        UpdateStreakLabel();
+    }
+
+    private void PopulateDailyGoalCombo(bool en, int minutes)
+    {
+        if (dailyGoal == null) return;
+        int sel = DailyGoalComboIndex(minutes);
+        dailyGoal.SelectionChangeCommitted -= OnDailyGoalChanged;
+        dailyGoal.BeginUpdate();
+        dailyGoal.Items.Clear();
+        dailyGoal.Items.Add(en ? "Off" : "关闭");
+        for (int i = 0; i < DailyGoalPresets.Length; i++)
+        {
+            int hours = DailyGoalPresets[i] / 60;
+            dailyGoal.Items.Add(en
+                ? (hours == 1 ? "1 hour" : hours + " hours")
+                : (hours + " 小时"));
+        }
+        dailyGoal.SelectedIndex = sel;
+        dailyGoal.EndUpdate();
+        dailyGoal.SelectionChangeCommitted += OnDailyGoalChanged;
+    }
+
+    // 正数靠到最近的一档时长，不会靠到「关闭」。
+    private static int SnapDailyGoalMinutes(int minutes)
+    {
+        if (minutes <= 0) return 0;
+        int best = DailyGoalPresets[0];
+        int bestDist = Math.Abs(minutes - best);
+        for (int i = 1; i < DailyGoalPresets.Length; i++)
+        {
+            int d = Math.Abs(minutes - DailyGoalPresets[i]);
+            if (d < bestDist || (d == bestDist && DailyGoalPresets[i] > best))
+            {
+                best = DailyGoalPresets[i];
+                bestDist = d;
+            }
+        }
+        return best;
+    }
+
+    private static int DailyGoalComboIndex(int minutes)
+    {
+        int snapped = SnapDailyGoalMinutes(minutes);
+        if (snapped <= 0) return 0;
+        for (int i = 0; i < DailyGoalPresets.Length; i++)
+            if (DailyGoalPresets[i] == snapped) return i + 1;
+        return 0;
+    }
+
     // 读取「每日专注目标」：0 = 关闭，其余为分钟数。
     private int ReadDailyGoalSelection()
     {
         if (dailyGoal == null) return Value != null ? Value.DailyGoalMinutes : 0;
-        return Math.Max(0, Math.Min(1440, (int)dailyGoal.Value));
+        int idx = dailyGoal.SelectedIndex;
+        if (idx <= 0 || idx > DailyGoalPresets.Length) return 0;
+        return DailyGoalPresets[idx - 1];
     }
 
     private static int SoundStyleIndex(bool enabled, string style)
@@ -4032,8 +3996,8 @@ internal sealed class SettingsDialog : Form
     private void UpdateStreakLabel()
     {
         if (lblDailyGoal == null) return;
-        bool en = (language != null) ? language.SelectedIndex == 1 : (Value != null && Value.Language == "en");
-        lblDailyGoal.Text = en ? "Daily focus goal (min)" : "每日专注目标（分钟）";
+        bool en = DialogEnglish();
+        lblDailyGoal.Text = en ? "Daily focus goal" : "每日专注目标";
         if (dailyGoal == null) return;
         int goal = ReadDailyGoalSelection();
         string tip;
@@ -4070,7 +4034,7 @@ internal sealed class SettingsDialog : Form
 
     private void TriggerPreview()
     {
-        if (PreviewRequested != null && minutes != null && size != null && fontCombo != null && format != null && language != null && timerColorCombo != null)
+        if (PreviewRequested != null && minutes != null && size != null && fontCombo != null && format != null && timerColorCombo != null)
         {
             ApplyCurrentSettings();
             Value.Save();
@@ -4098,43 +4062,62 @@ internal sealed class SettingsDialog : Form
         }
     }
 
-    private Label AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.ForeColor = AppContext.Win11TextPrimary; l.SetBounds(x, y, 148, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); return l; }
-    private NumericUpDown AddNumber(int v, int min, int max, int x, int y) { NumericUpDown n = new NumericUpDown(); n.Minimum = min; n.Maximum = max; n.Value = Math.Min(max, Math.Max(min, v)); n.SetBounds(x, y, 188, 28); ApplyInputPadding(n); Controls.Add(n); return n; }
-    private CheckBox AddCheck(string t, bool v, int x, int y) { CheckBox c = new CheckBox(); c.Text = t; c.Checked = v; c.ForeColor = AppContext.Win11TextPrimary; c.SetBounds(x, y, 344, 24); Controls.Add(c); return c; }
-    private ComboBox AddCombo(int y) { ComboBox c = new ComboBox(); c.DropDownStyle = ComboBoxStyle.DropDownList; c.DrawMode = DrawMode.OwnerDrawFixed; c.ItemHeight = 22; c.SetBounds(172, y, 188, 28); Controls.Add(c); return c; }
+    private const int SettingsInputHeight = 28;
 
-    // 语言下拉贴在「界面语言」右边，宽度够放下「简体中文」；开机自启贴在行的右端。
-    // 标签只占文字本身的宽度，避免 148px 的标签盖住下拉框，把选中项画成空白。
-    private void LayoutGeneralRow()
+    private void ApplySettingsInputSize(Control c)
     {
-        if (lblLanguage != null)
+        if (c == null) return;
+        TextBox tb = c as TextBox;
+        if (tb != null)
         {
-            int labelW = TextRenderer.MeasureText(lblLanguage.Text, lblLanguage.Font).Width;
-            lblLanguage.SetBounds(18, 422, labelW, 24);
+            tb.AutoSize = false;
+            tb.MinimumSize = new Size(0, SettingsInputHeight);
+            tb.Height = SettingsInputHeight;
+            return;
         }
-        if (startup != null) startup.SetBounds(322, 421, 40, 22);
-        int comboRight = 314;
-        if (lblStartup != null)
+        ComboBox cb = c as ComboBox;
+        if (cb != null)
         {
-            int startupW = TextRenderer.MeasureText(lblStartup.Text, lblStartup.Font).Width;
-            int startupX = 314 - startupW;
-            lblStartup.SetBounds(startupX, 422, startupW, 24);
-            comboRight = startupX - 10;
+            cb.IntegralHeight = false;
+            cb.FlatStyle = FlatStyle.Standard;
+            cb.DrawMode = DrawMode.OwnerDrawFixed;
+            cb.ItemHeight = 22;
+            cb.Height = SettingsInputHeight;
+            return;
         }
-        if (language == null || lblLanguage == null) return;
-        int comboX = lblLanguage.Right + 8;
-        int comboW = Math.Max(112, comboRight - comboX);
-        language.SetBounds(comboX, 418, comboW, 28);
-        int dropW = comboW;
-        foreach (object item in language.Items)
+        NumericUpDown nud = c as NumericUpDown;
+        if (nud != null)
         {
-            int w = TextRenderer.MeasureText(Convert.ToString(item), language.Font).Width + 28;
-            if (w > dropW) dropW = w;
+            // 默认会按字体收成 24，和 28 的下拉框对不齐。
+            nud.AutoSize = false;
+            nud.MinimumSize = new Size(0, SettingsInputHeight);
+            nud.Height = SettingsInputHeight;
+            return;
         }
-        language.DropDownWidth = dropW;
-        language.BringToFront();
-        if (startup != null) startup.BringToFront();
+        c.Height = SettingsInputHeight;
     }
+
+    private Label AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.ForeColor = AppContext.Win11TextPrimary; l.SetBounds(x, y, 148, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); return l; }
+    private NumericUpDown AddNumber(int v, int min, int max, int x, int y) { NumericUpDown n = new SettingsNumberBox(); n.Minimum = min; n.Maximum = max; n.Value = Math.Min(max, Math.Max(min, v)); n.SetBounds(x, y, 188, SettingsInputHeight); ApplyInputPadding(n); ApplySettingsInputSize(n); Controls.Add(n); return n; }
+    private CheckBox AddCheck(string t, bool v, int x, int y) { CheckBox c = new CheckBox(); c.Text = t; c.Checked = v; c.ForeColor = AppContext.Win11TextPrimary; c.SetBounds(x, y, 344, 24); Controls.Add(c); return c; }
+    private ComboBox AddCombo(int y)
+    {
+        ComboBox c = new ComboBox();
+        c.DropDownStyle = ComboBoxStyle.DropDownList;
+        c.DrawMode = DrawMode.OwnerDrawFixed;
+        c.FlatStyle = FlatStyle.Standard;
+        c.IntegralHeight = false;
+        c.ItemHeight = 22;
+        c.SetBounds(172, y, 188, SettingsInputHeight);
+        Controls.Add(c);
+        ApplySettingsInputSize(c);
+        return c;
+    }
+
+    // 倒计时页 10 行：行距 40，末行底边 446，与 AI 协作页 session 卡片同一底边距（24）。
+    private static int TimerRowY(int index) { return 58 + index * 40; }
+    private static int TimerLabelY(int index) { return TimerRowY(index) + 4; }
+
     private void CaptureHotkey(object sender, KeyEventArgs e)
     {
         Keys key = e.KeyCode;
@@ -4149,14 +4132,14 @@ internal sealed class SettingsDialog : Form
         candidateMods = mods; candidateKey = (int)key;
         if (mods == 0 && !isFunctionKey)
         {
-            hotkeyBox.Text = language.SelectedIndex == 1 ? "Use a modifier + key" : "请按修饰键 + 按键";
+            hotkeyBox.Text = DialogEnglish() ? "Use a modifier + key" : "请按修饰键 + 按键";
             hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
             return;
         }
         string text = AppContext.HotkeyText(mods, (int)key);
         if (key == Keys.Space && (mods & 3) != 0)
         {
-            hotkeyBox.Text = text + (language.SelectedIndex == 1 ? " (IME Conflict)" : " (与输入法冲突)");
+            hotkeyBox.Text = text + (DialogEnglish() ? " (IME Conflict)" : " (与输入法冲突)");
             hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
             return;
         }
@@ -4164,7 +4147,7 @@ internal sealed class SettingsDialog : Form
         bool available = isCurrent || AppContext.ProbeHotkey(mods, (int)key);
         if (!available)
         {
-            hotkeyBox.Text = text + (language.SelectedIndex == 1 ? " (Occupied)" : " (已被占用)");
+            hotkeyBox.Text = text + (DialogEnglish() ? " (Occupied)" : " (已被占用)");
             hotkeyBox.ForeColor = Color.FromArgb(202, 80, 16);
         }
         else
@@ -7734,6 +7717,12 @@ internal class AboutDialog : Form
     }
 }
 
+// 托盘菜单里的开机自启动：整行可点，右侧胶囊只表示当前开或关。
+internal sealed class MenuSwitchItem : ToolStripMenuItem
+{
+    public bool On;
+}
+
 internal sealed class ModernContextMenu : ContextMenuStrip
 {
     protected override void OnLayout(LayoutEventArgs e)
@@ -7754,6 +7743,10 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
 {
     public ModernMenuRenderer() : base(new ModernMenuColorTable()) { }
 
+    // 快捷键与开机开关共用这条右边线，和「Alt + 拖拽」右缘对齐。
+    private const int MenuShortcutRight = 24;
+    private const int MenuSwitchWidth = 40;
+
     protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
     {
         if (!e.Item.Enabled) return;
@@ -7767,16 +7760,21 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
                 e.Graphics.FillPath(brush, path);
             }
         }
+        MenuSwitchItem sw = e.Item as MenuSwitchItem;
+        if (sw != null) DrawMenuSwitch(e.Graphics, e.Item.Width, e.Item.Height, sw.On);
     }
 
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
         int left = 32;
-        int right = e.Item.Width - 24;
+        MenuSwitchItem sw = e.Item as MenuSwitchItem;
+        ToolStripMenuItem mi = e.Item as ToolStripMenuItem;
+        int rightPad = sw != null ? MenuShortcutRight + MenuSwitchWidth + 8
+            : (mi != null && mi.HasDropDownItems ? MenuShortcutRight + 16 : MenuShortcutRight);
+        int right = e.Item.Width - rightPad;
         int width = Math.Max(0, right - left);
         e.TextRectangle = new Rectangle(left, 0, width, e.Item.Height);
 
-        ToolStripMenuItem mi = e.Item as ToolStripMenuItem;
         bool isShortcut = mi != null && !string.IsNullOrEmpty(mi.ShortcutKeyDisplayString) && e.Text == mi.ShortcutKeyDisplayString;
 
         if (isShortcut)
@@ -7795,6 +7793,50 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
                 e.TextColor = AppContext.Win11TextPrimary;
         }
         base.OnRenderItemText(e);
+    }
+
+    private static void DrawMenuSwitch(Graphics g, int itemWidth, int itemHeight, bool on)
+    {
+        int w = MenuSwitchWidth;
+        int h = 22;
+        int x = itemWidth - MenuShortcutRight - w;
+        int y = Math.Max(0, (itemHeight - h) / 2);
+        SmoothingMode prev = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        Rectangle track = new Rectangle(x + 1, y + 2, w - 3, h - 5);
+        int diameter = track.Height;
+        using (GraphicsPath path = new GraphicsPath())
+        {
+            path.AddArc(track.X, track.Y, diameter, diameter, 90, 180);
+            path.AddArc(track.Right - diameter, track.Y, diameter, diameter, 270, 180);
+            path.CloseFigure();
+            using (SolidBrush brush = new SolidBrush(on ? AppContext.Win11Accent : Color.FromArgb(190, 196, 204)))
+                g.FillPath(brush, path);
+        }
+        int knobSize = Math.Max(4, diameter - 4);
+        int knobX = on ? track.Right - knobSize - 2 : track.X + 2;
+        using (SolidBrush knob = new SolidBrush(Color.White))
+            g.FillEllipse(knob, knobX, track.Y + 2, knobSize, knobSize);
+        g.SmoothingMode = prev;
+    }
+
+    // 子菜单箭头右缘与开机开关、快捷键同一条线（item.Width - 24）。
+    protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
+    {
+        if (e.Item == null) return;
+        int tipX = e.Item.Width - MenuShortcutRight;
+        int cy = e.Item.Height / 2;
+        Color c = e.Item.Enabled ? AppContext.Win11ShortcutGray : Color.FromArgb(180, 184, 190);
+        SmoothingMode prev = e.Graphics.SmoothingMode;
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using (Pen p = new Pen(c, 1.5f))
+        {
+            p.StartCap = LineCap.Round;
+            p.EndCap = LineCap.Round;
+            e.Graphics.DrawLine(p, tipX - 5, cy - 4, tipX, cy);
+            e.Graphics.DrawLine(p, tipX, cy, tipX - 5, cy + 4);
+        }
+        e.Graphics.SmoothingMode = prev;
     }
 
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
@@ -7879,8 +7921,10 @@ internal sealed class AppContext : ApplicationContext
     private Timer hudClearDeferTimer;
     private bool hudClearPending;
     private NotifyIcon tray;
-    private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuAbout, menuExit, menuUpdate;
-    internal const string CURRENT_VERSION = "1.11";
+    private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuLanguage, menuLangZh, menuLangEn, menuAbout, menuExit, menuUpdate;
+    private MenuSwitchItem menuStartup;
+    private bool holdTrayMenuOpen;
+    internal const string CURRENT_VERSION = "1.12";
     private string updateUrl;
     private string latestVersion;
     private Timer timer;
@@ -7917,6 +7961,9 @@ internal sealed class AppContext : ApplicationContext
     private string projectedAgentName;
     private int projectedAgentPid;
     private long lastSeconds = -1;
+    private long lastLiveFocusMinutes = -1;
+    private long cachedLoggedFocusSecs = -1;
+    private string cachedLoggedFocusDay;
     private MessageWindow messageWindow;
     private Icon appIcon;
     private Timer trayClickTimer;
@@ -8264,18 +8311,20 @@ internal sealed class AppContext : ApplicationContext
         m.Opened += delegate { ApplyModernWindowStyle(m); };
         m.Opening += delegate
         {
+            m.Font = GetUiFont(settings.Language, 9.5f);
+            if (menuStart != null) menuStart.Font = new Font(m.Font, FontStyle.Bold);
             UpdateMenuText();
-            int maxNeeded = 260;
-            foreach (ToolStripItem it in m.Items)
-            {
-                ToolStripMenuItem mi = it as ToolStripMenuItem;
-                if (mi == null) continue;
-                int tw = TextRenderer.MeasureText(mi.Text, mi.Font).Width;
-                int scw = string.IsNullOrEmpty(mi.ShortcutKeyDisplayString) ? 0 : TextRenderer.MeasureText(mi.ShortcutKeyDisplayString, m.Font).Width;
-                int needed = 32 + tw + (scw > 0 ? 28 + scw : 0) + 24;
-                if (needed > maxNeeded) maxNeeded = needed;
-            }
-            m.MinimumSize = new Size(maxNeeded, 0);
+            FitTrayMenuWidth(m);
+        };
+        m.Closing += delegate(object sender, ToolStripDropDownClosingEventArgs e)
+        {
+            // 点语言子项时，主菜单收到的往往是 AppClicked / AppFocusChange，不是 ItemClicked。
+            // hold 只在开关和语言的 MouseDown 里置位，点外面时是 false，照常关掉。
+            bool keep = holdTrayMenuOpen
+                && e.CloseReason != ToolStripDropDownCloseReason.Keyboard
+                && e.CloseReason != ToolStripDropDownCloseReason.CloseCalled;
+            holdTrayMenuOpen = false;
+            if (keep) e.Cancel = true;
         };
 
         menuStart = AddMenuItem(m, delegate { Toggle(); });
@@ -8285,11 +8334,155 @@ internal sealed class AppContext : ApplicationContext
         m.Items.Add(new ToolStripSeparator());
         menuHistory = AddMenuItem(m, delegate { ShowHistory(); });
         menuSettings = AddMenuItem(m, delegate { ShowSettings(); });
+        m.Items.Add(new ToolStripSeparator());
+        menuLanguage = AddMenuItem(m, null);
+        menuLangZh = new ToolStripMenuItem("简体中文");
+        menuLangZh.Padding = new Padding(32, 7, 32, 7);
+        menuLangZh.ForeColor = Win11TextPrimary;
+        menuLangZh.MouseDown += delegate { holdTrayMenuOpen = true; };
+        menuLangZh.Click += delegate { SetInterfaceLanguage(false); };
+        menuLangEn = new ToolStripMenuItem("English");
+        menuLangEn.Padding = new Padding(32, 7, 32, 7);
+        menuLangEn.ForeColor = Win11TextPrimary;
+        menuLangEn.MouseDown += delegate { holdTrayMenuOpen = true; };
+        menuLangEn.Click += delegate { SetInterfaceLanguage(true); };
+        menuLanguage.DropDownItems.Add(menuLangZh);
+        menuLanguage.DropDownItems.Add(menuLangEn);
+        menuStartup = new MenuSwitchItem();
+        menuStartup.Padding = new Padding(32, 7, 32, 7);
+        menuStartup.ForeColor = Win11TextPrimary;
+        menuStartup.MouseDown += delegate { holdTrayMenuOpen = true; };
+        menuStartup.Click += delegate { ToggleAutoStartFromMenu(); };
+        m.Items.Add(menuStartup);
+        m.Items.Add(new ToolStripSeparator());
         menuAbout = AddMenuItem(m, delegate { ShowAbout(); });
         m.Items.Add(new ToolStripSeparator());
         menuExit = AddMenuItem(m, delegate { Exit(); });
         UpdateMenuText();
         return m;
+    }
+
+    private int MeasureMenuRow(Font font, string text, string shortcut, bool hasSwitch, bool hasArrow)
+    {
+        int tw = TextRenderer.MeasureText(text ?? "", font).Width;
+        int extra = 24;
+        if (hasSwitch) extra = 24 + 40 + 8;
+        else if (!string.IsNullOrEmpty(shortcut))
+            extra = 28 + TextRenderer.MeasureText(shortcut, font).Width + 24;
+        else if (hasArrow)
+            extra = 24 + 16;
+        return 32 + tw + extra;
+    }
+
+    // 中英文各测一遍，取更宽的那套，切换语言时菜单宽度不动。
+    private void FitTrayMenuWidth(ContextMenuStrip m)
+    {
+        if (m == null) return;
+        Font zh = GetUiFont("zh", 9.5f);
+        Font en = GetUiFont("en", 9.5f);
+        Font zhBold = new Font(zh, FontStyle.Bold);
+        Font enBold = new Font(en, FontStyle.Bold);
+        int w = 260;
+        try
+        {
+            string hotkey = hotkeyRegistered
+                ? HotkeyText(settings.HotkeyModifiers, settings.HotkeyKey)
+                : null;
+            string[] starts = new string[]
+            {
+                "Start countdown", "Pause countdown", "Resume countdown", "Pause break", "Resume break",
+                "开始倒计时", "暂停倒计时", "继续倒计时", "暂停休息", "继续休息"
+            };
+            foreach (string s in starts)
+            {
+                w = Math.Max(w, MeasureMenuRow(enBold, s, hotkey ?? "(Disabled)", false, false));
+                w = Math.Max(w, MeasureMenuRow(zhBold, s, hotkey ?? "(未生效)", false, false));
+            }
+            w = Math.Max(w, MeasureMenuRow(en, "Reset countdown", null, false, false));
+            w = Math.Max(w, MeasureMenuRow(zh, "重置倒计时", null, false, false));
+            w = Math.Max(w, MeasureMenuRow(en, "Reset break", null, false, false));
+            w = Math.Max(w, MeasureMenuRow(zh, "重置休息", null, false, false));
+            w = Math.Max(w, MeasureMenuRow(en, "Adjust text position", "Alt + Drag", false, false));
+            w = Math.Max(w, MeasureMenuRow(zh, "调整文字位置", "Alt + 拖拽", false, false));
+            w = Math.Max(w, MeasureMenuRow(en, "✓ Finish position adjustment", null, false, false));
+            w = Math.Max(w, MeasureMenuRow(zh, "✓ 完成位置调整", null, false, false));
+            w = Math.Max(w, MeasureMenuRow(en, "Today's history", "12h59m / 24h", false, false));
+            w = Math.Max(w, MeasureMenuRow(zh, "今日记录", "12h59m / 24h", false, false));
+            w = Math.Max(w, MeasureMenuRow(en, "Settings…", null, false, false));
+            w = Math.Max(w, MeasureMenuRow(zh, "设置…", null, false, false));
+            w = Math.Max(w, MeasureMenuRow(en, "Language", "English", false, true));
+            w = Math.Max(w, MeasureMenuRow(zh, "语言", "简体中文", false, true));
+            w = Math.Max(w, MeasureMenuRow(en, "Auto start", null, true, false));
+            w = Math.Max(w, MeasureMenuRow(zh, "开机自启动", null, true, false));
+            w = Math.Max(w, MeasureMenuRow(en, "About iClock…", null, false, false));
+            w = Math.Max(w, MeasureMenuRow(zh, "关于 iClock…", null, false, false));
+            w = Math.Max(w, MeasureMenuRow(en, "Exit", null, false, false));
+            w = Math.Max(w, MeasureMenuRow(zh, "退出", null, false, false));
+            if (!string.IsNullOrEmpty(latestVersion))
+            {
+                w = Math.Max(w, MeasureMenuRow(en, "⭐ Update available (" + latestVersion + ")…", null, false, false));
+                w = Math.Max(w, MeasureMenuRow(zh, "⭐ 发现新版本 (" + latestVersion + ")…", null, false, false));
+            }
+        }
+        finally
+        {
+            zhBold.Dispose();
+            enBold.Dispose();
+        }
+        m.MinimumSize = new Size(w, 0);
+        if (m.Width < w) m.Width = w;
+        m.PerformLayout();
+    }
+
+    private void SetInterfaceLanguage(bool english)
+    {
+        string next = english ? "en" : "zh";
+        if (settings.Language == next)
+        {
+            UpdateMenuText();
+            return;
+        }
+        settings.Language = next;
+        settings.Save();
+        // 菜单还开着时改 Font 会把整份菜单收掉；下次 Opening 再换字体。
+        if (overlay != null) overlay.RefreshSettings();
+        SettingsDialog open = activeDialog as SettingsDialog;
+        if (open != null && !open.IsDisposed) open.ApplyInterfaceLanguage(english);
+        UpdateMenuText();
+        if (tray != null && tray.ContextMenuStrip != null)
+        {
+            FitTrayMenuWidth(tray.ContextMenuStrip);
+            tray.ContextMenuStrip.Invalidate();
+        }
+        UpdateDailyProgress();
+    }
+
+    private void ToggleAutoStartFromMenu()
+    {
+        bool next = !settings.AutoStart;
+        if (next && IsInEphemeralFolder(Application.ExecutablePath))
+        {
+            holdTrayMenuOpen = false;
+            if (tray != null && tray.ContextMenuStrip != null) tray.ContextMenuStrip.Close();
+            bool en = settings.Language == "en";
+            string msg = en
+                ? "iClock is currently located in a temporary or download folder:\r\n" + Application.ExecutablePath + "\r\n\r\nIt is recommended to move iClock.exe to a permanent folder (such as Documents or Tools) before enabling auto-start, to prevent accidental deletion during cleanup.\r\n\r\nDo you still want to enable auto-start?"
+                : "检测到当前程序位于临时或下载目录：\r\n" + Application.ExecutablePath + "\r\n\r\n建议将 iClock.exe 移动到固定文件夹（如个人工具目录或文档）后再开启自启，以防清理下载文件时误删。\r\n\r\n是否仍要开启开机自启？";
+            string caption = en ? "iClock Auto-Start Tip" : "iClock 开机自启提示";
+            if (MessageBox.Show(msg, caption, MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.No)
+                next = false;
+        }
+        if (settings.AutoStart == next)
+        {
+            UpdateMenuText();
+            if (menuStartup != null) menuStartup.Invalidate();
+            return;
+        }
+        settings.AutoStart = next;
+        settings.Save();
+        ApplyStartup();
+        UpdateMenuText();
+        if (menuStartup != null) menuStartup.Invalidate();
     }
 
     internal void Reset()
@@ -8317,7 +8510,7 @@ internal sealed class AppContext : ApplicationContext
         ToolStripMenuItem item = new ToolStripMenuItem();
         item.Padding = new Padding(32, 7, 32, 7);
         item.ForeColor = Win11TextPrimary;
-        item.Click += onClick;
+        if (onClick != null) item.Click += onClick;
         m.Items.Add(item);
         return item;
     }
@@ -8360,8 +8553,21 @@ internal sealed class AppContext : ApplicationContext
         menuReset.Enabled = running || sessionActive;
         menuMove.Text = overlay.MoveMode ? (en ? "✓ Finish position adjustment" : "✓ 完成位置调整") : (en ? "Adjust text position" : "调整文字位置");
         menuMove.ShortcutKeyDisplayString = overlay.MoveMode ? "" : (en ? "Alt + Drag" : "Alt + 拖拽");
-        menuHistory.Text = BuildHistoryMenuText(en);
+        menuHistory.Text = en ? "Today's history" : "今日记录";
+        menuHistory.ShortcutKeyDisplayString = BuildHistoryMenuHint();
         menuSettings.Text = en ? "Settings…" : "设置…";
+        if (menuLanguage != null)
+        {
+            menuLanguage.Text = en ? "Language" : "语言";
+            menuLanguage.ShortcutKeyDisplayString = en ? "English" : "简体中文";
+        }
+        if (menuLangZh != null) menuLangZh.Text = (en ? "" : "✓ ") + (en ? "Chinese (Simplified)" : "简体中文");
+        if (menuLangEn != null) menuLangEn.Text = (en ? "✓ " : "") + "English";
+        if (menuStartup != null)
+        {
+            menuStartup.Text = en ? "Auto start" : "开机自启动";
+            menuStartup.On = settings.AutoStart;
+        }
         menuAbout.Text = en ? "About iClock…" : "关于 iClock…";
         menuExit.Text = en ? "Exit" : "退出";
         if (menuUpdate != null) menuUpdate.Text = en ? "⭐ Update available (" + latestVersion + ")…" : "⭐ 发现新版本 (" + latestVersion + ")…";
@@ -8372,32 +8578,83 @@ internal sealed class AppContext : ApplicationContext
             : (en ? "iClock (" + actionTip + " · Hotkey conflict)" : "iClock（" + actionTip + " · 快捷键未生效）");
     }
 
-    // 托盘打卡文案：有目标时显示「今日 2.4 小时 / 4 小时 · 连续 23 天」，无目标时保持原样。
-    private string BuildHistoryMenuText(bool en)
+    // 左侧固定「今日记录」，右侧提示位写当天累计；有目标时带上 / 目标。连胜只在历史窗口里看。
+    private string BuildHistoryMenuHint()
     {
-        string baseText = en ? "View today's history" : "查看今日记录";
-        if (settings.DailyGoalMinutes <= 0) return baseText;
-        string dir = Path.GetDirectoryName(Settings.FilePath);
-        long today = AppContext.GetDayFocusSecs(dir, DateTime.Today.ToString("yyyyMMdd"));
-        int streak = AppContext.ComputeStreak(delegate(string dk) { return AppContext.GetDayFocusSecs(dir, dk); }, settings.DailyGoalMinutes, DateTime.Today.ToString("yyyyMMdd"));
-        string todayPart = en
-            ? "Today " + FormatDurationMinutes(today, true) + " / " + FormatDurationMinutes(settings.DailyGoalMinutes * 60L, true)
-            : "今日 " + FormatDurationMinutes(today, false) + " / " + FormatDurationMinutes(settings.DailyGoalMinutes * 60L, false);
-        string streakPart = streak > 0
-            ? (en ? " · " + streak + "-day streak" : " · 连续 " + streak + " 天")
-            : (en ? " · no streak yet" : " · 未连续");
-        return todayPart + streakPart;
+        try
+        {
+            long today = TodayFocusSecs();
+            string todayPart = FormatCompactDuration(today);
+            if (settings.DailyGoalMinutes <= 0) return todayPart;
+            return todayPart + " / " + FormatCompactDuration(settings.DailyGoalMinutes * 60L);
+        }
+        catch
+        {
+            return "0m";
+        }
     }
 
-    // 重算今日进度并刷新悬浮条与托盘文案；在会话开始/结束/被打断和启动时调用。
+    // 已写入历史的今日时长 + 当前这段未结束的专注（休息不加）。
+    private long TodayFocusSecs()
+    {
+        return LoggedTodayFocusSecs() + OpenWorkFocusSecs();
+    }
+
+    private long LoggedTodayFocusSecs()
+    {
+        string day = DateTime.Today.ToString("yyyyMMdd");
+        if (cachedLoggedFocusSecs >= 0 && cachedLoggedFocusDay == day)
+            return cachedLoggedFocusSecs;
+        string dir = Path.GetDirectoryName(Settings.FilePath);
+        cachedLoggedFocusSecs = AppContext.GetDayFocusSecs(dir, day);
+        cachedLoggedFocusDay = day;
+        return cachedLoggedFocusSecs;
+    }
+
+    private void InvalidateTodayFocusCache()
+    {
+        cachedLoggedFocusSecs = -1;
+    }
+
+    private long OpenWorkFocusSecs()
+    {
+        string start;
+        string end;
+        int minutes;
+        long actual;
+        bool isRest;
+        if (!TryGetOpenHistoryRow(out start, out end, out minutes, out actual, out isRest) || isRest)
+            return 0L;
+        if (sessionStart.Date != DateTime.Today) return 0L;
+        return actual;
+    }
+
+    private bool TryGetOpenHistoryRow(out string start, out string end, out int minutes, out long actualSecs, out bool isRest)
+    {
+        start = "";
+        end = "—";
+        minutes = 0;
+        actualSecs = 0L;
+        isRest = false;
+        if (!sessionActive) return false;
+        if (state == ClockState.Idle || state == ClockState.MoveMode || state == ClockState.Alarming)
+            return false;
+        isRest = (state == ClockState.RestRunning || state == ClockState.RestPaused);
+        start = sessionStart.ToString("HH:mm:ss");
+        minutes = sessionMinutes;
+        TimeSpan left = running ? ReadRemaining() : remaining;
+        actualSecs = Math.Max(0L, Math.Min(sessionMinutes * 60L, (long)Math.Floor((TimeSpan.FromMinutes(sessionMinutes) - left).TotalSeconds)));
+        return true;
+    }
+
+    // 重算今日进度并刷新悬浮条与托盘文案；进行中的专注按整分钟刷新。
     private void UpdateDailyProgress()
     {
         try
         {
             if (overlay == null || overlay.IsDisposed) return;
             if (settings.DailyGoalMinutes <= 0) { overlay.SetDailyProgress(-1f, false); UpdateMenuText(); return; }
-            string dir = Path.GetDirectoryName(Settings.FilePath);
-            long today = AppContext.GetDayFocusSecs(dir, DateTime.Today.ToString("yyyyMMdd"));
+            long today = TodayFocusSecs();
             long goal = settings.DailyGoalMinutes * 60L;
             bool full = today >= goal;
             overlay.SetDailyProgress(Math.Min(1f, (float)((double)today / goal)), full);
@@ -8418,7 +8675,7 @@ internal sealed class AppContext : ApplicationContext
             SetState(ClockState.Paused);
         overlay.SetPaused(true);
         Display(remaining);
-        UpdateMenuText();
+        UpdateDailyProgress();
     }
 
     internal void StartWork()
@@ -8437,6 +8694,7 @@ internal sealed class AppContext : ApplicationContext
         deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency);
         SetState(ClockState.Running);
         lastSeconds = -1;
+        lastLiveFocusMinutes = 0;
         timer.Interval = 100;
         timer.Start();
         overlay.SetPaused(false);
@@ -9167,6 +9425,15 @@ internal sealed class AppContext : ApplicationContext
         {
             lastSeconds = totalSecs;
             FormatAndDisplay(totalSecs);
+            if (state == ClockState.Running)
+            {
+                long liveMin = OpenWorkFocusSecs() / 60;
+                if (liveMin != lastLiveFocusMinutes)
+                {
+                    lastLiveFocusMinutes = liveMin;
+                    UpdateDailyProgress();
+                }
+            }
         }
         double frac = secLeft - Math.Floor(secLeft);
         if (frac <= 0.001) frac = 1.0;
@@ -10357,6 +10624,11 @@ internal sealed class AppContext : ApplicationContext
         List<string> availDates = GetAvailableHistoryDates(historyDir);
         string todayStr = DateTime.Today.ToString("yyyyMMdd");
         string yesterdayStr = DateTime.Today.AddDays(-1).ToString("yyyyMMdd");
+        string openStart, openEnd; int openMinutes; long openSecs; bool openRest;
+        bool hasOpenToday = TryGetOpenHistoryRow(out openStart, out openEnd, out openMinutes, out openSecs, out openRest)
+            && sessionStart.ToString("yyyyMMdd") == todayStr;
+        if (hasOpenToday && !availDates.Contains(todayStr))
+            availDates.Insert(0, todayStr);
         foreach (string dStr in availDates)
         {
             DateTime dt;
@@ -10453,6 +10725,8 @@ internal sealed class AppContext : ApplicationContext
                     fg = Color.FromArgb(16, 124, 65);
                 else if (txt.Contains("良好") || txt.Contains("Good"))
                     fg = Win11Accent;
+                else if (txt == "进行中" || txt == "In progress")
+                    fg = Win11Accent;
                 else if (txt.Contains("及格") || txt.Contains("Fair") || txt == "已中断" || txt == "Interrupted")
                     fg = Color.FromArgb(202, 80, 16);
                 else if (txt.Contains("待提升") || txt.Contains("Needs work") || txt == "已重置" || txt == "Reset" || txt == "-")
@@ -10537,6 +10811,20 @@ internal sealed class AppContext : ApplicationContext
                     catch { }
                 }
 
+                if (selKey == todayStr && TryGetOpenHistoryRow(out openStart, out openEnd, out openMinutes, out openSecs, out openRest))
+                {
+                    totalSessions++;
+                    totalActualSecs += openSecs;
+                    list.Items.Add(new ListViewItem(new string[] {
+                        totalSessions.ToString(),
+                        openStart,
+                        openEnd,
+                        openMinutes + (en ? " min" : " 分钟"),
+                        FormatDuration(openSecs, en),
+                        en ? "In progress" : "进行中"
+                    }));
+                }
+
                 if (totalSessions == 0)
                 {
                     list.Items.Add(new ListViewItem(new string[] { "-", en ? "No countdown records for this day" : "该日期暂无倒计时记录", "", "", "", "" }));
@@ -10589,6 +10877,11 @@ internal sealed class AppContext : ApplicationContext
                     DateTime.TryParseExact(dk, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out dt);
                     int tot, done; long secs;
                     GetDayStats(historyDir, dk, out tot, out done, out secs);
+                    if (dk == todayStr && TryGetOpenHistoryRow(out openStart, out openEnd, out openMinutes, out openSecs, out openRest))
+                    {
+                        tot++;
+                        secs += openSecs;
+                    }
                     string dStr = dt.ToString("yyyy-MM-dd");
                     string weekday = dt.ToString("ddd", en ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo("zh-CN"));
 
@@ -10893,6 +11186,7 @@ internal sealed class AppContext : ApplicationContext
             File.AppendAllText(path, row, new UTF8Encoding(false));
         }
         catch { }
+        InvalidateTodayFocusCache();
         UpdateDailyProgress();
     }
     private void ApplyStartup()
@@ -10999,6 +11293,18 @@ internal sealed class AppContext : ApplicationContext
         if (s == 0) return en ? h + "h " + m + "m" : h + " 小时 " + m + " 分钟";
         return en ? h + "h " + m + "m " + s + "s" : h + " 小时 " + m + " 分 " + s + " 秒";
     }
+    internal static string FormatCompactDuration(long secs)
+    {
+        if (secs <= 0) return "0m";
+        if (secs < 60) return "<1m";
+        long m = (secs + 30) / 60;
+        if (m < 60) return m + "m";
+        long h = m / 60;
+        m = m % 60;
+        if (m == 0) return h + "h";
+        return h + "h" + m + "m";
+    }
+
     internal static string FormatDurationMinutes(long secs, bool en)
     {
         if (secs <= 0) return en ? "0 min" : "0 分钟";

@@ -2,12 +2,12 @@
 
 # <img src="docs/icon-64.png" width="36" height="36" style="vertical-align: -6px;" alt="iClock Logo" /> iClock
 
-### 专为开发者与效率玩家打造的 Windows 原生极简效率中枢 (300 KB)
+### 专为开发者与效率玩家打造的 Windows 原生极简效率中枢 (315 KB)
 **⏱ 极简悬浮倒计时 · 💬 桌面每日金句 · 🤖 AI 智能体命令行协同**
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![Platform](https://img.shields.io/badge/Platform-Windows%207%20%7C%208%20%7C%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
-[![Size](https://img.shields.io/badge/Size-300%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
+[![Size](https://img.shields.io/badge/Size-315%20KB-success)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
 [![WinGet](https://img.shields.io/badge/WinGet-FrancoDeyvison.iClock-0078D6?logo=windows-terminal&logoColor=white)](https://github.com/microsoft/winget-pkgs/pull/449511)
 [![Author](https://img.shields.io/badge/Author-gujiangwen-blue.svg)](mailto:francodeyvison183@gmail.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -45,7 +45,7 @@
 * 🪟 **原生 32 位 ARGB 渲染 & 鼠标全穿透**：基于 Windows 原生 `UpdateLayeredWindow` 渲染，文字边缘细腻平滑无毛刺，自适应微投影在深浅色背景与游戏画面上清晰锐利；默认完全点击穿透（`WS_EX_TRANSPARENT`），不抢焦点、不阻挡代码与网页点击。
 * ⌨️ **随心微交互 & 托盘滚轮调时**：在屏幕上**按住 `Alt` + 鼠标左键直接拖拽**瞬时定位；鼠标悬停托盘图标**滚动滚轮快速微调时长**（`±1m`，按住 `Shift` 为 `±5m`）；支持 `Ctrl + Shift + T` 全局热键盲操启停与托盘单击切换。
 * 🔔 **阶梯提醒与全屏免打扰**：支持**全屏置顶弹窗强提醒**（经典机械电话铃声/闹铃，防沉迷）与**原位呼吸轻提醒**（桌面悬浮文字原地柔和呼吸微闪烁 5 秒+单次轻音，绝不抢占前台焦点打断心流）；智能检测前台全屏游戏、DirectX/Vulkan 渲染或 PPT 幻灯片放映，**自动平滑降级为原位呼吸免打扰**。
-* 📊 **今日专注与多维统计**：支持【单日明细】（历史日期切换、当日汇总）与【按天汇总】（查看最近 7/14/30 天或全部历史的专注总时长、周期数、达成率与成就评价），选中文本 `Ctrl+C` 一键复制，本地 TSV 自动归档。
+* 📊 **今日专注与多维统计**：可设每日专注目标（关闭或 1–8 小时），悬浮条与托盘「今日记录」同步当天累计；支持【单日明细】（含进行中的倒计时）与【按天汇总】（最近 7/14/30 天或全部历史），选中文本 `Ctrl+C` 一键复制，本地 TSV 自动归档。语言与开机自启动在托盘菜单里切换。
 
 ### 2. 💬 桌面每日金句与灵感常驻
 * 🌅 **晨间唤醒与常驻桌面**：开机/解锁晨间唤醒居中优雅浮现；支持一键将金句钉在桌面背景或悬浮常驻。
@@ -64,7 +64,7 @@
 
 | 核心维度 | **iClock (本项目)** | 常见 Electron 计时器 | Windows 自带闹钟 | 网页在线番茄钟 |
 | :--- | :--- | :--- | :--- | :--- |
-| **安装包体积** | ⚡ **300 KB** (单文件免安装) | 120 MB ~ 250 MB | 系统预装应用 | 每次加载数 MB |
+| **安装包体积** | ⚡ **315 KB** (单文件免安装) | 120 MB ~ 250 MB | 系统预装应用 | 每次加载数 MB |
 | **常驻内存** | ⚡ **~15 MB** (物理基线) | 150 MB ~ 300 MB | ~30 MB | 80 MB ~ 200 MB (浏览器标签) |
 | **CPU 占用** | ⚡ **0.0%** (动态心跳对齐) | 0.5% ~ 3.0% (后台轮询) | 0.0% | 0.3% ~ 1.5% |
 | **交互阻碍** | ⚡ **完全点击穿透，不挡鼠标** | 实体窗口遮挡代码与网页 | 最小化或占用全屏 | 必须切出浏览器查看 |
@@ -79,7 +79,7 @@
 
 ### 方式 A：绿色便携压缩包运行（官方推荐 · 防浏览器误报）
 
-1. 前往 [GitHub Releases](../../releases/latest) 下载 **`iClock-1.11-windows.zip` 便携压缩包**（推荐优先下载压缩包，可有效避免 Chrome / Edge 等浏览器对未签名独立 `.exe` 发出信任警告与 SmartScreen 误报拦截）。
+1. 前往 [GitHub Releases](../../releases/latest) 下载 **`iClock-1.12-windows.zip` 便携压缩包**（推荐优先下载压缩包，可有效避免 Chrome / Edge 等浏览器对未签名独立 `.exe` 发出信任警告与 SmartScreen 误报拦截）。
 2. 解压压缩包后，双击 `iClock.exe` 直接运行（绿色免安装，不写注册表垃圾）。
 3. 默认情况下，启动后倒计时处于待命状态（屏幕不显示文字）。
 
@@ -169,7 +169,7 @@ iclock -s 50
 
 当运行 **DeepSeek、Pi、Aider、AutoGPT** 等自主智能体或长推理模型时，传统的执行外壳（Harness）往往局限在终端字符流或重型 Web 容器中，带来**严重的注意力脱节与窗口打断感**。
 
-iClock 单文件仅 300 KB、内存 < 15 MB、0.0% CPU 占用且原生全鼠标穿透，是极具辨识度的 **Windows 桌面原生伴生外骨骼（Ambient Desktop Harness）**：
+iClock 单文件仅 315 KB、内存 < 15 MB、0.0% CPU 占用且原生全鼠标穿透，是极具辨识度的 **Windows 桌面原生伴生外骨骼（Ambient Desktop Harness）**：
 
 ### 1. 为什么用 iClock 作为智能体 Harness 扩展？
 
@@ -242,7 +242,7 @@ harness.notify("✨ 自动化测试全部通过，耗时 3 分 20 秒！")
 
 * **Q: 为什么打游戏或写代码时不挡鼠标操作？**
   **A**: iClock 深度利用了 Windows 底层 `WS_EX_TRANSPARENT` 穿透特性。倒计时浮层浮现在所有窗口最顶层，但所有鼠标点击与滚轮事件均直接穿透到底层的编辑器、终端或全屏游戏，绝不抢占焦点。
-* **Q: 为什么软件体积只有 300 KB？**
+* **Q: 为什么软件体积只有 315 KB？**
   **A**: 坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 15 MB 以内。
 * **Q: 为什么桌面金句常驻后台不耗电？**
   **A**: iClock 采用原生 Windows 消息驱动与 0-Polling 架构，没有后台死循环轮询。静止常驻时 CPU 占用为 0.0%，唤醒开销降至极限，笔记本长驻运行零耗电。
@@ -262,7 +262,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> 编译耗时不到 1 秒，产物输出在 `dist/iClock.exe`（单文件约 300 KB）。详见[构建说明](docs/BUILDING.md)。
+> 编译耗时不到 1 秒，产物输出在 `dist/iClock.exe`（单文件约 315 KB）。详见[构建说明](docs/BUILDING.md)。
 
 ---
 

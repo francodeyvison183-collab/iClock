@@ -4,11 +4,11 @@
 
 iClock is an open-source Windows desktop utility built as a portable native executable with no third-party runtime dependencies.
 
-Last updated: 2026-10-23. Full context: https://francodeyvison183-collab.github.io/iClock/llms-full.txt
+Last updated: 2026-10-24. Full context: https://francodeyvison183-collab.github.io/iClock/llms-full.txt
 
 ## Key Features
 
-- Floating countdown timer with click-through overlay, global hotkey, and focus history.
+- Floating countdown timer with click-through overlay, global hotkey, daily focus goal, and focus history (including in-progress sessions). Language and auto-start live on the tray menu.
 - Ambient desktop quotes with local library editing and CLI import for AI-generated quote files.
 - AI agent task monitoring for supported desktop agents.
 - Local CLI collaboration: `--ask` for human decisions, `--progress` for task status, `--notice` for completion alerts, and `--quote-add` for quote imports.
