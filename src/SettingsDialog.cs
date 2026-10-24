@@ -44,7 +44,6 @@ internal sealed class SettingsDialog : Form
     public event Action<bool> QuotePreviewRequested;
     public event Action QuoteNextRequested;
     public bool IsDailyQuoteChecked { get { return dailyQuoteToggle != null && dailyQuoteToggle.Checked; } }
-    public bool IsQuoteDesktopVisible { get { return IsDailyQuoteChecked; } }
     public int DialogQuoteIndex { get { return dialogQuoteIndex; } }
     public int ActiveTab { get { return activeTab; } }
     private static readonly string[] fontFamilies = { "Segoe UI", "Consolas", "Arial", "Impact", "Microsoft YaHei" };

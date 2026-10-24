@@ -45,7 +45,6 @@ internal sealed class Settings
     public bool AgentProgress;
     public bool DesktopCollaborationEnabled = true;
     public bool DailyQuote = true;
-    public bool QuoteDesktopVisible { get { return DailyQuote; } set { DailyQuote = value; } }
     public int QuoteX = -99999;
     public int QuoteY = -99999;
     public int QuoteWidth = -1;
