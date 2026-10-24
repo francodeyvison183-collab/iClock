@@ -776,7 +776,11 @@ internal sealed class UsageAxisPanel : Panel
                     g.DrawLine(p, x, bar.Bottom, x, bar.Bottom + 3);
                 string label = tick.ToString("HH:mm");
                 Size sz = TextRenderer.MeasureText(label, tickFont, Size.Empty, flags);
-                TextRenderer.DrawText(g, label, tickFont, new Rectangle(x - sz.Width / 2, bar.Bottom + 3, sz.Width, 14), AppContext.Win11ShortcutGray, flags);
+                // Center on the tick but keep the label inside the panel: the
+                // first/last ticks sit at the bar's edges and would otherwise
+                // be clipped mid-character.
+                int lx = Math.Max(0, Math.Min(Width - sz.Width, x - sz.Width / 2));
+                TextRenderer.DrawText(g, label, tickFont, new Rectangle(lx, bar.Bottom + 3, sz.Width, 14), AppContext.Win11ShortcutGray, flags);
                 tick = tick.AddHours(step);
             }
         }
