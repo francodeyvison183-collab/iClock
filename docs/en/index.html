@@ -438,7 +438,7 @@
     }
 
     .hero-title {
-      font-size: clamp(20px, 2.5vw, 32px);
+      font-size: clamp(18px, calc((min(100vw, var(--container-max)) - 48px) / 23.4), 48px);
       font-weight: 700;
       line-height: 1.2;
       letter-spacing: -0.02em;
@@ -1597,9 +1597,6 @@
 
     /* 响应式适配 */
     @media (max-width: 900px) {
-      .hero-title {
-        font-size: clamp(16px, 3.4vw, 22px);
-      }
       html[lang="en"] .hero-title {
         font-size: clamp(12px, 2.2vw, 15px);
       }
