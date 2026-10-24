@@ -1468,19 +1468,7 @@ internal sealed class AppContext : ApplicationContext
             if (isOneShot) Exit();
         };
         dlg.Show();
-        if (isFg)
-        {
-            try
-            {
-                dlg.TopMost = true;
-                NativeMethods.SetWindowPos(dlg.Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0053);
-            }
-            catch { }
-        }
-        else
-        {
-            ForceTopMost(dlg);
-        }
+        AppContext.PinAgentPopup(dlg, isFg);
     }
 
     internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile, string agentName = null, Action<string> resultCallback = null)
@@ -1505,19 +1493,7 @@ internal sealed class AppContext : ApplicationContext
             if (activeAskHumanDialog == dlg) activeAskHumanDialog = null;
         };
         dlg.Show();
-        if (isFg)
-        {
-            try
-            {
-                dlg.TopMost = true;
-                NativeMethods.SetWindowPos(dlg.Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0053);
-            }
-            catch { }
-        }
-        else
-        {
-            ForceTopMost(dlg);
-        }
+        AppContext.PinAgentPopup(dlg, isFg);
     }
 
     internal void ShowCustomQuote(string text, string author, string agentName = null, int agentPid = 0)
@@ -3921,6 +3897,26 @@ internal sealed class AppContext : ApplicationContext
             NativeMethods.BringWindowToTop(f.Handle);
         }
         catch { }
+    }
+
+    // Shared topmost handling for agent popups: pin in place when the agent is
+    // in the foreground, otherwise interrupt with full topmost + focus.
+    internal static void PinAgentPopup(Form f, bool agentInForeground)
+    {
+        if (f == null || f.IsDisposed) return;
+        if (agentInForeground)
+        {
+            try
+            {
+                f.TopMost = true;
+                NativeMethods.SetWindowPos(f.Handle, new IntPtr(-1), 0, 0, 0, 0, 0x0053);
+            }
+            catch { }
+        }
+        else
+        {
+            ForceTopMost(f);
+        }
     }
 
     internal static void DrawLogoVector(Graphics g, float x, float y, float sz)
