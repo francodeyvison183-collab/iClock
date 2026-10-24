@@ -11439,15 +11439,17 @@ internal sealed class AppContext : ApplicationContext
         usageSwitch.TabStop = true;
 
         Label lblUsage = new Label();
-        lblUsage.AutoSize = false;
+        lblUsage.AutoSize = true;
         lblUsage.UseMnemonic = false;
         lblUsage.TextAlign = ContentAlignment.MiddleRight;
         lblUsage.Text = en ? "Enable usage tracking" : "开启使用时间跟踪&统计";
         lblUsage.Font = f.Font;
         lblUsage.ForeColor = Win11TextSecondary;
         lblUsage.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        int usageLabelW = TextRenderer.MeasureText(lblUsage.Text, f.Font, new Size(int.MaxValue, 24), TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Width + 8;
         usageSwitch.Location = new Point(f.ClientSize.Width - 12 - usageSwitch.Width, 13);
+        // 按文字本身的宽度再留出一个字，避免最后一个字换行后被裁掉。
+        int usageLabelW = lblUsage.PreferredSize.Width + lblUsage.Font.Height;
+        lblUsage.AutoSize = false;
         lblUsage.SetBounds(usageSwitch.Left - 6 - usageLabelW, 12, usageLabelW, 24);
 
         Button btnNext = new Button();
