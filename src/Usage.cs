@@ -38,6 +38,11 @@ internal sealed class UsageSegment
     public DateTime End;
     public string State;
     public string Exe;
+    // Foreground-input samples while this segment was open. Counting samples
+    // (not keystrokes) keeps the tracker content-free: ~1 sample per 30s, a
+    // segment of heavy use has most samples, light use few.
+    public int InputSamples;
+    public int ActiveSamples;
     public long Seconds
     {
         get { return Math.Max(0L, (long)Math.Round((End - Start).TotalSeconds)); }
@@ -49,6 +54,8 @@ internal sealed class UsageSummary
     public string State;
     public string Exe;
     public long Seconds;
+    public int InputSamples;
+    public int ActiveSamples;
 }
 
 internal static class UsageLog
@@ -75,7 +82,8 @@ internal static class UsageLog
 
     public static string FormatRow(UsageSegment s)
     {
-        return s.Start.ToString("HH:mm:ss") + "\t" + s.End.ToString("HH:mm:ss") + "\t" + (s.State ?? "") + "\t" + (s.Exe ?? "") + "\t" + s.Seconds;
+        return s.Start.ToString("HH:mm:ss") + "\t" + s.End.ToString("HH:mm:ss") + "\t" + (s.State ?? "") + "\t" + (s.Exe ?? "") + "\t" + s.Seconds
+            + "\t" + s.InputSamples + "\t" + s.ActiveSamples;
     }
 
     public static bool TryParseRow(string line, DateTime day, out UsageSegment seg)
@@ -95,6 +103,10 @@ internal static class UsageLog
         if (seg.End < seg.Start) seg.End = seg.End.AddDays(1);
         seg.State = state;
         seg.Exe = state == Active ? (p[3] ?? "").Trim() : "";
+        // Columns 6/7 (input sample counts) are optional for older files.
+        int n;
+        if (p.Length > 5 && int.TryParse(p[5].Trim(), out n)) seg.InputSamples = Math.Max(0, n);
+        if (p.Length > 6 && int.TryParse(p[6].Trim(), out n)) seg.ActiveSamples = Math.Max(0, n);
         return true;
     }
 
@@ -145,11 +157,16 @@ internal static class UsageLog
         a.End = s.Start.Date.AddDays(1);
         a.State = s.State;
         a.Exe = s.Exe;
+        double frac = (a.End - a.Start).TotalSeconds / Math.Max(1.0, s.Seconds);
+        a.InputSamples = (int)Math.Round(s.InputSamples * frac);
+        a.ActiveSamples = (int)Math.Round(s.ActiveSamples * frac);
         UsageSegment b = new UsageSegment();
         b.Start = a.End;
         b.End = s.End;
         b.State = s.State;
         b.Exe = s.Exe;
+        b.InputSamples = Math.Max(0, s.InputSamples - a.InputSamples);
+        b.ActiveSamples = Math.Max(0, s.ActiveSamples - a.ActiveSamples);
         list.Add(a);
         list.AddRange(SplitAtDayBoundary(b));
         return list;
@@ -183,12 +200,16 @@ internal static class UsageLog
                 if (i + 1 < work.Count && work[i + 1].State == Active)
                 {
                     work[i + 1].Start = cur.Start;
+                    work[i + 1].InputSamples += cur.InputSamples;
+                    work[i + 1].ActiveSamples += cur.ActiveSamples;
                     work.RemoveAt(i);
                     continue;
                 }
                 if (i > 0 && work[i - 1].State == Active)
                 {
                     work[i - 1].End = cur.End;
+                    work[i - 1].InputSamples += cur.InputSamples;
+                    work[i - 1].ActiveSamples += cur.ActiveSamples;
                     work.RemoveAt(i);
                     continue;
                 }
@@ -219,6 +240,8 @@ internal static class UsageLog
                 order.Add(row);
             }
             row.Seconds += sec;
+            row.InputSamples += s.InputSamples;
+            row.ActiveSamples += s.ActiveSamples;
         }
         order.Sort(delegate(UsageSummary a, UsageSummary b) { return b.Seconds.CompareTo(a.Seconds); });
         return order;
@@ -244,7 +267,9 @@ internal static class UsageLog
 
     public static string LabelFor(string state, string exe, bool en)
     {
-        if (state == Idle) return en ? "Idle" : "空闲";
+        // "Not operating (may be watching)" — the person is present but the
+        // mouse/keyboard is quiet; leaving the machine is locked/sleep.
+        if (state == Idle) return en ? "Not operating" : "未操作（可能在观看）";
         if (state == Locked) return en ? "Locked" : "已锁屏";
         if (state == Sleep) return en ? "Sleep" : "睡眠";
         if (state != Active) return en ? "Untracked" : "未记录";
@@ -303,6 +328,7 @@ internal static class UsageLog
     {
         UsageSegment n = new UsageSegment();
         n.Start = s.Start; n.End = s.End; n.State = s.State; n.Exe = s.Exe;
+        n.InputSamples = s.InputSamples; n.ActiveSamples = s.ActiveSamples;
         return n;
     }
 
@@ -332,6 +358,7 @@ internal sealed class UsageTracker
     private UsageSegment open;
     private bool running;
     private bool suppressChanged;
+    private uint lastInputTick;
 
     public event Action Changed;
 
@@ -450,6 +477,14 @@ internal sealed class UsageTracker
             li.cbSize = (uint)Marshal.SizeOf(typeof(NativeMethods.LASTINPUTINFO));
             if (!NativeMethods.GetLastInputInfo(ref li)) return;
             uint idleMs = ((uint)Environment.TickCount) - li.dwTime;
+            // One sample per 30s tick: input happened since the last sample when
+            // the last-input tick advanced. Counted, never recorded as content.
+            if (open != null && li.dwTime != lastInputTick)
+            {
+                open.InputSamples++;
+                if (idleMs < (uint)(UsageLog.IdleMinutes * 60 * 1000)) open.ActiveSamples++;
+            }
+            lastInputTick = li.dwTime;
             if (idleMs >= (uint)(UsageLog.IdleMinutes * 60 * 1000))
             {
                 if (open == null || open.State != UsageLog.Idle)

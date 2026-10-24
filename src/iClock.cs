@@ -3204,19 +3204,18 @@ internal sealed class AppContext : ApplicationContext
                     list.Columns[0].TextAlign = HorizontalAlignment.Center;
                     list.Columns[0].Text = "";
                     list.Columns[1].Text = en ? "App" : "应用";
-                    list.Columns[2].Text = en ? "Duration" : "时长";
-                    list.Columns[3].Text = en ? "Share" : "占比";
+                    list.Columns[2].Text = en ? "Active time" : "活跃时长";
+                    list.Columns[3].Text = en ? "Share of active" : "活跃占比";
                     list.Columns[4].Text = "";
                     list.Columns[5].Text = "";
 
                     List<UsageSummary> rows = UsageLog.Summarize(daySegs);
-                    long total = 0;
-                    long activeSecs = 0, idleSecs = 0;
+                    long activeSecs = 0, notOpSecs = 0, awaySecs = 0;
                     for (int i = 0; i < rows.Count; i++)
                     {
-                        total += rows[i].Seconds;
                         if (rows[i].State == UsageLog.Active) activeSecs += rows[i].Seconds;
-                        else if (rows[i].State == UsageLog.Idle) idleSecs += rows[i].Seconds;
+                        else if (rows[i].State == UsageLog.Idle) notOpSecs += rows[i].Seconds;
+                        else awaySecs += rows[i].Seconds;
                     }
                     if (rows.Count == 0)
                     {
@@ -3228,27 +3227,47 @@ internal sealed class AppContext : ApplicationContext
                     }
                     else
                     {
+                        // App ranking only: idle/locked/sleep are person states,
+                        // not apps, so they live in the summary line alone.
+                        List<UsageSummary> appRows = new List<UsageSummary>();
                         for (int i = 0; i < rows.Count; i++)
+                            if (rows[i].State == UsageLog.Active) appRows.Add(rows[i]);
+                        // Shares use active operating time as the denominator so
+                        // idle/away time never dilutes the app ranking.
+                        int appPct = 0;
+                        for (int i = 0; i < appRows.Count; i++)
                         {
-                            int pct = total > 0 ? (int)Math.Round(rows[i].Seconds * 100.0 / total) : 0;
+                            appPct = activeSecs > 0 ? (int)Math.Round(appRows[i].Seconds * 100.0 / activeSecs) : 0;
                             ListViewItem lvi = new ListViewItem(new string[] {
                                 "",
-                                UsageLog.LabelFor(rows[i].State, rows[i].Exe, en),
-                                FormatDuration(rows[i].Seconds, en),
-                                pct + "%",
+                                UsageLog.DisplayName(appRows[i].Exe),
+                                FormatDuration(appRows[i].Seconds, en),
+                                appPct + "%",
                                 "",
                                 ""
                             });
-                            lvi.Tag = UsageLog.ColorFor(rows[i].State, rows[i].Exe);
-                            lvi.Name = rows[i].State == UsageLog.Active ? ("a:" + (rows[i].Exe ?? "")) : rows[i].State;
+                            lvi.Tag = UsageLog.ColorFor(appRows[i].State, appRows[i].Exe);
+                            lvi.Name = "a:" + (appRows[i].Exe ?? "");
                             list.Items.Add(lvi);
+                        }
+                        // Person-level picture: presence first, then how the
+                        // active time splits into heavy vs light input.
+                        int heavy = 0, light = 0;
+                        for (int i = 0; i < appRows.Count; i++)
+                        {
+                            heavy += appRows[i].ActiveSamples;
+                            light += appRows[i].InputSamples - appRows[i].ActiveSamples;
                         }
                         currentSpans = new StatSpan[]
                         {
-                            new StatSpan(en ? rows.Count + " items · Active " : rows.Count + " 项 · 使用 ", f.Font, Win11TextPrimary),
+                            new StatSpan(en ? "At the computer " : "在电脑前 ", f.Font, Win11TextPrimary),
+                            new StatSpan(FormatDuration(activeSecs + notOpSecs, en), boldFont, Win11Accent),
+                            new StatSpan(en ? " ｜ Operating " : " ｜ 操作使用 ", f.Font, Win11TextSecondary),
                             new StatSpan(FormatDuration(activeSecs, en), boldFont, Win11Accent),
-                            new StatSpan(en ? " · Idle " : " · 空闲 ", f.Font, Win11TextSecondary),
-                            new StatSpan(FormatDuration(idleSecs, en), boldFont, Win11TextPrimary)
+                            new StatSpan(en ? " ｜ Not operating " : " ｜ 未操作 ", f.Font, Win11TextSecondary),
+                            new StatSpan(FormatDuration(notOpSecs, en), boldFont, Win11TextPrimary),
+                            new StatSpan(en ? " ｜ Away (locked/sleep) " : " ｜ 离开（锁屏/睡眠） ", f.Font, Win11TextSecondary),
+                            new StatSpan(FormatDuration(awaySecs, en), boldFont, Win11TextPrimary)
                         };
                     }
                 }
