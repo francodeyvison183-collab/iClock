@@ -4092,9 +4092,11 @@ internal sealed class AppContext : ApplicationContext
         Size targetSize = SystemInformation.SmallIconSize;
         try
         {
-            using (Stream s = typeof(AppContext).Assembly.GetManifestResourceStream("app.ico"))
+            // The icon is already embedded as the exe's win32 icon; skip a
+            // second managed copy and read it from there.
+            using (Icon exeIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath))
             {
-                if (s != null) return new Icon(s, targetSize.Width, targetSize.Height);
+                if (exeIcon != null) return new Icon(exeIcon, targetSize.Width, targetSize.Height);
             }
         }
         catch { }

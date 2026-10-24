@@ -29,7 +29,6 @@ if (Test-Path -LiteralPath $zan) {
     $compilerArgs += "/resource:$zan,zan.jpg"
 }
 if (Test-Path -LiteralPath $appIco) {
-    $compilerArgs += "/resource:$appIco,app.ico"
     $compilerArgs += "/win32icon:$appIco"
 }
 # Brand mark for the screensaver: app.ico only carries a 24x24 frame, which
