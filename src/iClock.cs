@@ -2947,6 +2947,9 @@ internal sealed class AppContext : ApplicationContext
                 + hit.Start.ToString("HH:mm") + " – " + hit.End.ToString("HH:mm") + "\r\n"
                 + FormatDuration(hit.Seconds, en));
         };
+        usageAxis.MouseLeave += delegate { axisTip.SetToolTip(usageAxis, ""); };
+        // Clicking the ribbon toggles activity-window / full-day zoom.
+        usageAxis.MouseClick += delegate { usageAxis.ToggleZoom(); };
 
         // Day-view sub-mode switch: two full-width pills on their own row
         // between the axis and the list, styled lighter than the accent top tabs.
@@ -3182,26 +3185,28 @@ internal sealed class AppContext : ApplicationContext
 
                 List<UsageSegment> daySegs = (usageTracker != null && selKey == todayStr)
                     ? usageTracker.GetDayWithOpen(selKey) : UsageLog.LoadDay(selKey);
-                // The ribbon starts at the day's earliest recorded activity, not
-                // midnight/boot, so the visible range tracks when iClock (and the
-                // machine) actually began doing things that day.
-                DateTime axisStart = selKey == todayStr ? DateTime.Now.Date : DateTime.Today;
-                DateTime axisEnd = DateTime.Now;
+                // The ribbon shows the day's earliest-to-latest activity by default
+                // (click toggles the full-day view); historical days span their own
+                // midnight-to-midnight.
                 DateTime selDay;
+                DateTime dayLo = DateTime.Today, dayHi = DateTime.Now;
                 if (DateTime.TryParseExact(selKey, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out selDay))
                 {
                     if (selKey != todayStr)
                     {
-                        axisStart = selDay.Date;
-                        axisEnd = selDay.Date.AddDays(1);
+                        dayLo = selDay.Date;
+                        dayHi = selDay.Date.AddDays(1);
                     }
                 }
+                DateTime axisStart = dayLo;
+                DateTime axisEnd = dayHi;
                 if (daySegs.Count > 0)
                 {
                     if (daySegs[0].Start < axisStart) axisStart = daySegs[0].Start;
                     DateTime last = daySegs[daySegs.Count - 1].End;
                     if (last > axisEnd) axisEnd = last;
                 }
+                usageAxis.SetDayBounds(dayLo, dayHi);
                 usageAxis.SetData(daySegs, axisStart, axisEnd, usageHighlight, en);
 
                 if (currentDaySubMode == 1 && settings.UsageTrackEnabled)

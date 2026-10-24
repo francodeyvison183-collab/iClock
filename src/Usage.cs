@@ -647,13 +647,17 @@ internal sealed class UsageAxisPanel : Panel
     private List<UsageSegment> segments = new List<UsageSegment>();
     private DateTime axisStart = DateTime.Today;
     private DateTime axisEnd = DateTime.Now;
+    private DateTime dayStart = DateTime.Today;
+    private DateTime dayEnd = DateTime.Now;
     private string highlightKey = "";
     private bool en;
+    private bool fullDay;
 
     public UsageAxisPanel()
     {
         DoubleBuffered = true;
         BackColor = Color.White;
+        Cursor = Cursors.Hand;
     }
 
     public void SetData(List<UsageSegment> segs, DateTime start, DateTime end, string highlight, bool english)
@@ -663,6 +667,43 @@ internal sealed class UsageAxisPanel : Panel
         axisEnd = end <= start ? start.AddMinutes(1) : end;
         highlightKey = highlight ?? "";
         en = english;
+        // Remember the activity window so clicking can toggle between it and
+        // the full-day view without the caller re-feeding data.
+        if (!fullDay)
+        {
+            dayStart = start;
+            dayEnd = end;
+        }
+        ApplyRange();
+    }
+
+    // Activity window = the day's real first-to-last activity; full day = midnight to midnight.
+    public void SetDayBounds(DateTime dayStart, DateTime dayEnd)
+    {
+        this.dayStart = dayStart;
+        this.dayEnd = dayEnd;
+        ApplyRange();
+    }
+
+    public bool ToggleZoom()
+    {
+        fullDay = !fullDay;
+        ApplyRange();
+        return fullDay;
+    }
+
+    private void ApplyRange()
+    {
+        if (fullDay)
+        {
+            axisStart = dayStart.Date;
+            axisEnd = dayStart.Date.AddDays(1);
+        }
+        else
+        {
+            axisStart = dayStart;
+            axisEnd = dayEnd <= dayStart ? dayStart.AddMinutes(1) : dayEnd;
+        }
         Invalidate();
     }
 
@@ -744,6 +785,19 @@ internal sealed class UsageAxisPanel : Panel
             }
         }
         finally { tickFont.Dispose(); }
+
+        // Zoom-state badge in the top-right corner: a hint that clicking the
+        // ribbon toggles between the activity window and the full day.
+        string badge = fullDay ? (en ? "Full day  ⤒" : "全天  ⤒") : (en ? "Activity  ⤒" : "活动时段  ⤒");
+        Font badgeFont = AppContext.GetUiFont(en ? "en" : "zh", 7.5f);
+        try
+        {
+            Size bsz = TextRenderer.MeasureText(badge, badgeFont, Size.Empty, TextFormatFlags.NoPadding);
+            Point bpos = new Point(Width - bsz.Width - 10, 2);
+            TextRenderer.DrawText(g, badge, badgeFont, bpos, Color.FromArgb(150, 156, 168),
+                TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
+        }
+        finally { badgeFont.Dispose(); }
     }
 
     private Rectangle BarRect()
