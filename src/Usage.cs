@@ -69,6 +69,9 @@ internal static class UsageLog
 
     private static readonly Dictionary<string, string> DisplayCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, Color> ColorCache = new Dictionary<string, Color>(StringComparer.OrdinalIgnoreCase);
+    // Hues already handed out, in assignment order, so a new app can dodge
+    // colors that are visually identical to an existing one.
+    private static readonly List<float> UsedHues = new List<float>();
 
     public static string DataDir()
     {
@@ -256,10 +259,29 @@ internal static class UsageLog
         string key = string.IsNullOrEmpty(exe) ? "unknown" : exe;
         Color c;
         if (ColorCache.TryGetValue(key, out c)) return c;
-        int h = 0;
-        string low = key.ToLowerInvariant();
-        for (int i = 0; i < low.Length; i++) h = unchecked(h * 33 + low[i]);
-        float hue = (h & 0xFF) / 255f * 360f;
+        float hue;
+        lock (ColorCache)
+        {
+            int h = 0;
+            string low = key.ToLowerInvariant();
+            for (int i = 0; i < low.Length; i++) h = unchecked(h * 33 + low[i]);
+            hue = (h & 0xFF) / 255f * 360f;
+            // Slide the hue forward until it is clearly distinct from every
+            // already-assigned color; the hash only picks the starting point.
+            for (int tries = 0; tries < 17; tries++)
+            {
+                float minDiff = 360f;
+                for (int i = 0; i < UsedHues.Count; i++)
+                {
+                    float d = Math.Abs(UsedHues[i] - hue);
+                    if (d > 180f) d = 360f - d;
+                    if (d < minDiff) minDiff = d;
+                }
+                if (minDiff >= 22f) break;
+                hue = (hue + 22f) % 360f;
+            }
+            UsedHues.Add(hue);
+        }
         c = ColorFromHsv(hue, 0.52f, 0.84f);
         ColorCache[key] = c;
         return c;
