@@ -49,6 +49,9 @@ internal sealed class Overlay : Form
     private Point formStart;
     private bool snapH, snapV; // horizontal/vertical center snap active during drag
     private Font cachedFont;
+    // 休息模式图标：系统字形 ☕（U+2615，单色轮廓）+ 固定暖棕色，不跟随倒计时颜色。
+    private Font cachedRestFont;
+    private SolidBrush cachedRestBrush;
     private SolidBrush cachedBrush;
     private SolidBrush cachedShadowBrush;
     private StringFormat cachedFormat;
@@ -226,6 +229,8 @@ internal sealed class Overlay : Form
         if (renderGraphics != null) { renderGraphics.Dispose(); renderGraphics = null; }
         if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
         if (cachedFont != null) cachedFont.Dispose();
+        if (cachedRestFont != null) { cachedRestFont.Dispose(); cachedRestFont = null; }
+        if (cachedRestBrush != null) { cachedRestBrush.Dispose(); cachedRestBrush = null; }
         if (cachedBrush != null) cachedBrush.Dispose();
         if (cachedShadowBrush != null) { cachedShadowBrush.Dispose(); cachedShadowBrush = null; }
         if (cachedFormat == null)
@@ -240,6 +245,12 @@ internal sealed class Overlay : Form
         string family = string.IsNullOrEmpty(settings.FontFamily) ? "Segoe UI" : settings.FontFamily;
         try { cachedFont = new Font(family, settings.FontSize, FontStyle.Bold, GraphicsUnit.Pixel); }
         catch { cachedFont = new Font("Segoe UI", settings.FontSize, FontStyle.Bold, GraphicsUnit.Pixel); }
+        // ☕ 字形（U+2615，不带 VS16 以保持单色轮廓）。字形视觉高度约为字号的
+        // 0.55 倍，按 1.25 倍字号渲染才和数字等高；Regular 字重避免小尺寸糊成一团。
+        try { cachedRestFont = new Font("Segoe UI Symbol", settings.FontSize * 1.25f, FontStyle.Regular, GraphicsUnit.Pixel); }
+        catch { cachedRestFont = cachedFont; }
+        // 固定暖棕（RGB 198,124,66），深浅桌面都靠阴影保证对比。
+        cachedRestBrush = new SolidBrush(Color.FromArgb(198, 124, 66));
         cachedBrush = new SolidBrush(c);
         float brightness = c.GetBrightness();
         int shadowAlpha = 110;
@@ -256,11 +267,12 @@ internal sealed class Overlay : Form
         {
             SizeF size = g.MeasureString(template, cachedFont);
             float extraPauseWidth = (float)Math.Ceiling(cachedFont.Size * 0.75f);
-            float extraRestWidth = RestMode ? (float)Math.Ceiling(cachedFont.Size * 0.95f) : 0f;
             cachedTextWidth = size.Width;
             int textH = Math.Max(50, (int)Math.Ceiling(size.Height) + 10);
             if (showProgress) textH += 8;
-            Size = new Size(Math.Max(100, (int)Math.Ceiling(size.Width + extraPauseWidth + extraRestWidth) + 16), textH);
+            // 休息模式：顶部多留一条放 ☕ 字形的高度。
+            if (RestMode) textH += (int)RestIconBlockH(cachedFont.Size);
+            Size = new Size(Math.Max(100, (int)Math.Ceiling(size.Width + extraPauseWidth) + 16), textH);
         }
 
         using (GraphicsPath path = new GraphicsPath())
@@ -321,14 +333,25 @@ internal sealed class Overlay : Form
         RenderLayeredWindow();
     }
 
-    // 休息模式的排版：[咖啡杯] [暂停双条(仅暂停时)] [数字]，整组居中。
+    // U+2615 HOT BEVERAGE：不带 VS16，让 GDI+ 渲染单色轮廓字形而非彩色 emoji。
+    private const string RestGlyph = "☕";
+
+    // 顶部图标区高度：字形按 1.25 倍字号渲染（压扁后更矮），上下各留一点余量。
+    private static float RestIconBlockH(float fontSize)
+    {
+        return (float)Math.Ceiling(fontSize * 1.1f);
+    }
+
+    // 休息模式排版：☕ 字形画在数字正上方（原「休息」文字的位置），
+    // 下方是数字 + 暂停双条(仅暂停时)，各自水平居中。
     // withShadow 为 false 时（移动模式的白卡预览）只画主色一遍。
-    private void DrawRestCombo(int textAreaH, bool withShadow)
+    // restTop 是顶部图标区高度，areaH 是数字区高度。
+    private void DrawRestCombo(int restTop, int areaH, bool withShadow)
     {
         SolidBrush shadowBrush = cachedShadowBrush ?? cachedBrush;
         float f = cachedFont.Size;
+        float centerY = restTop + areaH / 2f;
 
-        float cupW = f * 0.60f;
         float spacing = Math.Max(4f, (float)Math.Round(f * 0.22f));
         float barIconW = 0f;
         float barWidth = 0f, barGap = 0f, barHeight = 0f;
@@ -342,10 +365,9 @@ internal sealed class Overlay : Form
         }
 
         SizeF textSize = renderGraphics.MeasureString(text, cachedFont, PointF.Empty, StringFormat.GenericTypographic);
-        float totalWidth = cupW + spacing + (IsPaused ? barIconW + spacing : 0f) + textSize.Width;
+        float totalWidth = (IsPaused ? barIconW + spacing : 0f) + textSize.Width;
         float startX = (Width - totalWidth) / 2f;
-        float centerY = cachedDigitCenterY > 0 ? cachedDigitCenterY : (textAreaH / 2f);
-        float textX = startX + cupW + spacing + (IsPaused ? barIconW + spacing : 0f);
+        float textX = startX + (IsPaused ? barIconW + spacing : 0f);
         float iconY = centerY - barHeight / 2f;
 
         using (StringFormat sf = new StringFormat(StringFormat.GenericTypographic))
@@ -353,68 +375,41 @@ internal sealed class Overlay : Form
             sf.Alignment = StringAlignment.Center;
             sf.LineAlignment = StringAlignment.Center;
 
-            RectangleF textRect = new RectangleF(textX, 0, textSize.Width + 2f, textAreaH);
-            RectangleF shadowTextRect = new RectangleF(textX + 1.5f, 2.0f, textSize.Width + 2f, textAreaH);
+            Font iconFont = cachedRestFont ?? cachedFont;
+            RectangleF iconRect = new RectangleF(0f, 0f, Width, restTop);
+            RectangleF iconShadowRect = new RectangleF(1.5f, 2.0f, Width, restTop);
+            RectangleF textRect = new RectangleF(textX, restTop, textSize.Width + 2f, areaH);
+            RectangleF shadowTextRect = new RectangleF(textX + 1.5f, restTop + 2.0f, textSize.Width + 2f, areaH);
+
+            // ☕ 字形本身瘦长，横向 1.22 / 纵向 0.80 压扁后接近杯子的扁平比例。
+            GraphicsState iconTf = renderGraphics.Save();
+            renderGraphics.TranslateTransform(Width / 2f, restTop / 2f);
+            renderGraphics.ScaleTransform(1.22f, 0.80f);
+            renderGraphics.TranslateTransform(-Width / 2f, -restTop / 2f);
 
             if (withShadow)
             {
-                DrawCoffeeIcon(shadowBrush, startX + 1.5f, centerY + 2.0f, f);
+                renderGraphics.DrawString(RestGlyph, iconFont, shadowBrush, iconShadowRect, sf);
+            }
+            renderGraphics.DrawString(RestGlyph, iconFont, cachedRestBrush ?? cachedBrush, iconRect, sf);
+            renderGraphics.Restore(iconTf);
+
+            if (withShadow)
+            {
                 if (IsPaused)
                 {
-                    FillRoundedBar(renderGraphics, shadowBrush, startX + cupW + spacing + 1.5f, iconY + 2.0f, barWidth, barHeight);
-                    FillRoundedBar(renderGraphics, shadowBrush, startX + cupW + spacing + barWidth + barGap + 1.5f, iconY + 2.0f, barWidth, barHeight);
+                    FillRoundedBar(renderGraphics, shadowBrush, startX + 1.5f, iconY + 2.0f, barWidth, barHeight);
+                    FillRoundedBar(renderGraphics, shadowBrush, startX + barWidth + barGap + 1.5f, iconY + 2.0f, barWidth, barHeight);
                 }
                 renderGraphics.DrawString(text, cachedFont, shadowBrush, shadowTextRect, sf);
             }
 
-            DrawCoffeeIcon(cachedBrush, startX, centerY, f);
             if (IsPaused)
             {
-                FillRoundedBar(renderGraphics, cachedBrush, startX + cupW + spacing, iconY, barWidth, barHeight);
-                FillRoundedBar(renderGraphics, cachedBrush, startX + cupW + spacing + barWidth + barGap, iconY, barWidth, barHeight);
+                FillRoundedBar(renderGraphics, cachedBrush, startX, iconY, barWidth, barHeight);
+                FillRoundedBar(renderGraphics, cachedBrush, startX + barWidth + barGap, iconY, barWidth, barHeight);
             }
             renderGraphics.DrawString(text, cachedFont, cachedBrush, textRect, sf);
-        }
-    }
-
-    // 咖啡杯小图标：圆角杯身 + 右侧把手 + 两缕热气，几何随字号缩放，
-    // 颜色取传入画笔（主色或阴影色）。(x, centerY) 是图标左缘与垂直中心。
-    private void DrawCoffeeIcon(Brush brush, float x, float centerY, float f)
-    {
-        Color color = ((SolidBrush)brush).Color;
-        float mugW = f * 0.40f;
-        float mugH = f * 0.34f;
-        float steamH = f * 0.20f;
-        float iconH = mugH + steamH + f * 0.03f;
-        float mugY = centerY - iconH / 2f + steamH + f * 0.03f;
-        float mugX = x;
-
-        using (Pen pen = new Pen(color, Math.Max(1.2f, f * 0.055f)))
-        {
-            pen.StartCap = LineCap.Round;
-            pen.EndCap = LineCap.Round;
-            // 把手：右侧一段圆弧，先画，杯身盖住它的左端。
-            RectangleF handleRect = new RectangleF(mugX + mugW - f * 0.04f, mugY + mugH * 0.18f, f * 0.22f, mugH * 0.62f);
-            renderGraphics.DrawArc(pen, handleRect, -65f, 130f);
-            // 两缕热气：S 形贝塞尔。
-            for (int i = 0; i < 2; i++)
-            {
-                float sx = mugX + mugW * (i == 0 ? 0.30f : 0.66f);
-                float syBottom = mugY - f * 0.02f;
-                float syTop = mugY - f * 0.02f - steamH;
-                renderGraphics.DrawBezier(pen,
-                    sx, syBottom,
-                    sx - f * 0.05f, syBottom - steamH * 0.4f,
-                    sx + f * 0.05f, syTop + steamH * 0.4f,
-                    sx, syTop);
-            }
-        }
-
-        using (GraphicsPath mug = AppContext.GetRoundedRectPath(
-            new Rectangle((int)Math.Round(mugX), (int)Math.Round(mugY), (int)Math.Round(mugW), (int)Math.Round(mugH)),
-            Math.Max(2, (int)Math.Round(f * 0.07f))))
-        {
-            renderGraphics.FillPath(brush, mug);
         }
     }
 
@@ -504,12 +499,15 @@ internal sealed class Overlay : Form
             // 这样开关目标不会让数字上下跳动。
             bool barVisible = progressFraction >= 0f && settings.DailyGoalMinutes > 0;
             int textAreaH = barVisible ? Math.Max(1, Height - 8) : Height;
-            Rectangle rect = new Rectangle(0, 0, Width, textAreaH);
+            // 休息模式：顶部划出一条放 ☕ 字形的高度，数字在其下方区域居中。
+            int restTop = RestMode ? (int)RestIconBlockH(cachedFont.Size) : 0;
+            textAreaH = Math.Max(1, textAreaH - restTop);
+            Rectangle rect = new Rectangle(0, restTop, Width, textAreaH);
             if (MoveMode)
             {
                 if (RestMode)
                 {
-                    DrawRestCombo(textAreaH, false);
+                    DrawRestCombo(restTop, textAreaH, false);
                 }
                 else
                 {
@@ -522,7 +520,7 @@ internal sealed class Overlay : Form
 
                 if (RestMode)
                 {
-                    DrawRestCombo(textAreaH, true);
+                    DrawRestCombo(restTop, textAreaH, true);
                 }
                 else if (IsPaused)
                 {
