@@ -256,10 +256,11 @@ internal sealed class Overlay : Form
         {
             SizeF size = g.MeasureString(template, cachedFont);
             float extraPauseWidth = (float)Math.Ceiling(cachedFont.Size * 0.75f);
+            float extraRestWidth = RestMode ? (float)Math.Ceiling(cachedFont.Size * 0.95f) : 0f;
             cachedTextWidth = size.Width;
             int textH = Math.Max(50, (int)Math.Ceiling(size.Height) + 10);
             if (showProgress) textH += 8;
-            Size = new Size(Math.Max(100, (int)Math.Ceiling(size.Width + extraPauseWidth) + 16), textH);
+            Size = new Size(Math.Max(100, (int)Math.Ceiling(size.Width + extraPauseWidth + extraRestWidth) + 16), textH);
         }
 
         using (GraphicsPath path = new GraphicsPath())
@@ -320,6 +321,103 @@ internal sealed class Overlay : Form
         RenderLayeredWindow();
     }
 
+    // 休息模式的排版：[咖啡杯] [暂停双条(仅暂停时)] [数字]，整组居中。
+    // withShadow 为 false 时（移动模式的白卡预览）只画主色一遍。
+    private void DrawRestCombo(int textAreaH, bool withShadow)
+    {
+        SolidBrush shadowBrush = cachedShadowBrush ?? cachedBrush;
+        float f = cachedFont.Size;
+
+        float cupW = f * 0.60f;
+        float spacing = Math.Max(4f, (float)Math.Round(f * 0.22f));
+        float barIconW = 0f;
+        float barWidth = 0f, barGap = 0f, barHeight = 0f;
+        if (IsPaused)
+        {
+            float baseDigitH = cachedDigitHeight > 0 ? cachedDigitHeight : (f * 0.70f);
+            barHeight = Math.Max(8f, (float)Math.Round(baseDigitH * 0.72f));
+            barWidth = Math.Max(2.5f, (float)Math.Round(f * 0.11f));
+            barGap = Math.Max(2f, (float)Math.Round(f * 0.08f));
+            barIconW = barWidth * 2f + barGap;
+        }
+
+        SizeF textSize = renderGraphics.MeasureString(text, cachedFont, PointF.Empty, StringFormat.GenericTypographic);
+        float totalWidth = cupW + spacing + (IsPaused ? barIconW + spacing : 0f) + textSize.Width;
+        float startX = (Width - totalWidth) / 2f;
+        float centerY = cachedDigitCenterY > 0 ? cachedDigitCenterY : (textAreaH / 2f);
+        float textX = startX + cupW + spacing + (IsPaused ? barIconW + spacing : 0f);
+        float iconY = centerY - barHeight / 2f;
+
+        using (StringFormat sf = new StringFormat(StringFormat.GenericTypographic))
+        {
+            sf.Alignment = StringAlignment.Center;
+            sf.LineAlignment = StringAlignment.Center;
+
+            RectangleF textRect = new RectangleF(textX, 0, textSize.Width + 2f, textAreaH);
+            RectangleF shadowTextRect = new RectangleF(textX + 1.5f, 2.0f, textSize.Width + 2f, textAreaH);
+
+            if (withShadow)
+            {
+                DrawCoffeeIcon(shadowBrush, startX + 1.5f, centerY + 2.0f, f);
+                if (IsPaused)
+                {
+                    FillRoundedBar(renderGraphics, shadowBrush, startX + cupW + spacing + 1.5f, iconY + 2.0f, barWidth, barHeight);
+                    FillRoundedBar(renderGraphics, shadowBrush, startX + cupW + spacing + barWidth + barGap + 1.5f, iconY + 2.0f, barWidth, barHeight);
+                }
+                renderGraphics.DrawString(text, cachedFont, shadowBrush, shadowTextRect, sf);
+            }
+
+            DrawCoffeeIcon(cachedBrush, startX, centerY, f);
+            if (IsPaused)
+            {
+                FillRoundedBar(renderGraphics, cachedBrush, startX + cupW + spacing, iconY, barWidth, barHeight);
+                FillRoundedBar(renderGraphics, cachedBrush, startX + cupW + spacing + barWidth + barGap, iconY, barWidth, barHeight);
+            }
+            renderGraphics.DrawString(text, cachedFont, cachedBrush, textRect, sf);
+        }
+    }
+
+    // 咖啡杯小图标：圆角杯身 + 右侧把手 + 两缕热气，几何随字号缩放，
+    // 颜色取传入画笔（主色或阴影色）。(x, centerY) 是图标左缘与垂直中心。
+    private void DrawCoffeeIcon(Brush brush, float x, float centerY, float f)
+    {
+        Color color = ((SolidBrush)brush).Color;
+        float mugW = f * 0.40f;
+        float mugH = f * 0.34f;
+        float steamH = f * 0.20f;
+        float iconH = mugH + steamH + f * 0.03f;
+        float mugY = centerY - iconH / 2f + steamH + f * 0.03f;
+        float mugX = x;
+
+        using (Pen pen = new Pen(color, Math.Max(1.2f, f * 0.055f)))
+        {
+            pen.StartCap = LineCap.Round;
+            pen.EndCap = LineCap.Round;
+            // 把手：右侧一段圆弧，先画，杯身盖住它的左端。
+            RectangleF handleRect = new RectangleF(mugX + mugW - f * 0.04f, mugY + mugH * 0.18f, f * 0.22f, mugH * 0.62f);
+            renderGraphics.DrawArc(pen, handleRect, -65f, 130f);
+            // 两缕热气：S 形贝塞尔。
+            for (int i = 0; i < 2; i++)
+            {
+                float sx = mugX + mugW * (i == 0 ? 0.30f : 0.66f);
+                float syBottom = mugY - f * 0.02f;
+                float syTop = mugY - f * 0.02f - steamH;
+                renderGraphics.DrawBezier(pen,
+                    sx, syBottom,
+                    sx - f * 0.05f, syBottom - steamH * 0.4f,
+                    sx + f * 0.05f, syTop + steamH * 0.4f,
+                    sx, syTop);
+            }
+        }
+
+        using (GraphicsPath mug = AppContext.GetRoundedRectPath(
+            new Rectangle((int)Math.Round(mugX), (int)Math.Round(mugY), (int)Math.Round(mugW), (int)Math.Round(mugH)),
+            Math.Max(2, (int)Math.Round(f * 0.07f))))
+        {
+            renderGraphics.FillPath(brush, mug);
+        }
+    }
+
     public bool IsPaused { get; private set; }
 
     // 今日专注进度（0..1）；< 0 表示未设置/未计算，不画进度条。
@@ -346,6 +444,17 @@ internal sealed class Overlay : Form
             Opacity = paused ? 0.50 : 1.0;
         }
         RenderLayeredWindow();
+    }
+
+    // 休息模式：数字左侧画咖啡杯小图标，替代原来的「休息 / Rest」文字前缀。
+    public bool RestMode { get; private set; }
+
+    public void SetRestMode(bool rest)
+    {
+        if (RestMode == rest) return;
+        RestMode = rest;
+        RebuildGdiResources();
+        UpdateLocation();
     }
 
     public void SetMoveMode(bool enabled, bool isRunning = true)
@@ -398,13 +507,24 @@ internal sealed class Overlay : Form
             Rectangle rect = new Rectangle(0, 0, Width, textAreaH);
             if (MoveMode)
             {
-                renderGraphics.DrawString(text, cachedFont, cachedBrush, rect, cachedFormat);
+                if (RestMode)
+                {
+                    DrawRestCombo(textAreaH, false);
+                }
+                else
+                {
+                    renderGraphics.DrawString(text, cachedFont, cachedBrush, rect, cachedFormat);
+                }
             }
             else
             {
                 SolidBrush shadowBrush = cachedShadowBrush ?? cachedBrush;
 
-                if (IsPaused)
+                if (RestMode)
+                {
+                    DrawRestCombo(textAreaH, true);
+                }
+                else if (IsPaused)
                 {
                     float fontSize = cachedFont.Size;
                     float baseDigitH = cachedDigitHeight > 0 ? cachedDigitHeight : (fontSize * 0.70f);

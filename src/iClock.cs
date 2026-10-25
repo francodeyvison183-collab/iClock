@@ -747,6 +747,7 @@ internal sealed class AppContext : ApplicationContext
             LogSession((state == ClockState.RestRunning || state == ClockState.RestPaused) ? "RestReset" : "Reset");
         }
         SetState(ClockState.Idle);
+        overlay.SetRestMode(false);
         ResetDisplay();
         overlay.SetPaused(false);
         overlay.Hide();
@@ -967,6 +968,7 @@ internal sealed class AppContext : ApplicationContext
         sessionMinutes = m;
         deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency);
         SetState(ClockState.Running);
+        overlay.SetRestMode(false);
         lastSeconds = -1;
         lastLiveFocusMinutes = 0;
         timer.Interval = 100;
@@ -986,6 +988,7 @@ internal sealed class AppContext : ApplicationContext
         sessionMinutes = minutes;
         deadlineTimestamp = Stopwatch.GetTimestamp() + (long)(remaining.TotalSeconds * Stopwatch.Frequency);
         SetState(ClockState.RestRunning);
+        overlay.SetRestMode(true);
         lastSeconds = -1;
         timer.Interval = 100;
         timer.Start();
@@ -1688,8 +1691,8 @@ internal sealed class AppContext : ApplicationContext
         long h = total / 3600, m = (total / 60) % 60, sSec = total % 60;
         if (state == ClockState.RestRunning || state == ClockState.RestPaused)
         {
-            string prefix = s.Language == "en" ? "Rest " : "休息 ";
-            return prefix + (total / 60).ToString("00") + ":" + sSec.ToString("00");
+            // 休息标识由 Overlay 的咖啡杯图标承担，文本只留数字。
+            return (total / 60).ToString("00") + ":" + sSec.ToString("00");
         }
         return s.Format == "MM:SS" ? (total / 60).ToString("00") + ":" + sSec.ToString("00") :
             s.Format == "Chinese" ? (s.Language == "en" ? h.ToString("00") + "h " + m.ToString("00") + "m " + sSec.ToString("00") + "s" : h.ToString("00") + "时" + m.ToString("00") + "分" + sSec.ToString("00") + "秒") : h.ToString("00") + ":" + m.ToString("00") + ":" + sSec.ToString("00");
@@ -1723,6 +1726,7 @@ internal sealed class AppContext : ApplicationContext
     private void FinishCore(bool wasRest)
     {
         overlay.SetPaused(false);
+        overlay.SetRestMode(false);
         UpdateMenuText();
         if (settings.EndNotice)
         {
