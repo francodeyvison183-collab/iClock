@@ -77,6 +77,10 @@ internal sealed class Settings
     public int DailyGoalMinutes = 0;
     // 电脑使用时间跟踪。默认关闭，避免未同意时后台装钩。
     public bool UsageTrackEnabled;
+    // 护眼提醒：连续盯屏满间隔后弹轻提醒卡，可一键进入休息倒计时。
+    public bool EyeCareEnabled = true;
+    // 提醒间隔（分钟），可选 20/30/45/60。
+    public int EyeCareIntervalMinutes = 45;
 
     public void CopyFrom(Settings src)
     {
@@ -103,6 +107,8 @@ internal sealed class Settings
         AiQuoteCount = src.AiQuoteCount > 0 ? src.AiQuoteCount : 30;
         DailyGoalMinutes = src.DailyGoalMinutes;
         UsageTrackEnabled = src.UsageTrackEnabled;
+        EyeCareEnabled = src.EyeCareEnabled;
+        EyeCareIntervalMinutes = src.EyeCareIntervalMinutes > 0 ? src.EyeCareIntervalMinutes : 45;
     }
 
     public static string FilePath

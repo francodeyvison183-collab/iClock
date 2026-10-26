@@ -2794,7 +2794,8 @@ internal sealed class AppContext : ApplicationContext
         f.Text = en ? "iClock - Countdown History & Statistics" : "iClock - 专注历史记录与统计";
         f.StartPosition = FormStartPosition.CenterScreen;
         f.ClientSize = new Size(760, 500);
-        f.MinimumSize = new Size(720, 440);
+        // 固定窗体：列宽按 760px 布局设计，禁止拖拽调整大小以免破坏列宽分配。
+        f.FormBorderStyle = FormBorderStyle.FixedSingle;
         f.MinimizeBox = false; f.MaximizeBox = false;
         f.ShowInTaskbar = false;
         f.TopMost = true;
@@ -3034,27 +3035,36 @@ internal sealed class AppContext : ApplicationContext
         {
             int w = list.ClientSize.Width;
             if (w <= 0 || list.Columns.Count < 6) return;
+            // 最后一列不再独吞剩余宽度：各列在基础宽度上均分余量，保持大致等宽。
             list.Columns[5].Width = 10;
             if (currentViewMode == 0 && currentDaySubMode == 1)
             {
-                int c0 = 28, c1 = 160, c2 = 110, c3 = 70, c4 = 120;
-                list.Columns[0].Width = c0; list.Columns[1].Width = c1; list.Columns[2].Width = c2;
-                list.Columns[3].Width = c3; list.Columns[4].Width = c4;
-                list.Columns[5].Width = Math.Max(40, w - c0 - c1 - c2 - c3 - c4);
-            }
-            else if (currentViewMode == 0)
-            {
-                int c0 = 45, c1 = 110, c2 = 110, c3 = 85, c4 = 95;
-                list.Columns[0].Width = c0; list.Columns[1].Width = c1; list.Columns[2].Width = c2;
-                list.Columns[3].Width = c3; list.Columns[4].Width = c4;
-                list.Columns[5].Width = Math.Max(90, w - c0 - c1 - c2 - c3 - c4);
+                // 时间统计视图第 6 列无内容（占比条在第 5 列自绘），
+                // 收成窄条，宽度均分给应用名/时长/占比/占比条四列。
+                list.Columns[0].Width = 28;
+                int rest = Math.Max(0, w - 28 - 10);
+                int each = rest / 4;
+                list.Columns[1].Width = each;
+                list.Columns[2].Width = each;
+                list.Columns[3].Width = each;
+                list.Columns[4].Width = rest - each * 3;
             }
             else
             {
-                int c0 = 105, c1 = 60, c2 = 140, c3 = 90, c4 = 70;
-                list.Columns[0].Width = c0; list.Columns[1].Width = c1; list.Columns[2].Width = c2;
-                list.Columns[3].Width = c3; list.Columns[4].Width = c4;
-                list.Columns[5].Width = Math.Max(90, w - c0 - c1 - c2 - c3 - c4);
+                int[] base6 = currentViewMode == 0
+                    ? new int[] { 45, 110, 110, 85, 95, 90 }
+                    : new int[] { 105, 60, 140, 90, 70, 90 };
+                int sum = 0;
+                for (int i = 0; i < 6; i++) sum += base6[i];
+                int leftover = Math.Max(0, w - sum);
+                int used = 0;
+                for (int i = 0; i < 5; i++)
+                {
+                    int cw = base6[i] + leftover / 6;
+                    list.Columns[i].Width = cw;
+                    used += cw;
+                }
+                list.Columns[5].Width = Math.Max(10, w - used);
             }
         };
         list.Resize += delegate { updateColumnWidths(); };
