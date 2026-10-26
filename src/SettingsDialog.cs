@@ -188,7 +188,7 @@ internal sealed class SettingsDialog : Form
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
         Text = en ? "iClock Settings" : "iClock 设置"; FormBorderStyle = FormBorderStyle.FixedDialog; StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 506);
+        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 470);
 
         btnTabTimer = new Button(); SetupTabButton(btnTabTimer, en ? "Timer" : "倒计时", 18, 0);
         btnTabQuote = new Button(); SetupTabButton(btnTabQuote, en ? "Daily Quotes" : "每日金句", 133, 1);
@@ -2282,8 +2282,9 @@ internal sealed class SettingsDialog : Form
         return c;
     }
 
-    // 倒计时页 10 行：行距 40，末行底边 446，与 AI 协作页 session 卡片同一底边距（24）。
-    private static int TimerRowY(int index) { return 58 + index * 40; }
+    // 倒计时页 11 行：行距 36（控件 28 + 间隔 8），末行底边仍是 446，
+    // 与 AI 协作页 session 卡片同一底边距（24），窗口高度不用加。
+    private static int TimerRowY(int index) { return 58 + index * 36; }
     private static int TimerLabelY(int index) { return TimerRowY(index) + 4; }
 
     private void CaptureHotkey(object sender, KeyEventArgs e)
