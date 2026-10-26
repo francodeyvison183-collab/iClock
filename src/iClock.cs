@@ -209,6 +209,8 @@ internal sealed class AppContext : ApplicationContext
     private EventHandler displaySettingsHandler;
     private SessionSwitchEventHandler sessionSwitchHandler;
     private UsageTracker usageTracker;
+    private EyeCareTracker eyeCare;
+    private EyeCareDialog activeEyeCare;
     private UsageStripItem menuUsageStrip;
     private bool openHistoryOnUsageTab;
     private Action<bool> historySetUsageTab;
@@ -457,11 +459,19 @@ internal sealed class AppContext : ApplicationContext
                 }
             }
             if (usageTracker != null) usageTracker.OnSessionSwitch(se.Reason);
+            if (eyeCare != null) eyeCare.OnSessionSwitch(se.Reason);
         };
         SystemEvents.SessionSwitch += sessionSwitchHandler;
         usageTracker = new UsageTracker(overlay);
         if (settings.UsageTrackEnabled && !isOneShot && !IsSelfCheckRunning)
             usageTracker.Start();
+        eyeCare = new EyeCareTracker(
+            delegate { return settings.EyeCareIntervalMinutes; },
+            delegate { return state == ClockState.RestRunning || state == ClockState.RestPaused; },
+            delegate { return (settings.FullscreenDnd && IsForegroundFullScreen()) || (activeDialog != null && !activeDialog.IsDisposed); },
+            ShowEyeCareReminder);
+        if (settings.EyeCareEnabled && !isOneShot && !IsSelfCheckRunning)
+            eyeCare.Start();
         if (tray != null && tray.ContextMenuStrip != null)
         {
             RefreshUsageStrip(tray.ContextMenuStrip);
@@ -983,6 +993,7 @@ internal sealed class AppContext : ApplicationContext
     {
         if (overlay.IsPulsing) overlay.StopBreathingPulse();
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
+        if (eyeCare != null) eyeCare.Reset();
         remaining = TimeSpan.FromMinutes(minutes);
         sessionStart = DateTime.Now;
         sessionMinutes = minutes;
@@ -2677,6 +2688,33 @@ internal sealed class AppContext : ApplicationContext
             bool en = settings.Language == "en";
             MessageBox.Show(en ? "That hotkey conflicts with system input or is occupied. The previous hotkey was kept, but other settings were saved." : "该快捷键已被占用或与系统输入法冲突，快捷键已保留为原设置，其他设置已成功保存。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
+        RestartEyeCare();
+    }
+
+    // 设置变动后按新的开关与间隔重新计时；关掉时连正在显示的提醒卡一起收起。
+    private void RestartEyeCare()
+    {
+        if (activeEyeCare != null && !activeEyeCare.IsDisposed) { activeEyeCare.Close(); activeEyeCare = null; }
+        if (eyeCare == null) return;
+        eyeCare.Stop();
+        if (settings.EyeCareEnabled && !isOneShot && !IsSelfCheckRunning) eyeCare.Start();
+    }
+
+    private void ShowEyeCareReminder()
+    {
+        if (activeEyeCare != null && !activeEyeCare.IsDisposed) return;
+        int interval = settings.EyeCareIntervalMinutes > 0 ? settings.EyeCareIntervalMinutes : 45;
+        int rest = settings.RestMinutes > 0 ? settings.RestMinutes : 10;
+        try
+        {
+            activeEyeCare = new EyeCareDialog(settings, interval, delegate { StartRest(rest); });
+            activeEyeCare.FormClosed += delegate { activeEyeCare = null; };
+            activeEyeCare.Show();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine("EyeCareDialog error: " + ex.Message);
+        }
     }
     private bool SetHotkey(int modifiers, int key)
     {
@@ -3833,6 +3871,8 @@ internal sealed class AppContext : ApplicationContext
         if (displaySettingsHandler != null) { try { SystemEvents.DisplaySettingsChanged -= displaySettingsHandler; } catch { } displaySettingsHandler = null; }
         if (sessionSwitchHandler != null) { try { SystemEvents.SessionSwitch -= sessionSwitchHandler; } catch { } sessionSwitchHandler = null; }
         if (usageTracker != null) { try { usageTracker.Stop(); } catch { } usageTracker = null; }
+        if (activeEyeCare != null && !activeEyeCare.IsDisposed) { activeEyeCare.Close(); activeEyeCare = null; }
+        if (eyeCare != null) { try { eyeCare.Stop(); } catch { } eyeCare = null; }
         if (trayClickTimer != null) { try { trayClickTimer.Stop(); trayClickTimer.Dispose(); } catch { } trayClickTimer = null; }
         if (taskStatusHud != null && !taskStatusHud.IsDisposed) { taskStatusHud.Close(); taskStatusHud.Dispose(); taskStatusHud = null; }
         overlay.Close(); overlay.Dispose(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); timer.Dispose(); ExitThread();

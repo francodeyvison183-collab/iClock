@@ -199,6 +199,8 @@ internal sealed class Settings
                 else if (k == "AiQuoteCount" && int.TryParse(v, out n)) s.AiQuoteCount = n > 0 ? n : 30;
                 else if (k == "DailyGoalMinutes" && int.TryParse(v, out n)) s.DailyGoalMinutes = Math.Max(0, Math.Min(1440, n));
                 else if (k == "UsageTrackEnabled" && bool.TryParse(v, out b)) s.UsageTrackEnabled = b;
+                else if (k == "EyeCareEnabled" && bool.TryParse(v, out b)) s.EyeCareEnabled = b;
+                else if (k == "EyeCareIntervalMinutes" && int.TryParse(v, out n)) s.EyeCareIntervalMinutes = (n >= 5 && n <= 180) ? n : 45;
             }
             if ((s.X == 80 && s.Y == 80) || (s.X == -1 && s.Y == 90)) { s.X = -1; s.Y = 60; }
         }
@@ -231,6 +233,8 @@ internal sealed class Settings
             , "AiQuoteCount=" + AiQuoteCount
             , "DailyGoalMinutes=" + DailyGoalMinutes
             , "UsageTrackEnabled=" + UsageTrackEnabled
+            , "EyeCareEnabled=" + EyeCareEnabled
+            , "EyeCareIntervalMinutes=" + EyeCareIntervalMinutes
         };
         string tmp = Path.Combine(dir, "settings.ini.tmp");
         try

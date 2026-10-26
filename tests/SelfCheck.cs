@@ -62,6 +62,8 @@ internal static class TestCheck
             object defaultSettings = Activator.CreateInstance(settingsType);
             bool defaultCollaborationEnabled = (bool)settingsType.GetField("DesktopCollaborationEnabled").GetValue(defaultSettings);
             bool defaultUsageTrack = (bool)settingsType.GetField("UsageTrackEnabled").GetValue(defaultSettings);
+            bool defaultEyeCare = (bool)settingsType.GetField("EyeCareEnabled").GetValue(defaultSettings);
+            int defaultEyeCareInterval = (int)settingsType.GetField("EyeCareIntervalMinutes").GetValue(defaultSettings);
             int defSize = (int)settingsType.GetField("FontSize").GetValue(defaultSettings);
             string defColor = (string)settingsType.GetField("Color").GetValue(defaultSettings);
             string defFont = (string)settingsType.GetField("FontFamily").GetValue(defaultSettings);
@@ -71,6 +73,11 @@ internal static class TestCheck
             if (!defaultCollaborationEnabled || defaultUsageTrack || defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 60 || defFormat != "MM:SS")
             {
                 Console.WriteLine("FAIL: Default collaboration, usage-track, or timer appearance settings are incorrect");
+                return 18;
+            }
+            if (!defaultEyeCare || defaultEyeCareInterval != 45)
+            {
+                Console.WriteLine("FAIL: Eye care should default to on with a 45 minute interval");
                 return 18;
             }
             Rectangle screen = Screen.PrimaryScreen.Bounds;
@@ -3292,6 +3299,33 @@ internal static class TestCheck
             }
             fDailyGoal.SetValue(settings, 0);
             settings.GetType().GetMethod("Save").Invoke(settings, null);
+
+            // 护眼提醒：开关与间隔要能存进 ini，计时器和提醒卡两个类型也要在。
+            FieldInfo fEyeCareEnabled = settingsType.GetField("EyeCareEnabled");
+            FieldInfo fEyeCareInterval = settingsType.GetField("EyeCareIntervalMinutes");
+            if (fEyeCareEnabled == null || fEyeCareInterval == null)
+            {
+                Console.WriteLine("FAIL: Settings is missing the eye-care fields");
+                return 64;
+            }
+            fEyeCareEnabled.SetValue(settings, false);
+            fEyeCareInterval.SetValue(settings, 30);
+            settings.GetType().GetMethod("Save").Invoke(settings, null);
+            object reloadedEyeCare = settings.GetType().GetMethod("Load", BindingFlags.Public | BindingFlags.Static).Invoke(null, null);
+            if ((bool)fEyeCareEnabled.GetValue(reloadedEyeCare) || (int)fEyeCareInterval.GetValue(reloadedEyeCare) != 30)
+            {
+                Console.WriteLine("FAIL: eye-care settings did not survive the save/load round trip");
+                return 64;
+            }
+            fEyeCareEnabled.SetValue(settings, true);
+            fEyeCareInterval.SetValue(settings, 45);
+            settings.GetType().GetMethod("Save").Invoke(settings, null);
+            if (asm.GetType("EyeCareTracker") == null || asm.GetType("EyeCareDialog") == null)
+            {
+                Console.WriteLine("FAIL: eye-care tracker or reminder card type is missing");
+                return 64;
+            }
+            Console.WriteLine("PASS: eye-care settings persist and the tracker/reminder card ship in the build.");
 
             MethodInfo getDayFocus = appType.GetMethod("GetDayFocusSecs", sbf);
             MethodInfo computeStreak = appType.GetMethod("ComputeStreak", sbf);

@@ -36,8 +36,8 @@ internal sealed class SettingsDialog : Form
     private int hotkeyModifiers, hotkeyKey, candidateMods, candidateKey;
     private bool hotkeyActive;
     private Label lblMinutes, lblSize, lblFont, lblColor, lblFormat, lblEndMsg, lblHotkey;
-    private Label lblSound, lblNotice, lblDailyGoal;
-    private ComboBox dailyGoal;
+    private Label lblSound, lblNotice, lblDailyGoal, lblEyeCare;
+    private ComboBox dailyGoal, eyeCareCombo;
     public Settings Value { get; private set; }
     public event Action PreviewRequested;
     public event Action SettingsCommitted;
@@ -188,7 +188,7 @@ internal sealed class SettingsDialog : Form
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
         Text = en ? "iClock Settings" : "iClock 设置"; FormBorderStyle = FormBorderStyle.FixedDialog; StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 470);
+        MaximizeBox = false; MinimizeBox = false; ShowInTaskbar = false; ClientSize = new Size(380, 506);
 
         btnTabTimer = new Button(); SetupTabButton(btnTabTimer, en ? "Timer" : "倒计时", 18, 0);
         btnTabQuote = new Button(); SetupTabButton(btnTabQuote, en ? "Daily Quotes" : "每日金句", 133, 1);
@@ -290,6 +290,13 @@ internal sealed class SettingsDialog : Form
         dailyGoal.DrawItem += OnDrawComboItem;
         dailyGoal.SelectionChangeCommitted += OnDailyGoalChanged;
         UpdateStreakLabel();
+
+        // 护眼提醒：一个下拉同时承担开关与间隔，和「结束声音」一致。
+        lblEyeCare = AddLabel(en ? "Eye care reminder" : "护眼提醒", 18, TimerLabelY(10));
+        eyeCareCombo = AddCombo(TimerRowY(10));
+        PopulateEyeCareCombo(en, Value.EyeCareEnabled, Value.EyeCareIntervalMinutes);
+        eyeCareCombo.DrawItem += OnDrawComboItem;
+        eyeCareCombo.SelectionChangeCommitted += OnPreviewChanged;
 
 
         dialogQuoteList = DailyQuoteDialog.LoadQuotes();
@@ -808,6 +815,8 @@ internal sealed class SettingsDialog : Form
         noticeStyle.Visible = isTimer;
         if (lblDailyGoal != null) lblDailyGoal.Visible = isTimer;
         if (dailyGoal != null) dailyGoal.Visible = isTimer;
+        if (lblEyeCare != null) lblEyeCare.Visible = isTimer;
+        if (eyeCareCombo != null) eyeCareCombo.Visible = isTimer;
 
         if (lblDailyQuote != null) lblDailyQuote.Visible = isQuote;
         if (dailyQuoteToggle != null) dailyQuoteToggle.Visible = isQuote;
@@ -1769,7 +1778,10 @@ internal sealed class SettingsDialog : Form
         if (lblDailyGoal != null) lblDailyGoal.Text = toEnglish ? "Daily focus goal" : "每日专注目标";
         if (lblSound != null) lblSound.Text = toEnglish ? "End sound" : "结束声音";
         if (lblNotice != null) lblNotice.Text = toEnglish ? "End notice" : "结束通知";
+        if (lblEyeCare != null) lblEyeCare.Text = toEnglish ? "Eye care reminder" : "护眼提醒";
         PopulateDailyGoalCombo(toEnglish, ReadDailyGoalSelection());
+        int eyeCareMinutes = ReadEyeCareSelection();
+        PopulateEyeCareCombo(toEnglish, eyeCareMinutes > 0, eyeCareMinutes);
         UpdateStreakLabel();
 
         if (lblDailyQuote != null)
@@ -1946,6 +1958,7 @@ internal sealed class SettingsDialog : Form
         UpdateInputPadding(endMessage);
         UpdateInputPadding(hotkeyBox);
         UpdateInputPadding(dailyGoal);
+        UpdateInputPadding(eyeCareCombo);
         ApplySettingsInputSize(minutes);
         ApplySettingsInputSize(size);
         ApplySettingsInputSize(fontCombo);
@@ -1956,6 +1969,7 @@ internal sealed class SettingsDialog : Form
         ApplySettingsInputSize(noticeStyle);
         ApplySettingsInputSize(hotkeyBox);
         ApplySettingsInputSize(dailyGoal);
+        ApplySettingsInputSize(eyeCareCombo);
         ApplySettingsInputSize(quoteFontSize);
         ApplySettingsInputSize(quoteFontCombo);
         ApplySettingsInputSize(quoteColorCombo);
@@ -1988,6 +2002,9 @@ internal sealed class SettingsDialog : Form
         Value.QuotePinTopMost = quoteLayerCombo != null && quoteLayerCombo.SelectedIndex == 1;
         Value.QuoteSaverEnabled = quoteSaverWaitCombo != null && quoteSaverWaitCombo.SelectedIndex > 0;
         Value.DailyGoalMinutes = ReadDailyGoalSelection();
+        Value.EyeCareEnabled = eyeCareCombo != null && eyeCareCombo.SelectedIndex > 0;
+        if (eyeCareCombo != null && eyeCareCombo.SelectedIndex > 0)
+            Value.EyeCareIntervalMinutes = EyeCarePresets[eyeCareCombo.SelectedIndex - 1];
         return Value;
     }
 
@@ -2053,6 +2070,44 @@ internal sealed class SettingsDialog : Form
         int idx = dailyGoal.SelectedIndex;
         if (idx <= 0 || idx > DailyGoalPresets.Length) return 0;
         return DailyGoalPresets[idx - 1];
+    }
+
+    private static readonly int[] EyeCarePresets = { 20, 30, 45, 60, 90 };
+
+    private int ReadEyeCareSelection()
+    {
+        if (eyeCareCombo == null) return Value != null && Value.EyeCareIntervalMinutes > 0 ? Value.EyeCareIntervalMinutes : 45;
+        int idx = eyeCareCombo.SelectedIndex;
+        if (idx <= 0 || idx > EyeCarePresets.Length) return 0;
+        return EyeCarePresets[idx - 1];
+    }
+
+    private static int EyeCareComboIndex(bool enabled, int minutes)
+    {
+        if (!enabled || minutes <= 0) return 0;
+        int best = 0;
+        int bestDist = int.MaxValue;
+        for (int i = 0; i < EyeCarePresets.Length; i++)
+        {
+            int d = Math.Abs(EyeCarePresets[i] - minutes);
+            if (d < bestDist) { best = i; bestDist = d; }
+        }
+        return best + 1;
+    }
+
+    private void PopulateEyeCareCombo(bool en, bool enabled, int minutes)
+    {
+        if (eyeCareCombo == null) return;
+        int sel = EyeCareComboIndex(enabled, minutes);
+        eyeCareCombo.SelectionChangeCommitted -= OnPreviewChanged;
+        eyeCareCombo.BeginUpdate();
+        eyeCareCombo.Items.Clear();
+        eyeCareCombo.Items.Add(en ? "Off" : "关闭");
+        for (int i = 0; i < EyeCarePresets.Length; i++)
+            eyeCareCombo.Items.Add(string.Format(en ? "Every {0} minutes" : "每 {0} 分钟", EyeCarePresets[i]));
+        eyeCareCombo.SelectedIndex = sel;
+        eyeCareCombo.EndUpdate();
+        eyeCareCombo.SelectionChangeCommitted += OnPreviewChanged;
     }
 
     private static int SoundStyleIndex(bool enabled, string style)
