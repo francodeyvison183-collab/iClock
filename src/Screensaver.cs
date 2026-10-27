@@ -120,7 +120,7 @@ internal sealed class QuoteScreensaverForm : Form
 
         QuoteItem q = saverQuotes[saverQuoteIndex % saverQuotes.Count];
         string lang = saverSettings != null ? saverSettings.Language : "zh";
-        string text = string.IsNullOrEmpty(q.Text) ? "" : "“" + q.Text + "”";
+        string text = string.IsNullOrEmpty(q.Text) ? "" : q.Text;
         string author = string.IsNullOrEmpty(q.Author) ? "" : q.Author;
 
         string colStr = !string.IsNullOrEmpty(saverSettings.QuoteColor) ? saverSettings.QuoteColor : "#F77F00";
@@ -129,7 +129,7 @@ internal sealed class QuoteScreensaverForm : Form
         catch { mainColor = Color.FromArgb(247, 127, 0); }
 
         // Paint exactly like the desktop quote note (DailyQuoteDialog): same
-        // font chain, the configured 文字大小 as-is, the same "curly quotes +
+        // font chain, the configured 文字大小 as-is, the same "plain text +
         // —— author" layout, and the note's default position (centered card
         // anchored at Y=120 below the top). The card rides on the black saver
         // background, so the preview and the real saver are pixel-identical.

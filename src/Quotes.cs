@@ -496,7 +496,7 @@ internal sealed class DailyQuoteDialog : Form
         using (Bitmap bmp = new Bitmap(1, 1))
         using (Graphics g = Graphics.FromImage(bmp))
         {
-            string text = "“" + q.Text + "”";
+            string text = q.Text;
             int padX = 18;
             int padTop = Math.Max(26, (int)Math.Round(currentFontSize * 1.0f) + 8);
             float gap = Math.Max(6f, currentFontSize * 0.35f);
@@ -748,7 +748,7 @@ internal sealed class DailyQuoteDialog : Form
         using (textFont)
         using (authorFont)
         {
-            string text = "“" + q.Text + "”";
+            string text = q.Text;
             int padX = 18;
             int padTop = Math.Max(26, (int)Math.Round(currentFontSize * 1.0f) + 8);
             float gap = Math.Max(6f, currentFontSize * 0.35f);
@@ -1885,7 +1885,7 @@ internal sealed class AiQuoteDialog : Form
         lblCardMain.ForeColor = Color.FromArgb(16, 124, 65);
 
         string preview = (sample != null && !string.IsNullOrEmpty(sample.Text))
-            ? (string.IsNullOrEmpty(sample.Author) ? ("“" + sample.Text + "”") : ("“" + sample.Text + "”\r\n—— " + sample.Author))
+            ? (string.IsNullOrEmpty(sample.Author) ? sample.Text : (sample.Text + "\r\n—— " + sample.Author))
             : (en ? "New quotes have been added to the library." : "新金句已加入金句库并刷新。");
         lblCardSub.Text = preview;
         lblCardSub.ForeColor = AppContext.Win11TextPrimary;

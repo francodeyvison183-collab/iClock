@@ -1192,7 +1192,7 @@ internal sealed class SettingsDialog : Form
         QuoteItem q = dialogQuoteList[dialogQuoteIndex % dialogQuoteList.Count];
         if (lblCardQuoteText != null)
         {
-            lblCardQuoteText.Text = "“" + q.Text + "”";
+            lblCardQuoteText.Text = q.Text;
         }
         if (lblCardQuoteAuthor != null)
         {
