@@ -333,8 +333,11 @@ internal static class UsageLog
     {
         if (string.IsNullOrEmpty(exe)) return false;
         string low = exe.ToLowerInvariant();
+        // explorer 是 shell:桌面、任务栏、托盘通知全由它承载,GetForegroundWindow 经常返回
+        // shell 窗口而非用户实际打开的文件夹窗口,记录它会产生大量假时长(用户根本没开
+        // 资源管理器却记了几小时)。文件管理交互通常很短,误杀代价远小于虚报。
         return low == "lockapp.exe" || low == "logonui.exe" || low == "scrnsave.scr"
-            || low == "iclock.scr" || low.EndsWith(".scr");
+            || low == "iclock.scr" || low == "explorer.exe" || low.EndsWith(".scr");
     }
 
     private static bool SameKey(UsageSegment a, UsageSegment b)
@@ -530,7 +533,13 @@ internal sealed class UsageTracker
             Transition(UsageLog.Active, "unknown");
             return;
         }
-        if (UsageLog.IsIgnoredExe(exe)) return;
+        if (UsageLog.IsIgnoredExe(exe))
+        {
+            // shell 等被排除的进程拿到前台时关掉当前 open 段,否则上一个应用的
+            // 时间段会把「其实没在用电脑」的时长也吞进去。
+            Transition(UsageLog.Idle, "");
+            return;
+        }
         UsageLog.RememberDisplayName(exe, path);
         Transition(UsageLog.Active, exe);
     }
@@ -709,6 +718,9 @@ internal sealed class UsageAxisPanel : Panel
     private string highlightKey = "";
     private bool en;
     private bool fullDay;
+    // 倒计时周期标记（意图）叠加在用时色带（现实）上：条内底部的强调色刻度。
+    // State 复用为结果标记："done" 表示完成或进行中，其余为中断/重置。
+    private List<UsageSegment> focusMarks = new List<UsageSegment>();
 
     public UsageAxisPanel()
     {
@@ -766,6 +778,26 @@ internal sealed class UsageAxisPanel : Panel
         Invalidate();
     }
 
+    public void SetFocusMarkers(List<UsageSegment> marks)
+    {
+        focusMarks = marks != null ? marks : new List<UsageSegment>();
+        Invalidate();
+    }
+
+    public UsageSegment FocusMarkerAt(int x)
+    {
+        Rectangle bar = BarRect();
+        if (bar.Width <= 0 || x < bar.X || x > bar.Right) return null;
+        double span = Math.Max(1.0, (axisEnd - axisStart).TotalSeconds);
+        double t = (x - bar.X) / (double)bar.Width;
+        DateTime at = axisStart.AddSeconds(t * span);
+        for (int i = 0; i < focusMarks.Count; i++)
+        {
+            if (at >= focusMarks[i].Start && at < focusMarks[i].End) return focusMarks[i];
+        }
+        return null;
+    }
+
     public UsageSegment HitTest(int x)
     {
         Rectangle bar = BarRect();
@@ -817,6 +849,31 @@ internal sealed class UsageAxisPanel : Panel
         using (Pen p = new Pen(Color.FromArgb(215, 220, 228)))
             g.DrawRectangle(p, bar.X, bar.Y, bar.Width - 1, bar.Height - 1);
 
+        // 倒计时周期标记：条内底部的强调色刻度 + 两端竖线。
+        // 完成的实心，中断/重置的半透明 —— 意图叠在现实之上。
+        if (focusMarks.Count > 0)
+        {
+            for (int i = 0; i < focusMarks.Count; i++)
+            {
+                UsageSegment m = focusMarks[i];
+                double fa = (m.Start - axisStart).TotalSeconds / span;
+                double fb = (m.End - axisStart).TotalSeconds / span;
+                if (fb <= 0 || fa >= 1) continue;
+                if (fa < 0) fa = 0;
+                if (fb > 1) fb = 1;
+                int mx = bar.X + (int)Math.Round(fa * bar.Width);
+                int mw = Math.Max(2, (int)Math.Round((fb - fa) * bar.Width));
+                Color mc = m.State == "done" ? AppContext.Win11Accent : Color.FromArgb(130, AppContext.Win11Accent);
+                using (SolidBrush br = new SolidBrush(mc))
+                    g.FillRectangle(br, mx, bar.Bottom - 4, mw, 3);
+                using (Pen pen = new Pen(mc))
+                {
+                    g.DrawLine(pen, mx, bar.Bottom - 8, mx, bar.Bottom - 1);
+                    g.DrawLine(pen, mx + mw - 1, bar.Bottom - 8, mx + mw - 1, bar.Bottom - 1);
+                }
+            }
+        }
+
         Font tickFont = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         try
         {
@@ -848,6 +905,244 @@ internal sealed class UsageAxisPanel : Panel
     private Rectangle BarRect()
     {
         return new Rectangle(8, 4, Math.Max(8, Width - 16), 16);
+    }
+}
+
+internal sealed class TrendDayStat
+{
+    public string DateKey = "";
+    public long ScreenSecs;
+    public long FocusSecs;
+    public int FocusSessions;
+    public int FocusDone;
+}
+
+internal sealed class TrendAppStat
+{
+    public string Exe = "";
+    public long Seconds;
+}
+
+// 趋势视图面板：上半部分是「屏幕活跃 vs 专注」双序列日对比图，
+// 下半部分是窗口内应用时长排行。只读已有 TSV 数据，不做任何采集。
+internal sealed class TrendPanel : Panel
+{
+    private List<TrendDayStat> days = new List<TrendDayStat>();
+    private List<TrendAppStat> apps = new List<TrendAppStat>();
+    private bool en;
+    private readonly ToolTip tip;
+    private string tipText = "";
+
+    public TrendPanel()
+    {
+        DoubleBuffered = true;
+        BackColor = Color.White;
+        tip = new ToolTip();
+        MouseMove += OnMouseMove;
+        MouseLeave += delegate { SetTip(""); };
+        Disposed += delegate { tip.Dispose(); };
+    }
+
+    public void SetData(List<TrendDayStat> dayList, List<TrendAppStat> appList, bool english)
+    {
+        days = dayList != null ? dayList : new List<TrendDayStat>();
+        apps = appList != null ? appList : new List<TrendAppStat>();
+        en = english;
+        SetTip("");
+        Invalidate();
+    }
+
+    private Rectangle ChartRect()
+    {
+        return new Rectangle(48, 26, Math.Max(40, Width - 66), Math.Max(40, Height / 2 - 40));
+    }
+
+    private void OnMouseMove(object sender, MouseEventArgs e)
+    {
+        int idx = DayIndexAt(e.X, e.Y);
+        if (idx < 0) { SetTip(""); return; }
+        TrendDayStat d = days[idx];
+        DateTime dt;
+        string label = d.DateKey;
+        if (DateTime.TryParseExact(d.DateKey, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
+            label = dt.ToString("MM-dd") + " " + dt.ToString("ddd", en ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo("zh-CN"));
+        SetTip(label + "\r\n"
+            + (en ? "Screen active " : "屏幕活跃 ") + FormatDur(d.ScreenSecs) + "\r\n"
+            + (en ? "Focus " : "专注 ") + FormatDur(d.FocusSecs)
+            + (d.FocusSessions > 0
+                ? (en ? " (" + d.FocusDone + "/" + d.FocusSessions + " done)" : "（完成 " + d.FocusDone + "/" + d.FocusSessions + "）")
+                : ""));
+    }
+
+    private void SetTip(string text)
+    {
+        if (text == tipText) return;
+        tipText = text;
+        tip.SetToolTip(this, text);
+    }
+
+    private int DayIndexAt(int x, int y)
+    {
+        Rectangle chart = ChartRect();
+        if (days.Count == 0 || x < chart.X || x > chart.Right || y < chart.Y || y > chart.Bottom) return -1;
+        double slot = chart.Width / (double)days.Count;
+        int idx = (int)((x - chart.X) / slot);
+        return Math.Min(days.Count - 1, Math.Max(0, idx));
+    }
+
+    private string FormatDur(long secs)
+    {
+        long h = secs / 3600, m = (secs % 3600) / 60;
+        if (h > 0) return en ? h + "h " + m + "m" : h + " 小时 " + m + " 分钟";
+        if (m > 0) return en ? m + "m" : m + " 分钟";
+        return en ? secs + "s" : secs + " 秒";
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        Graphics g = e.Graphics;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        Font font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
+        Font small = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        Font smallBold = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Bold);
+        try
+        {
+            Color axisGray = AppContext.Win11ShortcutGray;
+            Color screenColor = Color.FromArgb(196, 201, 209);
+            Color focusColor = AppContext.Win11Accent;
+            TextFormatFlags nf = TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
+
+            // 图例（右上角）
+            string lgScreen = en ? "Screen active" : "屏幕活跃";
+            string lgFocus = en ? "Focus" : "专注";
+            Size szS = TextRenderer.MeasureText(g, lgScreen, small, Size.Empty, nf);
+            Size szF = TextRenderer.MeasureText(g, lgFocus, small, Size.Empty, nf);
+            int lgW = 12 + 4 + szS.Width + 14 + 12 + 4 + szF.Width;
+            int lgX = Math.Max(8, Width - lgW - 10);
+            using (SolidBrush br = new SolidBrush(screenColor)) g.FillRectangle(br, lgX, 6, 12, 8);
+            TextRenderer.DrawText(g, lgScreen, small, new Point(lgX + 16, 4), AppContext.Win11TextSecondary, nf);
+            int fx = lgX + 16 + szS.Width + 14;
+            using (SolidBrush br = new SolidBrush(focusColor)) g.FillRectangle(br, fx, 6, 12, 8);
+            TextRenderer.DrawText(g, lgFocus, small, new Point(fx + 16, 4), AppContext.Win11TextSecondary, nf);
+
+            Rectangle chart = ChartRect();
+            if (days.Count == 0)
+            {
+                TextRenderer.DrawText(g, en ? "No data yet" : "暂无数据", font, chart, axisGray,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+            }
+            else
+            {
+                long scaleSecs = 3600;
+                for (int i = 0; i < days.Count; i++)
+                    scaleSecs = Math.Max(scaleSecs, Math.Max(days[i].ScreenSecs, days[i].FocusSecs));
+                // 刻度向上取整到半小时，网格线才落在好读的数字上。
+                scaleSecs = ((scaleSecs + 1799) / 1800) * 1800;
+
+                for (int i = 0; i <= 4; i++)
+                {
+                    int y = chart.Bottom - (int)Math.Round(chart.Height * i / 4.0);
+                    using (Pen p = new Pen(i == 0 ? Color.FromArgb(210, 214, 222) : Color.FromArgb(232, 235, 240)))
+                        g.DrawLine(p, chart.X, y, chart.Right, y);
+                    if (i == 0) continue;
+                    long v = scaleSecs * i / 4;
+                    string lbl = v >= 3600
+                        ? ((v % 3600 == 0) ? (v / 3600).ToString() : (v / 3600.0).ToString("0.#")) + "h"
+                        : (v / 60).ToString() + "m";
+                    Size sz = TextRenderer.MeasureText(g, lbl, small, Size.Empty, nf);
+                    TextRenderer.DrawText(g, lbl, small, new Point(Math.Max(0, chart.X - 6 - sz.Width), y - sz.Height / 2), axisGray, nf);
+                }
+
+                // 双序列柱：左灰=屏幕活跃，右蓝=专注。今天的日期标签用强调色加粗。
+                int n = days.Count;
+                double slot = chart.Width / (double)n;
+                int barW = Math.Max(3, Math.Min(12, (int)(slot * 0.28)));
+                string todayKey = DateTime.Today.ToString("yyyyMMdd");
+                int labelStep = n <= 8 ? 1 : (int)Math.Ceiling(n / 7.0);
+                for (int i = 0; i < n; i++)
+                {
+                    TrendDayStat d = days[i];
+                    int cx = chart.X + (int)Math.Round((i + 0.5) * slot);
+                    int hS = (int)Math.Round(d.ScreenSecs / (double)scaleSecs * chart.Height);
+                    int hF = (int)Math.Round(d.FocusSecs / (double)scaleSecs * chart.Height);
+                    if (d.ScreenSecs > 0 && hS < 2) hS = 2;
+                    if (d.FocusSecs > 0 && hF < 2) hF = 2;
+                    if (hS > 0)
+                    {
+                        using (SolidBrush br = new SolidBrush(screenColor))
+                            g.FillRectangle(br, cx - barW - 1, chart.Bottom - hS, barW, hS);
+                    }
+                    if (hF > 0)
+                    {
+                        using (SolidBrush br = new SolidBrush(focusColor))
+                            g.FillRectangle(br, cx + 1, chart.Bottom - hF, barW, hF);
+                    }
+                    if (i % labelStep == 0 || i == n - 1)
+                    {
+                        DateTime dt;
+                        string lbl = d.DateKey;
+                        if (DateTime.TryParseExact(d.DateKey, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
+                            lbl = dt.ToString("MM-dd");
+                        bool isToday = d.DateKey == todayKey;
+                        Font lf = isToday ? smallBold : small;
+                        Size sz = TextRenderer.MeasureText(g, lbl, lf, Size.Empty, nf);
+                        int lx = Math.Max(0, Math.Min(Width - sz.Width, cx - sz.Width / 2));
+                        TextRenderer.DrawText(g, lbl, lf, new Point(lx, chart.Bottom + 5), isToday ? focusColor : axisGray, nf);
+                    }
+                }
+            }
+
+            // 分隔线 + 应用排行
+            int divY = chart.Bottom + 24;
+            using (Pen p = new Pen(Color.FromArgb(232, 235, 240)))
+                g.DrawLine(p, 12, divY, Width - 12, divY);
+            TextRenderer.DrawText(g, en ? "Top apps in this window" : "窗口内应用排行", font,
+                new Point(12, divY + 8), AppContext.Win11TextPrimary, nf);
+
+            int rowsY = divY + 32;
+            int rowH = 21;
+            int maxRows = Math.Max(1, (Height - rowsY - 4) / rowH);
+            if (apps.Count == 0)
+            {
+                TextRenderer.DrawText(g, en ? "(no screen-active records yet)" : "（暂无屏幕活跃记录）", small,
+                    new Point(12, rowsY + 2), axisGray, nf);
+            }
+            else
+            {
+                long maxApp = Math.Max(1, apps[0].Seconds);
+                int barX = 208;
+                int durW = 110;
+                int barMaxW = Math.Max(40, Width - barX - durW - 22);
+                int count = Math.Min(apps.Count, maxRows);
+                for (int i = 0; i < count; i++)
+                {
+                    int y = rowsY + i * rowH;
+                    TextRenderer.DrawText(g, (i + 1).ToString(), small, new Point(12, y + 2), axisGray, nf);
+                    string name = UsageLog.DisplayName(apps[i].Exe);
+                    TextRenderer.DrawText(g, name, font, new Rectangle(32, y, barX - 44, rowH), AppContext.Win11TextPrimary,
+                        TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.WordEllipsis | TextFormatFlags.NoPadding);
+                    Rectangle bar = new Rectangle(barX, y + rowH / 2 - 5, barMaxW, 10);
+                    using (SolidBrush bg = new SolidBrush(Color.FromArgb(240, 242, 245)))
+                        g.FillRectangle(bg, bar);
+                    int bw = (int)Math.Round(apps[i].Seconds / (double)maxApp * barMaxW);
+                    if (bw > 0)
+                    {
+                        using (SolidBrush br = new SolidBrush(UsageLog.ColorFor(UsageLog.Active, apps[i].Exe)))
+                            g.FillRectangle(br, bar.X, bar.Y, bw, bar.Height);
+                    }
+                    TextRenderer.DrawText(g, FormatDur(apps[i].Seconds), small,
+                        new Rectangle(Width - durW - 12, y + 2, durW, rowH), AppContext.Win11TextSecondary,
+                        TextFormatFlags.Right | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+                }
+            }
+        }
+        finally
+        {
+            font.Dispose();
+            small.Dispose();
+            smallBold.Dispose();
+        }
     }
 }
 

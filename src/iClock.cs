@@ -463,7 +463,7 @@ internal sealed class AppContext : ApplicationContext
         };
         SystemEvents.SessionSwitch += sessionSwitchHandler;
         usageTracker = new UsageTracker(overlay);
-        if (settings.UsageTrackEnabled && !isOneShot && !IsSelfCheckRunning)
+        if (!isOneShot && !IsSelfCheckRunning)
             usageTracker.Start();
         eyeCare = new EyeCareTracker(
             delegate { return settings.EyeCareIntervalMinutes; },
@@ -839,19 +839,17 @@ internal sealed class AppContext : ApplicationContext
             : (en ? "iClock (" + actionTip + " · Hotkey conflict)" : "iClock（" + actionTip + " · 快捷键未生效）");
     }
 
+    // 用时统计已改为始终开启,此方法只保留「确保在跑」的语义。
     private void SetUsageTracking(bool on)
     {
-        settings.UsageTrackEnabled = on;
-        settings.Save();
         if (usageTracker == null) return;
-        if (on && !isOneShot && !IsSelfCheckRunning) usageTracker.Start();
-        else usageTracker.Stop();
+        if (!isOneShot && !IsSelfCheckRunning) usageTracker.Start();
     }
 
     private void RefreshUsageStrip(ContextMenuStrip m)
     {
         if (menuUsageStrip == null) return;
-        bool show = settings.UsageTrackEnabled && !isOneShot;
+        bool show = !isOneShot;
         menuUsageStrip.Available = show;
         menuUsageStrip.Visible = show;
         if (!show) return;
@@ -2881,30 +2879,23 @@ internal sealed class AppContext : ApplicationContext
         btnTabOverview.MouseEnter += delegate { if (currentViewMode != 1) btnTabOverview.BackColor = Color.FromArgb(228, 232, 238); };
         btnTabOverview.MouseLeave += delegate { if (currentViewMode != 1) btnTabOverview.BackColor = Color.FromArgb(240, 242, 245); };
 
-        ToggleSwitch usageSwitch = new ToggleSwitch();
-        usageSwitch.Size = new Size(40, 22);
-        usageSwitch.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        usageSwitch.Checked = settings.UsageTrackEnabled;
-        usageSwitch.TabStop = true;
+        Button btnTabTrend = new Button();
+        btnTabTrend.Text = en ? "Trends" : "趋势";
+        btnTabTrend.SetBounds(btnTabOverview.Right + 6, 10, en ? 84 : 64, 28);
+        btnTabTrend.FlatStyle = FlatStyle.Flat;
+        btnTabTrend.FlatAppearance.BorderSize = 0;
+        btnTabTrend.Font = boldFont;
+        btnTabTrend.Cursor = Cursors.Hand;
+        btnTabTrend.MouseEnter += delegate { if (currentViewMode != 2) btnTabTrend.BackColor = Color.FromArgb(228, 232, 238); };
+        btnTabTrend.MouseLeave += delegate { if (currentViewMode != 2) btnTabTrend.BackColor = Color.FromArgb(240, 242, 245); };
 
-        Label lblUsage = new Label();
-        lblUsage.AutoSize = true;
-        lblUsage.UseMnemonic = false;
-        lblUsage.TextAlign = ContentAlignment.MiddleRight;
-        lblUsage.Text = en ? "Enable usage tracking" : "开启用时统计";
-        lblUsage.Font = f.Font;
-        lblUsage.ForeColor = Win11TextSecondary;
-        lblUsage.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-        usageSwitch.Location = new Point(f.ClientSize.Width - 12 - usageSwitch.Width, 13);
-        // 按文字本身的宽度再留出一个字，避免最后一个字换行后被裁掉。
-        int usageLabelW = lblUsage.PreferredSize.Width + lblUsage.Font.Height;
-        lblUsage.AutoSize = false;
-        lblUsage.SetBounds(usageSwitch.Left - 6 - usageLabelW, 12, usageLabelW, 24);
+        // 顶部右侧腾出来给日期/范围控件;用时统计已改为始终开启,不再有开关。
+        int topRightX = f.ClientSize.Width - 12;
 
         Button btnNext = new Button();
         btnNext.Text = "▶";
         btnNext.Size = new Size(28, 28);
-        btnNext.Location = new Point(lblUsage.Left - 8 - btnNext.Width, 10);
+        btnNext.Location = new Point(topRightX - btnNext.Width, 10);
         btnNext.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         btnNext.FlatStyle = FlatStyle.Flat;
         btnNext.BackColor = Color.FromArgb(240, 242, 245);
@@ -2959,12 +2950,23 @@ internal sealed class AppContext : ApplicationContext
         cboRange.DropDownStyle = ComboBoxStyle.DropDownList;
         cboRange.Width = en ? 140 : 120;
         cboRange.Font = f.Font;
-        cboRange.Location = new Point(lblUsage.Left - 8 - cboRange.Width, 10);
+        cboRange.Location = new Point(topRightX - cboRange.Width, 10);
         cboRange.Anchor = AnchorStyles.Top | AnchorStyles.Right;
         cboRange.Items.AddRange(en ? new object[] { "Last 7 Days", "Last 14 Days", "Last 30 Days", "All History" }
                                    : new object[] { "最近 7 天", "最近 14 天", "最近 30 天", "全部历史" });
         cboRange.SelectedIndex = 0;
         tip.SetToolTip(cboRange, en ? "Select statistics time range" : "选择统计时间范围");
+
+        ComboBox cboTrend = new ComboBox();
+        cboTrend.DropDownStyle = ComboBoxStyle.DropDownList;
+        cboTrend.Width = en ? 130 : 110;
+        cboTrend.Font = f.Font;
+        cboTrend.Location = new Point(topRightX - cboTrend.Width, 10);
+        cboTrend.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        cboTrend.Items.AddRange(en ? new object[] { "This week", "Last 30 days" } : new object[] { "本周", "最近 30 天" });
+        cboTrend.SelectedIndex = 0;
+        cboTrend.Visible = false;
+        tip.SetToolTip(cboTrend, en ? "Select trend window" : "选择趋势窗口");
 
         ListView list = new ListView();
         list.Font = f.Font;
@@ -2982,10 +2984,21 @@ internal sealed class AppContext : ApplicationContext
         usageAxis.MouseMove += delegate(object s, MouseEventArgs e)
         {
             UsageSegment hit = usageAxis.HitTest(e.X);
-            if (hit == null) { axisTip.SetToolTip(usageAxis, ""); return; }
-            axisTip.SetToolTip(usageAxis, UsageLog.LabelFor(hit.State, hit.Exe, en) + "\r\n"
-                + hit.Start.ToString("HH:mm") + " – " + hit.End.ToString("HH:mm") + "\r\n"
-                + FormatDuration(hit.Seconds, en));
+            UsageSegment mark = usageAxis.FocusMarkerAt(e.X);
+            if (hit == null && mark == null) { axisTip.SetToolTip(usageAxis, ""); return; }
+            string txt = "";
+            if (hit != null)
+            {
+                txt = UsageLog.LabelFor(hit.State, hit.Exe, en) + "\r\n"
+                    + hit.Start.ToString("HH:mm") + " – " + hit.End.ToString("HH:mm") + "\r\n"
+                    + FormatDuration(hit.Seconds, en);
+            }
+            if (mark != null)
+            {
+                if (txt.Length > 0) txt += "\r\n";
+                txt += (en ? "🎯 Focus " : "🎯 专注 ") + mark.Start.ToString("HH:mm") + " – " + mark.End.ToString("HH:mm");
+            }
+            axisTip.SetToolTip(usageAxis, txt);
         };
         usageAxis.MouseLeave += delegate { axisTip.SetToolTip(usageAxis, ""); };
         // Clicking the ribbon toggles activity-window / full-day zoom.
@@ -3032,7 +3045,7 @@ internal sealed class AppContext : ApplicationContext
         btnSegCountdown.BackColor = Color.Transparent;
         btnSegCountdown.Font = f.Font;
         btnSegCountdown.Cursor = Cursors.Hand;
-        btnSegCountdown.Text = en ? "Countdown" : "倒计时记录";
+        btnSegCountdown.Text = en ? "Focus" : "专注";
         btnSegCountdown.Tag = 0;
         btnSegCountdown.SetBounds(0, 0, (contentW - 8) / 2, 30);
         btnSegCountdown.Paint += segPaint;
@@ -3040,7 +3053,7 @@ internal sealed class AppContext : ApplicationContext
         btnSegCountdown.MouseLeave += delegate { btnSegCountdown.Invalidate(); };
         btnSegCountdown.Visible = false;
         segHost.Controls.Add(btnSegCountdown);
-        tip.SetToolTip(btnSegCountdown, en ? "Countdown sessions of the selected day" : "查看所选日期的专注周期明细");
+        tip.SetToolTip(btnSegCountdown, en ? "Focus sessions of the selected day" : "查看所选日期的专注周期明细");
 
         Button btnSegUsage = new Button();
         btnSegUsage.FlatStyle = FlatStyle.Flat;
@@ -3048,7 +3061,7 @@ internal sealed class AppContext : ApplicationContext
         btnSegUsage.BackColor = Color.Transparent;
         btnSegUsage.Font = f.Font;
         btnSegUsage.Cursor = Cursors.Hand;
-        btnSegUsage.Text = en ? "Time tracking" : "时间统计";
+        btnSegUsage.Text = en ? "Screen time" : "屏幕时间";
         btnSegUsage.Tag = 1;
         btnSegUsage.SetBounds((contentW - 8) / 2 + 8, 0, contentW - 8 - (contentW - 8) / 2, 30);
         btnSegUsage.Paint += segPaint;
@@ -3056,7 +3069,7 @@ internal sealed class AppContext : ApplicationContext
         btnSegUsage.MouseLeave += delegate { btnSegUsage.Invalidate(); };
         btnSegUsage.Visible = false;
         segHost.Controls.Add(btnSegUsage);
-        tip.SetToolTip(btnSegUsage, en ? "Per-app usage of the selected day" : "查看所选日期的各应用使用时长");
+        tip.SetToolTip(btnSegUsage, en ? "Per-app screen time of the selected day" : "查看所选日期的各应用使用时长");
 
         list.SetBounds(12, 48, contentW, 394);
         list.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
@@ -3222,6 +3235,11 @@ internal sealed class AppContext : ApplicationContext
         };
         summaryPanel.Resize += delegate { summaryPanel.Invalidate(); };
 
+        // 趋势视图面板：双序列日对比图（屏幕活跃 vs 专注）+ 窗口内应用排行。
+        TrendPanel trendPanel = new TrendPanel();
+        trendPanel.SetBounds(12, 48, contentW, summaryPanel.Top - 48 - 8);
+        trendPanel.Visible = false;
+
         MethodInvoker refreshData = delegate
         {
             list.BeginUpdate();
@@ -3260,7 +3278,47 @@ internal sealed class AppContext : ApplicationContext
                 usageAxis.SetDayBounds(dayLo, dayHi);
                 usageAxis.SetData(daySegs, axisStart, axisEnd, usageHighlight, en);
 
-                if (currentDaySubMode == 1 && settings.UsageTrackEnabled)
+                // 意图叠加在现实之上：把当天倒计时周期作为标记画到同一条时间轴。
+                List<UsageSegment> focusMarks = new List<UsageSegment>();
+                DateTime markDay;
+                if (DateTime.TryParseExact(selKey, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out markDay))
+                {
+                    string histPath = Path.Combine(historyDir, "history-" + selKey + ".tsv");
+                    if (File.Exists(histPath))
+                    {
+                        try
+                        {
+                            foreach (string row in File.ReadAllLines(histPath, Encoding.UTF8))
+                            {
+                                string hStart, hEnd, hDur, hRes; long hSecs; bool hDone;
+                                if (!ParseSessionRow(row, out hStart, out hEnd, out hDur, out hSecs, out hRes, out hDone)) continue;
+                                DateTime t0, t1;
+                                if (!DateTime.TryParse(hStart, out t0)) continue;
+                                if (!DateTime.TryParse(hEnd, out t1)) t1 = t0;
+                                UsageSegment mk = new UsageSegment();
+                                mk.Start = markDay.Date.Add(t0.TimeOfDay);
+                                mk.End = markDay.Date.Add(t1.TimeOfDay);
+                                if (mk.End < mk.Start) mk.End = mk.End.AddDays(1);
+                                mk.State = hDone ? "done" : "interrupt";
+                                focusMarks.Add(mk);
+                            }
+                        }
+                        catch { }
+                    }
+                    if (selKey == todayStr
+                        && TryGetOpenHistoryRow(out openStart, out openEnd, out openMinutes, out openSecs, out openRest)
+                        && sessionStart.ToString("yyyyMMdd") == selKey)
+                    {
+                        UsageSegment mk = new UsageSegment();
+                        mk.Start = sessionStart;
+                        mk.End = DateTime.Now;
+                        mk.State = "done";
+                        focusMarks.Add(mk);
+                    }
+                }
+                usageAxis.SetFocusMarkers(focusMarks);
+
+                if (currentDaySubMode == 1)
                 {
                     list.Columns[0].TextAlign = HorizontalAlignment.Center;
                     list.Columns[0].Text = "";
@@ -3408,7 +3466,7 @@ internal sealed class AppContext : ApplicationContext
                 }
                 }
             }
-            else
+            else if (currentViewMode == 1)
             {
                 list.Columns[0].TextAlign = HorizontalAlignment.Left;
                 list.Columns[0].Text = en ? "Date" : "日期";
@@ -3487,6 +3545,84 @@ internal sealed class AppContext : ApplicationContext
                 }
             }
 
+            else
+            {
+                // 趋势：窗口内每天的屏幕活跃与专注双序列 + 应用排行 + 连胜。
+                int daysBack = cboTrend.SelectedIndex == 0
+                    ? (((int)DateTime.Today.DayOfWeek + 6) % 7)
+                    : 29;
+                List<TrendDayStat> dayStats = new List<TrendDayStat>();
+                Dictionary<string, long> appSecs = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+                for (int i = daysBack; i >= 0; i--)
+                {
+                    string dk = DateTime.Today.AddDays(-i).ToString("yyyyMMdd");
+                    TrendDayStat ds = new TrendDayStat();
+                    ds.DateKey = dk;
+                    int dTot, dDone; long dSecs;
+                    GetDayStats(historyDir, dk, out dTot, out dDone, out dSecs);
+                    if (dk == todayStr && TryGetOpenHistoryRow(out openStart, out openEnd, out openMinutes, out openSecs, out openRest))
+                    {
+                        dTot++;
+                        dSecs += openSecs;
+                    }
+                    ds.FocusSecs = dSecs;
+                    ds.FocusSessions = dTot;
+                    ds.FocusDone = dDone;
+                    List<UsageSegment> segs = (usageTracker != null && dk == todayStr)
+                        ? usageTracker.GetDayWithOpen(dk) : UsageLog.LoadDay(dk);
+                    List<UsageSummary> sums = UsageLog.Summarize(segs);
+                    long screen = 0;
+                    for (int j = 0; j < sums.Count; j++)
+                    {
+                        if (sums[j].State != UsageLog.Active) continue;
+                        screen += sums[j].Seconds;
+                        long cur;
+                        appSecs.TryGetValue(sums[j].Exe ?? "", out cur);
+                        appSecs[sums[j].Exe ?? ""] = cur + sums[j].Seconds;
+                    }
+                    ds.ScreenSecs = screen;
+                    dayStats.Add(ds);
+                }
+                List<TrendAppStat> appTop = new List<TrendAppStat>();
+                foreach (KeyValuePair<string, long> kv in appSecs)
+                {
+                    TrendAppStat ta = new TrendAppStat();
+                    ta.Exe = kv.Key;
+                    ta.Seconds = kv.Value;
+                    appTop.Add(ta);
+                }
+                appTop.Sort(delegate(TrendAppStat a, TrendAppStat b) { return b.Seconds.CompareTo(a.Seconds); });
+                if (appTop.Count > 7) appTop.RemoveRange(7, appTop.Count - 7);
+                trendPanel.SetData(dayStats, appTop, en);
+
+                long totFocus = 0, totScreen = 0;
+                for (int i = 0; i < dayStats.Count; i++)
+                {
+                    totFocus += dayStats[i].FocusSecs;
+                    totScreen += dayStats[i].ScreenSecs;
+                }
+                // 连胜：今天还没有记录时从昨天往前数，避免「今天刚开始」就被清零。
+                int curStreak = 0, si = dayStats.Count - 1;
+                if (si >= 0 && dayStats[si].FocusSecs == 0) si--;
+                while (si >= 0 && dayStats[si].FocusSecs > 0) { curStreak++; si--; }
+                int bestStreak = 0, run = 0;
+                for (int i = 0; i < dayStats.Count; i++)
+                {
+                    if (dayStats[i].FocusSecs > 0) { run++; if (run > bestStreak) bestStreak = run; }
+                    else run = 0;
+                }
+                currentSpans = new StatSpan[]
+                {
+                    new StatSpan(en ? "📈 Window focus " : "📈 窗口专注 ", f.Font, Win11TextPrimary),
+                    new StatSpan(FormatDuration(totFocus, en), boldFont, Win11Accent),
+                    new StatSpan(en ? " ｜ Screen active " : " ｜屏幕活跃 ", f.Font, Win11TextSecondary),
+                    new StatSpan(FormatDuration(totScreen, en), boldFont, Win11TextPrimary),
+                    new StatSpan(en ? " ｜ 🔥 Streak " : " ｜ 🔥 连续专注 ", f.Font, Win11TextSecondary),
+                    new StatSpan(curStreak + (en ? " d" : " 天"), boldFont, curStreak >= 3 ? Color.FromArgb(16, 124, 65) : Win11TextPrimary),
+                    new StatSpan(en ? " (best " + bestStreak + " d)" : "（最佳 " + bestStreak + " 天）", f.Font, Win11TextSecondary)
+                };
+            }
+
             list.EndUpdate();
             updateColumnWidths();
             summaryPanel.Invalidate();
@@ -3496,16 +3632,21 @@ internal sealed class AppContext : ApplicationContext
         Action<int> switchView = delegate(int mode)
         {
             currentViewMode = mode;
-            bool isDay = currentViewMode == 0;
+            bool isDay = currentViewMode == 0, isOverview = currentViewMode == 1, isTrend = currentViewMode == 2;
             btnTabDay.BackColor = isDay ? Win11Accent : Color.FromArgb(235, 238, 242);
             btnTabDay.ForeColor = isDay ? Color.White : Win11TextPrimary;
-            btnTabOverview.BackColor = isDay ? Color.FromArgb(235, 238, 242) : Win11Accent;
-            btnTabOverview.ForeColor = isDay ? Win11TextPrimary : Color.White;
+            btnTabOverview.BackColor = isOverview ? Win11Accent : Color.FromArgb(235, 238, 242);
+            btnTabOverview.ForeColor = isOverview ? Color.White : Win11TextPrimary;
+            btnTabTrend.BackColor = isTrend ? Win11Accent : Color.FromArgb(235, 238, 242);
+            btnTabTrend.ForeColor = isTrend ? Color.White : Win11TextPrimary;
 
             btnPrev.Visible = isDay;
             cboDate.Visible = isDay;
             btnNext.Visible = isDay;
-            cboRange.Visible = !isDay;
+            cboRange.Visible = isOverview;
+            cboTrend.Visible = isTrend;
+            list.Visible = !isTrend;
+            trendPanel.Visible = isTrend;
 
             applyUsageLayout();
             refreshData();
@@ -3513,7 +3654,7 @@ internal sealed class AppContext : ApplicationContext
 
         applyUsageLayout = delegate
         {
-            bool show = settings.UsageTrackEnabled && currentViewMode == 0;
+            bool show = currentViewMode == 0;
             usageAxis.Visible = show;
             btnSegCountdown.Visible = show;
             btnSegUsage.Visible = show;
@@ -3527,6 +3668,7 @@ internal sealed class AppContext : ApplicationContext
 
         btnTabDay.Click += delegate { switchView(0); };
         btnTabOverview.Click += delegate { switchView(1); };
+        btnTabTrend.Click += delegate { switchView(2); };
         btnSegCountdown.Click += delegate
         {
             currentDaySubMode = 0;
@@ -3540,16 +3682,8 @@ internal sealed class AppContext : ApplicationContext
             applyUsageLayout();
             refreshData();
         };
-        usageSwitch.CheckedChanged += delegate
-        {
-            SetUsageTracking(usageSwitch.Checked);
-            if (!usageSwitch.Checked) { currentDaySubMode = 0; usageHighlight = ""; }
-            applyUsageLayout();
-            refreshData();
-        };
         historySetUsageTab = delegate(bool usage)
         {
-            if (!settings.UsageTrackEnabled) return;
             currentDaySubMode = usage ? 1 : 0;
             if (currentViewMode != 0) switchView(0);
             else { applyUsageLayout(); refreshData(); }
@@ -3568,6 +3702,7 @@ internal sealed class AppContext : ApplicationContext
         btnPrev.Click += delegate { if (cboDate.SelectedIndex < cboDate.Items.Count - 1) cboDate.SelectedIndex++; };
         btnNext.Click += delegate { if (cboDate.SelectedIndex > 0) cboDate.SelectedIndex--; };
         cboRange.SelectedIndexChanged += delegate { if (currentViewMode == 1) refreshData(); };
+        cboTrend.SelectedIndexChanged += delegate { if (currentViewMode == 2) refreshData(); };
 
         list.DoubleClick += delegate
         {
@@ -3591,13 +3726,14 @@ internal sealed class AppContext : ApplicationContext
 
         f.Controls.Add(btnTabDay);
         f.Controls.Add(btnTabOverview);
-        f.Controls.Add(lblUsage);
-        f.Controls.Add(usageSwitch);
+        f.Controls.Add(btnTabTrend);
         f.Controls.Add(btnPrev);
         f.Controls.Add(cboDate);
         f.Controls.Add(btnNext);
         f.Controls.Add(cboRange);
+        f.Controls.Add(cboTrend);
         f.Controls.Add(usageAxis);
+        f.Controls.Add(trendPanel);
         f.Controls.Add(list);
         f.Controls.Add(summaryPanel);
 
@@ -3606,7 +3742,7 @@ internal sealed class AppContext : ApplicationContext
         {
             if (f.IsDisposed) return;
             if (f.InvokeRequired) { try { f.BeginInvoke(onUsageChanged); } catch { } return; }
-            if (currentViewMode == 0 && settings.UsageTrackEnabled) refreshData();
+            if (currentViewMode != 1) refreshData();
         };
         if (usageTracker != null) usageTracker.Changed += onUsageChanged;
         f.FormClosed += delegate { if (usageTracker != null) usageTracker.Changed -= onUsageChanged; };
@@ -3623,7 +3759,7 @@ internal sealed class AppContext : ApplicationContext
             }
             else if (e.Control && e.KeyCode == Keys.Tab)
             {
-                switchView(currentViewMode == 0 ? 1 : 0);
+                switchView((currentViewMode + 1) % 3);
             }
             else if (e.Control && e.KeyCode == Keys.C && list.SelectedItems.Count > 0)
             {

@@ -70,7 +70,7 @@ internal static class TestCheck
             int defX = (int)settingsType.GetField("X").GetValue(defaultSettings);
             int defY = (int)settingsType.GetField("Y").GetValue(defaultSettings);
             string defFormat = (string)settingsType.GetField("Format").GetValue(defaultSettings);
-            if (!defaultCollaborationEnabled || defaultUsageTrack || defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 60 || defFormat != "MM:SS")
+            if (!defaultCollaborationEnabled || !defaultUsageTrack || defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 60 || defFormat != "MM:SS")
             {
                 Console.WriteLine("FAIL: Default collaboration, usage-track, or timer appearance settings are incorrect");
                 return 18;
@@ -3326,6 +3326,17 @@ internal static class TestCheck
                 return 64;
             }
             Console.WriteLine("PASS: eye-care settings persist; tracker ships and the reminder reuses NoticeDialog.");
+
+            Type trendPanelType = asm.GetType("TrendPanel");
+            Type axisPanelType = asm.GetType("UsageAxisPanel");
+            if (trendPanelType == null || axisPanelType == null
+                || axisPanelType.GetMethod("SetFocusMarkers") == null
+                || axisPanelType.GetMethod("FocusMarkerAt") == null)
+            {
+                Console.WriteLine("FAIL: trend panel type or usage-axis focus-marker API is missing");
+                return 65;
+            }
+            Console.WriteLine("PASS: trend view panel and axis focus-marker API ship in the build.");
 
             MethodInfo getDayFocus = appType.GetMethod("GetDayFocusSecs", sbf);
             MethodInfo computeStreak = appType.GetMethod("ComputeStreak", sbf);

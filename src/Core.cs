@@ -76,7 +76,8 @@ internal sealed class Settings
     // 每日专注目标（分钟）。0 = 关闭：不画进度条、托盘不显示打卡文案。
     public int DailyGoalMinutes = 0;
     // 电脑使用时间跟踪。默认关闭，避免未同意时后台装钩。
-    public bool UsageTrackEnabled;
+    // 用时统计始终开启（只记进程名与时长,不碰内容）;字段仅为兼容旧代码保留,恒为 true。
+    public bool UsageTrackEnabled = true;
     // 护眼提醒：连续盯屏满间隔后弹轻提醒卡，可一键进入休息倒计时。
     public bool EyeCareEnabled = true;
     // 提醒间隔（分钟），可选 20/30/45/60。
@@ -198,7 +199,6 @@ internal sealed class Settings
                 else if (k == "AiQuoteKeywords") s.AiQuoteKeywords = v;
                 else if (k == "AiQuoteCount" && int.TryParse(v, out n)) s.AiQuoteCount = n > 0 ? n : 30;
                 else if (k == "DailyGoalMinutes" && int.TryParse(v, out n)) s.DailyGoalMinutes = Math.Max(0, Math.Min(1440, n));
-                else if (k == "UsageTrackEnabled" && bool.TryParse(v, out b)) s.UsageTrackEnabled = b;
                 else if (k == "EyeCareEnabled" && bool.TryParse(v, out b)) s.EyeCareEnabled = b;
                 else if (k == "EyeCareIntervalMinutes" && int.TryParse(v, out n)) s.EyeCareIntervalMinutes = (n >= 5 && n <= 180) ? n : 45;
             }
@@ -232,7 +232,6 @@ internal sealed class Settings
             "AiQuoteKeywords=" + AiQuoteKeywords
             , "AiQuoteCount=" + AiQuoteCount
             , "DailyGoalMinutes=" + DailyGoalMinutes
-            , "UsageTrackEnabled=" + UsageTrackEnabled
             , "EyeCareEnabled=" + EyeCareEnabled
             , "EyeCareIntervalMinutes=" + EyeCareIntervalMinutes
         };
