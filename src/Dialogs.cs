@@ -31,6 +31,10 @@ internal sealed class NoticeDialog : Form
 
     private IntPtr targetHwnd;
     private bool isAgentNotice;
+    // CLI 终端提醒与护眼提醒也复用本弹窗（强提醒统一入口）。
+    private readonly bool isCli;
+    private readonly bool isEyeCare;
+    private Font msgFont;
     // Chosen rest length shown on the "休息 N 分钟" button (arrow zone opens a preset menu).
     private int restMinutes = 10;
     // Kept alive for the lifetime of the popup: a tooltip held only by a
@@ -46,17 +50,37 @@ internal sealed class NoticeDialog : Form
     public NoticeDialog(Settings s, DateTime finishedAt, string agentName, IntPtr targetWindow, Action onStartRest) : this(s, finishedAt, agentName, targetWindow, onStartRest, null) { }
 
     public NoticeDialog(Settings s, DateTime finishedAt, string agentName, IntPtr targetWindow, Action onStartRest, string detailMessage)
+        : this(s, finishedAt, agentName, targetWindow, onStartRest, detailMessage, null, 0) { }
+
+    // 终端提醒（--notice）：标题 + 消息正文 +「我知道了」，与倒计时结束同一强提醒形态。
+    public static NoticeDialog CliNotice(Settings s, string message, string agentName)
+    {
+        return new NoticeDialog(s, DateTime.Now, agentName, IntPtr.Zero, null, null, message, 0);
+    }
+
+    // 护眼提醒：间隔是用户自己设的，到点就该休息 —— 用强提醒，不做自动消失的小卡片。
+    public static NoticeDialog EyeCareReminder(Settings s, int intervalMinutes, Action onStartRest)
+    {
+        return new NoticeDialog(s, DateTime.Now, null, IntPtr.Zero, onStartRest, null, null, intervalMinutes);
+    }
+
+    private NoticeDialog(Settings s, DateTime finishedAt, string agentName, IntPtr targetWindow, Action onStartRest, string detailMessage, string cliMessage, int eyeCareIntervalMinutes)
     {
         settings = s;
         finishTime = finishedAt;
         targetHwnd = targetWindow;
-        bool isAgent = !string.IsNullOrEmpty(agentName);
+        isCli = cliMessage != null;
+        isEyeCare = eyeCareIntervalMinutes > 0;
+        bool isAgent = !isCli && !string.IsNullOrEmpty(agentName);
         isAgentNotice = isAgent;
         bool en = s.Language == "en";
         Font = AppContext.GetUiFont(s.Language, 9.5f);
         BackColor = AppContext.Win11Bg;
         AppContext.ApplyModernWindowStyle(this);
-        Text = isAgent ? (en ? agentName + " Ready" : agentName + " 已就绪") : "iClock";
+        string noticePrefix = string.IsNullOrEmpty(agentName) ? "iClock" : agentName;
+        Text = isCli ? (en ? noticePrefix + " Notice" : noticePrefix + " 终端提醒")
+            : isEyeCare ? (en ? "Eye care reminder" : "护眼提醒")
+            : isAgent ? (en ? agentName + " Ready" : agentName + " 已就绪") : "iClock";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
@@ -65,7 +89,11 @@ internal sealed class NoticeDialog : Form
         TopMost = true;
         ClientSize = new Size(350, 215);
 
-        string titleText = isAgent
+        string titleText = isCli
+            ? (en ? noticePrefix + " Notice" : noticePrefix + " 终端提醒")
+            : isEyeCare
+            ? (en ? "Time to rest your eyes" : "该让眼睛歇一歇了")
+            : isAgent
             ? (en ? agentName + " Task Completed" : agentName + " 任务已完成")
             : (String.IsNullOrEmpty(s.EndMessage) ? (en ? "Countdown Finished" : "倒计时结束") : s.EndMessage);
         Label titleLabel = new Label();
@@ -77,7 +105,17 @@ internal sealed class NoticeDialog : Form
         Controls.Add(titleLabel);
 
         string timeText;
-        if (isAgent)
+        if (isCli)
+        {
+            timeText = cliMessage;
+        }
+        else if (isEyeCare)
+        {
+            timeText = en
+                ? "You've been looking at the screen for " + eyeCareIntervalMinutes + " minutes"
+                : "已连续用眼 " + eyeCareIntervalMinutes + " 分钟";
+        }
+        else if (isAgent)
         {
             timeText = !string.IsNullOrEmpty(detailMessage) ? detailMessage : (en ? "Ready for review" : "可返回查看结果");
         }
@@ -88,10 +126,34 @@ internal sealed class NoticeDialog : Form
         }
         Label timeLabel = new Label();
         timeLabel.Text = timeText;
-        timeLabel.Font = isAgent
-            ? (!string.IsNullOrEmpty(detailMessage) ? AppContext.GetUiFont(s.Language, 11f, FontStyle.Bold) : AppContext.GetUiFont(s.Language, 16f, FontStyle.Bold))
-            : AppContext.GetUiFont(s.Language, 22f, FontStyle.Bold);
-        timeLabel.ForeColor = AppContext.Win11Accent;
+        if (isCli)
+        {
+            // 终端消息沿用用户配色，并按可用高度自动缩字号。
+            Color msgColor;
+            try { msgColor = ColorTranslator.FromHtml(s.Color); } catch { msgColor = AppContext.Win11TextPrimary; }
+            if (msgColor.IsEmpty) msgColor = AppContext.Win11TextPrimary;
+            if (msgColor.R > 230 && msgColor.G > 230 && msgColor.B > 230) msgColor = AppContext.Win11TextPrimary;
+            string family = !string.IsNullOrEmpty(s.FontFamily) ? s.FontFamily : "Segoe UI";
+            float targetSize = Math.Max(12f, Math.Min(32f, s.FontSize > 0 ? (float)s.FontSize : 20f));
+            while (true)
+            {
+                try { msgFont = new Font(family, targetSize, FontStyle.Bold, GraphicsUnit.Pixel); }
+                catch { msgFont = new Font("Segoe UI", targetSize, FontStyle.Bold, GraphicsUnit.Pixel); }
+                Size measured = TextRenderer.MeasureText(cliMessage, msgFont, new Size(310, 0), TextFormatFlags.WordBreak);
+                if (measured.Height <= 42 || targetSize <= 12f) break;
+                msgFont.Dispose();
+                targetSize -= 2f;
+            }
+            timeLabel.Font = msgFont;
+            timeLabel.ForeColor = msgColor;
+        }
+        else
+        {
+            timeLabel.Font = isAgent
+                ? (!string.IsNullOrEmpty(detailMessage) ? AppContext.GetUiFont(s.Language, 11f, FontStyle.Bold) : AppContext.GetUiFont(s.Language, 16f, FontStyle.Bold))
+                : AppContext.GetUiFont(s.Language, 22f, FontStyle.Bold);
+            timeLabel.ForeColor = AppContext.Win11Accent;
+        }
         timeLabel.TextAlign = ContentAlignment.MiddleCenter;
         timeLabel.SetBounds(20, 52, 310, 42);
         Controls.Add(timeLabel);
@@ -102,7 +164,20 @@ internal sealed class NoticeDialog : Form
         finishLabel.TextAlign = ContentAlignment.MiddleCenter;
         finishLabel.SetBounds(20, 102, 310, 22);
         Controls.Add(finishLabel);
-        UpdateFinishLabel();
+        if (isCli)
+        {
+            finishLabel.Visible = false;
+        }
+        else if (isEyeCare)
+        {
+            finishLabel.Text = en
+                ? "Look at something 6 m away for about 20 seconds to relax your eyes."
+                : "望向 6 米外约 20 秒，让睫状肌放松一下。";
+        }
+        else
+        {
+            UpdateFinishLabel();
+        }
 
         if (onStartRest != null)
         {
@@ -179,7 +254,7 @@ internal sealed class NoticeDialog : Form
             Controls.Add(btnRest);
 
             Button btn = new Button();
-            btn.Text = en ? "OK" : "确定";
+            btn.Text = isEyeCare ? (en ? "Later" : "稍后") : (en ? "OK" : "确定");
             btn.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
             btn.SetBounds(195, 150, 125, 36);
             AppContext.StyleSecondaryButton(btn);
@@ -192,7 +267,7 @@ internal sealed class NoticeDialog : Form
         else
         {
             Button btn = new Button();
-            btn.Text = isAgent ? (en ? "View" : "查看") : (en ? "OK" : "确定");
+            btn.Text = isCli ? (en ? "Got it" : "我知道了") : isAgent ? (en ? "View" : "查看") : (en ? "OK" : "确定");
             btn.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
             btn.SetBounds(120, 150, 110, 36);
             AppContext.StylePrimaryButton(btn);
@@ -223,6 +298,7 @@ internal sealed class NoticeDialog : Form
 
     private void UpdateFinishLabel()
     {
+        if (isCli || isEyeCare) return;
         bool en = settings.Language == "en";
         int secs = (int)Math.Max(0, (DateTime.Now - finishTime).TotalSeconds);
         string elapsed = (secs / 60).ToString("00") + ":" + (secs % 60).ToString("00");
@@ -252,6 +328,7 @@ internal sealed class NoticeDialog : Form
 
     private void StartAlarm()
     {
+        if (isCli) return;
         if (isAgentNotice)
         {
             AppContext.PlayAiSound();
@@ -278,105 +355,13 @@ internal sealed class NoticeDialog : Form
     {
         base.OnFormClosed(e);
         StopAlarm();
-    }
-}
-
-internal sealed class CliNoticeDialog : Form
-{
-    private Font msgFont;
-
-    public CliNoticeDialog(Settings s, string message, string agentName = null)
-    {
-        bool en = s != null && s.Language == "en";
-        string lang = s != null ? s.Language : "zh";
-        Font = AppContext.GetUiFont(lang, 9.5f);
-        BackColor = AppContext.Win11Bg;
-        AppContext.ApplyModernWindowStyle(this);
-        string prefix = !string.IsNullOrEmpty(agentName) ? agentName : "iClock";
-        Text = en ? (prefix + " Notice") : (prefix + " 终端提醒");
-        FormBorderStyle = FormBorderStyle.FixedDialog;
-        StartPosition = FormStartPosition.CenterScreen;
-        MaximizeBox = false;
-        MinimizeBox = false;
-        ShowInTaskbar = true;
-        ShowIcon = false;
-        try { Icon = AppContext.CreateIcon(); } catch { }
-        TopMost = true;
-        DoubleBuffered = true;
-        ClientSize = new Size(350, 160);
-
-        // Resolve user configured color
-        Color msgColor;
-        try { msgColor = ColorTranslator.FromHtml(s != null ? s.Color : null); }
-        catch { msgColor = AppContext.Win11TextPrimary; }
-        if (msgColor.IsEmpty) msgColor = AppContext.Win11TextPrimary;
-        if (msgColor.R > 230 && msgColor.G > 230 && msgColor.B > 230) msgColor = AppContext.Win11TextPrimary;
-
-        // Resolve user configured font family and font size
-        string family = (s != null && !string.IsNullOrEmpty(s.FontFamily)) ? s.FontFamily : "Segoe UI";
-        float userSize = (s != null && s.FontSize > 0) ? (float)s.FontSize : 20f;
-        float targetSize = Math.Max(12f, Math.Min(32f, userSize));
-        while (targetSize >= 12f)
+        if (msgFont != null)
         {
-            try { msgFont = new Font(family, targetSize, FontStyle.Bold, GraphicsUnit.Pixel); }
-            catch { msgFont = new Font("Segoe UI", targetSize, FontStyle.Bold, GraphicsUnit.Pixel); }
-
-            Size measured = TextRenderer.MeasureText(message, msgFont, new Size(318, 0), TextFormatFlags.WordBreak);
-            if (measured.Height <= 72 || targetSize <= 12f)
-            {
-                break;
-            }
-            msgFont.Dispose();
-            targetSize -= 2f;
+            try { msgFont.Dispose(); } catch { }
+            msgFont = null;
         }
-
-        Label lblMsg = new Label();
-        lblMsg.Text = message;
-        lblMsg.Font = msgFont;
-        lblMsg.ForeColor = msgColor;
-        lblMsg.TextAlign = ContentAlignment.MiddleCenter;
-        lblMsg.SetBounds(16, 18, 318, 78);
-        lblMsg.AutoEllipsis = true;
-        lblMsg.BackColor = Color.Transparent;
-        Controls.Add(lblMsg);
-
-        Button btnOk = new Button();
-        btnOk.Text = en ? "Got it" : "我知道了";
-        btnOk.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular);
-        btnOk.SetBounds(120, 108, 110, 34);
-        AppContext.StylePrimaryButton(btnOk);
-        btnOk.Click += delegate { Close(); };
-        Controls.Add(btnOk);
-
-        AcceptButton = btnOk;
-        CancelButton = btnOk;
-        KeyPreview = true;
-
-        FormClosed += delegate
-        {
-            if (msgFont != null)
-            {
-                try { msgFont.Dispose(); } catch { }
-                msgFont = null;
-            }
-        };
-
-        AppContext.CenterFormOnScreen(this);
-    }
-
-    protected override void OnShown(EventArgs e)
-    {
-        base.OnShown(e);
-        AppContext.CenterFormOnScreen(this);
-        ForceTopMost();
-    }
-
-    public void ForceTopMost()
-    {
-        AppContext.ForceTopMost(this);
     }
 }
-
 
 internal static class CliPromptHelper
 {

@@ -1771,9 +1771,9 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: HandleIpcCommand('-n') did not create activeNotice");
                 return 50;
             }
-            if (cliNotice.GetType().Name != "CliNoticeDialog")
+            if (cliNotice.GetType().Name != "NoticeDialog")
             {
-                Console.WriteLine("FAIL: -n did not instantiate specialized CliNoticeDialog, got " + cliNotice.GetType().Name);
+                Console.WriteLine("FAIL: -n did not instantiate unified NoticeDialog, got " + cliNotice.GetType().Name);
                 return 50;
             }
             bool foundMessage = false;
@@ -1786,19 +1786,19 @@ internal static class TestCheck
             }
             if (!foundMessage)
             {
-                Console.WriteLine("FAIL: CliNoticeDialog did not contain message text 'Build Success'");
+                Console.WriteLine("FAIL: CLI notice (NoticeDialog) did not contain message text 'Build Success'");
                 return 50;
             }
             if (foundBrand)
             {
-                Console.WriteLine("FAIL: CliNoticeDialog should not contain internal 'iClock' brand label");
+                Console.WriteLine("FAIL: CLI notice (NoticeDialog) should not contain internal 'iClock' brand label");
                 return 50;
             }
             string sColor = settings.GetType().GetField("Color").GetValue(settings) as string;
             Color expectedColor = ColorTranslator.FromHtml(sColor);
             if (msgLbl.ForeColor.ToArgb() != expectedColor.ToArgb())
             {
-                Console.WriteLine("FAIL: CliNoticeDialog message ForeColor (" + msgLbl.ForeColor + ") does not match settings.Color (" + expectedColor + ")");
+                Console.WriteLine("FAIL: CLI notice (NoticeDialog) message ForeColor (" + msgLbl.ForeColor + ") does not match settings.Color (" + expectedColor + ")");
                 return 50;
             }
             cliNotice.Close();
@@ -3320,12 +3320,12 @@ internal static class TestCheck
             fEyeCareEnabled.SetValue(settings, true);
             fEyeCareInterval.SetValue(settings, 45);
             settings.GetType().GetMethod("Save").Invoke(settings, null);
-            if (asm.GetType("EyeCareTracker") == null || asm.GetType("EyeCareDialog") == null)
+            if (asm.GetType("EyeCareTracker") == null || noticeType.GetMethod("EyeCareReminder", BindingFlags.Public | BindingFlags.Static) == null)
             {
-                Console.WriteLine("FAIL: eye-care tracker or reminder card type is missing");
+                Console.WriteLine("FAIL: eye-care tracker or the NoticeDialog.EyeCareReminder factory is missing");
                 return 64;
             }
-            Console.WriteLine("PASS: eye-care settings persist and the tracker/reminder card ship in the build.");
+            Console.WriteLine("PASS: eye-care settings persist; tracker ships and the reminder reuses NoticeDialog.");
 
             MethodInfo getDayFocus = appType.GetMethod("GetDayFocusSecs", sbf);
             MethodInfo computeStreak = appType.GetMethod("ComputeStreak", sbf);

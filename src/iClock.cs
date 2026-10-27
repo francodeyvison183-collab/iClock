@@ -210,7 +210,7 @@ internal sealed class AppContext : ApplicationContext
     private SessionSwitchEventHandler sessionSwitchHandler;
     private UsageTracker usageTracker;
     private EyeCareTracker eyeCare;
-    private EyeCareDialog activeEyeCare;
+    private NoticeDialog activeEyeCare;
     private UsageStripItem menuUsageStrip;
     private bool openHistoryOnUsageTab;
     private Action<bool> historySetUsageTab;
@@ -1471,7 +1471,7 @@ internal sealed class AppContext : ApplicationContext
         // if the user is already watching the agent window, show quietly without stealing focus.
         bool isFg = AppContext.IsAgentInForeground();
         if (settings.EndSound && !isFg) PlaySoundStyle(settings.EndSoundStyle);
-        CliNoticeDialog dlg = new CliNoticeDialog(settings, message, agentName);
+        NoticeDialog dlg = NoticeDialog.CliNotice(settings, message, agentName);
         activeNotice = dlg;
         dlg.FormClosed += delegate
         {
@@ -2707,13 +2707,13 @@ internal sealed class AppContext : ApplicationContext
         int rest = settings.RestMinutes > 0 ? settings.RestMinutes : 10;
         try
         {
-            activeEyeCare = new EyeCareDialog(settings, interval, delegate { StartRest(rest); });
+            activeEyeCare = NoticeDialog.EyeCareReminder(settings, interval, delegate { StartRest(rest); });
             activeEyeCare.FormClosed += delegate { activeEyeCare = null; };
             activeEyeCare.Show();
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine("EyeCareDialog error: " + ex.Message);
+            System.Diagnostics.Debug.WriteLine("EyeCare notice error: " + ex.Message);
         }
     }
     private bool SetHotkey(int modifiers, int key)
