@@ -36,7 +36,8 @@ internal sealed class SettingsDialog : Form
     private int hotkeyModifiers, hotkeyKey, candidateMods, candidateKey;
     private bool hotkeyActive;
     private Label lblMinutes, lblSize, lblFont, lblColor, lblFormat, lblEndMsg, lblHotkey;
-    private Label lblSound, lblNotice, lblDailyGoal, lblEyeCare;
+    private Label lblSound, lblNotice, lblDailyGoal, lblEyeCare, lblEyeCareInfo;
+    private Panel timerGoalSep;
     private ComboBox dailyGoal, eyeCareCombo;
     public Settings Value { get; private set; }
     public event Action PreviewRequested;
@@ -283,21 +284,42 @@ internal sealed class SettingsDialog : Form
         noticeStyle.DrawItem += OnDrawComboItem;
         noticeStyle.SelectionChangeCommitted += OnPreviewChanged;
 
+        // 目标/护眼功能区与上方基础设置之间加一条分隔线，下移 8px 留出呼吸空间。
+        timerGoalSep = new Panel();
+        timerGoalSep.BackColor = Color.FromArgb(229, 231, 235);
+        timerGoalSep.SetBounds(18, TimerRowY(9) + 1, 344, 1);
+        Controls.Add(timerGoalSep);
+
         // 每日专注目标：关闭 + 1/2/3/4/6/8 小时，和结束通知同一套下拉。
-        lblDailyGoal = AddLabel(en ? "Daily focus goal" : "每日专注目标", 18, TimerLabelY(9));
-        dailyGoal = AddCombo(TimerRowY(9));
+        lblDailyGoal = AddLabel(en ? "Daily focus goal" : "每日专注目标", 18, TimerLabelY(9) + 8);
+        dailyGoal = AddCombo(TimerRowY(9) + 8);
         PopulateDailyGoalCombo(en, Value.DailyGoalMinutes);
         dailyGoal.DrawItem += OnDrawComboItem;
         dailyGoal.SelectionChangeCommitted += OnDailyGoalChanged;
         UpdateStreakLabel();
 
         // 护眼提醒：一个下拉同时承担开关与间隔，和「结束声音」一致。
-        lblEyeCare = AddLabel(en ? "Eye care reminder" : "护眼提醒", 18, TimerLabelY(10));
-        eyeCareCombo = AddCombo(TimerRowY(10));
+        lblEyeCare = AddLabel(en ? "Eye care reminder" : "护眼提醒", 18, TimerLabelY(10) + 8);
+        eyeCareCombo = AddCombo(TimerRowY(10) + 8);
         PopulateEyeCareCombo(en, Value.EyeCareEnabled, Value.EyeCareIntervalMinutes);
         eyeCareCombo.DrawItem += OnDrawComboItem;
         eyeCareCombo.SelectionChangeCommitted += OnPreviewChanged;
 
+        // ⓘ：悬停显示护眼提醒简介。
+        lblEyeCareInfo = new Label();
+        lblEyeCareInfo.Text = "ⓘ";
+        // 微软雅黑没有 ⓘ 字形（会画成豆腐块），图标固定用 Segoe UI；
+        // ⓘ 字形内边距大，需比正文大约 3pt 才能与文字视觉同高。
+        lblEyeCareInfo.Font = new Font("Segoe UI", 12.5f, FontStyle.Regular, GraphicsUnit.Point);
+        lblEyeCareInfo.AutoSize = true;
+        lblEyeCareInfo.ForeColor = AppContext.Win11TextSecondary;
+        Controls.Add(lblEyeCareInfo);
+        PositionEyeCareInfoLabel();
+        // 构造函数里的定位基于未缩放的字体度量，DPI 缩放完成后可能错位；
+        // Shown 时用最终字体和最终 DPI 重新精确定位。
+        Shown += delegate { PositionEyeCareInfoLabel(); };
+        if (toolTip == null) toolTip = new ToolTip();
+        toolTip.SetToolTip(lblEyeCareInfo, EyeCareTipText(en));
 
         dialogQuoteList = DailyQuoteDialog.LoadQuotes();
         if (dialogQuoteList == null || dialogQuoteList.Count == 0) dialogQuoteList = new List<QuoteItem>(DailyQuoteDialog.DefaultQuotes);
@@ -813,9 +835,11 @@ internal sealed class SettingsDialog : Form
         soundStyle.Visible = isTimer;
         if (lblNotice != null) lblNotice.Visible = isTimer;
         noticeStyle.Visible = isTimer;
+        if (timerGoalSep != null) timerGoalSep.Visible = isTimer;
         if (lblDailyGoal != null) lblDailyGoal.Visible = isTimer;
         if (dailyGoal != null) dailyGoal.Visible = isTimer;
         if (lblEyeCare != null) lblEyeCare.Visible = isTimer;
+        if (lblEyeCareInfo != null) lblEyeCareInfo.Visible = isTimer;
         if (eyeCareCombo != null) eyeCareCombo.Visible = isTimer;
 
         if (lblDailyQuote != null) lblDailyQuote.Visible = isQuote;
@@ -1779,6 +1803,12 @@ internal sealed class SettingsDialog : Form
         if (lblSound != null) lblSound.Text = toEnglish ? "End sound" : "结束声音";
         if (lblNotice != null) lblNotice.Text = toEnglish ? "End notice" : "结束通知";
         if (lblEyeCare != null) lblEyeCare.Text = toEnglish ? "Eye care reminder" : "护眼提醒";
+        if (lblEyeCareInfo != null)
+        {
+            if (toolTip == null) toolTip = new ToolTip();
+            toolTip.SetToolTip(lblEyeCareInfo, EyeCareTipText(toEnglish));
+            PositionEyeCareInfoLabel();
+        }
         PopulateDailyGoalCombo(toEnglish, ReadDailyGoalSelection());
         int eyeCareMinutes = ReadEyeCareSelection();
         PopulateEyeCareCombo(toEnglish, eyeCareMinutes > 0, eyeCareMinutes);
@@ -2267,6 +2297,22 @@ internal sealed class SettingsDialog : Form
     }
 
     private Label AddLabel(string t, int x, int y) { Label l = new Label(); l.Text = t; l.ForeColor = AppContext.Win11TextPrimary; l.SetBounds(x, y, 148, 24); l.TextAlign = ContentAlignment.MiddleLeft; Controls.Add(l); return l; }
+
+    private static string EyeCareTipText(bool en)
+    {
+        return en
+            ? "After the set interval of continuous screen time, a small card pops up at the bottom-right; you can jump into a rest countdown with one click. Locking the screen, taking a rest or sleeping resets the timer."
+            : "连续盯屏满设定间隔后，右下角弹出轻提醒卡，可一键进入休息倒计时。锁屏、休息或休眠后会重新计时。";
+    }
+
+    private void PositionEyeCareInfoLabel()
+    {
+        if (lblEyeCareInfo == null || lblEyeCare == null) return;
+        int textW = TextRenderer.MeasureText(lblEyeCare.Text, lblEyeCare.Font).Width;
+        int x = lblEyeCare.Left + Math.Min(textW + 6, Math.Max(0, lblEyeCare.Width - lblEyeCareInfo.Width - 2));
+        lblEyeCareInfo.Location = new Point(x, lblEyeCare.Top + (lblEyeCare.Height - lblEyeCareInfo.Height) / 2);
+        lblEyeCareInfo.BringToFront();
+    }
     private NumericUpDown AddNumber(int v, int min, int max, int x, int y) { NumericUpDown n = new SettingsNumberBox(); n.Minimum = min; n.Maximum = max; n.Value = Math.Min(max, Math.Max(min, v)); n.SetBounds(x, y, 188, SettingsInputHeight); ApplyInputPadding(n); ApplySettingsInputSize(n); Controls.Add(n); return n; }
     private ComboBox AddCombo(int y)
     {
