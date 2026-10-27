@@ -2891,7 +2891,7 @@ internal sealed class AppContext : ApplicationContext
         lblUsage.AutoSize = true;
         lblUsage.UseMnemonic = false;
         lblUsage.TextAlign = ContentAlignment.MiddleRight;
-        lblUsage.Text = en ? "Enable usage tracking" : "开启使用时间跟踪&统计";
+        lblUsage.Text = en ? "Enable usage tracking" : "开启用时统计";
         lblUsage.Font = f.Font;
         lblUsage.ForeColor = Win11TextSecondary;
         lblUsage.Anchor = AnchorStyles.Top | AnchorStyles.Right;
