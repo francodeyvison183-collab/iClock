@@ -1580,19 +1580,46 @@ internal sealed class AppContext : ApplicationContext
         }
         PlayAiSound();
         AskHumanDialog dlg = new AskHumanDialog(settings, question, options, timeoutSec, resFile, isFg, agentName, resultCallback);
-        activeAskHumanDialog = dlg;
-        dlg.FormClosed += delegate
+        if (!string.IsNullOrEmpty(resFile))
         {
-            if (activeAskHumanDialog == dlg) activeAskHumanDialog = null;
-        };
+            activeAskHumanDialog = dlg;
+            dlg.FormClosed += delegate
+            {
+                if (activeAskHumanDialog == dlg) activeAskHumanDialog = null;
+            };
+        }
         dlg.Show();
         AppContext.PinAgentPopup(dlg, isFg);
     }
 
-    private static void SendKeysToAgent(IntPtr hwnd, string keys)
+    private static void SendTextToAgent(IntPtr hwnd, string text)
     {
-        if (hwnd == IntPtr.Zero) return;
-        try { NativeMethods.SwitchToThisWindow(hwnd, true); NativeMethods.SetForegroundWindow(hwnd); System.Threading.Thread.Sleep(30); SendKeys.SendWait(keys); } catch { }
+        if (hwnd == IntPtr.Zero || string.IsNullOrEmpty(text)) return;
+        try
+        {
+            if (NativeMethods.IsIconic(hwnd)) NativeMethods.ShowWindow(hwnd, 9);
+            NativeMethods.SwitchToThisWindow(hwnd, true);
+            NativeMethods.SetForegroundWindow(hwnd);
+            System.Threading.Thread.Sleep(80);
+
+            if (text == "^c")
+            {
+                SendKeys.SendWait("^c");
+            }
+            else if (text == "y\n" || text == "y{ENTER}")
+            {
+                SendKeys.SendWait("y{ENTER}");
+            }
+            else
+            {
+                Clipboard.SetDataObject(text, true, 3, 50);
+                System.Threading.Thread.Sleep(40);
+                SendKeys.SendWait("^v");
+                System.Threading.Thread.Sleep(40);
+                SendKeys.SendWait("{ENTER}");
+            }
+        }
+        catch { }
     }
 
     internal void ExecuteAgentAction(string agentName, string projectHint, string actionKey)
@@ -1604,19 +1631,19 @@ internal sealed class AppContext : ApplicationContext
 
         if (ok)
         {
-            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
+            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed && !string.IsNullOrEmpty(activeAskHumanDialog.ResultFilePath))
                 activeAskHumanDialog.SubmitResult((activeAskHumanDialog.Options != null && activeAskHumanDialog.Options.Length > 0) ? activeAskHumanDialog.Options[0] : "Proceed");
             else
-                SendKeysToAgent(FindAgentWindow(agentName, projectHint), "y{ENTER}");
+                SendTextToAgent(FindAgentWindow(agentName, projectHint), "y\n");
             SetAgentTaskMessage("⏳ [" + (agentName ?? "AI") + "] 已批准 (Proceed)，处理中...", agentName, true, "原位指令已下发", null, -2f, projectHint);
             PlayAiSound();
         }
         else if (cancel)
         {
-            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
+            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed && !string.IsNullOrEmpty(activeAskHumanDialog.ResultFilePath))
                 activeAskHumanDialog.SubmitResult("[用户取消 / Cancelled]");
             else
-                SendKeysToAgent(FindAgentWindow(agentName, projectHint), "^c");
+                SendTextToAgent(FindAgentWindow(agentName, projectHint), "^c");
             SetAgentTaskMessage("⚠️ [" + (agentName ?? "AI") + "] 已取消", agentName, false, "用户原位取消", null, -2f, projectHint);
         }
         else if (actionKey == "prompt")
@@ -1632,10 +1659,21 @@ internal sealed class AppContext : ApplicationContext
     internal void InjectAgentInstruction(string agentName, string projectHint, string instruction)
     {
         if (string.IsNullOrEmpty(instruction)) return;
-        if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
+        if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed && !string.IsNullOrEmpty(activeAskHumanDialog.ResultFilePath))
+        {
             activeAskHumanDialog.SubmitResult(instruction);
+        }
         else
-            SendKeysToAgent(FindAgentWindow(agentName, projectHint), Regex.Replace(instruction, @"([+^%~(){}[\]])", "{$1}") + "{ENTER}");
+        {
+            IntPtr hwnd = FindAgentWindow(agentName, projectHint);
+            if (hwnd == IntPtr.Zero && !string.IsNullOrEmpty(projectHint)) hwnd = FindAgentWindow(null, projectHint);
+            if (hwnd == IntPtr.Zero && !string.IsNullOrEmpty(agentName))
+            {
+                List<string> agents = DetectAgents();
+                if (agents != null && agents.Count > 0) hwnd = FindAgentWindow(agents[0], projectHint);
+            }
+            SendTextToAgent(hwnd, instruction);
+        }
         string brief = instruction.Length > 24 ? instruction.Substring(0, 22) + "..." : instruction;
         SetAgentTaskMessage("⚡ [" + (agentName ?? "AI") + "] 已追加: " + brief, agentName, true, instruction, null, -2f, projectHint);
         PlayAiSound();
@@ -2644,8 +2682,11 @@ internal sealed class AppContext : ApplicationContext
                 bool matchAgent = false;
                 if (!string.IsNullOrEmpty(agentName))
                 {
+                    string an = agentName.ToLowerInvariant();
+                    bool isAgy = an.Contains("agy") || an.Contains("antigravity");
                     if ((proc != null && proc.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) ||
                         (!string.IsNullOrEmpty(title) && title.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                        (isAgy && ((proc != null && proc.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0) || (!string.IsNullOrEmpty(title) && title.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0))) ||
                         (MatchAgent(proc ?? "") != null && string.Equals(MatchAgent(proc ?? ""), agentName, StringComparison.OrdinalIgnoreCase)))
                     {
                         matchAgent = true;

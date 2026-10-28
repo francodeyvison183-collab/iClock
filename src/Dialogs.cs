@@ -519,6 +519,7 @@ internal static class CliSkillInstaller
 internal sealed class AskHumanDialog : Form
 {
     private string resultFilePath;
+    internal string ResultFilePath { get { return resultFilePath; } }
     private bool resultWritten;
     private bool nonIntrusive;
     private readonly Action<string> resultCallback;
