@@ -374,11 +374,19 @@ internal sealed class AgentSessionWatcher : IDisposable
     internal static string FastExtractUserRequest(string line)
     {
         if (string.IsNullOrEmpty(line)) return null;
+        string type = ExtractJsonString(line, "type");
+        if (string.IsNullOrEmpty(type)) return null;
         string raw = null;
-        if (line.IndexOf("USER_INPUT", StringComparison.Ordinal) >= 0) raw = ExtractJsonString(line, "content");
-        else if (line.IndexOf("last-prompt", StringComparison.Ordinal) >= 0) raw = ExtractJsonString(line, "lastPrompt");
-        else if (line.IndexOf("custom-title", StringComparison.Ordinal) >= 0) raw = ExtractJsonString(line, "customTitle");
-        else if (line.IndexOf("UserMessage", StringComparison.Ordinal) >= 0 || (line.IndexOf("\"user\"", StringComparison.Ordinal) >= 0 && line.IndexOf("\"text\"", StringComparison.Ordinal) >= 0)) raw = ExtractJsonString(line, "text");
+        if ("USER_INPUT".Equals(type, StringComparison.Ordinal)) raw = ExtractJsonString(line, "content");
+        else if ("last-prompt".Equals(type, StringComparison.Ordinal)) raw = ExtractJsonString(line, "lastPrompt");
+        else if ("custom-title".Equals(type, StringComparison.Ordinal)) raw = ExtractJsonString(line, "customTitle");
+        else if ("user".Equals(type, StringComparison.Ordinal)) raw = ExtractJsonString(line, "text") ?? ExtractJsonString(line, "content");
+        else if ("UserMessage".Equals(type, StringComparison.Ordinal)) raw = ExtractJsonString(line, "text");
+        else if ("response_item".Equals(type, StringComparison.Ordinal))
+        {
+            if (line.IndexOf("\"role\":\"user\"", StringComparison.Ordinal) >= 0 || line.IndexOf("\"role\": \"user\"", StringComparison.Ordinal) >= 0)
+                raw = ExtractJsonString(line, "text");
+        }
         if (string.IsNullOrEmpty(raw)) return null;
         string cl = CleanUserRequest(raw.Trim());
         return (!string.IsNullOrEmpty(cl) && !string.Equals(cl, "continue", StringComparison.OrdinalIgnoreCase)) ? cl : null;
