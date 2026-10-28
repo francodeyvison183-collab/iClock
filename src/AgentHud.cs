@@ -78,8 +78,7 @@ internal sealed class AgentTaskStatusHud : Form
     private Pen cachedBorderHover;
     private Pen cachedDividerPen;
     private StringFormat cachedTitleFormat;
-    private StringFormat cachedSubFormat;
-    private StringFormat cachedCenterFormat;
+        private StringFormat cachedCenterFormat;
 
     private Timer heartbeatTimer;
     private bool isHovered;
@@ -469,7 +468,7 @@ internal sealed class AgentTaskStatusHud : Form
         Pen borderPen = isHovered ? cachedBorderHover : cachedBorderNormal;
         Pen dividerPen = cachedDividerPen;
         StringFormat titleFormat = cachedTitleFormat;
-        StringFormat subFormat = cachedSubFormat;
+        StringFormat subFormat = cachedTitleFormat;
         StringFormat centerFormat = cachedCenterFormat;
         {
             double pulse = (DateTime.Now.Ticks / 10000000.0) * Math.PI * 1.5;
@@ -879,13 +878,12 @@ internal sealed class AgentTaskStatusHud : Form
         if (cachedBorderHover == null) cachedBorderHover = new Pen(ColorBorderHover, 1.0f);
         if (cachedDividerPen == null) cachedDividerPen = new Pen(Color.FromArgb(30, 255, 255, 255), 1.0f);
         if (cachedTitleFormat == null) cachedTitleFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
-        if (cachedSubFormat == null) cachedSubFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
-        if (cachedCenterFormat == null) cachedCenterFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+                if (cachedCenterFormat == null) cachedCenterFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
     }
 
     private void CleanupCachedGdiObjects()
     {
-        IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedTitleFont, cachedSubFont, cachedCloseFont, cachedTitleBrush, cachedSubBrush, cachedBorderNormal, cachedBorderHover, cachedDividerPen, cachedTitleFormat, cachedSubFormat, cachedCenterFormat };
+        IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedTitleFont, cachedSubFont, cachedCloseFont, cachedTitleBrush, cachedSubBrush, cachedBorderNormal, cachedBorderHover, cachedDividerPen, cachedTitleFormat, cachedCenterFormat };
         for (int i = 0; i < d.Length; i++) if (d[i] != null) try { d[i].Dispose(); } catch { }
     }
 }

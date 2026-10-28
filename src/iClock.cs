@@ -274,10 +274,6 @@ internal sealed class AppContext : ApplicationContext
                 NativeMethods.EmptyWorkingSet(hProc);
                 NativeMethods.CloseHandle(hProc);
             }
-            else
-            {
-                NativeMethods.EmptyWorkingSet(Process.GetCurrentProcess().Handle);
-            }
         }
         catch { }
     }
@@ -446,8 +442,7 @@ internal sealed class AppContext : ApplicationContext
             ShowSettings();
         };
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
-        new System.Threading.Timer(delegate { TrimMemory(); }, null, 3500, System.Threading.Timeout.Infinite);
-        memTrimTimer = new System.Threading.Timer(delegate { if (Process.GetCurrentProcess().WorkingSet64 > 12L * 1024 * 1024) TrimMemory(); }, null, 8000, 8000);
+        memTrimTimer = new System.Threading.Timer(delegate { if (Process.GetCurrentProcess().WorkingSet64 > 12L * 1024 * 1024) TrimMemory(); }, null, 3500, 8000);
         ApplyStartup();
         EnsureStartMenuShortcut(false);
         ResetDisplay();

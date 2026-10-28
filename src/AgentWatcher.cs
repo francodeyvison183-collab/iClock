@@ -54,6 +54,11 @@ internal sealed class AgentSessionWatcher : IDisposable
         catch { }
     }
 
+    private static void AddDirIfExists(List<string> dirs, string p)
+    {
+        if (!string.IsNullOrEmpty(p) && Directory.Exists(p) && !dirs.Contains(p)) dirs.Add(p);
+    }
+
     internal static List<string> ResolveCandidateDirectories(string agentName)
     {
         List<string> dirs = new List<string>();
@@ -62,76 +67,42 @@ internal sealed class AgentSessionWatcher : IDisposable
 
         if (agentName.IndexOf("Claude", StringComparison.OrdinalIgnoreCase) >= 0)
         {
-            string p = Path.Combine(home, ".claude", "projects");
-            if (Directory.Exists(p)) dirs.Add(p);
-            else { string r = Path.Combine(home, ".claude"); if (Directory.Exists(r)) dirs.Add(r); }
-            try
-            {
-                string loc = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".claude");
-                if (Directory.Exists(loc)) dirs.Add(loc);
-            }
-            catch { }
+            AddDirIfExists(dirs, Path.Combine(home, ".claude", "projects"));
+            if (dirs.Count == 0) AddDirIfExists(dirs, Path.Combine(home, ".claude"));
+            try { AddDirIfExists(dirs, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".claude")); } catch { }
         }
         else if (agentName.IndexOf("Antigravity", StringComparison.OrdinalIgnoreCase) >= 0 ||
                  agentName.IndexOf("AGY", StringComparison.OrdinalIgnoreCase) >= 0 ||
                  agentName.IndexOf("Gemini", StringComparison.OrdinalIgnoreCase) >= 0)
         {
-            string b = Path.Combine(home, ".gemini", "antigravity", "brain");
-            if (Directory.Exists(b)) dirs.Add(b);
-            string r = Path.Combine(home, ".antigravity");
-            if (Directory.Exists(r)) dirs.Add(r);
+            AddDirIfExists(dirs, Path.Combine(home, ".gemini", "antigravity", "brain"));
+            AddDirIfExists(dirs, Path.Combine(home, ".antigravity"));
         }
         else if (agentName.IndexOf("Codex", StringComparison.OrdinalIgnoreCase) >= 0)
         {
-            string s = Path.Combine(home, ".codex", "sessions");
-            if (Directory.Exists(s)) dirs.Add(s);
-            else { string r = Path.Combine(home, ".codex"); if (Directory.Exists(r)) dirs.Add(r); }
+            AddDirIfExists(dirs, Path.Combine(home, ".codex", "sessions"));
+            if (dirs.Count == 0) AddDirIfExists(dirs, Path.Combine(home, ".codex"));
         }
-        else if (agentName.IndexOf("Cursor", StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            string r = Path.Combine(home, ".cursor");
-            if (Directory.Exists(r)) dirs.Add(r);
-        }
+        else if (agentName.IndexOf("Cursor", StringComparison.OrdinalIgnoreCase) >= 0) AddDirIfExists(dirs, Path.Combine(home, ".cursor"));
         else if (agentName.IndexOf("Windsurf", StringComparison.OrdinalIgnoreCase) >= 0)
         {
-            string w = Path.Combine(home, ".codeium", "windsurf");
-            if (Directory.Exists(w)) dirs.Add(w);
-            string r = Path.Combine(home, ".windsurf");
-            if (Directory.Exists(r)) dirs.Add(r);
+            AddDirIfExists(dirs, Path.Combine(home, ".codeium", "windsurf"));
+            AddDirIfExists(dirs, Path.Combine(home, ".windsurf"));
         }
-        else if (agentName.IndexOf("Trae", StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            string r = Path.Combine(home, ".trae");
-            if (Directory.Exists(r)) dirs.Add(r);
-        }
-        else if (agentName.IndexOf("Aider", StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            string r = Path.Combine(home, ".aider");
-            if (Directory.Exists(r)) dirs.Add(r);
-        }
+        else if (agentName.IndexOf("Trae", StringComparison.OrdinalIgnoreCase) >= 0) AddDirIfExists(dirs, Path.Combine(home, ".trae"));
+        else if (agentName.IndexOf("Aider", StringComparison.OrdinalIgnoreCase) >= 0) AddDirIfExists(dirs, Path.Combine(home, ".aider"));
 
-        // Generic slug fallback: ~/.<slug> and subdirs (sessions, projects, logs)
         string slug = Regex.Replace(agentName.ToLowerInvariant(), @"[^a-z0-9]+", "");
         if (!string.IsNullOrEmpty(slug))
         {
             string slugDir = Path.Combine(home, "." + slug);
             if (Directory.Exists(slugDir) && !dirs.Contains(slugDir))
             {
-                string[] subNames = new string[] { "sessions", "projects", "logs", "transcripts" };
-                bool hasSub = false;
-                foreach (string sn in subNames)
-                {
-                    string sp = Path.Combine(slugDir, sn);
-                    if (Directory.Exists(sp)) { dirs.Add(sp); hasSub = true; }
-                }
-                if (!hasSub) dirs.Add(slugDir);
+                int before = dirs.Count;
+                foreach (string sn in new string[] { "sessions", "projects", "logs", "transcripts" }) AddDirIfExists(dirs, Path.Combine(slugDir, sn));
+                if (dirs.Count == before) dirs.Add(slugDir);
             }
-            try
-            {
-                string loc = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "." + slug);
-                if (Directory.Exists(loc) && !dirs.Contains(loc)) dirs.Add(loc);
-            }
-            catch { }
+            try { AddDirIfExists(dirs, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "." + slug)); } catch { }
         }
 
         return dirs;
@@ -361,6 +332,58 @@ internal sealed class AgentSessionWatcher : IDisposable
         return false;
     }
 
+    internal static string ExtractJsonString(string json, string key)
+    {
+        if (string.IsNullOrEmpty(json) || string.IsNullOrEmpty(key)) return null;
+        int idx = json.IndexOf("\"" + key + "\"", StringComparison.Ordinal);
+        if (idx < 0) return null;
+        int colon = json.IndexOf(':', idx + key.Length + 2);
+        if (colon < 0) return null;
+        int sStart = colon + 1;
+        while (sStart < json.Length && (json[sStart] == ' ' || json[sStart] == '\t' || json[sStart] == '\r' || json[sStart] == '\n')) sStart++;
+        if (sStart >= json.Length || json[sStart] != '"') return null;
+        sStart++;
+        int bs = json.IndexOf('\\', sStart), quote = json.IndexOf('"', sStart);
+        if (quote < 0) return null;
+        if (bs < 0 || bs > quote) return json.Substring(sStart, quote - sStart);
+        StringBuilder sb = new StringBuilder(quote - sStart);
+        for (int i = sStart; i < json.Length; i++)
+        {
+            char c = json[i];
+            if (c == '\\' && i + 1 < json.Length)
+            {
+                char n = json[++i];
+                if (n == 'n') sb.Append('\n');
+                else if (n == 'r') sb.Append('\r');
+                else if (n == 't') sb.Append('\t');
+                else if (n == 'u' && i + 4 < json.Length)
+                {
+                    int u;
+                    if (int.TryParse(json.Substring(i + 1, 4), System.Globalization.NumberStyles.HexNumber, null, out u)) { sb.Append((char)u); i += 4; }
+                    else sb.Append(n);
+                }
+                else sb.Append(n);
+                continue;
+            }
+            if (c == '"') return sb.ToString();
+            sb.Append(c);
+        }
+        return sb.ToString();
+    }
+
+    internal static string FastExtractUserRequest(string line)
+    {
+        if (string.IsNullOrEmpty(line)) return null;
+        string raw = null;
+        if (line.IndexOf("USER_INPUT", StringComparison.Ordinal) >= 0) raw = ExtractJsonString(line, "content");
+        else if (line.IndexOf("last-prompt", StringComparison.Ordinal) >= 0) raw = ExtractJsonString(line, "lastPrompt");
+        else if (line.IndexOf("custom-title", StringComparison.Ordinal) >= 0) raw = ExtractJsonString(line, "customTitle");
+        else if (line.IndexOf("UserMessage", StringComparison.Ordinal) >= 0 || (line.IndexOf("\"user\"", StringComparison.Ordinal) >= 0 && line.IndexOf("\"text\"", StringComparison.Ordinal) >= 0)) raw = ExtractJsonString(line, "text");
+        if (string.IsNullOrEmpty(raw)) return null;
+        string cl = CleanUserRequest(raw.Trim());
+        return (!string.IsNullOrEmpty(cl) && !string.Equals(cl, "continue", StringComparison.OrdinalIgnoreCase)) ? cl : null;
+    }
+
     internal static string FindLatestUserRequestInFile(string filePath, JavaScriptSerializer serializer)
     {
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
@@ -399,17 +422,21 @@ internal sealed class AgentSessionWatcher : IDisposable
                             continue;
                         }
 
-                        try
+                        string req = FastExtractUserRequest(line);
+                        if (string.IsNullOrEmpty(req))
                         {
-                            Dictionary<string, object> d = serializer.Deserialize<Dictionary<string, object>>(line);
-                            string req = ExtractUserRequest(d);
-                            if (!string.IsNullOrEmpty(req))
+                            try
                             {
-                                if (!IsTrivialConfirmation(req)) return req;
-                                if (lastTrivial == null) lastTrivial = req;
+                                Dictionary<string, object> d = serializer.Deserialize<Dictionary<string, object>>(line);
+                                req = ExtractUserRequest(d);
                             }
+                            catch { }
                         }
-                        catch { }
+                        if (!string.IsNullOrEmpty(req))
+                        {
+                            if (!IsTrivialConfirmation(req)) return req;
+                            if (lastTrivial == null) lastTrivial = req;
+                        }
                     }
 
                     if (lastTrivial != null) return lastTrivial;
@@ -530,21 +557,6 @@ internal sealed class AgentSessionWatcher : IDisposable
         return null;
     }
 
-    internal static string ReadLastJsonLine(string path)
-    {
-        List<string> lines = ReadRecentJsonLines(path, 65536);
-        for (int i = lines.Count - 1; i >= 0; i--)
-        {
-            string line = lines[i];
-            if (line.Contains("\"atis-latch\"") || line.Contains("\"agent-name\"") || line.Contains("\"api-request-blob\"") || line.Contains("\"stop_hook_summary\""))
-                continue;
-            if (line.Contains("\"mode\"") && !line.Contains("\"message\""))
-                continue;
-            return line;
-        }
-        return lines.Count > 0 ? lines[lines.Count - 1] : null;
-    }
-
     private void DispatchParsedEvents(List<string> lines, string filePath, string agentName)
     {
         if (appContext == null || disposed || lines == null || lines.Count == 0) return;
@@ -571,17 +583,21 @@ internal sealed class AgentSessionWatcher : IDisposable
             {
                 continue;
             }
-            try
+            string req = FastExtractUserRequest(l);
+            if (string.IsNullOrEmpty(req))
             {
-                Dictionary<string, object> d = jsonSerializer.Deserialize<Dictionary<string, object>>(l);
-                string req = ExtractUserRequest(d);
-                if (!string.IsNullOrEmpty(req))
+                try
                 {
-                    latestReq = req;
-                    break;
+                    Dictionary<string, object> d = jsonSerializer.Deserialize<Dictionary<string, object>>(l);
+                    req = ExtractUserRequest(d);
                 }
+                catch { }
             }
-            catch { }
+            if (!string.IsNullOrEmpty(req))
+            {
+                latestReq = req;
+                break;
+            }
         }
 
         if (!string.IsNullOrEmpty(latestReq))
@@ -645,25 +661,32 @@ internal sealed class AgentSessionWatcher : IDisposable
         for (int i = lines.Count - 1; i >= 0; i--)
         {
             string l = lines[i];
-            if (l.Contains("\"atis-latch\"") || l.Contains("\"agent-name\"") || l.Contains("\"api-request-blob\"") || l.Contains("\"stop_hook_summary\""))
-                continue;
-            if (l.Contains("\"mode\"") && !l.Contains("\"message\""))
-                continue;
-            if (l.Contains("\"token_usage_record\"") || l.Contains("\"type\":\"token_count\"") || l.Contains("\"type\": \"token_count\""))
-                continue;
-            if (l.Contains("\"type\":\"SYSTEM_MESSAGE\"") || l.Contains("\"type\":\"CHECKPOINT\"") || l.Contains("\"type\": \"SYSTEM_MESSAGE\"") || l.Contains("\"type\": \"CHECKPOINT\""))
-                continue;
             if (!l.Contains("tool") && !l.Contains("step") && !l.Contains("task") && !l.Contains("cwd") && !l.Contains("work") && !l.Contains("call") && !l.Contains("user") && !l.Contains("prompt"))
                 continue;
+            if (l.Contains("\"atis-latch\"") || l.Contains("\"token_usage\"") || l.Contains("\"SYSTEM_MESSAGE\""))
+                continue;
+
+            if (FastExtractUserRequest(l) != null) break;
+
+            if (string.IsNullOrEmpty(session.ProjectHint))
+            {
+                string p = ExtractJsonString(l, "cwd") ?? ExtractJsonString(l, "workspace") ?? ExtractJsonString(l, "workdir") ?? ExtractJsonString(l, "project_path") ?? ExtractJsonString(l, "root_path");
+                if (!string.IsNullOrEmpty(p))
+                {
+                    try { string name = Path.GetFileName(p.Trim().TrimEnd('\\', '/')); if (!string.IsNullOrEmpty(name)) session.ProjectHint = name; } catch { }
+                }
+            }
+
+            bool needTool = string.IsNullOrEmpty(turnToolAction) && (l.Contains("tool") || l.Contains("call") || l.Contains("action"));
+            bool needStep = session.TotalSteps == 0 && (l.Contains("step") || l.Contains("total") || l.Contains("progress") || l.Contains("todo"));
+            if (!needTool && !needStep) continue;
+
             try
             {
                 Dictionary<string, object> d = jsonSerializer.Deserialize<Dictionary<string, object>>(l);
                 if (d != null)
                 {
-                    if (ExtractUserRequest(d) != null)
-                    {
-                        break;
-                    }
+                    if (ExtractUserRequest(d) != null) break;
 
                     if (string.IsNullOrEmpty(session.ProjectHint))
                     {
@@ -671,18 +694,15 @@ internal sealed class AgentSessionWatcher : IDisposable
                         if (!string.IsNullOrEmpty(ph)) session.ProjectHint = ph;
                     }
 
-                    if (string.IsNullOrEmpty(turnToolAction))
+                    if (needTool)
                     {
                         string tSum = ExtractToolSummary(d, isZh);
-                        if (!string.IsNullOrEmpty(tSum))
-                        {
-                            turnToolAction = tSum;
-                        }
+                        if (!string.IsNullOrEmpty(tSum)) turnToolAction = tSum;
                     }
 
                     int s, t;
                     string sd;
-                    if (session.TotalSteps == 0 && ExtractStepProgress(d, turnToolAction, out s, out t, out sd))
+                    if (needStep && ExtractStepProgress(d, turnToolAction, out s, out t, out sd))
                     {
                         lock (syncLock)
                         {
@@ -692,10 +712,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                         }
                     }
 
-                    if (!string.IsNullOrEmpty(turnToolAction) && session.TotalSteps > 0)
-                    {
-                        break;
-                    }
+                    if (!string.IsNullOrEmpty(turnToolAction) && session.TotalSteps > 0) break;
                 }
             }
             catch { }
@@ -714,11 +731,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         for (int i = lines.Count - 1; i >= 0; i--)
         {
             string l = lines[i];
-            if (l.Contains("\"atis-latch\"") || l.Contains("\"agent-name\"") || l.Contains("\"api-request-blob\"") || l.Contains("\"stop_hook_summary\""))
-                continue;
-            if (l.Contains("\"mode\"") && !l.Contains("\"message\""))
-                continue;
-            if (l.Contains("\"token_usage_record\"") || l.Contains("\"type\":\"token_count\"") || l.Contains("\"type\": \"token_count\""))
+            if (l.Contains("\"atis-latch\"") || l.Contains("\"token_usage\"") || (l.Contains("\"mode\"") && !l.Contains("\"message\"")))
                 continue;
             try
             {
@@ -1215,7 +1228,6 @@ internal sealed class AgentSessionWatcher : IDisposable
         text = Regex.Replace(text, @"<[^>]+>", " ");
 
         // Normalize whitespace
-        text = Regex.Replace(text, @"[\r\n\t]+", " ");
         text = Regex.Replace(text, @"\s+", " ").Trim();
 
         if (string.IsNullOrEmpty(text)) return null;
