@@ -67,7 +67,22 @@ internal sealed class AgentSessionWatcher : IDisposable
                 WatchDirectory(antigravityBrain, "*.jsonl", "Antigravity");
             }
 
-            // 3. Local workspace .claude if present
+            // 3. OpenAI Codex session rollouts directory
+            string codexSessions = Path.Combine(userProfile, ".codex", "sessions");
+            if (Directory.Exists(codexSessions))
+            {
+                WatchDirectory(codexSessions, "*.jsonl", "Codex");
+            }
+            else
+            {
+                string codexRoot = Path.Combine(userProfile, ".codex");
+                if (Directory.Exists(codexRoot))
+                {
+                    WatchDirectory(codexRoot, "*.jsonl", "Codex");
+                }
+            }
+
+            // 4. Local workspace .claude if present
             try
             {
                 string localClaude = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".claude");
@@ -88,11 +103,11 @@ internal sealed class AgentSessionWatcher : IDisposable
     {
         System.Threading.ThreadPool.QueueUserWorkItem(delegate
         {
+            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+            // 1. Claude Code recent session
             try
             {
-                string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-                // 1. Claude Code recent session
                 string claudeProjects = Path.Combine(userProfile, ".claude", "projects");
                 if (Directory.Exists(claudeProjects))
                 {
@@ -112,14 +127,48 @@ internal sealed class AgentSessionWatcher : IDisposable
                         ProcessLogFile(newestFile, "Claude Code");
                     }
                 }
+            }
+            catch { }
 
-                // 2. Antigravity recent session
+            // 2. Antigravity recent session (fast top-level conversation scan)
+            try
+            {
                 string agBrain = Path.Combine(userProfile, ".gemini", "antigravity", "brain");
                 if (Directory.Exists(agBrain))
                 {
                     string newestFile = null;
                     DateTime newestTime = DateTime.MinValue;
-                    foreach (string f in Directory.GetFiles(agBrain, "transcript.jsonl", SearchOption.AllDirectories))
+                    foreach (string convDir in Directory.GetDirectories(agBrain))
+                    {
+                        string tp = Path.Combine(convDir, ".system_generated", "logs", "transcript.jsonl");
+                        if (!File.Exists(tp)) tp = Path.Combine(convDir, "transcript.jsonl");
+                        if (File.Exists(tp))
+                        {
+                            DateTime mt = File.GetLastWriteTime(tp);
+                            if (mt > newestTime)
+                            {
+                                newestTime = mt;
+                                newestFile = tp;
+                            }
+                        }
+                    }
+                    if (newestFile != null && (DateTime.Now - newestTime).TotalMinutes < 30)
+                    {
+                        ProcessLogFile(newestFile, "Antigravity");
+                    }
+                }
+            }
+            catch { }
+
+            // 3. OpenAI Codex recent session
+            try
+            {
+                string codexSessions = Path.Combine(userProfile, ".codex", "sessions");
+                if (Directory.Exists(codexSessions))
+                {
+                    string newestFile = null;
+                    DateTime newestTime = DateTime.MinValue;
+                    foreach (string f in Directory.GetFiles(codexSessions, "*.jsonl", SearchOption.AllDirectories))
                     {
                         DateTime mt = File.GetLastWriteTime(f);
                         if (mt > newestTime)
@@ -130,7 +179,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                     }
                     if (newestFile != null && (DateTime.Now - newestTime).TotalMinutes < 30)
                     {
-                        ProcessLogFile(newestFile, "Antigravity");
+                        ProcessLogFile(newestFile, "Codex");
                     }
                 }
             }
@@ -209,10 +258,15 @@ internal sealed class AgentSessionWatcher : IDisposable
         {
             agentName = "Claude Code";
         }
+        else if (fullPath.IndexOf("codex", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            agentName = "Codex";
+        }
         else if (string.IsNullOrEmpty(agentName))
         {
             string lowerPath = fullPath.ToLowerInvariant();
             if (lowerPath.Contains(".claude")) agentName = "Claude Code";
+            else if (lowerPath.Contains(".codex")) agentName = "Codex";
             else if (lowerPath.Contains(".gemini") || lowerPath.Contains("antigravity")) agentName = "Antigravity";
             else agentName = "AI Agent";
         }
@@ -220,7 +274,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         // Active CLI overrides passive watcher
         if (appContext != null && appContext.HasRecentCliActivity(agentName)) return;
 
-        List<string> lines = ReadRecentJsonLines(fullPath, 131072);
+        List<string> lines = ReadRecentJsonLines(fullPath, 262144);
         if (lines == null || lines.Count == 0) return;
 
         DispatchParsedEvents(lines, fullPath, agentName);
@@ -280,7 +334,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
         try
         {
-            List<string> lines = ReadRecentJsonLines(filePath, 262144);
+            List<string> lines = ReadRecentJsonLines(filePath, 4194304);
             string lastTrivial = null;
             for (int i = lines.Count - 1; i >= 0; i--)
             {
@@ -307,15 +361,33 @@ internal sealed class AgentSessionWatcher : IDisposable
 
     internal static string ExtractProjectHint(Dictionary<string, object> data, string filePath)
     {
-        if (data != null && data.ContainsKey("cwd") && data["cwd"] != null)
+        if (data != null)
         {
-            try
+            object cwdObj = null;
+            if (data.ContainsKey("cwd") && data["cwd"] != null) cwdObj = data["cwd"];
+            else if (data.ContainsKey("payload"))
             {
-                string cwd = data["cwd"].ToString().Trim().TrimEnd('\\', '/');
-                string name = Path.GetFileName(cwd);
-                if (!string.IsNullOrEmpty(name)) return name;
+                Dictionary<string, object> payload = data["payload"] as Dictionary<string, object>;
+                if (payload != null)
+                {
+                    if (payload.ContainsKey("cwd") && payload["cwd"] != null) cwdObj = payload["cwd"];
+                    else if (payload.ContainsKey("thread_settings"))
+                    {
+                        Dictionary<string, object> ts = payload["thread_settings"] as Dictionary<string, object>;
+                        if (ts != null && ts.ContainsKey("cwd") && ts["cwd"] != null) cwdObj = ts["cwd"];
+                    }
+                }
             }
-            catch { }
+            if (cwdObj != null)
+            {
+                try
+                {
+                    string cwd = cwdObj.ToString().Trim().TrimEnd('\\', '/');
+                    string name = Path.GetFileName(cwd);
+                    if (!string.IsNullOrEmpty(name)) return name;
+                }
+                catch { }
+            }
         }
         if (data != null && data.ContainsKey("tool_calls"))
         {
@@ -360,6 +432,29 @@ internal sealed class AgentSessionWatcher : IDisposable
                     {
                         string[] parts = slug.Split(new string[] { "--", "-" }, StringSplitOptions.RemoveEmptyEntries);
                         if (parts.Length > 0) return parts[parts.Length - 1];
+                    }
+                }
+                else if (filePath.IndexOf(".codex", StringComparison.OrdinalIgnoreCase) >= 0 && File.Exists(filePath))
+                {
+                    using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                    using (StreamReader sr = new StreamReader(fs, Encoding.UTF8))
+                    {
+                        string firstLine = sr.ReadLine();
+                        if (!string.IsNullOrEmpty(firstLine))
+                        {
+                            int cwdIdx = firstLine.IndexOf("\"cwd\":\"", StringComparison.Ordinal);
+                            if (cwdIdx >= 0)
+                            {
+                                int start = cwdIdx + 7;
+                                int end = firstLine.IndexOf('"', start);
+                                if (end > start)
+                                {
+                                    string cwd = firstLine.Substring(start, end - start).Replace("\\\\", "\\").TrimEnd('\\', '/');
+                                    string name = Path.GetFileName(cwd);
+                                    if (!string.IsNullOrEmpty(name)) return name;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -458,7 +553,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                 session.LastToolAction = "";
             }
         }
-        else if (string.IsNullOrEmpty(session.Target) && !string.IsNullOrEmpty(filePath))
+        else if ((string.IsNullOrEmpty(session.Target) || session.Target == "当前会话" || session.Target == "当前任务" || session.Target == "Session" || session.Target == "Task") && !string.IsNullOrEmpty(filePath))
         {
             string found = FindLatestUserRequestInFile(filePath, jsonSerializer);
             if (!string.IsNullOrEmpty(found))
@@ -479,6 +574,8 @@ internal sealed class AgentSessionWatcher : IDisposable
             if (l.Contains("\"atis-latch\"") || l.Contains("\"agent-name\"") || l.Contains("\"api-request-blob\"") || l.Contains("\"stop_hook_summary\""))
                 continue;
             if (l.Contains("\"mode\"") && !l.Contains("\"message\""))
+                continue;
+            if (l.Contains("\"token_usage_record\"") || l.Contains("\"type\":\"token_count\"") || l.Contains("\"type\": \"token_count\""))
                 continue;
             if (l.Contains("\"type\":\"SYSTEM_MESSAGE\"") || l.Contains("\"type\":\"CHECKPOINT\"") || l.Contains("\"type\": \"SYSTEM_MESSAGE\"") || l.Contains("\"type\": \"CHECKPOINT\""))
                 continue;
@@ -544,6 +641,8 @@ internal sealed class AgentSessionWatcher : IDisposable
             if (l.Contains("\"atis-latch\"") || l.Contains("\"agent-name\"") || l.Contains("\"api-request-blob\"") || l.Contains("\"stop_hook_summary\""))
                 continue;
             if (l.Contains("\"mode\"") && !l.Contains("\"message\""))
+                continue;
+            if (l.Contains("\"token_usage_record\"") || l.Contains("\"type\":\"token_count\"") || l.Contains("\"type\": \"token_count\""))
                 continue;
             try
             {
@@ -701,7 +800,9 @@ internal sealed class AgentSessionWatcher : IDisposable
         // Runaway loop watchdog (> 60 calls in 90s)
         DateTime nowDate = DateTime.Now;
         int count = 1;
-        bool isGenericOutput = data.ContainsKey("type") && "GENERIC".Equals(data["type"]);
+        bool isGenericOutput = (data.ContainsKey("type") && "GENERIC".Equals(data["type"])) ||
+                               (data.ContainsKey("type") && "response_item".Equals(data["type"]) && data.ContainsKey("payload") &&
+                                data["payload"] is Dictionary<string, object> && "function_call_output".Equals(((Dictionary<string, object>)data["payload"])["type"]));
         string toolSummary = ExtractToolSummary(data, isZh);
 
         lock (syncLock)
@@ -908,6 +1009,60 @@ internal sealed class AgentSessionWatcher : IDisposable
             }
         }
 
+        // 5. Codex format:
+        // A) response_item with payload.type == "message" && payload.role == "user"
+        // B) event_msg with payload.type == "item_completed" && payload.item.type == "UserMessage"
+        if (data.ContainsKey("payload"))
+        {
+            Dictionary<string, object> payload = data["payload"] as Dictionary<string, object>;
+            if (payload != null)
+            {
+                string pType = payload.ContainsKey("type") ? payload["type"] as string : null;
+                if ("message".Equals(pType) && "user".Equals(payload.ContainsKey("role") ? payload["role"] : null))
+                {
+                    string req = ExtractCodexContentText(payload.ContainsKey("content") ? payload["content"] : null);
+                    if (!string.IsNullOrEmpty(req)) return req;
+                }
+                else if ("item_completed".Equals(pType) && payload.ContainsKey("item"))
+                {
+                    Dictionary<string, object> item = payload["item"] as Dictionary<string, object>;
+                    if (item != null && "UserMessage".Equals(item.ContainsKey("type") ? item["type"] : null))
+                    {
+                        string req = ExtractCodexContentText(item.ContainsKey("content") ? item["content"] : null);
+                        if (!string.IsNullOrEmpty(req)) return req;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static string ExtractCodexContentText(object contentObj)
+    {
+        if (contentObj == null) return null;
+        if (contentObj is string)
+        {
+            string s = CleanUserRequest((string)contentObj);
+            return (!string.IsNullOrEmpty(s) && !string.Equals(s, "continue", StringComparison.OrdinalIgnoreCase)) ? s : null;
+        }
+        IList list = contentObj as IList;
+        if (list == null || list.Count == 0) return null;
+        for (int i = 0; i < list.Count; i++)
+        {
+            Dictionary<string, object> item = list[i] as Dictionary<string, object>;
+            if (item != null && item.ContainsKey("text") && item["text"] != null)
+            {
+                string txt = item["text"].ToString().Trim();
+                if (txt.StartsWith("# AGENTS.md") || txt.StartsWith("<environment_context") || txt.StartsWith("<app-context") || txt.StartsWith("# Response annotations:"))
+                    continue;
+                string cleaned = CleanUserRequest(txt);
+                if (!string.IsNullOrEmpty(cleaned) && !string.Equals(cleaned, "continue", StringComparison.OrdinalIgnoreCase))
+                {
+                    return cleaned;
+                }
+            }
+        }
         return null;
     }
 
@@ -1067,16 +1222,18 @@ internal sealed class AgentSessionWatcher : IDisposable
         }
 
         // 6. Generic friendly name fallbacks
-        if (lowerName == "run_command" || lowerName == "bash" || lowerName == "terminal" || lowerName == "exec")
+        if (lowerName == "run_command" || lowerName == "bash" || lowerName == "terminal" || lowerName == "exec" || lowerName == "exec_command")
             return isZh ? "运行命令" : "Running command";
         if (lowerName == "read_file" || lowerName == "readlocalfile")
             return isZh ? "读取文件" : "Reading file";
-        if (lowerName == "edit_file" || lowerName == "editlocalfile")
+        if (lowerName == "edit_file" || lowerName == "editlocalfile" || lowerName == "apply_patch" || lowerName == "file_edit")
             return isZh ? "修改文件" : "Editing file";
-        if (lowerName == "write_file" || lowerName == "writefile")
+        if (lowerName == "write_file" || lowerName == "writefile" || lowerName == "create_file")
             return isZh ? "写入文件" : "Writing file";
         if (lowerName == "search_web" || lowerName == "web_search")
             return isZh ? "搜索网络" : "Web search";
+        if (lowerName.Contains("tool_search") || lowerName.Contains("search_tools"))
+            return isZh ? "检索可用工具" : "Searching tools";
         if (lowerName == "ask_question" || lowerName == "ask_user_question")
             return isZh ? "询问用户" : "Asking question";
 
@@ -1138,6 +1295,87 @@ internal sealed class AgentSessionWatcher : IDisposable
                             string action = ExtractFriendlyAction(name, input, isZh);
                             if (!string.IsNullOrEmpty(action)) return action;
                         }
+                    }
+                }
+            }
+        }
+
+        // 3. Codex function_call in response_item
+        if (data.ContainsKey("type") && "response_item".Equals(data["type"]) && data.ContainsKey("payload"))
+        {
+            Dictionary<string, object> payload = data["payload"] as Dictionary<string, object>;
+            if (payload != null)
+            {
+                string pType = payload.ContainsKey("type") ? payload["type"] as string : null;
+                if ("function_call".Equals(pType) || "custom_tool_call".Equals(pType))
+                {
+                    string name = payload.ContainsKey("name") ? CleanToolParam(payload["name"]) : null;
+                    Dictionary<string, object> args = null;
+                    object rawArgs = payload.ContainsKey("arguments") ? payload["arguments"] : null;
+                    if (rawArgs is Dictionary<string, object>)
+                    {
+                        args = (Dictionary<string, object>)rawArgs;
+                    }
+                    else if (rawArgs is string)
+                    {
+                        string argStr = ((string)rawArgs).Trim();
+                        if (argStr.StartsWith("{") && argStr.EndsWith("}"))
+                        {
+                            try
+                            {
+                                args = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(argStr);
+                            }
+                            catch { }
+                        }
+                    }
+                    string action = ExtractFriendlyAction(name, args, isZh);
+                    if (!string.IsNullOrEmpty(action)) return action;
+                }
+            }
+        }
+
+        // 4. Codex item_completed in event_msg
+        if (data.ContainsKey("type") && "event_msg".Equals(data["type"]) && data.ContainsKey("payload"))
+        {
+            Dictionary<string, object> payload = data["payload"] as Dictionary<string, object>;
+            if (payload != null && "item_completed".Equals(payload.ContainsKey("type") ? payload["type"] : null) && payload.ContainsKey("item"))
+            {
+                Dictionary<string, object> item = payload["item"] as Dictionary<string, object>;
+                if (item != null)
+                {
+                    string itType = item.ContainsKey("type") ? item["type"] as string : null;
+                    if ("CommandExecution".Equals(itType))
+                    {
+                        string cmd = null;
+                        object cObj = item.ContainsKey("command") ? item["command"] : null;
+                        if (cObj is string) cmd = (string)cObj;
+                        else if (cObj is IList)
+                        {
+                            IList cList = (IList)cObj;
+                            List<string> parts = new List<string>();
+                            foreach (object p in cList) if (p != null) parts.Add(p.ToString());
+                            cmd = string.Join(" ", parts.ToArray());
+                        }
+                        return ExtractFriendlyAction("run_command", new Dictionary<string, object> { { "CommandLine", cmd } }, isZh);
+                    }
+                    if ("FileChange".Equals(itType) && item.ContainsKey("changes"))
+                    {
+                        Dictionary<string, object> changes = item["changes"] as Dictionary<string, object>;
+                        if (changes != null && changes.Count > 0)
+                        {
+                            foreach (string pathKey in changes.Keys)
+                            {
+                                return ExtractFriendlyAction("file_edit", new Dictionary<string, object> { { "Path", pathKey } }, isZh);
+                            }
+                        }
+                    }
+                    if ("WebSearch".Equals(itType) && item.ContainsKey("query"))
+                    {
+                        return ExtractFriendlyAction("web_search", new Dictionary<string, object> { { "query", item["query"] } }, isZh);
+                    }
+                    if ("ImageView".Equals(itType) && item.ContainsKey("path"))
+                    {
+                        return ExtractFriendlyAction("read_file", new Dictionary<string, object> { { "Path", item["path"] } }, isZh);
                     }
                 }
             }
@@ -1462,6 +1700,20 @@ internal sealed class AgentSessionWatcher : IDisposable
             }
         }
 
+        if (data.ContainsKey("type") && "event_msg".Equals(data["type"]) && data.ContainsKey("payload"))
+        {
+            Dictionary<string, object> payload = data["payload"] as Dictionary<string, object>;
+            if (payload != null)
+            {
+                string pType = payload.ContainsKey("type") ? payload["type"] as string : null;
+                if ("turn_aborted".Equals(pType))
+                {
+                    isErr = true;
+                    if (payload.ContainsKey("reason") && payload["reason"] != null) errDetail = payload["reason"].ToString();
+                }
+            }
+        }
+
         if (!isErr) return null;
 
         if (string.IsNullOrEmpty(errDetail))
@@ -1556,6 +1808,31 @@ internal sealed class AgentSessionWatcher : IDisposable
                                 return text;
                             }
                         }
+                    }
+                    return "Task completed.";
+                }
+            }
+        }
+
+        // 3. Codex format:
+        // event_msg with payload.type == "task_complete" or "task_completed"
+        if (data.ContainsKey("type") && "event_msg".Equals(data["type"]) && data.ContainsKey("payload"))
+        {
+            Dictionary<string, object> payload = data["payload"] as Dictionary<string, object>;
+            if (payload != null)
+            {
+                string pType = payload.ContainsKey("type") ? payload["type"] as string : null;
+                if ("task_complete".Equals(pType) || "task_completed".Equals(pType))
+                {
+                    if (payload.ContainsKey("last_agent_message") && payload["last_agent_message"] != null)
+                    {
+                        string msg = payload["last_agent_message"].ToString().Trim();
+                        if (!string.IsNullOrEmpty(msg)) return msg;
+                    }
+                    if (payload.ContainsKey("message") && payload["message"] != null)
+                    {
+                        string msg = payload["message"].ToString().Trim();
+                        if (!string.IsNullOrEmpty(msg)) return msg;
                     }
                     return "Task completed.";
                 }

@@ -3858,6 +3858,76 @@ internal static class TestCheck
                     }
                 }
 
+                // 47. Verify Codex support: UserMessage, function_call (exec_command), task_complete, session_meta
+                MethodInfo mExtractUser = agentWatcherType.GetMethod("ExtractUserRequest", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mExtractUser != null)
+                {
+                    var codexUserItem = new Dictionary<string, object> {
+                        { "type", "UserMessage" },
+                        { "content", new ArrayList { new Dictionary<string, object> { { "type", "text" }, { "text", "开箱体验增加Codex支持" } } } }
+                    };
+                    var codexUserMsg = new Dictionary<string, object> {
+                        { "type", "event_msg" },
+                        { "payload", new Dictionary<string, object> { { "type", "item_completed" }, { "item", codexUserItem } } }
+                    };
+                    string userReq = (string)mExtractUser.Invoke(null, new object[] { codexUserMsg });
+                    if (userReq == null || !userReq.Contains("Codex支持"))
+                    {
+                        Console.WriteLine("FAIL: ExtractUserRequest failed for Codex UserMessage: " + userReq);
+                        return 69;
+                    }
+                }
+
+                MethodInfo mExtractTool = agentWatcherType.GetMethod("ExtractToolSummary", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(Dictionary<string, object>), typeof(bool) }, null);
+                if (mExtractTool != null)
+                {
+                    var codexFc = new Dictionary<string, object> {
+                        { "type", "response_item" },
+                        { "payload", new Dictionary<string, object> {
+                            { "type", "function_call" },
+                            { "name", "exec_command" },
+                            { "arguments", "{\"cmd\": \"git status\"}" }
+                        } }
+                    };
+                    string toolAct = (string)mExtractTool.Invoke(null, new object[] { codexFc, true });
+                    if (toolAct == null || !toolAct.Contains("运行:") || !toolAct.Contains("git status"))
+                    {
+                        Console.WriteLine("FAIL: ExtractToolSummary failed for Codex function_call: " + toolAct);
+                        return 69;
+                    }
+                }
+
+                if (mExtractComp != null)
+                {
+                    var codexComp = new Dictionary<string, object> {
+                        { "type", "event_msg" },
+                        { "payload", new Dictionary<string, object> {
+                            { "type", "task_complete" },
+                            { "last_agent_message", "Codex已完成开箱支持。" }
+                        } }
+                    };
+                    string compRes = (string)mExtractComp.Invoke(null, new object[] { codexComp });
+                    if (compRes == null || !compRes.Contains("Codex已完成开箱支持"))
+                    {
+                        Console.WriteLine("FAIL: ExtractCompletionSummary failed for Codex task_complete: " + compRes);
+                        return 69;
+                    }
+                }
+
+                if (mExtractProj != null)
+                {
+                    var codexProjData = new Dictionary<string, object> {
+                        { "type", "session_meta" },
+                        { "payload", new Dictionary<string, object> { { "cwd", @"d:\AIStudio\iClock" } } }
+                    };
+                    string projHint = (string)mExtractProj.Invoke(null, new object[] { codexProjData, @"C:\Users\17902\.codex\sessions\test\rollout.jsonl" });
+                    if (projHint != "iClock")
+                    {
+                        Console.WriteLine("FAIL: ExtractProjectHint failed for Codex session_meta: " + projHint);
+                        return 69;
+                    }
+                }
+
                 Console.WriteLine("PASS: AI collaboration 5-in-1 upgrades (HITL feedback perception, error state distinction, project hint routing, trivial confirmation immunity & cognitive flow) verified.");
             }
 
