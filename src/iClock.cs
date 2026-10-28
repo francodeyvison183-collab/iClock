@@ -1592,31 +1592,69 @@ internal sealed class AppContext : ApplicationContext
         AppContext.PinAgentPopup(dlg, isFg);
     }
 
+    private static void SendKey(byte modifierVk, byte keyVk)
+    {
+        const uint KEYEVENTF_KEYUP = 0x0002;
+        if (modifierVk != 0) NativeMethods.keybd_event(modifierVk, 0, 0, UIntPtr.Zero);
+        NativeMethods.keybd_event(keyVk, 0, 0, UIntPtr.Zero);
+        System.Threading.Thread.Sleep(30);
+        NativeMethods.keybd_event(keyVk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        if (modifierVk != 0) NativeMethods.keybd_event(modifierVk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+    }
+
     private static void SendTextToAgent(IntPtr hwnd, string text)
     {
         if (hwnd == IntPtr.Zero || string.IsNullOrEmpty(text)) return;
         try
         {
-            if (NativeMethods.IsIconic(hwnd)) NativeMethods.ShowWindow(hwnd, 9);
-            NativeMethods.SwitchToThisWindow(hwnd, true);
+            IntPtr fgHwnd = NativeMethods.GetForegroundWindow();
+            uint dummy1, dummy2;
+            uint fgThread = NativeMethods.GetWindowThreadProcessId(fgHwnd, out dummy1);
+            uint targetThread = NativeMethods.GetWindowThreadProcessId(hwnd, out dummy2);
+            uint curThread = NativeMethods.GetCurrentThreadId();
+
+            if (fgThread != 0 && curThread != 0 && fgThread != curThread)
+                NativeMethods.AttachThreadInput(curThread, fgThread, true);
+            if (targetThread != 0 && curThread != 0 && targetThread != curThread)
+                NativeMethods.AttachThreadInput(curThread, targetThread, true);
+
+            bool wasIconic = NativeMethods.IsIconic(hwnd);
+            if (wasIconic) NativeMethods.ShowWindow(hwnd, 9);
+            else NativeMethods.ShowWindow(hwnd, 5);
+
+            NativeMethods.BringWindowToTop(hwnd);
             NativeMethods.SetForegroundWindow(hwnd);
-            System.Threading.Thread.Sleep(80);
+            NativeMethods.SwitchToThisWindow(hwnd, true);
+
+            if (targetThread != 0 && curThread != 0 && targetThread != curThread)
+                NativeMethods.AttachThreadInput(curThread, targetThread, false);
+            if (fgThread != 0 && curThread != 0 && fgThread != curThread)
+                NativeMethods.AttachThreadInput(curThread, fgThread, false);
+
+            for (int i = 0; i < 15; i++)
+            {
+                if (NativeMethods.GetForegroundWindow() == hwnd) break;
+                System.Threading.Thread.Sleep(20);
+            }
+            System.Threading.Thread.Sleep(wasIconic ? 220 : 100);
 
             if (text == "^c")
             {
-                SendKeys.SendWait("^c");
+                SendKey(0x11, 0x43);
             }
             else if (text == "y\n" || text == "y{ENTER}")
             {
-                SendKeys.SendWait("y{ENTER}");
+                SendKey(0, 0x59);
+                System.Threading.Thread.Sleep(40);
+                SendKey(0, 0x0D);
             }
             else
             {
                 Clipboard.SetDataObject(text, true, 3, 50);
-                System.Threading.Thread.Sleep(40);
-                SendKeys.SendWait("^v");
-                System.Threading.Thread.Sleep(40);
-                SendKeys.SendWait("{ENTER}");
+                System.Threading.Thread.Sleep(50);
+                SendKey(0x11, 0x56);
+                System.Threading.Thread.Sleep(60);
+                SendKey(0, 0x0D);
             }
         }
         catch { }
@@ -2475,7 +2513,7 @@ internal sealed class AppContext : ApplicationContext
     {
         if (string.IsNullOrEmpty(text)) return null;
         string lower = text.ToLowerInvariant();
-        if (lower.Contains("antigravity")) return "Antigravity";
+        if (lower.Contains("antigravity") || lower.Contains("agy") || lower.Contains("gemini")) return "Antigravity";
         if (lower.Contains("cursor")) return "Cursor";
         if (lower.Contains("windsurf") || lower.Contains("codeium")) return "Windsurf";
         if (lower.Contains("trae")) return "Trae";
@@ -2683,10 +2721,11 @@ internal sealed class AppContext : ApplicationContext
                 if (!string.IsNullOrEmpty(agentName))
                 {
                     string an = agentName.ToLowerInvariant();
-                    bool isAgy = an.Contains("agy") || an.Contains("antigravity");
+                    bool isAgy = an.Contains("agy") || an.Contains("antigravity") || an.Contains("gemini");
                     if ((proc != null && proc.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) ||
                         (!string.IsNullOrEmpty(title) && title.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) ||
-                        (isAgy && ((proc != null && proc.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0) || (!string.IsNullOrEmpty(title) && title.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0))) ||
+                        (isAgy && ((proc != null && (proc.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0 || proc.IndexOf("gemini", StringComparison.OrdinalIgnoreCase) >= 0)) ||
+                                   (!string.IsNullOrEmpty(title) && (title.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0 || title.IndexOf("gemini", StringComparison.OrdinalIgnoreCase) >= 0 || title.IndexOf("agy", StringComparison.OrdinalIgnoreCase) >= 0)))) ||
                         (MatchAgent(proc ?? "") != null && string.Equals(MatchAgent(proc ?? ""), agentName, StringComparison.OrdinalIgnoreCase)))
                     {
                         matchAgent = true;

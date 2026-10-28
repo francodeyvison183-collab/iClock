@@ -803,7 +803,19 @@ internal sealed class AskHumanDialog : Form
         catch { }
         if (resultCallback != null)
         {
-            try { resultCallback(result ?? ""); } catch { }
+            Action<string> cb = resultCallback;
+            System.Threading.Thread t = new System.Threading.Thread(delegate()
+            {
+                try
+                {
+                    System.Threading.Thread.Sleep(100);
+                    cb(result ?? "");
+                }
+                catch { }
+            });
+            t.SetApartmentState(System.Threading.ApartmentState.STA);
+            t.IsBackground = true;
+            t.Start();
         }
     }
 
