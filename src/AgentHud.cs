@@ -808,29 +808,21 @@ internal sealed class AgentTaskStatusHud : Form
                     float rightReserved = 0f;
                     float subX = 10f;
 
+                    DrawPill(g, pillPrompt, "+", ColorRunning, pillPrompt.Contains(clientCursor), subFont, centerFormat);
+                    rightReserved = 28f;
                     if (isWaiting)
                     {
                         rightReserved = (Width - pillApprove.Left) + 4;
                         DrawPill(g, pillApprove, isZh ? "✓ 批准" : "✓ OK", ColorDone, pillApprove.Contains(clientCursor), subFont, centerFormat);
                         DrawPill(g, pillReject, isZh ? "✕ 拒绝" : "✕ No", ColorError, pillReject.Contains(clientCursor), subFont, centerFormat);
-                        DrawPill(g, pillPrompt, isZh ? "+ 追加" : "+ Add", ColorRunning, pillPrompt.Contains(clientCursor), subFont, centerFormat);
                     }
-                    else if (isCompleted)
+                    else if (isCompleted && !string.IsNullOrEmpty(task.DiffStat))
                     {
-                        DrawPill(g, pillPrompt, isZh ? "+ 追加" : "+ Add", ColorRunning, pillPrompt.Contains(clientCursor), subFont, centerFormat);
-                        rightReserved = 52f;
-
-                        if (!string.IsNullOrEmpty(task.DiffStat))
-                        {
-                            DrawPill(g, diffRect, task.DiffStat, ColorRunning, diffRect.Contains(clientCursor), subFont, centerFormat);
-                            subX = diffRect.Right + 6f;
-                        }
+                        DrawPill(g, diffRect, task.DiffStat, ColorRunning, diffRect.Contains(clientCursor), subFont, centerFormat);
+                        subX = diffRect.Right + 6f;
                     }
                     else if (isRunning)
                     {
-                        DrawPill(g, pillPrompt, isZh ? "+ 追加" : "+ Add", ColorRunning, pillPrompt.Contains(clientCursor), subFont, centerFormat);
-                        rightReserved = 52f;
-
                         if (task.TurnStartTime > DateTime.MinValue)
                         {
                             int elapsedSec = Math.Max(0, (int)(DateTime.Now - task.TurnStartTime).TotalSeconds);
@@ -873,9 +865,9 @@ internal sealed class AgentTaskStatusHud : Form
 
     private static void GetPillRects(int cardY, int width, out Rectangle approve, out Rectangle reject, out Rectangle prompt, out Rectangle diff)
     {
-        prompt = new Rectangle(width - 56, cardY + 27, 46, 17);
-        reject = new Rectangle(width - 106, cardY + 27, 46, 17);
-        approve = new Rectangle(width - 178, cardY + 27, 68, 17);
+        prompt = new Rectangle(width - 32, cardY + 27, 22, 17);
+        reject = new Rectangle(width - 82, cardY + 27, 46, 17);
+        approve = new Rectangle(width - 154, cardY + 27, 68, 17);
         diff = new Rectangle(10, cardY + 27, 110, 17);
     }
 

@@ -2528,7 +2528,6 @@ internal sealed class AppContext : ApplicationContext
         if (lower.Contains("raccoon")) return "代码小浣熊";
         if (lower.Contains("copilot")) return "GitHub Copilot";
         if (lower.Contains("claude")) return "Claude Code";
-        if (lower.Contains("gemini")) return "Gemini";
         if (lower.Contains("codex")) return "Codex";
         if (lower.Contains("kimi")) return "Kimi Code";
         if (lower.Contains("opencode")) return "OpenCode";
