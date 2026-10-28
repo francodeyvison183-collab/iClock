@@ -488,53 +488,21 @@ internal sealed class AgentTaskStatusHud : Form
                 }
 
                 // 2. Agent Brand Badge
-                string rawName = task.AgentName ?? "";
+                string rn = (task.AgentName ?? "").ToLowerInvariant();
                 Color badgeColor;
                 string badgeLabel;
-                if (rawName.IndexOf("Claude", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    badgeColor = Color.FromArgb(218, 119, 86); // Claude Coral / Terra Cotta #DA7756
-                    badgeLabel = "Claude";
-                }
-                else if (rawName.IndexOf("Antigravity", StringComparison.OrdinalIgnoreCase) >= 0 || rawName.IndexOf("AGY", StringComparison.OrdinalIgnoreCase) >= 0 || rawName.IndexOf("Gemini", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    badgeColor = Color.FromArgb(59, 130, 246); // AGY Blue #3B82F6
-                    badgeLabel = "AGY";
-                }
-                else if (rawName.IndexOf("Codex", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    badgeColor = Color.FromArgb(14, 165, 233); // Codex Cyan #0EA5E9
-                    badgeLabel = "Codex";
-                }
-                else if (rawName.IndexOf("Cursor", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    badgeColor = Color.FromArgb(16, 185, 129); // Cursor Emerald #10B981
-                    badgeLabel = "Cursor";
-                }
-                else if (rawName.IndexOf("Windsurf", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    badgeColor = Color.FromArgb(6, 182, 212); // Windsurf Teal #06B6D4
-                    badgeLabel = "Windsurf";
-                }
-                else if (rawName.IndexOf("Trae", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    badgeColor = Color.FromArgb(139, 92, 246); // Trae Purple #8B5CF6
-                    badgeLabel = "Trae";
-                }
-                else if (rawName.IndexOf("Aider", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    badgeColor = Color.FromArgb(249, 115, 22); // Aider Orange #F97316
-                    badgeLabel = "Aider";
-                }
-                else if (rawName.IndexOf("Copilot", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    badgeColor = Color.FromArgb(99, 102, 241); // Copilot Indigo #6366F1
-                    badgeLabel = "Copilot";
-                }
+                if (rn.Contains("claude")) { badgeColor = Color.FromArgb(218, 119, 86); badgeLabel = "Claude"; }
+                else if (rn.Contains("antigravity") || rn.Contains("agy") || rn.Contains("gemini")) { badgeColor = Color.FromArgb(59, 130, 246); badgeLabel = "AGY"; }
+                else if (rn.Contains("codex")) { badgeColor = Color.FromArgb(14, 165, 233); badgeLabel = "Codex"; }
+                else if (rn.Contains("cursor")) { badgeColor = Color.FromArgb(16, 185, 129); badgeLabel = "Cursor"; }
+                else if (rn.Contains("windsurf")) { badgeColor = Color.FromArgb(6, 182, 212); badgeLabel = "Windsurf"; }
+                else if (rn.Contains("trae")) { badgeColor = Color.FromArgb(139, 92, 246); badgeLabel = "Trae"; }
+                else if (rn.Contains("aider")) { badgeColor = Color.FromArgb(249, 115, 22); badgeLabel = "Aider"; }
+                else if (rn.Contains("copilot")) { badgeColor = Color.FromArgb(99, 102, 241); badgeLabel = "Copilot"; }
                 else
                 {
-                    badgeColor = GetDeterministicAgentColor(rawName);
-                    badgeLabel = GetShortAgentBadgeLabel(rawName);
+                    badgeColor = GetDeterministicAgentColor(task.AgentName);
+                    badgeLabel = GetShortAgentBadgeLabel(task.AgentName);
                 }
 
                 SizeF badgeTextSize = g.MeasureString(badgeLabel, badgeFont);
@@ -620,45 +588,18 @@ internal sealed class AgentTaskStatusHud : Form
                     else if (isRunning)
                     {
                         int elapsedSec = task.TurnStartTime > DateTime.MinValue ? Math.Max(0, (int)(DateTime.Now - task.TurnStartTime).TotalSeconds) : 0;
-                        string timeBadge = elapsedSec >= 1 ? (elapsedSec >= 60 ? (elapsedSec / 60 + "m" + (elapsedSec % 60).ToString("D2") + "s") : (elapsedSec + "s")) : "";
+                        string timeBadge = elapsedSec >= 1 ? FormatElapsed(elapsedSec) : "";
+                        string briefAction = !string.IsNullOrEmpty(task.SubDetail) ? (task.SubDetail.Length > 28 ? task.SubDetail.Substring(0, 25) + "..." : task.SubDetail) : "";
 
-                        string briefAction = "";
-                        if (!string.IsNullOrEmpty(task.SubDetail))
+                        string[] candidates = new string[] {
+                            !string.IsNullOrEmpty(briefAction) && !string.IsNullOrEmpty(timeBadge) ? (displayTitle + " · " + briefAction + " (" + timeBadge + ")") : null,
+                            !string.IsNullOrEmpty(briefAction) ? (displayTitle + " · " + briefAction) : null,
+                            !string.IsNullOrEmpty(timeBadge) ? (displayTitle + " · " + timeBadge) : null
+                        };
+                        textToDraw = displayTitle;
+                        for (int ci = 0; ci < candidates.Length; ci++)
                         {
-                            briefAction = task.SubDetail.Replace("正在执行: ", "").Replace("Running: ", "").Trim();
-                            if (briefAction.Length > 28) briefAction = briefAction.Substring(0, 25) + "...";
-                        }
-
-                        // Try candidate 1: Title + Action + Time
-                        string c1 = !string.IsNullOrEmpty(briefAction) && !string.IsNullOrEmpty(timeBadge)
-                            ? (displayTitle + " · " + briefAction + " (" + timeBadge + ")")
-                            : (!string.IsNullOrEmpty(briefAction) ? (displayTitle + " · " + briefAction) : (!string.IsNullOrEmpty(timeBadge) ? (displayTitle + " · " + timeBadge) : displayTitle));
-
-                        if (g.MeasureString(c1, titleFont).Width <= textW)
-                        {
-                            textToDraw = c1;
-                        }
-                        else
-                        {
-                            // Try candidate 2: Title + Action
-                            string c2 = !string.IsNullOrEmpty(briefAction) ? (displayTitle + " · " + briefAction) : null;
-                            if (c2 != null && g.MeasureString(c2, titleFont).Width <= textW)
-                            {
-                                textToDraw = c2;
-                            }
-                            else
-                            {
-                                // Try candidate 3: Title + Time
-                                string c3 = !string.IsNullOrEmpty(timeBadge) ? (displayTitle + " · " + timeBadge) : null;
-                                if (c3 != null && g.MeasureString(c3, titleFont).Width <= textW)
-                                {
-                                    textToDraw = c3;
-                                }
-                                else
-                                {
-                                    textToDraw = displayTitle;
-                                }
-                            }
+                            if (candidates[ci] != null && g.MeasureString(candidates[ci], titleFont).Width <= textW) { textToDraw = candidates[ci]; break; }
                         }
                     }
                     else if (isCompleted)
@@ -721,11 +662,10 @@ internal sealed class AgentTaskStatusHud : Form
                         double t = (DateTime.Now.Ticks / 10000000.0);
                         float headAngle = (float)((t * 280.0) % 360.0);
 
-                        int[] tailAlphas = new int[] { 35, 75, 140, 215 };
                         float sweepStart = headAngle - 88f;
                         for (int s = 0; s < 4; s++)
                         {
-                            using (Pen tailPen = new Pen(Color.FromArgb(tailAlphas[s], statusColor), 1.5f + s * 0.15f))
+                            using (Pen tailPen = new Pen(Color.FromArgb(TailAlphas[s], statusColor), 1.5f + s * 0.15f))
                             {
                                 g.DrawArc(tailPen, ringCenterX - ringRadius, ringCenterY - ringRadius, ringRadius * 2f, ringRadius * 2f, sweepStart + s * 22f, 22f);
                             }
@@ -793,17 +733,16 @@ internal sealed class AgentTaskStatusHud : Form
                 {
                     g.DrawLine(dividerPen, 10f, cardY + 26f, Width - 10f, cardY + 26f);
 
-                    string sub = !string.IsNullOrEmpty(task.SubDetail)
-                        ? task.SubDetail
-                        : (!string.IsNullOrEmpty(task.StepProgress)
-                            ? (settings.Language == "en" ? ("Running: " + task.StepProgress) : ("正在执行: " + task.StepProgress))
-                            : (task.IsThinking
-                                ? (settings.Language == "en" ? "Analyzing and executing tools..." : "思考分析与规划中...")
-                                : (isCompleted
-                                    ? (settings.Language == "en" ? "Turn completed successfully" : "本轮会话已顺利完成")
-                                    : (isError
-                                        ? (settings.Language == "en" ? "Task interrupted or encountered an error" : "任务执行遇到异常或已中断")
-                                        : (settings.Language == "en" ? "Waiting for user decision" : "等待用户决策")))));
+                    bool isZh = settings == null || settings.Language != "en";
+                    string sub = task.SubDetail;
+                    if (string.IsNullOrEmpty(sub))
+                    {
+                        if (!string.IsNullOrEmpty(task.StepProgress)) sub = "[" + task.StepProgress + "]";
+                        else if (task.IsThinking) sub = isZh ? "💭 思考分析中..." : "💭 Thinking...";
+                        else if (isCompleted) sub = isZh ? "✅ 任务已完成" : "✅ Task completed";
+                        else if (isError) sub = isZh ? "⚠️ 遇到异常或已中断" : "⚠️ Task interrupted";
+                        else sub = isZh ? "等待决策" : "Waiting for decision";
+                    }
 
                     float rightReserved = 0f;
                     if (isRunning && task.TurnStartTime > DateTime.MinValue)
@@ -812,9 +751,7 @@ internal sealed class AgentTaskStatusHud : Form
                         int stepSec = task.StepStartTime > DateTime.MinValue ? Math.Max(0, (int)(DateTime.Now - task.StepStartTime).TotalSeconds) : elapsedSec;
                         if (elapsedSec >= 1)
                         {
-                            string timeBadge = elapsedSec >= 60
-                                ? (elapsedSec / 60 + "m" + (elapsedSec % 60).ToString("D2") + "s")
-                                : (elapsedSec + "s");
+                            string timeBadge = FormatElapsed(elapsedSec);
                             SizeF timeSize = g.MeasureString(timeBadge, subFont);
                             rightReserved = timeSize.Width + 6f;
                             Color timerColor = stepSec >= 45 ? ColorWaiting : ColorSuffixText;
@@ -845,12 +782,15 @@ internal sealed class AgentTaskStatusHud : Form
         y = Math.Max(work.Top, Math.Min(work.Bottom - Height, y));
         Location = new Point(x, y);
     }
+    private static readonly int[] AgentHues = new int[] { 0x38BDF8, 0x818CF8, 0xA855F7, 0xEC4899, 0xF43F5E, 0xFB923C, 0xFBBF24, 0x34D399, 0x2DD4BF };
+    private static readonly int[] TailAlphas = new int[] { 35, 75, 140, 215 };
+    private static string FormatElapsed(int sec) { return sec >= 60 ? (sec / 60 + "m" + (sec % 60).ToString("D2") + "s") : (sec + "s"); }
+
     internal static Color GetDeterministicAgentColor(string name)
     {
         if (string.IsNullOrEmpty(name)) return AppContext.Win11Accent;
         int hash = Math.Abs(name.GetHashCode());
-        int[] hues = new int[] { 0x38BDF8, 0x818CF8, 0xA855F7, 0xEC4899, 0xF43F5E, 0xFB923C, 0xFBBF24, 0x34D399, 0x2DD4BF };
-        int rgb = hues[hash % hues.Length];
+        int rgb = AgentHues[hash % AgentHues.Length];
         return Color.FromArgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
     }
 

@@ -65,32 +65,31 @@ internal sealed class AgentSessionWatcher : IDisposable
         if (string.IsNullOrEmpty(agentName)) return dirs;
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
-        if (agentName.IndexOf("Claude", StringComparison.OrdinalIgnoreCase) >= 0)
+        string n = agentName.ToLowerInvariant();
+        if (n.Contains("claude"))
         {
             AddDirIfExists(dirs, Path.Combine(home, ".claude", "projects"));
             if (dirs.Count == 0) AddDirIfExists(dirs, Path.Combine(home, ".claude"));
             try { AddDirIfExists(dirs, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".claude")); } catch { }
         }
-        else if (agentName.IndexOf("Antigravity", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                 agentName.IndexOf("AGY", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                 agentName.IndexOf("Gemini", StringComparison.OrdinalIgnoreCase) >= 0)
+        else if (n.Contains("antigravity") || n.Contains("agy") || n.Contains("gemini"))
         {
             AddDirIfExists(dirs, Path.Combine(home, ".gemini", "antigravity", "brain"));
             AddDirIfExists(dirs, Path.Combine(home, ".antigravity"));
         }
-        else if (agentName.IndexOf("Codex", StringComparison.OrdinalIgnoreCase) >= 0)
+        else if (n.Contains("codex"))
         {
             AddDirIfExists(dirs, Path.Combine(home, ".codex", "sessions"));
             if (dirs.Count == 0) AddDirIfExists(dirs, Path.Combine(home, ".codex"));
         }
-        else if (agentName.IndexOf("Cursor", StringComparison.OrdinalIgnoreCase) >= 0) AddDirIfExists(dirs, Path.Combine(home, ".cursor"));
-        else if (agentName.IndexOf("Windsurf", StringComparison.OrdinalIgnoreCase) >= 0)
+        else if (n.Contains("cursor")) AddDirIfExists(dirs, Path.Combine(home, ".cursor"));
+        else if (n.Contains("windsurf"))
         {
             AddDirIfExists(dirs, Path.Combine(home, ".codeium", "windsurf"));
             AddDirIfExists(dirs, Path.Combine(home, ".windsurf"));
         }
-        else if (agentName.IndexOf("Trae", StringComparison.OrdinalIgnoreCase) >= 0) AddDirIfExists(dirs, Path.Combine(home, ".trae"));
-        else if (agentName.IndexOf("Aider", StringComparison.OrdinalIgnoreCase) >= 0) AddDirIfExists(dirs, Path.Combine(home, ".aider"));
+        else if (n.Contains("trae")) AddDirIfExists(dirs, Path.Combine(home, ".trae"));
+        else if (n.Contains("aider")) AddDirIfExists(dirs, Path.Combine(home, ".aider"));
 
         string slug = Regex.Replace(agentName.ToLowerInvariant(), @"[^a-z0-9]+", "");
         if (!string.IsNullOrEmpty(slug))
@@ -614,10 +613,8 @@ internal sealed class AgentSessionWatcher : IDisposable
             {
                 bool isTrivial = IsTrivialConfirmation(latestReq);
                 bool hasRealTarget = !string.IsNullOrEmpty(session.Target) &&
-                                     !session.Target.Equals("当前会话", StringComparison.Ordinal) &&
-                                     !session.Target.Equals("当前任务", StringComparison.Ordinal) &&
-                                     !session.Target.Equals("Session", StringComparison.Ordinal) &&
-                                     !session.Target.Equals("Task", StringComparison.Ordinal) &&
+                                     session.Target != "当前会话" && session.Target != "当前任务" &&
+                                     session.Target != "Session" && session.Target != "Task" &&
                                      session.Target.Length > 2;
 
                 if (!isTrivial || !hasRealTarget)
@@ -751,23 +748,13 @@ internal sealed class AgentSessionWatcher : IDisposable
 
         if (latestData != null)
         {
-            DispatchParsedEvent(latestData, agentName, isZh);
+            DispatchParsedEvent(latestData, agentName, isZh, session);
         }
     }
 
-    private void DispatchParsedEvent(Dictionary<string, object> data, string agentName, bool isZh)
+    private void DispatchParsedEvent(Dictionary<string, object> data, string agentName, bool isZh, TurnSession session)
     {
-        if (appContext == null || disposed) return;
-
-        TurnSession session;
-        lock (syncLock)
-        {
-            if (!sessions.TryGetValue(agentName, out session))
-            {
-                session = new TurnSession();
-                sessions[agentName] = session;
-            }
-        }
+        if (appContext == null || disposed || session == null) return;
 
         // 1. Check for Turn Start (USER_INPUT / user request) -> Anchor Session Target
         string userReq = ExtractUserRequest(data);
@@ -777,10 +764,8 @@ internal sealed class AgentSessionWatcher : IDisposable
             {
                 bool isTrivial = IsTrivialConfirmation(userReq);
                 bool hasRealTarget = !string.IsNullOrEmpty(session.Target) &&
-                                     !session.Target.Equals("当前会话", StringComparison.Ordinal) &&
-                                     !session.Target.Equals("当前任务", StringComparison.Ordinal) &&
-                                     !session.Target.Equals("Session", StringComparison.Ordinal) &&
-                                     !session.Target.Equals("Task", StringComparison.Ordinal) &&
+                                     session.Target != "当前会话" && session.Target != "当前任务" &&
+                                     session.Target != "Session" && session.Target != "Task" &&
                                      session.Target.Length > 2;
 
                 if (!isTrivial || !hasRealTarget)
@@ -901,21 +886,11 @@ internal sealed class AgentSessionWatcher : IDisposable
         bool isGenericOutput = (data.ContainsKey("type") && "GENERIC".Equals(data["type"])) ||
                                (data.ContainsKey("type") && "response_item".Equals(data["type"]) && data.ContainsKey("payload") &&
                                 data["payload"] is Dictionary<string, object> && "function_call_output".Equals(((Dictionary<string, object>)data["payload"])["type"]));
-        string toolSummary = ExtractToolSummary(data, isZh);
+        string curTool = ExtractToolSummary(data, isZh);
 
         lock (syncLock)
         {
-            if (string.IsNullOrEmpty(toolSummary))
-            {
-                toolSummary = session.LastToolAction;
-            }
-            else
-            {
-                session.LastToolAction = toolSummary;
-            }
-        }
-        lock (syncLock)
-        {
+            if (!string.IsNullOrEmpty(curTool)) session.LastToolAction = curTool;
             if (session.WindowStart > DateTime.MinValue && (nowDate - session.WindowStart).TotalSeconds < 90)
             {
                 count = ++session.ToolCount;
@@ -930,14 +905,8 @@ internal sealed class AgentSessionWatcher : IDisposable
             // Fallback session target anchor if user prompt arrived before watcher was attached
             if (string.IsNullOrEmpty(session.Target))
             {
-                if (!string.IsNullOrEmpty(toolSummary))
-                {
-                    session.Target = CleanUserRequest(toolSummary) ?? toolSummary;
-                }
-                else
-                {
-                    session.Target = isZh ? "当前任务" : "Task";
-                }
+                string tAct = curTool ?? session.LastToolAction;
+                session.Target = !string.IsNullOrEmpty(tAct) ? (CleanUserRequest(tAct) ?? tAct) : (isZh ? "当前任务" : "Task");
                 session.StartTime = nowDate;
             }
         }
@@ -954,9 +923,11 @@ internal sealed class AgentSessionWatcher : IDisposable
         string stepProgressText = null;
         float progress = -1f;
         string activeDesc = null;
+        string lastAct = null;
         lock (syncLock)
         {
             session.State = TurnState.Processing;
+            lastAct = session.LastToolAction;
             if (session.ActiveStep > 0 && session.TotalSteps > 0)
             {
                 progress = (float)session.ActiveStep / session.TotalSteps;
@@ -966,34 +937,77 @@ internal sealed class AgentSessionWatcher : IDisposable
             }
         }
 
+        string authenticAction = !string.IsNullOrEmpty(curTool)
+            ? FormatAuthenticAction(curTool, stepProgressText, activeDesc, session.ActiveStep, session.TotalSteps)
+            : null;
+        string thought = ExtractThoughtSlice(data);
+        string formattedLast = !string.IsNullOrEmpty(lastAct) ? FormatAuthenticAction(lastAct, null, null, 0, 0) : null;
+
         string subDetail;
-        if (!string.IsNullOrEmpty(stepProgressText))
-        {
-            subDetail = isZh ? ("正在执行: " + stepProgressText) : ("Running: " + stepProgressText);
-        }
-        else if (isGenericOutput)
-        {
-            // Tool execution finished; model is now analyzing output & planning next step
-            if (!string.IsNullOrEmpty(toolSummary))
-            {
-                subDetail = isZh ? ("💭 已完成 " + toolSummary + "，正在分析...") : ("💭 Finished " + toolSummary + ", analyzing...");
-            }
-            else
-            {
-                subDetail = isZh ? "💭 正在分析工具结果与构思下一步..." : "💭 Analyzing tool results & planning next step...";
-            }
-        }
-        else if (!string.IsNullOrEmpty(toolSummary))
-        {
-            subDetail = isZh ? ("正在执行: " + toolSummary) : ("Running: " + toolSummary);
-        }
-        else
-        {
-            subDetail = isZh ? "💭 思考分析与规划中..." : "💭 Thinking & planning...";
-        }
+        if (!string.IsNullOrEmpty(authenticAction)) subDetail = authenticAction;
+        else if (isGenericOutput) subDetail = !string.IsNullOrEmpty(formattedLast) ? ("✓ " + formattedLast) : (isZh ? "💭 分析中..." : "💭 Analyzing...");
+        else if (!string.IsNullOrEmpty(thought)) subDetail = "💭 " + thought;
+        else if (!string.IsNullOrEmpty(stepProgressText)) subDetail = "[" + session.ActiveStep + "/" + session.TotalSteps + "]" + (!string.IsNullOrEmpty(activeDesc) ? (" " + activeDesc) : "");
+        else subDetail = !string.IsNullOrEmpty(formattedLast) ? formattedLast : (isZh ? "💭 思考分析中..." : "💭 Thinking...");
 
         string procMsg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
         appContext.SetAgentTaskMessage(procMsg, agentName, true, subDetail, stepProgressText, progress, session.ProjectHint);
+    }
+
+    private static string FormatAuthenticAction(string act, string stepProg, string desc, int s, int t)
+    {
+        if (string.IsNullOrEmpty(act) && string.IsNullOrEmpty(stepProg)) return null;
+        if (!string.IsNullOrEmpty(act))
+        {
+            int sp = act.IndexOf(' ');
+            if (sp > 0)
+            {
+                string verb = act.Substring(0, sp);
+                string rest = act.Substring(sp + 1).Trim();
+                if (verb == "运行:" || verb == "Run:") act = "⚡ " + rest;
+                else if (verb == "读取" || verb == "Read") act = "read_file: " + rest;
+                else if (verb == "修改" || verb == "Edit") act = "edit_file: " + rest;
+                else if (verb == "写入" || verb == "Write") act = "write_file: " + rest;
+                else if (verb == "删除" || verb == "Delete") act = "delete_file: " + rest;
+                else if (verb == "搜索" || verb == "Search") act = "search: " + rest;
+                else if (verb == "操作" || verb == "Process") act = "file: " + rest;
+            }
+        }
+        if (!string.IsNullOrEmpty(stepProg))
+        {
+            return "[" + s + "/" + t + "] " + (!string.IsNullOrEmpty(desc) ? desc : (act ?? stepProg));
+        }
+        return act;
+    }
+
+    private static readonly char[] SentenceDelims = new char[] { '。', '！', '!', '？', '?', '\n', '\r' };
+
+    private static string ExtractThoughtSlice(Dictionary<string, object> d)
+    {
+        if (d == null) return null;
+        object raw = null;
+        if (d.ContainsKey("thinking")) raw = d["thinking"];
+        else
+        {
+            string type = d.ContainsKey("type") ? d["type"] as string : null;
+            if (type == "GENERIC" || type == "tool_output" || type == "tool_response") return null;
+            if (d.ContainsKey("payload") && d["payload"] is Dictionary<string, object>)
+            {
+                Dictionary<string, object> pl = (Dictionary<string, object>)d["payload"];
+                if ("function_call_output".Equals(pl.ContainsKey("type") ? pl["type"] : null)) return null;
+                if (pl.ContainsKey("thinking")) raw = pl["thinking"];
+                else if (pl.ContainsKey("content")) raw = pl["content"];
+            }
+            if (raw == null) raw = d.ContainsKey("content") ? d["content"] : (d.ContainsKey("message") ? d["message"] : null);
+        }
+        if (raw == null) return null;
+        string s = raw.ToString().Trim();
+        if (string.IsNullOrEmpty(s) || s[0] == '<' || s[0] == '{' || s[0] == '[') return null;
+        if (s.StartsWith("- ") || s.StartsWith("* ")) s = s.Substring(2).Trim();
+        int dot = s.IndexOfAny(SentenceDelims);
+        if (dot > 0 && dot <= 50) s = s.Substring(0, dot).Trim();
+        else if (s.Length > 48) s = s.Substring(0, 45) + "...";
+        return s.Length > 2 ? s : null;
     }
 
     private void ScheduleClearProgress(string agentName, int expectedVersion, int delayMs)
@@ -1188,9 +1202,10 @@ internal sealed class AgentSessionWatcher : IDisposable
                 }
             }
         }
-        if (d.ContainsKey("text") && d["text"] is string) return d["text"] as string;
-        if (d.ContainsKey("message") && d["message"] is string) return d["message"] as string;
-        if (d.ContainsKey("summary") && d["summary"] is string) return d["summary"] as string;
+        foreach (string k in new string[] { "text", "message", "summary" })
+        {
+            if (d.ContainsKey(k) && d[k] is string) return (string)d[k];
+        }
         return null;
     }
 
@@ -1210,7 +1225,7 @@ internal sealed class AgentSessionWatcher : IDisposable
             if (item != null && item.ContainsKey("text") && item["text"] != null)
             {
                 string txt = item["text"].ToString().Trim();
-                if (txt.StartsWith("# AGENTS.md") || txt.StartsWith("<environment_context") || txt.StartsWith("<app-context") || txt.StartsWith("# Response annotations:"))
+                if (txt.StartsWith("#") || txt.StartsWith("<environment") || txt.StartsWith("<app"))
                     continue;
                 string cleaned = CleanUserRequest(txt);
                 if (!string.IsNullOrEmpty(cleaned) && !string.Equals(cleaned, "continue", StringComparison.OrdinalIgnoreCase))
@@ -1232,8 +1247,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         string text = m.Success ? m.Groups[1].Value : raw;
 
         // Strip xml/html-like metadata tags
-        text = Regex.Replace(text, @"<[^>]+>[\s\S]*?<\/[^>]+>", " ");
-        text = Regex.Replace(text, @"<[^>]+>", " ");
+        text = Regex.Replace(text, @"<[^>]+>(?:[\s\S]*?<\/[^>]+>)?", " ");
 
         // Normalize whitespace
         text = Regex.Replace(text, @"\s+", " ").Trim();
@@ -1269,20 +1283,9 @@ internal sealed class AgentSessionWatcher : IDisposable
         // 1. Explicit summary from args if present
         if (args != null)
         {
-            if (args.ContainsKey("toolSummary"))
+            foreach (string k in new string[] { "toolSummary", "summary", "description" })
             {
-                string ts = CleanToolParam(args["toolSummary"]);
-                if (!string.IsNullOrEmpty(ts)) return ts;
-            }
-            if (args.ContainsKey("summary"))
-            {
-                string s = CleanToolParam(args["summary"]);
-                if (!string.IsNullOrEmpty(s)) return s;
-            }
-            if (args.ContainsKey("description"))
-            {
-                string d = CleanToolParam(args["description"]);
-                if (!string.IsNullOrEmpty(d)) return d;
+                if (args.ContainsKey(k)) { string v = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(v)) return v; }
             }
         }
 
@@ -1292,11 +1295,10 @@ internal sealed class AgentSessionWatcher : IDisposable
         string filePath = null;
         if (args != null)
         {
-            if (args.ContainsKey("Path")) filePath = CleanToolParam(args["Path"]);
-            else if (args.ContainsKey("path")) filePath = CleanToolParam(args["path"]);
-            else if (args.ContainsKey("filePath")) filePath = CleanToolParam(args["filePath"]);
-            else if (args.ContainsKey("file_path")) filePath = CleanToolParam(args["file_path"]);
-            else if (args.ContainsKey("Target")) filePath = CleanToolParam(args["Target"]);
+            foreach (string k in new string[] { "Path", "path", "filePath", "file_path", "Target" })
+            {
+                if (args.ContainsKey(k)) { filePath = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(filePath)) break; }
+            }
         }
 
         if (!string.IsNullOrEmpty(filePath))
@@ -1321,9 +1323,10 @@ internal sealed class AgentSessionWatcher : IDisposable
         string cmd = null;
         if (args != null)
         {
-            if (args.ContainsKey("CommandLine")) cmd = CleanToolParam(args["CommandLine"]);
-            else if (args.ContainsKey("command")) cmd = CleanToolParam(args["command"]);
-            else if (args.ContainsKey("cmd")) cmd = CleanToolParam(args["cmd"]);
+            foreach (string k in new string[] { "CommandLine", "command", "cmd" })
+            {
+                if (args.ContainsKey(k)) { cmd = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(cmd)) break; }
+            }
         }
         if (!string.IsNullOrEmpty(cmd))
         {
@@ -1336,9 +1339,10 @@ internal sealed class AgentSessionWatcher : IDisposable
         string query = null;
         if (args != null)
         {
-            if (args.ContainsKey("query")) query = CleanToolParam(args["query"]);
-            else if (args.ContainsKey("queries")) query = CleanToolParam(args["queries"]);
-            else if (args.ContainsKey("pattern")) query = CleanToolParam(args["pattern"]);
+            foreach (string k in new string[] { "query", "queries", "pattern" })
+            {
+                if (args.ContainsKey(k)) { query = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(query)) break; }
+            }
         }
         if (!string.IsNullOrEmpty(query))
         {
@@ -1377,27 +1381,13 @@ internal sealed class AgentSessionWatcher : IDisposable
         }
 
         // 6. Generic friendly name fallbacks
-        if (lowerName == "run_command" || lowerName == "bash" || lowerName == "terminal" || lowerName == "exec" || lowerName == "exec_command")
-            return isZh ? "运行命令" : "Running command";
-        if (lowerName == "read_file" || lowerName == "readlocalfile")
-            return isZh ? "读取文件" : "Reading file";
-        if (lowerName == "edit_file" || lowerName == "editlocalfile" || lowerName == "apply_patch" || lowerName == "file_edit")
-            return isZh ? "修改文件" : "Editing file";
-        if (lowerName == "write_file" || lowerName == "writefile" || lowerName == "create_file")
-            return isZh ? "写入文件" : "Writing file";
-        if (lowerName == "search_web" || lowerName == "web_search")
-            return isZh ? "搜索网络" : "Web search";
-        if (lowerName.Contains("tool_search") || lowerName.Contains("search_tools"))
-            return isZh ? "检索可用工具" : "Searching tools";
-        if (lowerName == "ask_question" || lowerName == "ask_user_question")
-            return isZh ? "询问用户" : "Asking question";
-
+        if (lowerName.Contains("command") || lowerName == "bash" || lowerName == "terminal" || lowerName.StartsWith("exec")) return isZh ? "运行命令" : "Running command";
+        if (lowerName.Contains("read")) return isZh ? "读取文件" : "Reading file";
+        if (lowerName.Contains("edit") || lowerName.Contains("patch")) return isZh ? "修改文件" : "Editing file";
+        if (lowerName.Contains("write")) return isZh ? "写入文件" : "Writing file";
+        if (lowerName.Contains("search")) return isZh ? "搜索网络" : "Web search";
+        if (lowerName.Contains("ask")) return isZh ? "询问用户" : "Asking question";
         return toolName;
-    }
-
-    internal static string ExtractToolSummary(Dictionary<string, object> data)
-    {
-        return ExtractToolSummary(data, true);
     }
 
     internal static string ExtractToolSummary(Dictionary<string, object> data, bool isZh)
@@ -1578,11 +1568,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         // 1. Tool summary step pattern: e.g. "1/3 正在执行算法优化", "[1/3] 正在执行算法优化", "Step 1/3: 正在执行算法优化"
         if (!string.IsNullOrEmpty(toolSummary))
         {
-            Match m = Regex.Match(toolSummary, @"^(?:\[|\(|\b)(?:Step\s*)?(\d+)\s*(?:[/／]|of)\s*(\d+)(?:\]|\)|\b)\s*[:：·\-\s]*(.*)$", RegexOptions.IgnoreCase);
-            if (!m.Success)
-            {
-                m = Regex.Match(toolSummary, @"^第\s*(\d+)\s*(?:步|阶段)?\s*[/／共]\s*(?:共)?\s*(\d+)\s*(?:步|阶段)?\s*[:：·\-\s]*(.*)$", RegexOptions.IgnoreCase);
-            }
+            Match m = Regex.Match(toolSummary, @"^(?:\[|\(|\b|第)?(?:Step\s*)?(\d+)(?:步|阶段)?\s*(?:[/／]|of)\s*(?:第)?(\d+)(?:步|阶段)?(?:\]|\)|\b)?\s*[:：\-\s]*(.*)$", RegexOptions.IgnoreCase);
             if (m.Success)
             {
                 int s, t;
@@ -1701,25 +1687,18 @@ internal sealed class AgentSessionWatcher : IDisposable
     private static string ExtractQuestionPromptText(Dictionary<string, object> args)
     {
         if (args == null) return null;
-        if (args.ContainsKey("question") && args["question"] != null)
+        string q = null;
+        if (args.ContainsKey("question") && args["question"] != null) q = args["question"].ToString().Trim();
+        else if (args.ContainsKey("questions") && args["questions"] is IList)
         {
-            string q = args["question"].ToString().Trim();
-            if (!string.IsNullOrEmpty(q)) return q.Length > 50 ? q.Substring(0, 47) + "..." : q;
-        }
-        if (args.ContainsKey("questions"))
-        {
-            IList qList = args["questions"] as IList;
-            if (qList != null && qList.Count > 0)
+            IList qList = (IList)args["questions"];
+            if (qList.Count > 0 && qList[0] is Dictionary<string, object>)
             {
-                Dictionary<string, object> firstQ = qList[0] as Dictionary<string, object>;
-                if (firstQ != null && firstQ.ContainsKey("question") && firstQ["question"] != null)
-                {
-                    string q = firstQ["question"].ToString().Trim();
-                    if (!string.IsNullOrEmpty(q)) return q.Length > 50 ? q.Substring(0, 47) + "..." : q;
-                }
+                Dictionary<string, object> firstQ = (Dictionary<string, object>)qList[0];
+                if (firstQ.ContainsKey("question") && firstQ["question"] != null) q = firstQ["question"].ToString().Trim();
             }
         }
-        return null;
+        return !string.IsNullOrEmpty(q) ? (q.Length > 50 ? q.Substring(0, 47) + "..." : q) : null;
     }
 
     internal static string ExtractQuestion(Dictionary<string, object> data, bool isZh = true)
@@ -1919,91 +1898,54 @@ internal sealed class AgentSessionWatcher : IDisposable
 
     private static string ExtractCompletionSummary(Dictionary<string, object> data)
     {
-        if (data == null) return null;
+        if (data == null || (data.ContainsKey("type") && "GENERIC".Equals(data["type"]))) return null;
+        if (data.ContainsKey("tool_calls") && data["tool_calls"] is IList && ((IList)data["tool_calls"]).Count > 0) return null;
 
-        // Tool output lines (GENERIC) are intermediate tool results, never a turn completion
-        if (data.ContainsKey("type") && "GENERIC".Equals(data["type"]))
-        {
-            return null;
-        }
-
-        if (data.ContainsKey("tool_calls") && data["tool_calls"] is System.Collections.IList && ((System.Collections.IList)data["tool_calls"]).Count > 0)
-        {
-            return null;
-        }
-
-        // 1. Antigravity format:
-        // Must be PLANNER_RESPONSE with status == "DONE" and NO active tool_calls.
-        // If tool_calls has elements, the agent is executing tools (Processing), NOT finished!
+        // 1. Antigravity format (PLANNER_RESPONSE + DONE)
         if (data.ContainsKey("type") && "PLANNER_RESPONSE".Equals(data["type"]) &&
             data.ContainsKey("status") && "DONE".Equals(data["status"]))
         {
-            bool hasToolCalls = false;
-            if (data.ContainsKey("tool_calls") && data["tool_calls"] != null)
+            if (data.ContainsKey("content") && data["content"] != null)
             {
-                IList tc = data["tool_calls"] as IList;
-                if (tc != null && tc.Count > 0) hasToolCalls = true;
+                string c = data["content"].ToString().Trim();
+                if (!string.IsNullOrEmpty(c)) return c;
             }
-
-            if (!hasToolCalls)
+            if (data.ContainsKey("result") && data["result"] != null)
             {
-                if (data.ContainsKey("content") && data["content"] != null)
+                string r = data["result"].ToString().Trim();
+                if (!string.IsNullOrEmpty(r)) return r;
+            }
+            return "Task completed.";
+        }
+
+        // 2. Claude Code format (assistant + end_turn)
+        if (data.ContainsKey("type") && "assistant".Equals(data["type"]) && data.ContainsKey("message"))
+        {
+            Dictionary<string, object> msg = data["message"] as Dictionary<string, object>;
+            if (msg != null)
+            {
+                object sr = msg.ContainsKey("stop_reason") ? msg["stop_reason"] : null;
+                if (!"end_turn".Equals(sr) && !"stop_sequence".Equals(sr)) return null;
+                IList content = msg.ContainsKey("content") ? msg["content"] as IList : null;
+                if (content != null)
                 {
-                    string c = data["content"].ToString().Trim();
-                    if (!string.IsNullOrEmpty(c)) return c;
-                }
-                if (data.ContainsKey("result") && data["result"] != null)
-                {
-                    string r = data["result"].ToString().Trim();
-                    if (!string.IsNullOrEmpty(r)) return r;
+                    string text = null;
+                    foreach (object item in content)
+                    {
+                        Dictionary<string, object> part = item as Dictionary<string, object>;
+                        if (part != null)
+                        {
+                            if ("tool_use".Equals(part["type"])) return null;
+                            if ("text".Equals(part["type"]) && part.ContainsKey("text")) text = part["text"] as string;
+                        }
+                    }
+                    if (!string.IsNullOrEmpty(text)) return text;
                 }
                 return "Task completed.";
             }
         }
 
-        // 2. Claude Code format: assistant message with stop_reason == "end_turn" or "stop_sequence"
-        // and NO tool_use in message.content
-        if (data.ContainsKey("type") && "assistant".Equals(data["type"]))
-        {
-            if (data.ContainsKey("message"))
-            {
-                Dictionary<string, object> msg = data["message"] as Dictionary<string, object>;
-                if (msg != null)
-                {
-                    object stopReason = msg.ContainsKey("stop_reason") ? msg["stop_reason"] : null;
-                    bool isEndTurn = stopReason != null && ("end_turn".Equals(stopReason) || "stop_sequence".Equals(stopReason));
-                    if (!isEndTurn) return null; // In progress (tool_use or streaming chunk)
-
-                    if (msg.ContainsKey("content"))
-                    {
-                        IList content = msg["content"] as IList;
-                        if (content != null && content.Count > 0)
-                        {
-                            bool hasTool = false;
-                            string text = null;
-                            foreach (object item in content)
-                            {
-                                Dictionary<string, object> part = item as Dictionary<string, object>;
-                                if (part != null)
-                                {
-                                    if ("tool_use".Equals(part["type"])) hasTool = true;
-                                    if ("text".Equals(part["type"]) && part.ContainsKey("text")) text = part["text"] as string;
-                                }
-                            }
-                            if (hasTool) return null; // Tool use in progress, not end of turn!
-                            if (!string.IsNullOrEmpty(text))
-                            {
-                                return text;
-                            }
-                        }
-                    }
-                    return "Task completed.";
-                }
-            }
-        }
-
-        // 3. Codex format:
-        // event_msg with payload.type == "task_complete" or "task_completed"
+        // 3. Codex format (event_msg + task_complete)
         if (data.ContainsKey("type") && "event_msg".Equals(data["type"]) && data.ContainsKey("payload"))
         {
             Dictionary<string, object> payload = data["payload"] as Dictionary<string, object>;
@@ -2027,26 +1969,26 @@ internal sealed class AgentSessionWatcher : IDisposable
             }
         }
 
-        // 4. Universal completion heuristic
+        // 4. Universal heuristic
         string status = data.ContainsKey("status") ? data["status"] as string : (data.ContainsKey("state") ? data["state"] as string : null);
         if (!string.IsNullOrEmpty(status))
         {
-            if (string.Equals(status, "DONE", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(status, "COMPLETED", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(status, "SUCCESS", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(status, "FINISHED", StringComparison.OrdinalIgnoreCase))
+            status = status.ToUpperInvariant();
+            if (status == "DONE" || status == "COMPLETED" || status == "SUCCESS" || status == "FINISHED")
             {
                 string text = ExtractTextFromCommonKeys(data);
-                if (!string.IsNullOrEmpty(text)) return text;
-                return "Task completed.";
+                return !string.IsNullOrEmpty(text) ? text : "Task completed.";
             }
         }
         string finishReason = data.ContainsKey("finish_reason") ? data["finish_reason"] as string : (data.ContainsKey("stop_reason") ? data["stop_reason"] as string : null);
-        if (string.Equals(finishReason, "stop", StringComparison.OrdinalIgnoreCase) || string.Equals(finishReason, "end_turn", StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrEmpty(finishReason))
         {
-            string text = ExtractTextFromCommonKeys(data);
-            if (!string.IsNullOrEmpty(text)) return text;
-            return "Task completed.";
+            finishReason = finishReason.ToLowerInvariant();
+            if (finishReason == "stop" || finishReason == "end_turn")
+            {
+                string text = ExtractTextFromCommonKeys(data);
+                return !string.IsNullOrEmpty(text) ? text : "Task completed.";
+            }
         }
 
         return null;
