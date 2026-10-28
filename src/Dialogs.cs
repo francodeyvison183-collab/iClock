@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Text;
@@ -540,6 +540,57 @@ internal sealed class AskHumanDialog : Form
     private bool nonIntrusive;
     private readonly Action<string> resultCallback;
     private Timer timeoutTimer;
+    private const int HOTKEY_ID_APPROVE = 0x9001;
+    private const int HOTKEY_ID_REJECT = 0x9002;
+    private bool hotkeysRegistered;
+    private Button btnConfirm;
+    private Button btnCancel;
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        try
+        {
+            NativeMethods.RegisterHotKey(Handle, HOTKEY_ID_APPROVE, 5, (uint)Keys.Y);
+            NativeMethods.RegisterHotKey(Handle, HOTKEY_ID_REJECT, 5, (uint)Keys.N);
+            hotkeysRegistered = true;
+        }
+        catch { }
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == 0x0312)
+        {
+            int id = m.WParam.ToInt32();
+            if (id == HOTKEY_ID_APPROVE && btnConfirm != null)
+            {
+                btnConfirm.PerformClick();
+                return;
+            }
+            if (id == HOTKEY_ID_REJECT && btnCancel != null)
+            {
+                btnCancel.PerformClick();
+                return;
+            }
+        }
+        base.WndProc(ref m);
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        if (hotkeysRegistered)
+        {
+            try
+            {
+                NativeMethods.UnregisterHotKey(Handle, HOTKEY_ID_APPROVE);
+                NativeMethods.UnregisterHotKey(Handle, HOTKEY_ID_REJECT);
+            }
+            catch { }
+            hotkeysRegistered = false;
+        }
+        base.OnFormClosed(e);
+    }
 
     protected override bool ShowWithoutActivation
     {
@@ -649,11 +700,11 @@ internal sealed class AskHumanDialog : Form
         }
 
         currentY += 10;
-        int btnW = 76;
+        int btnW = 120;
         int btnH = 28;
 
-        Button btnConfirm = new Button();
-        btnConfirm.Text = en ? "OK" : "确定";
+        btnConfirm = new Button();
+        btnConfirm.Text = en ? "OK (Alt+Shift+Y)" : "确定 (Alt+Shift+Y)";
         btnConfirm.Font = AppContext.GetUiFont(lang, 9f);
         btnConfirm.SetBounds(dialogW - 22 - btnW * 2 - 10, currentY, btnW, btnH);
         AppContext.StylePrimaryButton(btnConfirm);
@@ -680,8 +731,8 @@ internal sealed class AskHumanDialog : Form
         };
         Controls.Add(btnConfirm);
 
-        Button btnCancel = new Button();
-        btnCancel.Text = en ? "Cancel" : "取消";
+        btnCancel = new Button();
+        btnCancel.Text = en ? "Cancel (Alt+Shift+N)" : "取消 (Alt+Shift+N)";
         btnCancel.Font = AppContext.GetUiFont(lang, 9f);
         btnCancel.SetBounds(dialogW - 22 - btnW, currentY, btnW, btnH);
         AppContext.StyleSecondaryButton(btnCancel);

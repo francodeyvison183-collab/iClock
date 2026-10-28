@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Text;
@@ -255,6 +255,9 @@ internal sealed class DailyQuoteDialog : Form
         : this(s, customText, customAuthor, !string.IsNullOrEmpty(customText)) { }
 
     public DailyQuoteDialog(Settings s, string customText, string customAuthor, bool isProjected)
+        : this(s, customText, customAuthor, isProjected, 0) { }
+
+    public DailyQuoteDialog(Settings s, string customText, string customAuthor, bool isProjected, int autoDismissMs)
     {
         settings = s;
         isProjectedNote = isProjected;
@@ -296,7 +299,7 @@ internal sealed class DailyQuoteDialog : Form
         if (isProjectedNote)
         {
             autoDismissTimer = new Timer();
-            autoDismissTimer.Interval = 60000; // 1 minute auto-dismiss
+            autoDismissTimer.Interval = autoDismissMs > 0 ? autoDismissMs : 60000; // 1 minute auto-dismiss
             autoDismissTimer.Tick += delegate
             {
                 if (autoDismissTimer != null)
@@ -1078,6 +1081,11 @@ internal sealed class DailyQuoteDialog : Form
     protected override void OnMouseDoubleClick(MouseEventArgs e)
     {
         base.OnMouseDoubleClick(e);
+        if (isProjectedNote && AppContext.Current != null)
+        {
+            AppContext.Current.WarpToAgentWindow(null);
+            return;
+        }
         bool alt = (NativeMethods.GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
         if (!alt && !MoveMode) return;
         if (e.Button == MouseButtons.Left && hoveredBtn == 0 && !isResizingWidth)

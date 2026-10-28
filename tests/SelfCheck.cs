@@ -1307,6 +1307,300 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: AI Agent task completion monitoring, detection scanning, and alert pattern verified.");
 
+            // 24a. Test AgentSessionWatcher zero-polling transcript parsing and state dispatch
+            Type watcherType = asm.GetType("AgentSessionWatcher");
+            if (watcherType == null)
+            {
+                Console.WriteLine("FAIL: AgentSessionWatcher type missing");
+                return 32;
+            }
+            string testWatchDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "iclock_test_watch_" + Guid.NewGuid().ToString("N"));
+            System.IO.Directory.CreateDirectory(testWatchDir);
+            try
+            {
+                object watcher = Activator.CreateInstance(watcherType, BindingFlags.NonPublic | BindingFlags.Instance, null, new object[] { app }, null);
+                MethodInfo watchDirMethod = watcherType.GetMethod("WatchDirectory", BindingFlags.NonPublic | BindingFlags.Instance);
+                watchDirMethod.Invoke(watcher, new object[] { testWatchDir, "*.jsonl", "TestAgent" });
+
+                string testFile = System.IO.Path.Combine(testWatchDir, "transcript.jsonl");
+                // 1. Tool execution log
+                System.IO.File.WriteAllText(testFile, "{\"step_index\":1,\"type\":\"PLANNER_RESPONSE\",\"tool_calls\":[{\"name\":\"run_command\",\"toolSummary\":\"Build Solution\"}]}\r\n", System.Text.Encoding.UTF8);
+                MethodInfo procMethod = watcherType.GetMethod("ProcessLogFile", BindingFlags.NonPublic | BindingFlags.Instance);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+
+                MethodInfo findTask = appType.GetMethod("FindTaskStatus", BindingFlags.NonPublic | BindingFlags.Instance);
+                object task = findTask.Invoke(app, new object[] { "TestAgent" });
+                if (task == null)
+                {
+                    Console.WriteLine("FAIL: AgentSessionWatcher did not create task status");
+                    return 32;
+                }
+                string taskMsg = (string)task.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(task);
+                if (string.IsNullOrEmpty(taskMsg) || !taskMsg.Contains("Build Solution"))
+                {
+                    Console.WriteLine("FAIL: AgentSessionWatcher tool summary not captured in task: " + taskMsg);
+                    return 32;
+                }
+
+                // 1b. Thinking log
+                System.IO.File.WriteAllText(testFile, "{\"step_index\":2,\"type\":\"PLANNER_RESPONSE\",\"thinking\":\"Analyzing code structure\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+                task = findTask.Invoke(app, new object[] { "TestAgent" });
+                bool isTh = (bool)task.GetType().GetField("IsThinking", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(task);
+                if (!isTh)
+                {
+                    Console.WriteLine("FAIL: AgentSessionWatcher thinking log did not set IsThinking=true");
+                    return 32;
+                }
+
+                // 2. Completion log
+                System.IO.File.AppendAllText(testFile, "{\"step_index\":2,\"type\":\"PLANNER_RESPONSE\",\"status\":\"DONE\",\"content\":\"Build succeeded with 0 warnings.\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+
+                task = findTask.Invoke(app, new object[] { "TestAgent" });
+                if (task == null || !(task.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(task) as string).Contains("完成"))
+                {
+                    Console.WriteLine("FAIL: AgentSessionWatcher did not set completed status on completion");
+                    return 32;
+                }
+                MethodInfo clearProg = appType.GetMethod("ClearAgentProgress", BindingFlags.NonPublic | BindingFlags.Instance);
+                clearProg.Invoke(app, new object[] { "TestAgent" });
+
+                // 3. Verify Semantic Distiller and Summary Purifier
+                MethodInfo cleanMethod = watcherType.GetMethod("CleanSummaryText", BindingFlags.NonPublic | BindingFlags.Static);
+                if (cleanMethod != null)
+                {
+                    string raw1 = "好的，我已经为您完成了相关的修改：```csharp internal sealed class...``` 所有45项自检测试均已全部通过。";
+                    string res1 = (string)cleanMethod.Invoke(null, new object[] { raw1 });
+                    if (res1 != "✅ 所有45项自检测试均已全部通过。")
+                    {
+                        Console.WriteLine("FAIL: CleanSummaryText did not purify conversational boilerplate and code fences: " + res1);
+                        return 32;
+                    }
+
+                    string raw2 = "Build succeeded with 0 warnings.";
+                    string res2 = (string)cleanMethod.Invoke(null, new object[] { raw2 });
+                    if (res2 != "✅ Build succeeded with 0 warnings.")
+                    {
+                        Console.WriteLine("FAIL: CleanSummaryText did not add checkmark to clean status: " + res2);
+                        return 32;
+                    }
+                }
+
+                // 4. Verify Session Target Anchor and Pure Three-State Engine
+                MethodInfo cleanReqMethod = watcherType.GetMethod("CleanUserRequest", BindingFlags.NonPublic | BindingFlags.Static);
+                if (cleanReqMethod != null)
+                {
+                    string r1 = (string)cleanReqMethod.Invoke(null, new object[] { "优化HUD状态显示，不要用桌面金句" });
+                    if (r1 != "优化HUD状态显示，不要用桌面金句")
+                    {
+                        Console.WriteLine("FAIL: CleanUserRequest failed to preserve full request: " + r1);
+                        return 32;
+                    }
+
+                    string r2 = (string)cleanReqMethod.Invoke(null, new object[] { "<USER_REQUEST>我想用A的纯会话三态结合B，你觉得呢？</USER_REQUEST>" });
+                    if (string.IsNullOrEmpty(r2) || !r2.Contains("纯会话三态"))
+                    {
+                        Console.WriteLine("FAIL: CleanUserRequest failed to parse USER_REQUEST: " + r2);
+                        return 32;
+                    }
+                }
+
+                // 5. Test that user request anchors the session target across subsequent tool calls
+                System.IO.File.WriteAllText(testFile, "{\"step_index\":0,\"source\":\"USER_EXPLICIT\",\"type\":\"USER_INPUT\",\"status\":\"DONE\",\"content\":\"<USER_REQUEST>优化HUD状态显示，不要用桌面金句</USER_REQUEST>\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+                object sTask1 = findTask.Invoke(app, new object[] { "TestAgent" });
+                string sMsg1 = (string)sTask1.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTask1);
+                if (sMsg1 != "⏳ [优化HUD状态显示，不要用桌面金句] 处理中...")
+                {
+                    Console.WriteLine("FAIL: Turn start did not anchor session target: " + sMsg1);
+                    return 32;
+                }
+
+                // Intermediate micro-tool execution: message must remain rock-solid on the session target!
+                System.IO.File.WriteAllText(testFile, "{\"step_index\":1,\"type\":\"PLANNER_RESPONSE\",\"tool_calls\":[{\"name\":\"read_file\",\"parameters\":{\"Path\":\"d:\\\\iClock\\\\Core.cs\"}}]}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+                object sTask2 = findTask.Invoke(app, new object[] { "TestAgent" });
+                string sMsg2 = (string)sTask2.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTask2);
+                if (sMsg2 != "⏳ [优化HUD状态显示，不要用桌面金句] 处理中...")
+                {
+                    Console.WriteLine("FAIL: Intermediate tool call caused message jitter: " + sMsg2);
+                    return 32;
+                }
+
+                // Completion: transitions calmly to Completed with anchored target
+                System.IO.File.AppendAllText(testFile, "{\"step_index\":2,\"type\":\"PLANNER_RESPONSE\",\"status\":\"DONE\",\"content\":\"All done.\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+                object sTask3 = findTask.Invoke(app, new object[] { "TestAgent" });
+                string sMsg3 = (string)sTask3.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTask3);
+                if (string.IsNullOrEmpty(sMsg3) || !sMsg3.Contains("[优化HUD状态显示，不要用桌面金句]") || !sMsg3.Contains("本轮已完成"))
+                {
+                    Console.WriteLine("FAIL: Session completion message incorrect: " + sMsg3);
+                    return 32;
+                }
+
+                // 6. Test Claude Code format: last-prompt, streaming tool_use, and end_turn
+                string claudeTestFile = System.IO.Path.Combine(testWatchDir, "claude-session.jsonl");
+                System.IO.File.WriteAllText(claudeTestFile, "{\"type\":\"last-prompt\",\"lastPrompt\":\"数据中心表单字段优化\",\"sessionId\":\"abc\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { claudeTestFile, "Claude Code" });
+                System.Windows.Forms.Application.DoEvents();
+                object cTask1 = findTask.Invoke(app, new object[] { "Claude Code" });
+                string cMsg1 = (string)cTask1.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cTask1);
+                if (cMsg1 != "⏳ [数据中心表单字段优化] 处理中...")
+                {
+                    Console.WriteLine("FAIL: Claude Code last-prompt did not anchor session target: " + cMsg1);
+                    return 32;
+                }
+
+                // Streaming intermediate chunk with text but no end_turn: must NOT complete prematurely!
+                System.IO.File.AppendAllText(claudeTestFile, "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Checking file details...\"}]}}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { claudeTestFile, "Claude Code" });
+                System.Windows.Forms.Application.DoEvents();
+                object cTask2 = findTask.Invoke(app, new object[] { "Claude Code" });
+                string cMsg2 = (string)cTask2.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cTask2);
+                if (cMsg2 != "⏳ [数据中心表单字段优化] 处理中...")
+                {
+                    Console.WriteLine("FAIL: Claude Code intermediate text chunk triggered premature completion: " + cMsg2);
+                    return 32;
+                }
+
+                // Genuine completion with stop_reason: end_turn
+                System.IO.File.AppendAllText(claudeTestFile, "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"stop_reason\":\"end_turn\",\"content\":[{\"type\":\"text\",\"text\":\"Refactoring complete.\"}]}}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { claudeTestFile, "Claude Code" });
+                System.Windows.Forms.Application.DoEvents();
+                object cTask3 = findTask.Invoke(app, new object[] { "Claude Code" });
+                string cMsg3 = (string)cTask3.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cTask3);
+                if (string.IsNullOrEmpty(cMsg3) || !cMsg3.Contains("[数据中心表单字段优化]") || !cMsg3.Contains("本轮已完成"))
+                {
+                    Console.WriteLine("FAIL: Claude Code end_turn completion message incorrect: " + cMsg3);
+                    return 32;
+                }
+
+                // 7. Verify TODO / Step Progress detection & HUD integration
+                MethodInfo extractStep = watcherType.GetMethod("ExtractStepProgress", BindingFlags.NonPublic | BindingFlags.Static);
+                if (extractStep != null)
+                {
+                    object[] args1 = new object[] { null, "1/3 正在执行算法优化", 0, 0, "" };
+                    bool ok1 = (bool)extractStep.Invoke(null, args1);
+                    if (!ok1 || (int)args1[2] != 1 || (int)args1[3] != 3 || (string)args1[4] != "正在执行算法优化")
+                    {
+                        Console.WriteLine("FAIL: ExtractStepProgress failed for '1/3 正在执行算法优化'");
+                        return 32;
+                    }
+
+                    object[] args2 = new object[] { null, "[2/5] 运行测试", 0, 0, "" };
+                    bool ok2 = (bool)extractStep.Invoke(null, args2);
+                    if (!ok2 || (int)args2[2] != 2 || (int)args2[3] != 5 || (string)args2[4] != "运行测试")
+                    {
+                        Console.WriteLine("FAIL: ExtractStepProgress failed for '[2/5] 运行测试'");
+                        return 32;
+                    }
+
+                    object[] args3 = new object[] { null, "第2/3步 算法优化", 0, 0, "" };
+                    bool ok3 = (bool)extractStep.Invoke(null, args3);
+                    if (!ok3 || (int)args3[2] != 2 || (int)args3[3] != 3 || (string)args3[4] != "算法优化")
+                    {
+                        Console.WriteLine("FAIL: ExtractStepProgress failed for '第2/3步 算法优化'");
+                        return 32;
+                    }
+                }
+
+                // Test step progression via transcript log
+                System.IO.File.WriteAllText(testFile, "{\"step_index\":0,\"type\":\"USER_INPUT\",\"content\":\"<USER_REQUEST>算法性能优化</USER_REQUEST>\"}\r\n{\"step_index\":1,\"type\":\"PLANNER_RESPONSE\",\"tool_calls\":[{\"name\":\"run_command\",\"toolSummary\":\"1/3 正在执行算法优化\"}]}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+                object sTaskStep = findTask.Invoke(app, new object[] { "TestAgent" });
+                string stepProg = (string)sTaskStep.GetType().GetField("StepProgress", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTaskStep);
+                bool hasProg = (bool)sTaskStep.GetType().GetField("HasProgress", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTaskStep);
+                float progVal = (float)sTaskStep.GetType().GetField("Progress", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTaskStep);
+                if (!hasProg || Math.Abs(progVal - 0.333f) > 0.05f || string.IsNullOrEmpty(stepProg) || !stepProg.Contains("1/3 正在执行算法优化"))
+                {
+                    Console.WriteLine("FAIL: Step progress 1/3 not reflected in task: " + stepProg + " prog=" + progVal);
+                    return 32;
+                }
+
+                // 8. Verify action-level semantic refresh and args["toolSummary"] extraction
+                MethodInfo extractToolMethod = watcherType.GetMethod("ExtractToolSummary", BindingFlags.NonPublic | BindingFlags.Static, null, new Type[] { typeof(Dictionary<string, object>), typeof(bool) }, null);
+                if (extractToolMethod != null)
+                {
+                    // Test args["toolSummary"]
+                    var callArgs = new Dictionary<string, object> { { "CommandLine", "git status" }, { "toolSummary", "Git status check" } };
+                    var callObj = new Dictionary<string, object> { { "name", "run_command" }, { "args", callArgs } };
+                    var d1 = new Dictionary<string, object> { { "tool_calls", new ArrayList { callObj } } };
+                    string ts1 = (string)extractToolMethod.Invoke(null, new object[] { d1, true });
+                    if (ts1 != "Git status check")
+                    {
+                        Console.WriteLine("FAIL: args['toolSummary'] extraction failed, got: " + ts1);
+                        return 32;
+                    }
+
+                    // Test file operation fallback (read_file)
+                    var callFileArgs = new Dictionary<string, object> { { "Path", "d:\\AIStudio\\iClock\\src\\AgentWatcher.cs" } };
+                    var callFileObj = new Dictionary<string, object> { { "name", "read_file" }, { "args", callFileArgs } };
+                    var d2 = new Dictionary<string, object> { { "tool_calls", new ArrayList { callFileObj } } };
+                    string ts2 = (string)extractToolMethod.Invoke(null, new object[] { d2, true });
+                    if (ts2 != "读取 AgentWatcher.cs")
+                    {
+                        Console.WriteLine("FAIL: read_file action fallback failed, got: " + ts2);
+                        return 32;
+                    }
+
+                    // Test command fallback (run_command)
+                    var callCmdArgs = new Dictionary<string, object> { { "CommandLine", "powershell -File .\\build.ps1" } };
+                    var callCmdObj = new Dictionary<string, object> { { "name", "run_command" }, { "args", callCmdArgs } };
+                    var d3 = new Dictionary<string, object> { { "tool_calls", new ArrayList { callCmdObj } } };
+                    string ts3 = (string)extractToolMethod.Invoke(null, new object[] { d3, true });
+                    if (ts3 != "运行: .\\build.ps1")
+                    {
+                        Console.WriteLine("FAIL: run_command action fallback failed, got: " + ts3);
+                        return 32;
+                    }
+                }
+
+                // Test retention of action during trailing GENERIC tool output line
+                System.IO.File.AppendAllText(testFile, "{\"step_index\":2,\"type\":\"PLANNER_RESPONSE\",\"tool_calls\":[{\"name\":\"run_command\",\"args\":{\"CommandLine\":\"git status\",\"toolSummary\":\"Git status check\"}}]}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+                object tTask2 = findTask.Invoke(app, new object[] { "TestAgent" });
+                string subD2 = (string)tTask2.GetType().GetField("SubDetail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(tTask2);
+                if (string.IsNullOrEmpty(subD2) || !subD2.Contains("Git status check"))
+                {
+                    Console.WriteLine("FAIL: SubDetail does not contain toolSummary: " + subD2);
+                    return 32;
+                }
+
+                // Append GENERIC output line; SubDetail should stay locked to toolSummary
+                System.IO.File.AppendAllText(testFile, "{\"step_index\":3,\"type\":\"GENERIC\",\"content\":\"On branch main\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+                object tTask3 = findTask.Invoke(app, new object[] { "TestAgent" });
+                string subD3 = (string)tTask3.GetType().GetField("SubDetail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(tTask3);
+                if (string.IsNullOrEmpty(subD3) || !subD3.Contains("Git status check"))
+                {
+                    Console.WriteLine("FAIL: SubDetail lost toolSummary after GENERIC output line: " + subD3);
+                    return 32;
+                }
+
+                ((IDisposable)watcher).Dispose();
+            }
+            finally
+            {
+                FieldInfo fProj = appType.GetField("activeProjectedNote", bf);
+                if (fProj != null)
+                {
+                    Form p = (Form)fProj.GetValue(app);
+                    if (p != null && !p.IsDisposed) p.Close();
+                }
+                try { System.IO.Directory.Delete(testWatchDir, true); } catch { }
+            }
+            Console.WriteLine("PASS: AgentSessionWatcher zero-polling transcript parser and state dispatch verified.");
+
             // 24b. Rest-length button: the arrow zone opens the preset menu and
             // must NOT start the break; the text still starts it. The arrow used
             // to sit outside the clickable zone, so the menu was unreachable.
@@ -1809,6 +2103,13 @@ internal static class TestCheck
             if (taskAgentName == null || !string.Equals(taskAgentName.GetValue(cliTasks[0]) as string, "Codex", StringComparison.Ordinal))
             {
                 Console.WriteLine("FAIL: CLI progress should preserve the caller's --agent-name identity");
+                return 50;
+            }
+            FieldInfo taskStepProg = cliTasks.Count > 0 ? cliTasks[0].GetType().GetField("StepProgress", bf) : null;
+            string stepVal = taskStepProg != null ? (string)taskStepProg.GetValue(cliTasks[0]) : null;
+            if (stepVal != "3/5 Running tests")
+            {
+                Console.WriteLine("FAIL: CLI progress should set StepProgress to '3/5 Running tests', got: " + stepVal);
                 return 50;
             }
             handleIpc.Invoke(app, new object[] { "--progress clear --agent-name Codex" });
@@ -3411,6 +3712,65 @@ internal static class TestCheck
             }
             try { System.IO.Directory.Delete(goalRoot, true); } catch { }
             Console.WriteLine("PASS: the daily focus goal, day totals and the streak calculation are correct.");
+
+            // 45. Verify AI Collaboration 5-in-1 Upgrades: HITL question/feedback detection, Error distinction, ProjectHint extraction
+            Type agentWatcherType = asm.GetType("AgentSessionWatcher");
+            if (agentWatcherType != null)
+            {
+                MethodInfo mExtractQ = agentWatcherType.GetMethod("ExtractQuestion", BindingFlags.NonPublic | BindingFlags.Static);
+                MethodInfo mExtractErr = agentWatcherType.GetMethod("ExtractErrorSummary", BindingFlags.NonPublic | BindingFlags.Static);
+                MethodInfo mExtractProj = agentWatcherType.GetMethod("ExtractProjectHint", BindingFlags.NonPublic | BindingFlags.Static);
+
+                if (mExtractQ != null)
+                {
+                    var dataQ1 = new Dictionary<string, object> {
+                        { "type", "PLANNER_RESPONSE" },
+                        { "status", "DONE" },
+                        { "content", "请问是否确认部署上线？" }
+                    };
+                    string q1 = (string)mExtractQ.Invoke(null, new object[] { dataQ1, true });
+                    if (string.IsNullOrEmpty(q1) || !q1.Contains("确认部署上线"))
+                    {
+                        Console.WriteLine("FAIL: ExtractQuestion did not extract trailing question mark: " + q1);
+                        return 66;
+                    }
+
+                    var callMeta = new Dictionary<string, object> { { "RequestFeedback", true }, { "Summary", "Test Plan" } };
+                    var callArgs = new Dictionary<string, object> { { "ArtifactMetadata", callMeta } };
+                    var callObj = new Dictionary<string, object> { { "name", "write_file" }, { "args", callArgs } };
+                    var dataQ2 = new Dictionary<string, object> { { "tool_calls", new ArrayList { callObj } } };
+                    string q2 = (string)mExtractQ.Invoke(null, new object[] { dataQ2, true });
+                    if (string.IsNullOrEmpty(q2) || !q2.Contains("方案"))
+                    {
+                        Console.WriteLine("FAIL: ExtractQuestion did not detect RequestFeedback artifact: " + q2);
+                        return 66;
+                    }
+                }
+
+                if (mExtractErr != null)
+                {
+                    var dataErr = new Dictionary<string, object> { { "status", "ERROR" }, { "content", "Compilation failed" } };
+                    string err = (string)mExtractErr.Invoke(null, new object[] { dataErr, true });
+                    if (string.IsNullOrEmpty(err) || !err.Contains("Compilation failed"))
+                    {
+                        Console.WriteLine("FAIL: ExtractErrorSummary did not detect status: ERROR");
+                        return 66;
+                    }
+                }
+
+                if (mExtractProj != null)
+                {
+                    var dataProj = new Dictionary<string, object> { { "cwd", @"d:\AIStudio\iClock" } };
+                    string proj = (string)mExtractProj.Invoke(null, new object[] { dataProj, @"C:\Users\User\.gemini\antigravity\brain\test\transcript.jsonl" });
+                    if (proj != "iClock")
+                    {
+                        Console.WriteLine("FAIL: ExtractProjectHint did not extract project folder name: " + proj);
+                        return 66;
+                    }
+                }
+
+                Console.WriteLine("PASS: AI collaboration 5-in-1 upgrades (HITL feedback perception, error state distinction, project hint routing) verified.");
+            }
 
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);
             if (sActiveField != null) sActiveField.SetValue(app, false);

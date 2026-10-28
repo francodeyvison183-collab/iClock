@@ -137,9 +137,35 @@ internal sealed class AppContext : ApplicationContext
     private const int WM_HOTKEY = 0x0312;
     private const uint MOD_NOREPEAT = 0x4000;
     private readonly Settings settings;
+    internal Settings Settings { get { return settings; } }
     private Overlay overlay;
     private AgentTaskStatusHud taskStatusHud;
     private readonly List<AgentTaskStatus> agentTaskStatuses = new List<AgentTaskStatus>();
+    private AgentSessionWatcher sessionWatcher;
+    private readonly Dictionary<string, DateTime> lastCliActivity = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+    internal void RecordCliActivity(string agentName)
+    {
+        if (string.IsNullOrEmpty(agentName)) return;
+        lock (lastCliActivity)
+        {
+            lastCliActivity[agentName] = DateTime.Now;
+        }
+    }
+
+    internal bool HasRecentCliActivity(string agentName)
+    {
+        if (string.IsNullOrEmpty(agentName)) return false;
+        lock (lastCliActivity)
+        {
+            DateTime dt;
+            if (lastCliActivity.TryGetValue(agentName, out dt))
+            {
+                return (DateTime.Now - dt).TotalSeconds < 20;
+            }
+        }
+        return false;
+    }
     private Timer hudClearDeferTimer;
     private bool hudClearPending;
     private NotifyIcon tray;
@@ -333,6 +359,7 @@ internal sealed class AppContext : ApplicationContext
         overlay.TimeAdjustRequested += delegate(int delta) { AdjustMinutes(delta); };
         IntPtr forceOverlayHandle = overlay.Handle;
         messageWindow = new MessageWindow(this);
+        RestartSessionWatcher();
         activeHotkeyModifiers = settings.HotkeyModifiers; activeHotkeyKey = settings.HotkeyKey;
         int originalMods = settings.HotkeyModifiers, originalKey = settings.HotkeyKey;
         bool fallbackUsed = false;
@@ -1255,6 +1282,7 @@ internal sealed class AppContext : ApplicationContext
     internal void HandleProgressCommand(string payload, string agentName = null)
     {
         string statusAgent = GetTaskAgentName(agentName, settings.Language == "en" ? "Terminal" : "终端");
+        RecordCliActivity(statusAgent);
         if (string.IsNullOrEmpty(payload) || payload.Equals("clear", StringComparison.OrdinalIgnoreCase) || payload.Equals("off", StringComparison.OrdinalIgnoreCase) || payload.Equals("reset", StringComparison.OrdinalIgnoreCase))
         {
             ClearAgentProgress(statusAgent);
@@ -1280,6 +1308,7 @@ internal sealed class AppContext : ApplicationContext
         }
 
         float pct = 0f;
+        string stepStr = null;
         if (valStr.Contains("/"))
         {
             string[] slashParts = valStr.Split('/');
@@ -1287,6 +1316,7 @@ internal sealed class AppContext : ApplicationContext
             if (slashParts.Length == 2 && float.TryParse(slashParts[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out num) && float.TryParse(slashParts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out den) && den > 0f)
             {
                 pct = num / den;
+                stepStr = valStr + (!string.IsNullOrEmpty(msg) ? (" " + msg) : "");
             }
         }
         else
@@ -1299,9 +1329,15 @@ internal sealed class AppContext : ApplicationContext
                 else if (valStr.Contains(".")) pct = raw;
                 else pct = raw / 100.0f;
             }
+            else if (cleanVal.Equals("done", StringComparison.OrdinalIgnoreCase) || cleanVal.Equals("completed", StringComparison.OrdinalIgnoreCase))
+            {
+                pct = 1.0f;
+                if (string.IsNullOrEmpty(msg)) msg = settings.Language == "en" ? "Completed" : "本轮已完成";
+            }
         }
 
-        SetAgentProgress(pct, msg, statusAgent);
+        string finalMsg = !string.IsNullOrEmpty(stepStr) ? stepStr : msg;
+        SetAgentProgress(pct, finalMsg, statusAgent, stepStr);
     }
 
     private static string GetTaskAgentName(string agentName, string fallback)
@@ -1347,11 +1383,11 @@ internal sealed class AppContext : ApplicationContext
         taskStatusHud.UpdatePosition(overlay.Bounds);
     }
 
-    internal void SetAgentProgress(float percent, string message, string agentName = null)
+    internal void SetAgentProgress(float percent, string message, string agentName = null, string stepProgress = null)
     {
         if (overlay != null && overlay.InvokeRequired)
         {
-            overlay.BeginInvoke(new Action<float, string, string>(SetAgentProgress), percent, message, agentName);
+            overlay.BeginInvoke(new Action<float, string, string, string>(SetAgentProgress), percent, message, agentName, stepProgress);
             return;
         }
         string name = GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "智能体");
@@ -1362,16 +1398,33 @@ internal sealed class AppContext : ApplicationContext
             agentTaskStatuses.Add(status);
         }
         status.HasProgress = true;
+        status.IsThinking = false;
         status.Progress = Math.Max(0f, Math.Min(1f, percent));
+        if (!string.IsNullOrWhiteSpace(stepProgress))
+        {
+            status.StepProgress = stepProgress;
+        }
+        else if (!string.IsNullOrWhiteSpace(message) && Regex.IsMatch(message, @"\b\d+\s*[/／]\s*\d+\b"))
+        {
+            status.StepProgress = message;
+        }
         if (!string.IsNullOrWhiteSpace(message)) status.Message = message;
+        if (percent >= 1.0f && !string.IsNullOrEmpty(message) && (message.Contains("完成") || message.Contains("Completed")))
+        {
+            status.HasProgress = false;
+            status.StepProgress = null;
+        }
         RefreshTaskStatusHud();
     }
 
-    internal void SetAgentTaskMessage(string message, string agentName)
+    internal void SetAgentTaskMessage(string message, string agentName, bool isThinking = false, string subDetail = null, string stepProgress = null, float progress = -1f, string projectHint = null)
     {
         if (overlay != null && overlay.InvokeRequired)
         {
-            overlay.BeginInvoke(new Action<string, string>(SetAgentTaskMessage), message, agentName);
+            overlay.BeginInvoke((MethodInvoker)delegate
+            {
+                SetAgentTaskMessage(message, agentName, isThinking, subDetail, stepProgress, progress, projectHint);
+            });
             return;
         }
         string name = GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "智能体");
@@ -1381,7 +1434,35 @@ internal sealed class AppContext : ApplicationContext
             status = new AgentTaskStatus { AgentName = name };
             agentTaskStatuses.Add(status);
         }
+        if (status.Message == message && status.IsThinking == isThinking && status.SubDetail == subDetail && status.StepProgress == stepProgress && string.Equals(status.ProjectHint, projectHint, StringComparison.Ordinal) && taskStatusHud != null && taskStatusHud.Visible) return;
+        DateTime now = DateTime.Now;
+        if (isThinking)
+        {
+            if (!status.IsThinking || status.TurnStartTime == DateTime.MinValue)
+                status.TurnStartTime = now;
+            if (!string.Equals(status.SubDetail, subDetail, StringComparison.Ordinal) || status.StepStartTime == DateTime.MinValue)
+                status.StepStartTime = now;
+        }
+        else
+        {
+            status.TurnStartTime = DateTime.MinValue;
+            status.StepStartTime = DateTime.MinValue;
+            status.ForegroundSeenSeconds = 0;
+        }
+        if (!string.IsNullOrEmpty(projectHint)) status.ProjectHint = projectHint;
         status.Message = message;
+        status.IsThinking = isThinking;
+        status.SubDetail = subDetail;
+        status.StepProgress = stepProgress;
+        if (progress >= 0f)
+        {
+            status.HasProgress = true;
+            status.Progress = Math.Max(0f, Math.Min(1f, progress));
+        }
+        else if (progress == -2f)
+        {
+            status.HasProgress = false;
+        }
         RefreshTaskStatusHud();
     }
 
@@ -1463,6 +1544,7 @@ internal sealed class AppContext : ApplicationContext
 
     internal void TriggerCliNotice(string message, string agentName = null)
     {
+        RecordCliActivity(agentName);
         if (string.IsNullOrEmpty(message)) message = settings.Language == "en" ? "Task completed!" : "任务已完成！";
         if (activeNotice != null && !activeNotice.IsDisposed) { activeNotice.Close(); activeNotice = null; }
         // Only interrupt (force topmost + chime) when the agent is in the background;
@@ -1482,6 +1564,7 @@ internal sealed class AppContext : ApplicationContext
 
     internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile, string agentName = null, Action<string> resultCallback = null)
     {
+        RecordCliActivity(agentName);
         if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
         {
             try { activeAskHumanDialog.Close(); } catch { }
@@ -1505,8 +1588,13 @@ internal sealed class AppContext : ApplicationContext
         AppContext.PinAgentPopup(dlg, isFg);
     }
 
-    internal void ShowCustomQuote(string text, string author, string agentName = null, int agentPid = 0)
+    internal void ShowCustomQuote(string text, string author, string agentName = null, int agentPid = 0, int autoDismissMs = 0)
     {
+        if (overlay != null && overlay.InvokeRequired)
+        {
+            overlay.BeginInvoke(new Action<string, string, string, int, int>(ShowCustomQuote), text, author, agentName, agentPid, autoDismissMs);
+            return;
+        }
         // 1. Temporarily hide daily quote if active
         if (activeQuoteDialog != null && !activeQuoteDialog.IsDisposed)
         {
@@ -1537,7 +1625,7 @@ internal sealed class AppContext : ApplicationContext
         projectedAgentPid = agentPid;
 
         // 4. Create single projected note
-        DailyQuoteDialog dlg = new DailyQuoteDialog(settings, text, author, isProjected: true);
+        DailyQuoteDialog dlg = new DailyQuoteDialog(settings, text, author, isProjected: true, autoDismissMs: autoDismissMs);
         activeProjectedNote = dlg;
 
         dlg.FormClosed += delegate
@@ -2331,6 +2419,18 @@ internal sealed class AppContext : ApplicationContext
 
     internal static bool IsAgentInForeground()
     {
+        return IsAgentWindowInForeground(null, null);
+    }
+
+    private static bool IsTerminalOrIdeHost(string procName)
+    {
+        if (string.IsNullOrEmpty(procName)) return false;
+        string p = procName.ToLowerInvariant();
+        return p.Contains("windowsterminal") || p == "pwsh" || p == "powershell" || p == "cmd" || p == "code" || p.Contains("cursor") || p.Contains("wezterm") || p.Contains("alacritty") || p.Contains("mintty");
+    }
+
+    internal static bool IsAgentWindowInForeground(string agentName, string projectHint = null)
+    {
         try
         {
             IntPtr fg = NativeMethods.GetForegroundWindow();
@@ -2339,8 +2439,25 @@ internal sealed class AppContext : ApplicationContext
             NativeMethods.GetWindowThreadProcessId(fg, out pid);
             if (pid == 0) return false;
             string procName = GetProcessNameByPid((int)pid);
-            if (procName != null && MatchAgent(procName) != null) return true;
             string title = GetAgentWindowTitle(fg);
+
+            if (!string.IsNullOrEmpty(projectHint) && !string.IsNullOrEmpty(title) && title.IndexOf(projectHint, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                if (procName != null && (MatchAgent(procName) != null || IsTerminalOrIdeHost(procName))) return true;
+                if (!string.IsNullOrEmpty(title) && MatchAgent(title) != null) return true;
+            }
+
+            if (!string.IsNullOrEmpty(agentName))
+            {
+                if (procName != null && procName.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+                if (!string.IsNullOrEmpty(title) && title.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+                if (agentName.IndexOf("Claude", StringComparison.OrdinalIgnoreCase) >= 0 && procName != null && IsTerminalOrIdeHost(procName))
+                {
+                    if (!string.IsNullOrEmpty(title) && title.IndexOf("claude", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+                }
+            }
+
+            if (procName != null && MatchAgent(procName) != null) return true;
             if (!string.IsNullOrEmpty(title) && MatchAgent(title) != null) return true;
         }
         catch { }
@@ -2425,6 +2542,85 @@ internal sealed class AppContext : ApplicationContext
             return sb.ToString();
         }
         catch { return string.Empty; }
+    }
+
+    internal static IntPtr FindAgentWindow(string agentName)
+    {
+        return FindAgentWindow(agentName, null);
+    }
+
+    internal static IntPtr FindAgentWindow(string agentName, string projectHint)
+    {
+        if (string.IsNullOrEmpty(agentName) && string.IsNullOrEmpty(projectHint)) return IntPtr.Zero;
+        IntPtr bestHwnd = IntPtr.Zero;
+        int bestScore = 0;
+        try
+        {
+            NativeMethods.EnumWindows(delegate(IntPtr hWnd, IntPtr lParam)
+            {
+                if (!NativeMethods.IsWindowVisible(hWnd)) return true;
+                string title = GetAgentWindowTitle(hWnd);
+                uint pid = 0;
+                NativeMethods.GetWindowThreadProcessId(hWnd, out pid);
+                string proc = pid != 0 ? GetProcessNameByPid((int)pid) : null;
+
+                int score = 0;
+                bool matchAgent = false;
+                if (!string.IsNullOrEmpty(agentName))
+                {
+                    if ((proc != null && proc.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                        (!string.IsNullOrEmpty(title) && title.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) ||
+                        (MatchAgent(proc ?? "") != null && string.Equals(MatchAgent(proc ?? ""), agentName, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        matchAgent = true;
+                    }
+                }
+
+                bool matchProject = !string.IsNullOrEmpty(projectHint) && !string.IsNullOrEmpty(title) && title.IndexOf(projectHint, StringComparison.OrdinalIgnoreCase) >= 0;
+
+                if (matchAgent && matchProject) score = 100;
+                else if (matchAgent) score = 80;
+                else if (matchProject && proc != null && (MatchAgent(proc) != null || IsTerminalOrIdeHost(proc))) score = 75;
+                else if (proc != null && IsTerminalOrIdeHost(proc) && !string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(agentName) && title.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) score = 70;
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestHwnd = hWnd;
+                    if (bestScore >= 100) return false;
+                }
+                return true;
+            }, IntPtr.Zero);
+        }
+        catch { }
+        return bestHwnd;
+    }
+
+    internal void WarpToAgentWindow(string agentName, string projectHint = null)
+    {
+        IntPtr hwnd = FindAgentWindow(agentName, projectHint);
+        if (hwnd == IntPtr.Zero && !string.IsNullOrEmpty(projectHint))
+        {
+            hwnd = FindAgentWindow(null, projectHint);
+        }
+        if (hwnd == IntPtr.Zero && !string.IsNullOrEmpty(agentName))
+        {
+            List<string> agents = DetectAgents();
+            if (agents != null && agents.Count > 0)
+            {
+                hwnd = FindAgentWindow(agents[0], projectHint);
+            }
+        }
+        if (hwnd != IntPtr.Zero)
+        {
+            try
+            {
+                if (NativeMethods.IsIconic(hwnd)) NativeMethods.ShowWindow(hwnd, 9);
+                NativeMethods.SwitchToThisWindow(hwnd, true);
+                NativeMethods.SetForegroundWindow(hwnd);
+            }
+            catch { }
+        }
     }
 
     private void RefreshTimerVisual()
@@ -2687,6 +2883,20 @@ internal sealed class AppContext : ApplicationContext
             MessageBox.Show(en ? "That hotkey conflicts with system input or is occupied. The previous hotkey was kept, but other settings were saved." : "该快捷键已被占用或与系统输入法冲突，快捷键已保留为原设置，其他设置已成功保存。", "iClock", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         RestartEyeCare();
+        RestartSessionWatcher();
+    }
+
+    private void RestartSessionWatcher()
+    {
+        if (sessionWatcher != null)
+        {
+            try { sessionWatcher.Dispose(); } catch { }
+            sessionWatcher = null;
+        }
+        if (settings != null && settings.DesktopCollaborationEnabled && !isOneShot && !IsSelfCheckRunning)
+        {
+            try { sessionWatcher = new AgentSessionWatcher(this); } catch { }
+        }
     }
 
     // 设置变动后按新的开关与间隔重新计时；关掉时连正在显示的提醒卡一起收起。
@@ -4000,6 +4210,7 @@ internal sealed class AppContext : ApplicationContext
         if (activeProjectedNote != null && !activeProjectedNote.IsDisposed) { activeProjectedNote.Close(); activeProjectedNote = null; }
         if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed) { activeAskHumanDialog.Close(); activeAskHumanDialog = null; }
         StopProjectedAgentMonitor();
+        if (sessionWatcher != null) { try { sessionWatcher.Dispose(); } catch { } sessionWatcher = null; }
         if (running) remaining = ReadRemaining();
         if (sessionActive) { LogSession("Interrupted"); sessionActive = false; }
         timer.Stop(); tray.Visible = false; if (hotkeyRegistered) NativeMethods.UnregisterHotKey(messageWindow.Handle, HOTKEY_ID);

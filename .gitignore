@@ -20,5 +20,8 @@ Desktop.ini
 /docs/GEO_STRATEGY.md
 /articles/
 
+# Scratch & temporary scripts
+/scratch/
+
 # Playwright MCP tool snapshots
 .playwright-mcp/
