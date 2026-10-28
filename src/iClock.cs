@@ -204,7 +204,7 @@ internal sealed class AppContext : ApplicationContext
     private Form activeDialog;
     private DailyQuoteDialog activeQuoteDialog;
     private DailyQuoteDialog activeProjectedNote;
-    internal AskHumanDialog activeAskHumanDialog;
+    private AskHumanDialog activeAskHumanDialog;
     private bool dailyQuoteSuspendedForProjection;
     private Timer projectedAgentMonitorTimer;
     private string projectedAgentName;
@@ -1563,7 +1563,7 @@ internal sealed class AppContext : ApplicationContext
         AppContext.PinAgentPopup(dlg, isFg);
     }
 
-    internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile, string agentName = null, Action<string> resultCallback = null)
+    internal void ShowAskHumanDialog(string question, string[] options, int timeoutSec, string resFile, string agentName = null)
     {
         RecordCliActivity(agentName);
         if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
@@ -1579,7 +1579,7 @@ internal sealed class AppContext : ApplicationContext
             if (agents != null && agents.Count > 0) agentName = agents[0];
         }
         PlayAiSound();
-        AskHumanDialog dlg = new AskHumanDialog(settings, question, options, timeoutSec, resFile, isFg, agentName, resultCallback);
+        AskHumanDialog dlg = new AskHumanDialog(settings, question, options, timeoutSec, resFile, isFg, agentName);
         if (!string.IsNullOrEmpty(resFile))
         {
             activeAskHumanDialog = dlg;
@@ -1592,153 +1592,6 @@ internal sealed class AppContext : ApplicationContext
         AppContext.PinAgentPopup(dlg, isFg);
     }
 
-    private static void SendKey(byte modifierVk, byte keyVk)
-    {
-        const uint KEYEVENTF_KEYUP = 0x0002;
-        if (modifierVk != 0) NativeMethods.keybd_event(modifierVk, 0, 0, UIntPtr.Zero);
-        NativeMethods.keybd_event(keyVk, 0, 0, UIntPtr.Zero);
-        System.Threading.Thread.Sleep(30);
-        NativeMethods.keybd_event(keyVk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-        if (modifierVk != 0) NativeMethods.keybd_event(modifierVk, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-    }
-
-    private static void SendTextToAgent(IntPtr hwnd, string text)
-    {
-        if (hwnd == IntPtr.Zero || string.IsNullOrEmpty(text)) return;
-        try
-        {
-            IntPtr fgHwnd = NativeMethods.GetForegroundWindow();
-            uint dummy1, dummy2;
-            uint fgThread = NativeMethods.GetWindowThreadProcessId(fgHwnd, out dummy1);
-            uint targetThread = NativeMethods.GetWindowThreadProcessId(hwnd, out dummy2);
-            uint curThread = NativeMethods.GetCurrentThreadId();
-
-            if (fgThread != 0 && curThread != 0 && fgThread != curThread)
-                NativeMethods.AttachThreadInput(curThread, fgThread, true);
-            if (targetThread != 0 && curThread != 0 && targetThread != curThread)
-                NativeMethods.AttachThreadInput(curThread, targetThread, true);
-
-            bool wasIconic = NativeMethods.IsIconic(hwnd);
-            if (wasIconic) NativeMethods.ShowWindow(hwnd, 9);
-            else NativeMethods.ShowWindow(hwnd, 5);
-
-            NativeMethods.BringWindowToTop(hwnd);
-            NativeMethods.SetForegroundWindow(hwnd);
-            NativeMethods.SwitchToThisWindow(hwnd, true);
-
-            if (targetThread != 0 && curThread != 0 && targetThread != curThread)
-                NativeMethods.AttachThreadInput(curThread, targetThread, false);
-            if (fgThread != 0 && curThread != 0 && fgThread != curThread)
-                NativeMethods.AttachThreadInput(curThread, fgThread, false);
-
-            for (int i = 0; i < 15; i++)
-            {
-                if (NativeMethods.GetForegroundWindow() == hwnd) break;
-                System.Threading.Thread.Sleep(20);
-            }
-            System.Threading.Thread.Sleep(wasIconic ? 220 : 100);
-
-            if (text == "^c")
-            {
-                SendKey(0x11, 0x43);
-            }
-            else if (text == "y\n" || text == "y{ENTER}")
-            {
-                SendKey(0, 0x59);
-                System.Threading.Thread.Sleep(40);
-                SendKey(0, 0x0D);
-            }
-            else
-            {
-                Clipboard.SetDataObject(text, true, 3, 50);
-                System.Threading.Thread.Sleep(50);
-                SendKey(0x11, 0x56);
-                System.Threading.Thread.Sleep(60);
-                SendKey(0, 0x0D);
-            }
-        }
-        catch { }
-    }
-
-    internal void ExecuteAgentAction(string agentName, string projectHint, string actionKey)
-    {
-        if (string.IsNullOrEmpty(actionKey)) return;
-        actionKey = actionKey.ToLowerInvariant().Trim();
-        bool ok = actionKey == "proceed" || actionKey == "approve" || actionKey == "y";
-        bool cancel = actionKey == "reject" || actionKey == "cancel" || actionKey == "n";
-
-        if (ok)
-        {
-            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed && !string.IsNullOrEmpty(activeAskHumanDialog.ResultFilePath))
-                activeAskHumanDialog.SubmitResult((activeAskHumanDialog.Options != null && activeAskHumanDialog.Options.Length > 0) ? activeAskHumanDialog.Options[0] : "Proceed");
-            else
-                SendTextToAgent(FindAgentWindow(agentName, projectHint), "y\n");
-            SetAgentTaskMessage("⏳ [" + (agentName ?? "AI") + "] 已批准 (Proceed)，处理中...", agentName, true, "原位指令已下发", null, -2f, projectHint);
-            PlayAiSound();
-        }
-        else if (cancel)
-        {
-            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed && !string.IsNullOrEmpty(activeAskHumanDialog.ResultFilePath))
-                activeAskHumanDialog.SubmitResult("[用户取消 / Cancelled]");
-            else
-                SendTextToAgent(FindAgentWindow(agentName, projectHint), "^c");
-            SetAgentTaskMessage("⚠️ [" + (agentName ?? "AI") + "] 已取消", agentName, false, "用户原位取消", null, -2f, projectHint);
-        }
-        else if (actionKey == "prompt")
-        {
-            bool isZh = settings == null || settings.Language != "en";
-            ShowAskHumanDialog(
-                isZh ? "输入追加指令 (按 Enter 立即下发):" : "Enter instruction (Press Enter to inject):",
-                null, 0, null, agentName,
-                delegate(string txt) { if (!string.IsNullOrEmpty(txt) && !txt.StartsWith("[")) InjectAgentInstruction(agentName, projectHint, txt); });
-        }
-    }
-
-    internal void InjectAgentInstruction(string agentName, string projectHint, string instruction)
-    {
-        if (string.IsNullOrEmpty(instruction)) return;
-        if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed && !string.IsNullOrEmpty(activeAskHumanDialog.ResultFilePath))
-        {
-            activeAskHumanDialog.SubmitResult(instruction);
-        }
-        else
-        {
-            IntPtr hwnd = FindAgentWindow(agentName, projectHint);
-            if (hwnd == IntPtr.Zero && !string.IsNullOrEmpty(projectHint)) hwnd = FindAgentWindow(null, projectHint);
-            if (hwnd == IntPtr.Zero && !string.IsNullOrEmpty(agentName))
-            {
-                List<string> agents = DetectAgents();
-                if (agents != null && agents.Count > 0) hwnd = FindAgentWindow(agents[0], projectHint);
-            }
-            SendTextToAgent(hwnd, instruction);
-        }
-        string brief = instruction.Length > 24 ? instruction.Substring(0, 22) + "..." : instruction;
-        SetAgentTaskMessage("⚡ [" + (agentName ?? "AI") + "] 已追加: " + brief, agentName, true, instruction, null, -2f, projectHint);
-        PlayAiSound();
-    }
-
-    internal void SetAgentTaskDiffStat(string agentName, string diffStat)
-    {
-        if (taskStatusHud != null && !taskStatusHud.IsDisposed)
-        {
-            taskStatusHud.SetTaskDiffStat(agentName, diffStat);
-        }
-    }
-
-    internal void OpenGitDiff(string projectHint)
-    {
-        if (string.IsNullOrEmpty(projectHint) || !Directory.Exists(projectHint)) return;
-        try
-        {
-            ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", "/c git diff & pause")
-            {
-                WorkingDirectory = projectHint,
-                UseShellExecute = true
-            };
-            Process.Start(psi);
-        }
-        catch { }
-    }
 
     internal void ShowCustomQuote(string text, string author, string agentName = null, int agentPid = 0, int autoDismissMs = 0)
     {

@@ -519,12 +519,9 @@ internal static class CliSkillInstaller
 internal sealed class AskHumanDialog : Form
 {
     private string resultFilePath;
-    internal string ResultFilePath { get { return resultFilePath; } }
     private bool resultWritten;
     private bool nonIntrusive;
     private readonly Action<string> resultCallback;
-    internal readonly string[] Options;
-    internal void SubmitResult(string r) { WriteResult(r); Close(); }
     private Timer timeoutTimer;
     private const int HOTKEY_ID_APPROVE = 0x9001;
     private const int HOTKEY_ID_REJECT = 0x9002;
@@ -600,7 +597,6 @@ internal sealed class AskHumanDialog : Form
 
     public AskHumanDialog(Settings s, string question, string[] options, int timeoutSeconds, string resultFile, bool nonIntrusiveMode, string agentName, Action<string> onResult)
     {
-        Options = options;
         resultFilePath = resultFile;
         resultCallback = onResult;
         nonIntrusive = nonIntrusiveMode;
@@ -621,123 +617,116 @@ internal sealed class AskHumanDialog : Form
         TopMost = true;
 
         bool hasOptions = options != null && options.Length > 0;
-        int dialogW = hasOptions ? 380 : 480;
+        int dialogW = 380;
+
+        int qHeight = 36;
+        try
+        {
+            Size measured = TextRenderer.MeasureText(question ?? "", AppContext.GetUiFont(lang, 10.5f, FontStyle.Regular), new Size(dialogW - 54, int.MaxValue), TextFormatFlags.WordBreak);
+            if (measured.Height > 24) qHeight = Math.Min(140, measured.Height + 4);
+            else qHeight = Math.Max(26, measured.Height);
+        }
+        catch { }
+
+        Panel pnlAccentBar = new Panel();
+        pnlAccentBar.BackColor = AppContext.Win11Accent;
+        pnlAccentBar.SetBounds(22, 16 + 2, 3, Math.Max(18, qHeight - 4));
+        Controls.Add(pnlAccentBar);
+
+        Label lblQuestion = new Label();
+        lblQuestion.Text = question ?? "";
+        lblQuestion.Font = AppContext.GetUiFont(lang, 10.5f, FontStyle.Regular);
+        lblQuestion.ForeColor = Color.FromArgb(18, 18, 18);
+        lblQuestion.SetBounds(32, 16, dialogW - 54, qHeight);
+        Controls.Add(lblQuestion);
+
+        int currentY = 16 + qHeight + 14;
         List<RadioButton> radioList = new List<RadioButton>();
         TextBox txtInput = null;
-        btnConfirm = new Button();
-        btnCancel = new Button();
-        btnCancel.Click += delegate { WriteResult("[用户取消 / Cancelled]"); Close(); };
 
         if (hasOptions)
         {
-            int qH = 36;
-            try
-            {
-                Size m = TextRenderer.MeasureText(question ?? "", AppContext.GetUiFont(lang, 10.5f, FontStyle.Regular), new Size(dialogW - 54, int.MaxValue), TextFormatFlags.WordBreak);
-                qH = m.Height > 24 ? Math.Min(140, m.Height + 4) : Math.Max(26, m.Height);
-            }
-            catch { }
-
-            Panel pnlBar = new Panel();
-            pnlBar.BackColor = AppContext.Win11Accent;
-            pnlBar.SetBounds(22, 18, 3, Math.Max(18, qH - 4));
-            Controls.Add(pnlBar);
-
-            Label lblQ = new Label();
-            lblQ.Text = question ?? "";
-            lblQ.Font = AppContext.GetUiFont(lang, 10.5f, FontStyle.Regular);
-            lblQ.ForeColor = Color.FromArgb(18, 18, 18);
-            lblQ.SetBounds(32, 16, dialogW - 54, qH);
-            Controls.Add(lblQ);
-
-            int curY = 16 + qH + 14;
             for (int i = 0; i < options.Length; i++)
             {
-                string opt = options[i];
-                string dOpt = opt;
-                string pfx = (i + 1).ToString();
-                if (!dOpt.StartsWith(pfx + ".") && !dOpt.StartsWith(pfx + "、") && !dOpt.StartsWith(pfx + " ")) dOpt = pfx + ". " + dOpt;
+                string optText = options[i];
+                string displayOpt = optText;
+                string prefix = (i + 1).ToString();
+                if (!displayOpt.StartsWith(prefix + ".") && !displayOpt.StartsWith(prefix + "、") && !displayOpt.StartsWith(prefix + " "))
+                {
+                    displayOpt = prefix + ". " + displayOpt;
+                }
 
                 OptionRowControl rb = new OptionRowControl();
-                rb.Text = dOpt; rb.Tag = opt;
+                rb.Text = displayOpt;
+                rb.Tag = optText;
                 rb.Font = AppContext.GetUiFont(lang, 9.5f, FontStyle.Regular);
                 rb.ForeColor = AppContext.Win11TextPrimary;
-                rb.SetBounds(22, curY, dialogW - 44, 30);
+                rb.SetBounds(22, currentY, dialogW - 44, 30);
                 if (i == 0) rb.Checked = true;
-                rb.DoubleClick += delegate { WriteResult(opt); Close(); };
-                Controls.Add(rb); radioList.Add(rb);
-                curY += 34;
-            }
-
-            curY += 10;
-            int bW = 120, bH = 28;
-            btnConfirm.Text = en ? "OK (Alt+Shift+Y)" : "确定 (Alt+Shift+Y)";
-            btnConfirm.Font = AppContext.GetUiFont(lang, 9f);
-            btnConfirm.SetBounds(dialogW - 22 - bW * 2 - 10, curY, bW, bH);
-            AppContext.StylePrimaryButton(btnConfirm);
-            btnConfirm.Click += delegate
-            {
-                string sel = options[0];
-                for (int i = 0; i < radioList.Count; i++)
+                rb.DoubleClick += delegate
                 {
-                    if (radioList[i].Checked) { sel = radioList[i].Tag != null ? radioList[i].Tag.ToString() : radioList[i].Text; break; }
-                }
-                WriteResult(sel); Close();
-            };
-            Controls.Add(btnConfirm);
-
-            btnCancel.Text = en ? "Cancel (Alt+Shift+N)" : "取消 (Alt+Shift+N)";
-            btnCancel.Font = AppContext.GetUiFont(lang, 9f);
-            btnCancel.SetBounds(dialogW - 22 - bW, curY, bW, bH);
-            AppContext.StyleSecondaryButton(btnCancel);
-            Controls.Add(btnCancel);
-            ClientSize = new Size(dialogW, curY + bH + 16);
+                    WriteResult(optText);
+                    Close();
+                };
+                Controls.Add(rb);
+                radioList.Add(rb);
+                currentY += 34;
+            }
         }
         else
         {
-            Text = en ? (agent + " Prompt") : (agent + " 追加指令");
-            Label lblH = new Label();
-            lblH.Text = en ? ("Add instruction to " + agent) : ("向 " + agent + " 追加指令");
-            lblH.Font = AppContext.GetUiFont(lang, 10f, FontStyle.Bold);
-            lblH.ForeColor = Color.FromArgb(30, 41, 59);
-            lblH.SetBounds(20, 14, dialogW - 40, 22);
-            Controls.Add(lblH);
-
-            Panel pnlBox = new Panel();
-            pnlBox.BackColor = Color.White;
-            pnlBox.BorderStyle = BorderStyle.FixedSingle;
-            pnlBox.SetBounds(20, 42, dialogW - 40, 84);
-            Controls.Add(pnlBox);
-
             txtInput = new TextBox();
-            txtInput.Multiline = true; txtInput.BorderStyle = BorderStyle.None;
-            txtInput.Font = AppContext.GetUiFont(lang, 10f);
-            txtInput.ForeColor = Color.FromArgb(15, 23, 42);
-            txtInput.SetBounds(8, 8, pnlBox.Width - 16, pnlBox.Height - 16);
-            pnlBox.Controls.Add(txtInput);
-
-            Label lblHint = new Label();
-            lblHint.Text = en ? "Enter to send · Shift+Enter for newline · Esc to cancel" : "Enter 下发 · Shift+Enter 换行 · Esc 取消";
-            lblHint.Font = AppContext.GetUiFont(lang, 8f);
-            lblHint.ForeColor = Color.FromArgb(148, 163, 184);
-            lblHint.SetBounds(20, 137, 340, 20);
-            Controls.Add(lblHint);
-
-            btnConfirm.Text = en ? "Send ➤" : "下发 ➤";
-            btnConfirm.Font = AppContext.GetUiFont(lang, 8.8f, FontStyle.Bold);
-            btnConfirm.SetBounds(dialogW - 20 - 78, 134, 78, 26);
-            AppContext.StylePrimaryButton(btnConfirm);
-            btnConfirm.Click += delegate { WriteResult(txtInput != null ? txtInput.Text.Trim() : ""); Close(); };
-            Controls.Add(btnConfirm);
-
-            btnCancel.Size = Size.Empty;
-            txtInput.KeyDown += delegate(object snd, KeyEventArgs ke)
-            {
-                if (ke.KeyCode == Keys.Enter && !ke.Shift) { ke.SuppressKeyPress = true; btnConfirm.PerformClick(); }
-            };
-            Shown += delegate { if (txtInput != null) txtInput.Focus(); };
-            ClientSize = new Size(dialogW, 172);
+            txtInput.Font = AppContext.GetUiFont(lang, 9.5f);
+            txtInput.SetBounds(22, currentY, dialogW - 44, 26);
+            Controls.Add(txtInput);
+            currentY += 34;
         }
+
+        currentY += 10;
+        int btnW = 120;
+        int btnH = 28;
+
+        btnConfirm = new Button();
+        btnConfirm.Text = en ? "OK (Alt+Shift+Y)" : "确定 (Alt+Shift+Y)";
+        btnConfirm.Font = AppContext.GetUiFont(lang, 9f);
+        btnConfirm.SetBounds(dialogW - 22 - btnW * 2 - 10, currentY, btnW, btnH);
+        AppContext.StylePrimaryButton(btnConfirm);
+        btnConfirm.Click += delegate
+        {
+            if (hasOptions)
+            {
+                string selected = options[0];
+                for (int i = 0; i < radioList.Count; i++)
+                {
+                    if (radioList[i].Checked)
+                    {
+                        selected = radioList[i].Tag != null ? radioList[i].Tag.ToString() : radioList[i].Text;
+                        break;
+                    }
+                }
+                WriteResult(selected);
+            }
+            else
+            {
+                WriteResult(txtInput != null ? txtInput.Text : "");
+            }
+            Close();
+        };
+        Controls.Add(btnConfirm);
+
+        btnCancel = new Button();
+        btnCancel.Text = en ? "Cancel (Alt+Shift+N)" : "取消 (Alt+Shift+N)";
+        btnCancel.Font = AppContext.GetUiFont(lang, 9f);
+        btnCancel.SetBounds(dialogW - 22 - btnW, currentY, btnW, btnH);
+        AppContext.StyleSecondaryButton(btnCancel);
+        btnCancel.Click += delegate
+        {
+            WriteResult("[用户取消 / Cancelled]");
+            Close();
+        };
+        Controls.Add(btnCancel);
+
+        ClientSize = new Size(dialogW, currentY + btnH + 16);
         AcceptButton = btnConfirm;
         CancelButton = btnCancel;
 

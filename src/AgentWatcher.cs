@@ -838,19 +838,6 @@ internal sealed class AgentSessionWatcher : IDisposable
             string msg = "✅ [" + target + "] " + (isZh ? "本轮已完成" : "Completed") + timeStr;
             string cleanCompletion = CleanSummaryText(completionSummary);
             appContext.SetAgentTaskMessage(msg, agentName, false, cleanCompletion, null, -2f, session.ProjectHint);
-            string ph = session.ProjectHint;
-            string agName = agentName;
-            if (!string.IsNullOrEmpty(ph) && Directory.Exists(ph))
-            {
-                ThreadPool.QueueUserWorkItem(delegate
-                {
-                    string diff = GetGitDiffStat(ph);
-                    if (!string.IsNullOrEmpty(diff) && appContext != null)
-                    {
-                        appContext.SetAgentTaskDiffStat(agName, diff);
-                    }
-                });
-            }
             ScheduleClearProgress(agentName, currentVer, 600000); // Keep completed state visible for 10 minutes so user always sees the result
             AppContext.TrimMemory();
             return;
@@ -1897,38 +1884,6 @@ internal sealed class AgentSessionWatcher : IDisposable
             }
         }
 
-        return null;
-    }
-
-    internal static string GetGitDiffStat(string dir)
-    {
-        try
-        {
-            ProcessStartInfo psi = new ProcessStartInfo("git", "diff HEAD --shortstat")
-            {
-                WorkingDirectory = dir,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                CreateNoWindow = true
-            };
-            using (Process p = Process.Start(psi))
-            {
-                string outStr = p.StandardOutput.ReadToEnd();
-                p.WaitForExit(1500);
-                if (!string.IsNullOrEmpty(outStr))
-                {
-                    Match m = Regex.Match(outStr, @"(\d+)\s+file[s]?\s+changed(?:,\s*(\d+)\s+insertion[s]?\(\+\))?(?:,\s*(\d+)\s+deletion[s]?\(-\))?");
-                    if (m.Success)
-                    {
-                        string f = m.Groups[1].Value;
-                        string ins = m.Groups[2].Success ? ("+" + m.Groups[2].Value) : "";
-                        string del = m.Groups[3].Success ? ("-" + m.Groups[3].Value) : "";
-                        return "± " + f + " file" + (f == "1" ? "" : "s") + " (" + ins + (ins != "" && del != "" ? " " : "") + del + ")";
-                    }
-                }
-            }
-        }
-        catch { }
         return null;
     }
 
