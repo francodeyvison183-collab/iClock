@@ -1459,7 +1459,7 @@ internal sealed class AppContext : ApplicationContext
             status.HasProgress = true;
             status.Progress = Math.Max(0f, Math.Min(1f, progress));
         }
-        else if (progress == -2f)
+        else
         {
             status.HasProgress = false;
         }

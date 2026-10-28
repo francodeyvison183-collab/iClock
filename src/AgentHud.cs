@@ -452,7 +452,6 @@ internal sealed class AgentTaskStatusHud : Form
         using (Font closeFont = new Font("Segoe UI", 7.5f, FontStyle.Regular, GraphicsUnit.Point))
         using (SolidBrush titleBrush = new SolidBrush(ColorTitleText))
         using (SolidBrush subBrush = new SolidBrush(ColorSubDetail))
-        using (SolidBrush trackBrush = new SolidBrush(Color.FromArgb(28, 255, 255, 255)))
         using (Pen borderPen = new Pen(isHovered ? ColorBorderHover : ColorBorderNormal, 1.0f))
         using (Pen dividerPen = new Pen(Color.FromArgb(30, 255, 255, 255), 1.0f))
         using (StringFormat titleFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
@@ -756,20 +755,7 @@ internal sealed class AgentTaskStatusHud : Form
                     }
                 }
 
-                // 6. Optional Progress Bar (Only when explicit percentage progress is reported)
-                if (task.HasProgress)
-                {
-                    float barY = cardY + unitH - 2f;
-                    float trackW = Width - 24f;
-                    g.FillRectangle(trackBrush, 12f, barY, trackW, 2f);
-                    float fillW = trackW * Math.Max(0.04f, Math.Min(1f, task.Progress));
-                    using (SolidBrush barBrush = new SolidBrush(Color.FromArgb(220, ColorRunning)))
-                    {
-                        g.FillRectangle(barBrush, 12f, barY, fillW, 2f);
-                    }
-                }
-
-                // 7. Expanded Micro-Drawer Details
+                // 6. Expanded Micro-Drawer Details
                 if (isHovered)
                 {
                     g.DrawLine(dividerPen, 10f, cardY + 26f, Width - 10f, cardY + 26f);
