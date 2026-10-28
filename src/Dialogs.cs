@@ -375,37 +375,20 @@ internal static class CliPromptHelper
 
     public static string GenerateCliAgentPrompt(bool en)
     {
-        string exePath = GetCliExePath().Replace("'", "''");
-        string invoke = "& '" + exePath + "'";
+        string invoke = "& '" + GetCliExePath().Replace("'", "''") + "'";
         if (en)
         {
-            return "Treat these as standing instructions for this conversation and follow them throughout the task. They do not persist automatically into future conversations.\r\n\r\n"
-                + "Use iClock desktop collaboration only when you are continuing work in the background or the user is not actively watching. Avoid interrupting the user during a live session unless they explicitly ask. Skip desktop updates for short, immediate tasks. Run the Windows CLI from PowerShell:\r\n"
-                + invoke + "\r\n\r\n"
-                + "Initial tool-call verification (required after receiving this guide):\r\n"
-                + "1. Send one harmless progress update: " + invoke + " --progress \"1/1\" \"Verifying iClock CLI\" --agent-name \"Codex\" --json.\r\n"
-                + "2. Parse the JSON response, then clear that same row: " + invoke + " --progress clear --agent-name \"Codex\" --json. Treat the check as passed only if both responses have ok=true; report any error honestly. This verifies command acceptance, not that the user saw the display.\r\n"
-                + "3. Do not use --ask or --notice as a test unless the user explicitly requests it; they can interrupt or block.\r\n\r\n"
-                + "When collaborating:\r\n"
-                + "- Use --ask only when a consequential decision blocks progress or a risky action needs approval. Wait for the user's answer; if declined or cancelled, do not proceed with that action. Example: " + invoke + " --ask \"Deploy now?\" --options \"Deploy,Cancel\" --agent-name \"Codex\" --json.\r\n"
-                + "- Use --progress at meaningful milestones of multi-step or long-running background work, not for every action. Always clear your row on success, failure, or cancellation with the same agent name. Example: " + invoke + " --progress \"3/5\" \"Running tests\" --agent-name \"Codex\" --json.\r\n"
-                + "- Use --notice for a completed background task only when the user is not already attending to the result; make the message state success or failure. Example: " + invoke + " --notice \"Build finished successfully\" --agent-name \"Codex\" --json.\r\n\r\n"
-                + "Use a stable agent name on every call; add a short distinguishing suffix if concurrent instances of the same agent run. With --json, parse the response and treat only ok=true as accepted. Acceptance does not prove a popup was seen. If a command fails, report the error and do not claim success. Never change PATH or install software without approval.\r\n\r\n"
-                + "This pasted guide applies to this conversation only. For future conversations, use the installed iClock Skill if the agent supports and loads it; otherwise the user must provide these instructions again. Do not claim cross-session memory unless that Skill is available.";
+            return "Standing instructions for this conversation (use when working in background):\r\n"
+                + "PowerShell: " + invoke + "\r\n"
+                + "Initial tool-call verification: " + invoke + " --progress \"1/1\" \"Verify\" --agent-name \"Codex\" --json\r\n"
+                + "Clear check: " + invoke + " --progress clear --agent-name \"Codex\" --json\r\n"
+                + "Rules: Use --ask for critical decisions, --progress for milestones, --notice on completion with --json.";
         }
-        return "请将本说明作为本次会话的持续协作规则，在整个任务过程中遵守；它不会自动延续到未来会话。\r\n\r\n"
-            + "仅当你需要在后台继续工作，或用户没有实时关注工作过程时，才使用 iClock 桌面协作；用户正在实时查看时避免打扰，除非用户明确要求。短小、即时的任务无需发送桌面状态。请在 Windows PowerShell 中调用：\r\n"
-            + invoke + "\r\n\r\n"
-            + "首次工具调用验证（收到本说明后必须执行）：\r\n"
-            + "1. 发送一次无阻断的进度测试：" + invoke + " --progress \"1/1\" \"验证 iClock CLI\" --agent-name \"Codex\" --json。\r\n"
-            + "2. 解析 JSON 后，用相同名称清除测试状态：" + invoke + " --progress clear --agent-name \"Codex\" --json。两次返回都为 ok=true 才算命令调用验证通过；如有错误，准确报告。此验证只说明命令已被 iClock 接受，不代表用户看到了界面。\r\n"
-            + "3. 未经用户明确要求，不要用 --ask 或 --notice 做测试；它们可能阻断或弹窗打扰用户。\r\n\r\n"
-            + "实际协作规则：\r\n"
-            + "- 只有关键决策确实阻塞后续工作，或高风险操作需要批准时才用 --ask；等待用户明确答复，若用户拒绝或取消，不得继续该操作。示例：" + invoke + " --ask \"现在部署吗？\" --options \"部署,取消\" --agent-name \"Codex\" --json。\r\n"
-            + "- 对多步骤或耗时的后台任务，只在重要节点用 --progress 汇报，不要每做一步都更新。任务成功、失败或取消时，都用相同智能体名称清除自己的进度。示例：" + invoke + " --progress \"3/5\" \"正在运行测试\" --agent-name \"Codex\" --json。\r\n"
-            + "- 仅当后台任务完成且用户没有关注结果时使用 --notice；消息应明确说明成功或失败。示例：" + invoke + " --notice \"构建已成功完成\" --agent-name \"Codex\" --json。\r\n\r\n"
-            + "每次调用使用稳定的智能体名称；同类智能体有多个并发实例时，加简短后缀区分。使用 --json 并解析结果，只有 ok=true 才表示 iClock 接受命令；接受不代表用户已看到弹窗。命令失败时如实报告，不得宣称成功。未经同意，不修改 PATH 或安装软件。\r\n\r\n"
-            + "本说明只对当前会话有效。后续会话需由支持并加载 iClock Skill 的智能体遵循；若没有可用 Skill，用户需要再次提供说明。未确认 Skill 可用前，不要声称已跨会话记住。";
+        return "本次会话桌面协作说明（仅在后台继续工作时调用）：\r\n"
+            + "PowerShell: " + invoke + "\r\n"
+            + "首次工具调用验证: " + invoke + " --progress \"1/1\" \"验证\" --agent-name \"Codex\" --json\r\n"
+            + "清除验证: " + invoke + " --progress clear --agent-name \"Codex\" --json\r\n"
+            + "规则: 使用 --ask 决策，--progress 汇报进度，--notice 结束提醒，配合 --json。";
     }
 
     public static string GenerateSkillFixPrompt(bool en, string agentName, bool conflict, string error)
@@ -539,6 +522,8 @@ internal sealed class AskHumanDialog : Form
     private bool resultWritten;
     private bool nonIntrusive;
     private readonly Action<string> resultCallback;
+    internal readonly string[] Options;
+    internal void SubmitResult(string r) { WriteResult(r); Close(); }
     private Timer timeoutTimer;
     private const int HOTKEY_ID_APPROVE = 0x9001;
     private const int HOTKEY_ID_REJECT = 0x9002;
@@ -614,6 +599,7 @@ internal sealed class AskHumanDialog : Form
 
     public AskHumanDialog(Settings s, string question, string[] options, int timeoutSeconds, string resultFile, bool nonIntrusiveMode, string agentName, Action<string> onResult)
     {
+        Options = options;
         resultFilePath = resultFile;
         resultCallback = onResult;
         nonIntrusive = nonIntrusiveMode;

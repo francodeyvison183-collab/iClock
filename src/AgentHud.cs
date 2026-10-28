@@ -34,6 +34,7 @@ internal sealed class AgentTaskStatus
     internal DateTime TurnStartTime;
     internal DateTime StepStartTime;
     internal double ForegroundSeenSeconds;
+    internal string DiffStat;
 }
 
 internal sealed class AgentTaskStatusHud : Form
@@ -82,6 +83,23 @@ internal sealed class AgentTaskStatusHud : Form
 
     private Timer heartbeatTimer;
     private bool isHovered;
+
+    internal void SetTaskDiffStat(string agentName, string diffStat)
+    {
+        if (tasks == null) return;
+        lock (tasks)
+        {
+            for (int i = 0; i < tasks.Count; i++)
+            {
+                if (string.Equals(tasks[i].AgentName, agentName, StringComparison.OrdinalIgnoreCase))
+                {
+                    tasks[i].DiffStat = diffStat;
+                    break;
+                }
+            }
+        }
+        RenderLayeredWindow();
+    }
     private DateTime lastHoverTime;
     private DateTime lastFgCheckTime = DateTime.MinValue;
 
@@ -282,19 +300,52 @@ internal sealed class AgentTaskStatusHud : Form
         if (e.Button != MouseButtons.Left) return;
 
         int taskIdx = GetTaskIndexAt(e.Location);
-        if (taskIdx >= 0)
+        if (taskIdx >= 0 && taskIdx < tasks.Count)
         {
+            AgentTaskStatus clickedTask = tasks[taskIdx];
             int unitH = isHovered ? ExpandedHeight : CollapsedHeight;
             int cardY = taskIdx * (unitH + 4);
             Rectangle cornerClose = new Rectangle(Width - 27, cardY + 5, 18, 18);
 
             if (cornerClose.Contains(e.Location))
             {
-                if (AppContext.Current != null)
-                {
-                    AppContext.Current.ClearAgentProgress(tasks[taskIdx].AgentName);
-                }
+                if (AppContext.Current != null) AppContext.Current.ClearAgentProgress(clickedTask.AgentName);
                 return;
+            }
+
+            if (isHovered && e.Y >= cardY + 26)
+            {
+                Rectangle pillApprove, pillReject, pillPrompt, diffRect;
+                GetPillRects(cardY, Width, out pillApprove, out pillReject, out pillPrompt, out diffRect);
+
+                if (pillPrompt.Contains(e.Location))
+                {
+                    if (AppContext.Current != null) AppContext.Current.ExecuteAgentAction(clickedTask.AgentName, clickedTask.ProjectHint, "prompt");
+                    return;
+                }
+
+                bool isCompleted = !string.IsNullOrEmpty(clickedTask.Message) && (clickedTask.Message.Contains("完成") || clickedTask.Message.Contains("Completed") || clickedTask.Message.StartsWith("✅"));
+                bool isError = !string.IsNullOrEmpty(clickedTask.Message) && (clickedTask.Message.StartsWith("⚠️") || clickedTask.Message.Contains("异常") || clickedTask.Message.Contains("死循环"));
+                bool isWaiting = isError || (!string.IsNullOrEmpty(clickedTask.Message) && (clickedTask.Message.Contains("等待") || clickedTask.Message.Contains("Waiting") || clickedTask.Message.Contains("决策") || clickedTask.Message.StartsWith("❓")));
+
+                if (isWaiting)
+                {
+                    if (pillApprove.Contains(e.Location))
+                    {
+                        if (AppContext.Current != null) AppContext.Current.ExecuteAgentAction(clickedTask.AgentName, clickedTask.ProjectHint, "proceed");
+                        return;
+                    }
+                    if (pillReject.Contains(e.Location))
+                    {
+                        if (AppContext.Current != null) AppContext.Current.ExecuteAgentAction(clickedTask.AgentName, clickedTask.ProjectHint, "reject");
+                        return;
+                    }
+                }
+                else if (isCompleted && !string.IsNullOrEmpty(clickedTask.DiffStat) && diffRect.Contains(e.Location))
+                {
+                    if (AppContext.Current != null) AppContext.Current.OpenGitDiff(clickedTask.ProjectHint);
+                    return;
+                }
             }
         }
 
@@ -327,7 +378,14 @@ internal sealed class AgentTaskStatusHud : Form
                     int unitH = isHovered ? ExpandedHeight : CollapsedHeight;
                     int cardY = idx * (unitH + 4);
                     Rectangle cornerClose = new Rectangle(Width - 27, cardY + 5, 18, 18);
-                    if (cornerClose.Contains(e.Location))
+                    bool isActionArea = false;
+                    if (isHovered && e.Y >= cardY + 26)
+                    {
+                        Rectangle pillApprove, pillReject, pillPrompt, diffRect;
+                        GetPillRects(cardY, Width, out pillApprove, out pillReject, out pillPrompt, out diffRect);
+                        isActionArea = pillPrompt.Contains(e.Location) || pillReject.Contains(e.Location) || pillApprove.Contains(e.Location) || diffRect.Contains(e.Location);
+                    }
+                    if (cornerClose.Contains(e.Location) || isActionArea)
                     {
                         if (Cursor.Current != Cursors.Hand) Cursor.Current = Cursors.Hand;
                     }
@@ -589,7 +647,7 @@ internal sealed class AgentTaskStatusHud : Form
                     {
                         int elapsedSec = task.TurnStartTime > DateTime.MinValue ? Math.Max(0, (int)(DateTime.Now - task.TurnStartTime).TotalSeconds) : 0;
                         string timeBadge = elapsedSec >= 1 ? FormatElapsed(elapsedSec) : "";
-                        string briefAction = !string.IsNullOrEmpty(task.SubDetail) ? (task.SubDetail.Length > 28 ? task.SubDetail.Substring(0, 25) + "..." : task.SubDetail) : "";
+                        string briefAction = task.SubDetail ?? "";
 
                         string[] candidates = new string[] {
                             !string.IsNullOrEmpty(briefAction) && !string.IsNullOrEmpty(timeBadge) ? (displayTitle + " · " + briefAction + " (" + timeBadge + ")") : null,
@@ -744,27 +802,54 @@ internal sealed class AgentTaskStatusHud : Form
                         else sub = isZh ? "等待决策" : "Waiting for decision";
                     }
 
+                    Rectangle pillApprove, pillReject, pillPrompt, diffRect;
+                    GetPillRects(cardY, Width, out pillApprove, out pillReject, out pillPrompt, out diffRect);
+
                     float rightReserved = 0f;
-                    if (isRunning && task.TurnStartTime > DateTime.MinValue)
+                    float subX = 10f;
+
+                    if (isWaiting)
                     {
-                        int elapsedSec = Math.Max(0, (int)(DateTime.Now - task.TurnStartTime).TotalSeconds);
-                        int stepSec = task.StepStartTime > DateTime.MinValue ? Math.Max(0, (int)(DateTime.Now - task.StepStartTime).TotalSeconds) : elapsedSec;
-                        if (elapsedSec >= 1)
+                        rightReserved = (Width - pillApprove.Left) + 4;
+                        DrawPill(g, pillApprove, isZh ? "✓ 批准" : "✓ OK", ColorDone, pillApprove.Contains(clientCursor), subFont, centerFormat);
+                        DrawPill(g, pillReject, isZh ? "✕ 拒绝" : "✕ No", ColorError, pillReject.Contains(clientCursor), subFont, centerFormat);
+                        DrawPill(g, pillPrompt, isZh ? "+ 追加" : "+ Add", ColorRunning, pillPrompt.Contains(clientCursor), subFont, centerFormat);
+                    }
+                    else if (isCompleted)
+                    {
+                        DrawPill(g, pillPrompt, isZh ? "+ 追加" : "+ Add", ColorRunning, pillPrompt.Contains(clientCursor), subFont, centerFormat);
+                        rightReserved = 52f;
+
+                        if (!string.IsNullOrEmpty(task.DiffStat))
                         {
-                            string timeBadge = FormatElapsed(elapsedSec);
-                            SizeF timeSize = g.MeasureString(timeBadge, subFont);
-                            rightReserved = timeSize.Width + 6f;
-                            Color timerColor = stepSec >= 45 ? ColorWaiting : ColorSuffixText;
-                            using (SolidBrush timerBrush = new SolidBrush(timerColor))
+                            DrawPill(g, diffRect, task.DiffStat, ColorRunning, diffRect.Contains(clientCursor), subFont, centerFormat);
+                            subX = diffRect.Right + 6f;
+                        }
+                    }
+                    else if (isRunning)
+                    {
+                        DrawPill(g, pillPrompt, isZh ? "+ 追加" : "+ Add", ColorRunning, pillPrompt.Contains(clientCursor), subFont, centerFormat);
+                        rightReserved = 52f;
+
+                        if (task.TurnStartTime > DateTime.MinValue)
+                        {
+                            int elapsedSec = Math.Max(0, (int)(DateTime.Now - task.TurnStartTime).TotalSeconds);
+                            if (elapsedSec >= 1)
                             {
-                                RectangleF timeRect = new RectangleF(Width - 10f - timeSize.Width, cardY + 27f, timeSize.Width + 2f, 17f);
-                                g.DrawString(timeBadge, subFont, timerBrush, timeRect, subFormat);
+                                string timeBadge = FormatElapsed(elapsedSec);
+                                SizeF timeSize = g.MeasureString(timeBadge, subFont);
+                                rightReserved += timeSize.Width + 6f;
+                                using (SolidBrush timerBrush = new SolidBrush(ColorSuffixText))
+                                {
+                                    RectangleF timeRect = new RectangleF(pillPrompt.Left - 4f - timeSize.Width, cardY + 27f, timeSize.Width + 2f, 17f);
+                                    g.DrawString(timeBadge, subFont, timerBrush, timeRect, subFormat);
+                                }
                             }
                         }
                     }
 
-                    float subW = Math.Max(40f, Width - 12f - textX - rightReserved);
-                    RectangleF subRect = new RectangleF(textX, cardY + 27f, subW, 17f);
+                    float subW = Math.Max(20f, Width - 10f - subX - rightReserved);
+                    RectangleF subRect = new RectangleF(subX, cardY + 27f, subW, 17f);
                     g.DrawString(sub, subFont, subBrush, subRect, subFormat);
                 }
             }
@@ -785,6 +870,27 @@ internal sealed class AgentTaskStatusHud : Form
     private static readonly int[] AgentHues = new int[] { 0x38BDF8, 0x818CF8, 0xA855F7, 0xEC4899, 0xF43F5E, 0xFB923C, 0xFBBF24, 0x34D399, 0x2DD4BF };
     private static readonly int[] TailAlphas = new int[] { 35, 75, 140, 215 };
     private static string FormatElapsed(int sec) { return sec >= 60 ? (sec / 60 + "m" + (sec % 60).ToString("D2") + "s") : (sec + "s"); }
+
+    private static void GetPillRects(int cardY, int width, out Rectangle approve, out Rectangle reject, out Rectangle prompt, out Rectangle diff)
+    {
+        prompt = new Rectangle(width - 56, cardY + 27, 46, 17);
+        reject = new Rectangle(width - 106, cardY + 27, 46, 17);
+        approve = new Rectangle(width - 178, cardY + 27, 68, 17);
+        diff = new Rectangle(10, cardY + 27, 110, 17);
+    }
+
+    private static void DrawPill(Graphics g, Rectangle rect, string text, Color accent, bool hover, Font font, StringFormat format)
+    {
+        using (GraphicsPath path = AppContext.GetRoundedRectPath(rect, 4))
+        using (SolidBrush bg = new SolidBrush(Color.FromArgb(hover ? 85 : 40, accent)))
+        using (Pen border = new Pen(Color.FromArgb(hover ? 190 : 110, accent), 1f))
+        using (SolidBrush fg = new SolidBrush(hover ? Color.White : accent))
+        {
+            g.FillPath(bg, path);
+            g.DrawPath(border, path);
+            g.DrawString(text, font, fg, rect, format);
+        }
+    }
 
     internal static Color GetDeterministicAgentColor(string name)
     {

@@ -204,7 +204,7 @@ internal sealed class AppContext : ApplicationContext
     private Form activeDialog;
     private DailyQuoteDialog activeQuoteDialog;
     private DailyQuoteDialog activeProjectedNote;
-    private AskHumanDialog activeAskHumanDialog;
+    internal AskHumanDialog activeAskHumanDialog;
     private bool dailyQuoteSuspendedForProjection;
     private Timer projectedAgentMonitorTimer;
     private string projectedAgentName;
@@ -1587,6 +1587,81 @@ internal sealed class AppContext : ApplicationContext
         };
         dlg.Show();
         AppContext.PinAgentPopup(dlg, isFg);
+    }
+
+    private static void SendKeysToAgent(IntPtr hwnd, string keys)
+    {
+        if (hwnd == IntPtr.Zero) return;
+        try { NativeMethods.SwitchToThisWindow(hwnd, true); NativeMethods.SetForegroundWindow(hwnd); System.Threading.Thread.Sleep(30); SendKeys.SendWait(keys); } catch { }
+    }
+
+    internal void ExecuteAgentAction(string agentName, string projectHint, string actionKey)
+    {
+        if (string.IsNullOrEmpty(actionKey)) return;
+        actionKey = actionKey.ToLowerInvariant().Trim();
+        bool ok = actionKey == "proceed" || actionKey == "approve" || actionKey == "y";
+        bool cancel = actionKey == "reject" || actionKey == "cancel" || actionKey == "n";
+
+        if (ok)
+        {
+            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
+                activeAskHumanDialog.SubmitResult((activeAskHumanDialog.Options != null && activeAskHumanDialog.Options.Length > 0) ? activeAskHumanDialog.Options[0] : "Proceed");
+            else
+                SendKeysToAgent(FindAgentWindow(agentName, projectHint), "y{ENTER}");
+            SetAgentTaskMessage("⏳ [" + (agentName ?? "AI") + "] 已批准 (Proceed)，处理中...", agentName, true, "原位指令已下发", null, -2f, projectHint);
+            PlayAiSound();
+        }
+        else if (cancel)
+        {
+            if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
+                activeAskHumanDialog.SubmitResult("[用户取消 / Cancelled]");
+            else
+                SendKeysToAgent(FindAgentWindow(agentName, projectHint), "^c");
+            SetAgentTaskMessage("⚠️ [" + (agentName ?? "AI") + "] 已取消", agentName, false, "用户原位取消", null, -2f, projectHint);
+        }
+        else if (actionKey == "prompt")
+        {
+            bool isZh = settings == null || settings.Language != "en";
+            ShowAskHumanDialog(
+                isZh ? "输入追加指令 (按 Enter 立即下发):" : "Enter instruction (Press Enter to inject):",
+                null, 0, null, agentName,
+                delegate(string txt) { if (!string.IsNullOrEmpty(txt) && !txt.StartsWith("[")) InjectAgentInstruction(agentName, projectHint, txt); });
+        }
+    }
+
+    internal void InjectAgentInstruction(string agentName, string projectHint, string instruction)
+    {
+        if (string.IsNullOrEmpty(instruction)) return;
+        if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
+            activeAskHumanDialog.SubmitResult(instruction);
+        else
+            SendKeysToAgent(FindAgentWindow(agentName, projectHint), Regex.Replace(instruction, @"([+^%~(){}[\]])", "{$1}") + "{ENTER}");
+        string brief = instruction.Length > 24 ? instruction.Substring(0, 22) + "..." : instruction;
+        SetAgentTaskMessage("⚡ [" + (agentName ?? "AI") + "] 已追加: " + brief, agentName, true, instruction, null, -2f, projectHint);
+        PlayAiSound();
+    }
+
+    internal void SetAgentTaskDiffStat(string agentName, string diffStat)
+    {
+        if (taskStatusHud != null && !taskStatusHud.IsDisposed)
+        {
+            taskStatusHud.SetTaskDiffStat(agentName, diffStat);
+        }
+    }
+
+    internal void OpenGitDiff(string projectHint)
+    {
+        if (string.IsNullOrEmpty(projectHint) || !Directory.Exists(projectHint)) return;
+        try
+        {
+            ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", "/c git diff & pause")
+            {
+                WorkingDirectory = projectHint,
+                UseShellExecute = true
+            };
+            Process.Start(psi);
+        }
+        catch { }
     }
 
     internal void ShowCustomQuote(string text, string author, string agentName = null, int agentPid = 0, int autoDismissMs = 0)

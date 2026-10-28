@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Diagnostics;
+using System.Threading;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -396,61 +398,23 @@ internal sealed class AgentSessionWatcher : IDisposable
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
         try
         {
-            using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            List<string> lines = ReadRecentJsonLines(filePath, 262144);
+            string lastTrivial = null;
+            for (int i = lines.Count - 1; i >= 0; i--)
             {
-                long flen = fs.Length;
-                if (flen == 0) return null;
-
-                byte[] buf = new byte[65536];
-                long maxScan = Math.Min(flen, 2097152L);
-                long readEnd = flen;
-                string lastTrivial = null;
-
-                while (readEnd > 0 && (flen - readEnd) < maxScan)
+                string line = lines[i];
+                string req = FastExtractUserRequest(line);
+                if (string.IsNullOrEmpty(req))
                 {
-                    long chunkStart = Math.Max(0, readEnd - buf.Length);
-                    int toRead = (int)(readEnd - chunkStart);
-                    fs.Seek(chunkStart, SeekOrigin.Begin);
-                    int bytesRead = fs.Read(buf, 0, toRead);
-                    if (bytesRead <= 0) break;
-
-                    string chunkText = Encoding.UTF8.GetString(buf, 0, bytesRead);
-                    string[] lines = chunkText.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-
-                    for (int i = lines.Length - 1; i >= 0; i--)
-                    {
-                        string line = lines[i].Trim().Trim('\uFEFF');
-                        if (!line.StartsWith("{") || !line.EndsWith("}")) continue;
-
-                        if (line.IndexOf("user", StringComparison.OrdinalIgnoreCase) < 0 &&
-                            line.IndexOf("prompt", StringComparison.OrdinalIgnoreCase) < 0 &&
-                            line.IndexOf("USER_INPUT", StringComparison.Ordinal) < 0)
-                        {
-                            continue;
-                        }
-
-                        string req = FastExtractUserRequest(line);
-                        if (string.IsNullOrEmpty(req))
-                        {
-                            try
-                            {
-                                Dictionary<string, object> d = serializer.Deserialize<Dictionary<string, object>>(line);
-                                req = ExtractUserRequest(d);
-                            }
-                            catch { }
-                        }
-                        if (!string.IsNullOrEmpty(req))
-                        {
-                            if (!IsTrivialConfirmation(req)) return req;
-                            if (lastTrivial == null) lastTrivial = req;
-                        }
-                    }
-
-                    if (lastTrivial != null) return lastTrivial;
-                    readEnd = chunkStart;
+                    try { req = ExtractUserRequest(serializer.Deserialize<Dictionary<string, object>>(line)); } catch { }
                 }
-                return lastTrivial;
+                if (!string.IsNullOrEmpty(req))
+                {
+                    if (!IsTrivialConfirmation(req)) return req;
+                    if (lastTrivial == null) lastTrivial = req;
+                }
             }
+            return lastTrivial;
         }
         catch { }
         return null;
@@ -874,6 +838,19 @@ internal sealed class AgentSessionWatcher : IDisposable
             string msg = "✅ [" + target + "] " + (isZh ? "本轮已完成" : "Completed") + timeStr;
             string cleanCompletion = CleanSummaryText(completionSummary);
             appContext.SetAgentTaskMessage(msg, agentName, false, cleanCompletion, null, -2f, session.ProjectHint);
+            string ph = session.ProjectHint;
+            string agName = agentName;
+            if (!string.IsNullOrEmpty(ph) && Directory.Exists(ph))
+            {
+                ThreadPool.QueueUserWorkItem(delegate
+                {
+                    string diff = GetGitDiffStat(ph);
+                    if (!string.IsNullOrEmpty(diff) && appContext != null)
+                    {
+                        appContext.SetAgentTaskDiffStat(agName, diff);
+                    }
+                });
+            }
             ScheduleClearProgress(agentName, currentVer, 600000); // Keep completed state visible for 10 minutes so user always sees the result
             AppContext.TrimMemory();
             return;
@@ -1005,8 +982,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         if (string.IsNullOrEmpty(s) || s[0] == '<' || s[0] == '{' || s[0] == '[') return null;
         if (s.StartsWith("- ") || s.StartsWith("* ")) s = s.Substring(2).Trim();
         int dot = s.IndexOfAny(SentenceDelims);
-        if (dot > 0 && dot <= 50) s = s.Substring(0, dot).Trim();
-        else if (s.Length > 48) s = s.Substring(0, 45) + "...";
+        if (dot > 0) s = s.Substring(0, dot).Trim();
         return s.Length > 2 ? s : null;
     }
 
@@ -1279,114 +1255,72 @@ internal sealed class AgentSessionWatcher : IDisposable
     private static string ExtractFriendlyAction(string toolName, Dictionary<string, object> args, bool isZh)
     {
         if (string.IsNullOrEmpty(toolName)) return null;
-
-        // 1. Explicit summary from args if present
         if (args != null)
         {
             foreach (string k in new string[] { "toolSummary", "summary", "description" })
-            {
                 if (args.ContainsKey(k)) { string v = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(v)) return v; }
-            }
         }
 
-        string lowerName = toolName.ToLowerInvariant();
-
-        // 2. File operations (read, edit, write, delete)
-        string filePath = null;
+        string lower = toolName.ToLowerInvariant();
+        string path = null;
         if (args != null)
         {
             foreach (string k in new string[] { "Path", "path", "filePath", "file_path", "Target" })
-            {
-                if (args.ContainsKey(k)) { filePath = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(filePath)) break; }
-            }
+                if (args.ContainsKey(k)) { path = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(path)) break; }
         }
-
-        if (!string.IsNullOrEmpty(filePath))
+        if (!string.IsNullOrEmpty(path))
         {
-            string fileName = "";
-            try { fileName = Path.GetFileName(filePath); } catch { }
-            if (string.IsNullOrEmpty(fileName)) fileName = filePath;
-            if (fileName.Length > 24) fileName = fileName.Substring(0, 21) + "...";
-
-            if (lowerName.Contains("read") || lowerName.Contains("view") || lowerName == "cat")
-                return isZh ? ("读取 " + fileName) : ("Read " + fileName);
-            if (lowerName.Contains("edit") || lowerName.Contains("replace") || lowerName.Contains("modify"))
-                return isZh ? ("修改 " + fileName) : ("Edit " + fileName);
-            if (lowerName.Contains("write") || lowerName.Contains("create") || lowerName.Contains("save"))
-                return isZh ? ("写入 " + fileName) : ("Write " + fileName);
-            if (lowerName.Contains("delete") || lowerName.Contains("remove"))
-                return isZh ? ("删除 " + fileName) : ("Delete " + fileName);
-            return isZh ? ("操作 " + fileName) : ("Process " + fileName);
+            string fn = Path.GetFileName(path);
+            if (string.IsNullOrEmpty(fn)) fn = path;
+            string op = lower.Contains("read") || lower.Contains("view") || lower == "cat" ? (isZh ? "读取 " : "Read ") :
+                        lower.Contains("edit") || lower.Contains("replace") || lower.Contains("modify") ? (isZh ? "修改 " : "Edit ") :
+                        lower.Contains("write") || lower.Contains("create") || lower.Contains("save") ? (isZh ? "写入 " : "Write ") :
+                        lower.Contains("delete") || lower.Contains("remove") ? (isZh ? "删除 " : "Delete ") : (isZh ? "操作 " : "Process ");
+            return op + fn;
         }
 
-        // 3. Command execution
         string cmd = null;
         if (args != null)
         {
             foreach (string k in new string[] { "CommandLine", "command", "cmd" })
-            {
                 if (args.ContainsKey(k)) { cmd = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(cmd)) break; }
-            }
         }
         if (!string.IsNullOrEmpty(cmd))
         {
             cmd = Regex.Replace(cmd, @"^(?:powershell(?:\.exe)?|cmd(?:\.exe)?|bash(?:\.exe)?)\s+(?:-ExecutionPolicy\s+\w+\s+|-File\s+|-c\s+|/c\s+)*", "", RegexOptions.IgnoreCase).Trim();
-            if (cmd.Length > 26) cmd = cmd.Substring(0, 23) + "...";
             return isZh ? ("运行: " + cmd) : ("Run: " + cmd);
         }
 
-        // 4. Web search
-        string query = null;
+        string q = null;
         if (args != null)
         {
             foreach (string k in new string[] { "query", "queries", "pattern" })
-            {
-                if (args.ContainsKey(k)) { query = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(query)) break; }
-            }
+                if (args.ContainsKey(k)) { q = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(q)) break; }
         }
-        if (!string.IsNullOrEmpty(query))
+        if (!string.IsNullOrEmpty(q))
         {
-            if (query.Length > 26) query = query.Substring(0, 23) + "...";
-            return isZh ? ("搜索: " + query) : ("Search: " + query);
+            return isZh ? ("搜索: " + q) : ("Search: " + q);
         }
 
-        // 5. Subagent / Task delegation
-        if (lowerName == "invoke_subagent" || lowerName.Contains("subagent") || lowerName.Contains("task"))
+        if (lower == "invoke_subagent" || lower.Contains("subagent") || lower.Contains("task"))
         {
-            string role = null;
-            if (args != null)
-            {
-                if (args.ContainsKey("Role")) role = CleanToolParam(args["Role"]);
-                else if (args.ContainsKey("TypeName")) role = CleanToolParam(args["TypeName"]);
-            }
-            if (!string.IsNullOrEmpty(role))
-                return isZh ? ("调度: " + role) : ("Subagent: " + role);
-            return isZh ? "调度子智能体" : "Invoke subagent";
+            string role = args != null ? (args.ContainsKey("Role") ? CleanToolParam(args["Role"]) : (args.ContainsKey("TypeName") ? CleanToolParam(args["TypeName"]) : null)) : null;
+            return !string.IsNullOrEmpty(role) ? (isZh ? ("调度: " + role) : ("Subagent: " + role)) : (isZh ? "调度子智能体" : "Invoke subagent");
         }
-        if (lowerName == "manage_subagents" || lowerName.Contains("manage_subagent"))
+        if (lower.Contains("manage_subagent"))
         {
-            string act = null;
-            if (args != null && args.ContainsKey("Action")) act = CleanToolParam(args["Action"]);
-            return isZh ? ("管理智能体" + (!string.IsNullOrEmpty(act) ? (": " + act) : "")) : ("Manage subagents" + (!string.IsNullOrEmpty(act) ? (": " + act) : ""));
+            string act = args != null && args.ContainsKey("Action") ? CleanToolParam(args["Action"]) : null;
+            return (isZh ? "管理智能体" : "Manage subagents") + (!string.IsNullOrEmpty(act) ? (": " + act) : "");
         }
-        if (lowerName == "send_message")
-        {
-            return isZh ? "发送协作消息" : "Send message";
-        }
-        if (lowerName.Contains("marketplace"))
-        {
-            string q = null;
-            if (args != null && args.ContainsKey("queries")) q = CleanToolParam(args["queries"]);
-            return isZh ? ("检索插件" + (!string.IsNullOrEmpty(q) ? (": " + q) : "")) : ("Search marketplace" + (!string.IsNullOrEmpty(q) ? (": " + q) : ""));
-        }
+        if (lower == "send_message") return isZh ? "发送协作消息" : "Send message";
+        if (lower.Contains("marketplace")) return isZh ? "检索插件" : "Search marketplace";
 
-        // 6. Generic friendly name fallbacks
-        if (lowerName.Contains("command") || lowerName == "bash" || lowerName == "terminal" || lowerName.StartsWith("exec")) return isZh ? "运行命令" : "Running command";
-        if (lowerName.Contains("read")) return isZh ? "读取文件" : "Reading file";
-        if (lowerName.Contains("edit") || lowerName.Contains("patch")) return isZh ? "修改文件" : "Editing file";
-        if (lowerName.Contains("write")) return isZh ? "写入文件" : "Writing file";
-        if (lowerName.Contains("search")) return isZh ? "搜索网络" : "Web search";
-        if (lowerName.Contains("ask")) return isZh ? "询问用户" : "Asking question";
+        if (lower.Contains("command") || lower == "bash" || lower == "terminal" || lower.StartsWith("exec")) return isZh ? "运行命令" : "Running command";
+        if (lower.Contains("read")) return isZh ? "读取文件" : "Reading file";
+        if (lower.Contains("edit") || lower.Contains("patch")) return isZh ? "修改文件" : "Editing file";
+        if (lower.Contains("write")) return isZh ? "写入文件" : "Writing file";
+        if (lower.Contains("search")) return isZh ? "搜索网络" : "Web search";
+        if (lower.Contains("ask")) return isZh ? "询问用户" : "Asking question";
         return toolName;
     }
 
@@ -1698,82 +1632,72 @@ internal sealed class AgentSessionWatcher : IDisposable
                 if (firstQ.ContainsKey("question") && firstQ["question"] != null) q = firstQ["question"].ToString().Trim();
             }
         }
-        return !string.IsNullOrEmpty(q) ? (q.Length > 50 ? q.Substring(0, 47) + "..." : q) : null;
+        return !string.IsNullOrEmpty(q) ? q : null;
     }
 
     internal static string ExtractQuestion(Dictionary<string, object> data, bool isZh = true)
     {
         if (data == null) return null;
 
-        // 1. Tool calls: ask_question / ask_user_question / AskUserQuestion
+        // 1. Tool calls
         if (data.ContainsKey("tool_calls"))
         {
             IList calls = data["tool_calls"] as IList;
-            if (calls != null && calls.Count > 0)
+            if (calls != null && calls.Count > 0 && calls[0] is Dictionary<string, object>)
             {
-                Dictionary<string, object> call = calls[0] as Dictionary<string, object>;
-                if (call != null && call.ContainsKey("name"))
-                {
-                    string name = call["name"] as string;
-                    if (string.Equals(name, "ask_question", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(name, "ask_user_question", StringComparison.OrdinalIgnoreCase) ||
-                        string.Equals(name, "AskUserQuestion", StringComparison.OrdinalIgnoreCase))
-                    {
-                        Dictionary<string, object> args = call.ContainsKey("args") ? call["args"] as Dictionary<string, object> : (call.ContainsKey("parameters") ? call["parameters"] as Dictionary<string, object> : null);
-                        string qText = ExtractQuestionPromptText(args);
-                        return !string.IsNullOrEmpty(qText) ? (isZh ? ("请确认: " + qText) : ("Confirm: " + qText)) : (isZh ? "等待用户决策" : "Waiting for user decision");
-                    }
+                Dictionary<string, object> call = (Dictionary<string, object>)calls[0];
+                string name = call.ContainsKey("name") ? call["name"] as string : null;
+                Dictionary<string, object> args = call.ContainsKey("args") ? call["args"] as Dictionary<string, object> :
+                    (call.ContainsKey("parameters") ? call["parameters"] as Dictionary<string, object> : (call.ContainsKey("input") ? call["input"] as Dictionary<string, object> : null));
 
-                    // Check for Plan / Artifact feedback request
-                    if (call.ContainsKey("args"))
+                if (name != null && name.IndexOf("question", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    string qText = ExtractQuestionPromptText(args);
+                    return !string.IsNullOrEmpty(qText) ? (isZh ? ("请确认: " + qText) : ("Confirm: " + qText)) : (isZh ? "等待用户决策" : "Waiting for user decision");
+                }
+
+                if (args != null && args.ContainsKey("ArtifactMetadata"))
+                {
+                    object meta = args["ArtifactMetadata"];
+                    bool reqFb = false;
+                    if (meta is Dictionary<string, object>)
                     {
-                        Dictionary<string, object> args = call["args"] as Dictionary<string, object>;
-                        if (args != null && args.ContainsKey("ArtifactMetadata"))
+                        Dictionary<string, object> md = (Dictionary<string, object>)meta;
+                        if (md.ContainsKey("RequestFeedback") && (Equals(md["RequestFeedback"], true) || "true".Equals(md["RequestFeedback"] as string, StringComparison.OrdinalIgnoreCase)))
                         {
-                            object meta = args["ArtifactMetadata"];
-                            bool reqFb = false;
-                            if (meta is Dictionary<string, object>)
-                            {
-                                object r = ((Dictionary<string, object>)meta).ContainsKey("RequestFeedback") ? ((Dictionary<string, object>)meta)["RequestFeedback"] : null;
-                                reqFb = r != null && (Equals(r, true) || string.Equals(r.ToString(), "true", StringComparison.OrdinalIgnoreCase));
-                            }
-                            else if (meta is string)
-                            {
-                                reqFb = meta.ToString().IndexOf("\"RequestFeedback\":true", StringComparison.OrdinalIgnoreCase) >= 0 || meta.ToString().IndexOf("\"RequestFeedback\": true", StringComparison.OrdinalIgnoreCase) >= 0;
-                            }
-                            if (reqFb)
-                            {
-                                return isZh ? "实施方案已就绪，等待您确认 (Proceed)" : "Plan ready, awaiting Proceed approval";
-                            }
+                            reqFb = true;
                         }
+                    }
+                    else if (meta is string)
+                    {
+                        string s = (string)meta;
+                        reqFb = s.IndexOf("RequestFeedback", StringComparison.OrdinalIgnoreCase) >= 0 && s.IndexOf("true", StringComparison.OrdinalIgnoreCase) >= 0;
+                    }
+                    if (reqFb)
+                    {
+                        return isZh ? "实施方案已就绪，等待您确认 (Proceed)" : "Plan ready, awaiting Proceed approval";
                     }
                 }
             }
         }
 
         // 2. Claude Code content: tool_use AskUserQuestion
-        if (data.ContainsKey("message"))
+        if (data.ContainsKey("message") && data["message"] is Dictionary<string, object>)
         {
-            Dictionary<string, object> msg = data["message"] as Dictionary<string, object>;
-            if (msg != null && msg.ContainsKey("content"))
+            Dictionary<string, object> msg = (Dictionary<string, object>)data["message"];
+            IList content = msg.ContainsKey("content") ? msg["content"] as IList : null;
+            if (content != null)
             {
-                IList content = msg["content"] as IList;
-                if (content != null)
+                foreach (object item in content)
                 {
-                    foreach (object item in content)
+                    Dictionary<string, object> part = item as Dictionary<string, object>;
+                    if (part != null && "tool_use".Equals(part.ContainsKey("type") ? part["type"] : null))
                     {
-                        Dictionary<string, object> part = item as Dictionary<string, object>;
-                        if (part != null && part.ContainsKey("type") && "tool_use".Equals(part["type"]))
+                        string name = part.ContainsKey("name") ? part["name"] as string : null;
+                        if (name != null && name.IndexOf("question", StringComparison.OrdinalIgnoreCase) >= 0)
                         {
-                            string name = part.ContainsKey("name") ? part["name"] as string : null;
-                            if (string.Equals(name, "ask_question", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(name, "ask_user_question", StringComparison.OrdinalIgnoreCase) ||
-                                string.Equals(name, "AskUserQuestion", StringComparison.OrdinalIgnoreCase))
-                            {
-                                Dictionary<string, object> input = part.ContainsKey("input") ? part["input"] as Dictionary<string, object> : null;
-                                string qText = ExtractQuestionPromptText(input);
-                                return !string.IsNullOrEmpty(qText) ? (isZh ? ("请确认: " + qText) : ("Confirm: " + qText)) : (isZh ? "等待用户决策" : "Waiting for user decision");
-                            }
+                            string qText = ExtractQuestionPromptText(part.ContainsKey("input") ? part["input"] as Dictionary<string, object> : null);
+                            return !string.IsNullOrEmpty(qText) ? (isZh ? ("请确认: " + qText) : ("Confirm: " + qText)) : (isZh ? "等待用户决策" : "Waiting for user decision");
                         }
                     }
                 }
@@ -1781,41 +1705,24 @@ internal sealed class AgentSessionWatcher : IDisposable
         }
 
         // 3. Direct question at the end of completed response
-        bool isDoneTurn = (data.ContainsKey("type") && "PLANNER_RESPONSE".Equals(data["type"]) && data.ContainsKey("status") && "DONE".Equals(data["status"]) && !data.ContainsKey("tool_calls"))
-            || (data.ContainsKey("type") && "assistant".Equals(data["type"]) && data.ContainsKey("message") && ((data["message"] as Dictionary<string, object>) != null) && "end_turn".Equals(((Dictionary<string, object>)data["message"]).ContainsKey("stop_reason") ? ((Dictionary<string, object>)data["message"])["stop_reason"] : null));
+        bool isDoneTurn = (data.ContainsKey("type") && "PLANNER_RESPONSE".Equals(data["type"]) && "DONE".Equals(data.ContainsKey("status") ? data["status"] : null) && !data.ContainsKey("tool_calls"))
+            || (data.ContainsKey("type") && "assistant".Equals(data["type"]) && data.ContainsKey("message"));
 
         if (isDoneTurn)
         {
-            string text = null;
-            if (data.ContainsKey("content") && data["content"] != null) text = data["content"].ToString();
-            else if (data.ContainsKey("result") && data["result"] != null) text = data["result"].ToString();
-            else if (data.ContainsKey("message"))
-            {
-                Dictionary<string, object> m = data["message"] as Dictionary<string, object>;
-                if (m != null && m.ContainsKey("content") && m["content"] is IList)
-                {
-                    foreach (object p in (IList)m["content"])
-                    {
-                        Dictionary<string, object> part = p as Dictionary<string, object>;
-                        if (part != null && "text".Equals(part["type"]) && part.ContainsKey("text")) text = part["text"] as string;
-                    }
-                }
-            }
+            string text = ExtractTextFromCommonKeys(data);
             if (!string.IsNullOrEmpty(text))
             {
                 string trimmed = text.Trim().TrimEnd('*', '_', '`', '#', ' ', '\r', '\n', '\t');
                 if (trimmed.EndsWith("？") || trimmed.EndsWith("?"))
                 {
-                    string[] lines = trimmed.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                    for (int i = lines.Length - 1; i >= 0; i--)
+                    string[] qlines = trimmed.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    for (int i = qlines.Length - 1; i >= 0; i--)
                     {
-                        string qLine = lines[i].Trim().Trim('#', '*', '-', ' ', '>');
+                        string qLine = qlines[i].Trim().Trim('#', '*', '-', ' ', '>');
                         if ((qLine.EndsWith("？") || qLine.EndsWith("?")) && qLine.Length >= 4 && qLine.Length <= 100)
                         {
-                            if (Regex.IsMatch(qLine, @"[？\?]|(?:吗|呢|如何|是否|还是|好吗|可以吗|确认|推进|实施|选择|觉得|should|would|do you|which|proceed|confirm)\s*[\?？]?", RegexOptions.IgnoreCase))
-                            {
-                                return isZh ? ("请确认: " + qLine) : ("Confirm: " + qLine);
-                            }
+                            return isZh ? ("请确认: " + qLine) : ("Confirm: " + qLine);
                         }
                     }
                 }
@@ -1889,7 +1796,6 @@ internal sealed class AgentSessionWatcher : IDisposable
             string cleaned = CleanSummaryText(errDetail) ?? errDetail;
             if (cleaned.StartsWith("✅")) cleaned = cleaned.Substring(1).Trim();
             if (!cleaned.StartsWith("⚠️")) cleaned = "⚠️ " + cleaned;
-            if (cleaned.Length > 65) cleaned = cleaned.Substring(0, 62) + "...";
             return cleaned;
         }
         return isZh ? "⚠️ 任务执行异常或已中断" : "⚠️ Task interrupted or encountered an error";
@@ -1994,6 +1900,38 @@ internal sealed class AgentSessionWatcher : IDisposable
         return null;
     }
 
+    internal static string GetGitDiffStat(string dir)
+    {
+        try
+        {
+            ProcessStartInfo psi = new ProcessStartInfo("git", "diff HEAD --shortstat")
+            {
+                WorkingDirectory = dir,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+            using (Process p = Process.Start(psi))
+            {
+                string outStr = p.StandardOutput.ReadToEnd();
+                p.WaitForExit(1500);
+                if (!string.IsNullOrEmpty(outStr))
+                {
+                    Match m = Regex.Match(outStr, @"(\d+)\s+file[s]?\s+changed(?:,\s*(\d+)\s+insertion[s]?\(\+\))?(?:,\s*(\d+)\s+deletion[s]?\(-\))?");
+                    if (m.Success)
+                    {
+                        string f = m.Groups[1].Value;
+                        string ins = m.Groups[2].Success ? ("+" + m.Groups[2].Value) : "";
+                        string del = m.Groups[3].Success ? ("-" + m.Groups[3].Value) : "";
+                        return "± " + f + " file" + (f == "1" ? "" : "s") + " (" + ins + (ins != "" && del != "" ? " " : "") + del + ")";
+                    }
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
     internal static string CleanSummaryText(string text)
     {
         if (string.IsNullOrEmpty(text)) return null;
@@ -2054,11 +1992,7 @@ internal sealed class AgentSessionWatcher : IDisposable
             }
         }
 
-        string sentence = (endIdx > 0 && endIdx <= 70) ? cleaned.Substring(0, endIdx).Trim() : cleaned;
-        if (sentence.Length > 70)
-        {
-            sentence = sentence.Substring(0, 67) + "...";
-        }
+        string sentence = endIdx > 0 ? cleaned.Substring(0, endIdx).Trim() : cleaned;
 
         if (string.IsNullOrEmpty(sentence)) return null;
 

@@ -24,7 +24,7 @@ if (Test-Path -LiteralPath $legacyCli) {
     Remove-Item -LiteralPath $legacyCli -Force
 }
 
-$compilerArgs = @('/nologo', '/target:winexe', '/optimize+', '/codepage:65001', "/out:$outputExe", '/r:System.Core.dll', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Runtime.WindowsRuntime.dll', '/r:System.Web.Extensions.dll')
+$compilerArgs = @('/nologo', '/target:winexe', '/optimize+', '/debug-', '/codepage:65001', "/out:$outputExe", '/r:System.Core.dll', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Runtime.WindowsRuntime.dll', '/r:System.Web.Extensions.dll')
 if (Test-Path -LiteralPath $zan) {
     $compilerArgs += "/resource:$zan,zan.jpg"
 }
