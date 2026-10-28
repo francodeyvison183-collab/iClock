@@ -31,6 +31,8 @@ internal sealed class AgentSessionWatcher : IDisposable
     }
 
     private readonly Dictionary<string, TurnSession> sessions = new Dictionary<string, TurnSession>(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> watchedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private System.Threading.Timer processSyncTimer;
     private bool disposed;
 
     internal AgentSessionWatcher(AppContext appContext)
@@ -43,144 +45,172 @@ internal sealed class AgentSessionWatcher : IDisposable
     {
         try
         {
-            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            // Initial mount for active agents + common known agent locations
+            SyncActiveAgentWatchers();
 
-            // 1. Claude Code session projects directory
-            string claudeProjects = Path.Combine(userProfile, ".claude", "projects");
-            if (Directory.Exists(claudeProjects))
-            {
-                WatchDirectory(claudeProjects, "*.jsonl", "Claude Code");
-            }
-            else
-            {
-                string claudeRoot = Path.Combine(userProfile, ".claude");
-                if (Directory.Exists(claudeRoot))
-                {
-                    WatchDirectory(claudeRoot, "*.jsonl", "Claude Code");
-                }
-            }
-
-            // 2. Antigravity session brain logs directory
-            string antigravityBrain = Path.Combine(userProfile, ".gemini", "antigravity", "brain");
-            if (Directory.Exists(antigravityBrain))
-            {
-                WatchDirectory(antigravityBrain, "*.jsonl", "Antigravity");
-            }
-
-            // 3. OpenAI Codex session rollouts directory
-            string codexSessions = Path.Combine(userProfile, ".codex", "sessions");
-            if (Directory.Exists(codexSessions))
-            {
-                WatchDirectory(codexSessions, "*.jsonl", "Codex");
-            }
-            else
-            {
-                string codexRoot = Path.Combine(userProfile, ".codex");
-                if (Directory.Exists(codexRoot))
-                {
-                    WatchDirectory(codexRoot, "*.jsonl", "Codex");
-                }
-            }
-
-            // 4. Local workspace .claude if present
-            try
-            {
-                string localClaude = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".claude");
-                if (Directory.Exists(localClaude))
-                {
-                    WatchDirectory(localClaude, "*.jsonl", "Claude Code");
-                }
-            }
-            catch { }
-
-            // 4. Scan recent active sessions immediately on startup
-            ScanRecentActiveSessions();
+            // Periodic sync (every 3 seconds): zero overhead via Toolhelp process snapshot cache
+            processSyncTimer = new System.Threading.Timer(delegate { SyncActiveAgentWatchers(); }, null, 3000, 3000);
         }
         catch { }
     }
 
-    private void ScanRecentActiveSessions()
+    internal static List<string> ResolveCandidateDirectories(string agentName)
+    {
+        List<string> dirs = new List<string>();
+        if (string.IsNullOrEmpty(agentName)) return dirs;
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        if (agentName.IndexOf("Claude", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            string p = Path.Combine(home, ".claude", "projects");
+            if (Directory.Exists(p)) dirs.Add(p);
+            else { string r = Path.Combine(home, ".claude"); if (Directory.Exists(r)) dirs.Add(r); }
+            try
+            {
+                string loc = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".claude");
+                if (Directory.Exists(loc)) dirs.Add(loc);
+            }
+            catch { }
+        }
+        else if (agentName.IndexOf("Antigravity", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 agentName.IndexOf("AGY", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 agentName.IndexOf("Gemini", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            string b = Path.Combine(home, ".gemini", "antigravity", "brain");
+            if (Directory.Exists(b)) dirs.Add(b);
+            string r = Path.Combine(home, ".antigravity");
+            if (Directory.Exists(r)) dirs.Add(r);
+        }
+        else if (agentName.IndexOf("Codex", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            string s = Path.Combine(home, ".codex", "sessions");
+            if (Directory.Exists(s)) dirs.Add(s);
+            else { string r = Path.Combine(home, ".codex"); if (Directory.Exists(r)) dirs.Add(r); }
+        }
+        else if (agentName.IndexOf("Cursor", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            string r = Path.Combine(home, ".cursor");
+            if (Directory.Exists(r)) dirs.Add(r);
+        }
+        else if (agentName.IndexOf("Windsurf", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            string w = Path.Combine(home, ".codeium", "windsurf");
+            if (Directory.Exists(w)) dirs.Add(w);
+            string r = Path.Combine(home, ".windsurf");
+            if (Directory.Exists(r)) dirs.Add(r);
+        }
+        else if (agentName.IndexOf("Trae", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            string r = Path.Combine(home, ".trae");
+            if (Directory.Exists(r)) dirs.Add(r);
+        }
+        else if (agentName.IndexOf("Aider", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            string r = Path.Combine(home, ".aider");
+            if (Directory.Exists(r)) dirs.Add(r);
+        }
+
+        // Generic slug fallback: ~/.<slug> and subdirs (sessions, projects, logs)
+        string slug = Regex.Replace(agentName.ToLowerInvariant(), @"[^a-z0-9]+", "");
+        if (!string.IsNullOrEmpty(slug))
+        {
+            string slugDir = Path.Combine(home, "." + slug);
+            if (Directory.Exists(slugDir) && !dirs.Contains(slugDir))
+            {
+                string[] subNames = new string[] { "sessions", "projects", "logs", "transcripts" };
+                bool hasSub = false;
+                foreach (string sn in subNames)
+                {
+                    string sp = Path.Combine(slugDir, sn);
+                    if (Directory.Exists(sp)) { dirs.Add(sp); hasSub = true; }
+                }
+                if (!hasSub) dirs.Add(slugDir);
+            }
+            try
+            {
+                string loc = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "." + slug);
+                if (Directory.Exists(loc) && !dirs.Contains(loc)) dirs.Add(loc);
+            }
+            catch { }
+        }
+
+        return dirs;
+    }
+
+    internal void SyncActiveAgentWatchers()
+    {
+        if (disposed) return;
+        try
+        {
+            HashSet<string> agentsToCheck = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // 1. Process-guided: retrieve all currently running agent names
+            HashSet<string> running = AppContext.GetRunningAgents();
+            if (running != null)
+            {
+                foreach (string r in running) agentsToCheck.Add(r);
+            }
+
+            // 2. Base agents always checked if installed
+            agentsToCheck.Add("Antigravity");
+            agentsToCheck.Add("Claude Code");
+            agentsToCheck.Add("Codex");
+
+            foreach (string agent in agentsToCheck)
+            {
+                List<string> candidateDirs = ResolveCandidateDirectories(agent);
+                for (int i = 0; i < candidateDirs.Count; i++)
+                {
+                    string dir = candidateDirs[i];
+                    lock (syncLock)
+                    {
+                        if (watchedDirs.Contains(dir)) continue;
+                        watchedDirs.Add(dir);
+                    }
+                    WatchDirectory(dir, "*.json*", agent);
+                    ScanRecentSessionInDir(dir, agent);
+                }
+            }
+        }
+        catch { }
+    }
+
+    private void ScanRecentSessionInDir(string dir, string agentName)
     {
         System.Threading.ThreadPool.QueueUserWorkItem(delegate
         {
-            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-            // 1. Claude Code recent session
             try
             {
-                string claudeProjects = Path.Combine(userProfile, ".claude", "projects");
-                if (Directory.Exists(claudeProjects))
-                {
-                    string newestFile = null;
-                    DateTime newestTime = DateTime.MinValue;
-                    foreach (string f in Directory.GetFiles(claudeProjects, "*.jsonl", SearchOption.AllDirectories))
-                    {
-                        DateTime mt = File.GetLastWriteTime(f);
-                        if (mt > newestTime)
-                        {
-                            newestTime = mt;
-                            newestFile = f;
-                        }
-                    }
-                    if (newestFile != null && (DateTime.Now - newestTime).TotalMinutes < 30)
-                    {
-                        ProcessLogFile(newestFile, "Claude Code");
-                    }
-                }
-            }
-            catch { }
+                if (!Directory.Exists(dir)) return;
+                string newestFile = null;
+                DateTime newestTime = DateTime.MinValue;
 
-            // 2. Antigravity recent session (fast top-level conversation scan)
-            try
-            {
-                string agBrain = Path.Combine(userProfile, ".gemini", "antigravity", "brain");
-                if (Directory.Exists(agBrain))
+                if (dir.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0 && dir.IndexOf("brain", StringComparison.OrdinalIgnoreCase) >= 0)
                 {
-                    string newestFile = null;
-                    DateTime newestTime = DateTime.MinValue;
-                    foreach (string convDir in Directory.GetDirectories(agBrain))
+                    foreach (string convDir in Directory.GetDirectories(dir))
                     {
                         string tp = Path.Combine(convDir, ".system_generated", "logs", "transcript.jsonl");
                         if (!File.Exists(tp)) tp = Path.Combine(convDir, "transcript.jsonl");
                         if (File.Exists(tp))
                         {
                             DateTime mt = File.GetLastWriteTime(tp);
-                            if (mt > newestTime)
-                            {
-                                newestTime = mt;
-                                newestFile = tp;
-                            }
+                            if (mt > newestTime) { newestTime = mt; newestFile = tp; }
                         }
-                    }
-                    if (newestFile != null && (DateTime.Now - newestTime).TotalMinutes < 30)
-                    {
-                        ProcessLogFile(newestFile, "Antigravity");
                     }
                 }
-            }
-            catch { }
-
-            // 3. OpenAI Codex recent session
-            try
-            {
-                string codexSessions = Path.Combine(userProfile, ".codex", "sessions");
-                if (Directory.Exists(codexSessions))
+                else
                 {
-                    string newestFile = null;
-                    DateTime newestTime = DateTime.MinValue;
-                    foreach (string f in Directory.GetFiles(codexSessions, "*.jsonl", SearchOption.AllDirectories))
+                    foreach (string f in Directory.GetFiles(dir, "*.json*", SearchOption.AllDirectories))
                     {
+                        if (!f.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase) && !f.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
                         DateTime mt = File.GetLastWriteTime(f);
-                        if (mt > newestTime)
-                        {
-                            newestTime = mt;
-                            newestFile = f;
-                        }
+                        if (mt > newestTime) { newestTime = mt; newestFile = f; }
                     }
-                    if (newestFile != null && (DateTime.Now - newestTime).TotalMinutes < 30)
-                    {
-                        ProcessLogFile(newestFile, "Codex");
-                    }
+                }
+
+                if (newestFile != null && (DateTime.Now - newestTime).TotalMinutes < 30)
+                {
+                    ProcessLogFile(newestFile, agentName);
                 }
             }
             catch { }
@@ -209,6 +239,8 @@ internal sealed class AgentSessionWatcher : IDisposable
     private void OnFileChanged(string fullPath, string agentName)
     {
         if (disposed || string.IsNullOrEmpty(fullPath)) return;
+        if (!fullPath.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase) &&
+            !fullPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return;
 
         // Debounce: coalesce rapid successive writes with a 50ms trailing timer
         // guarantees zero dropped tool events and freshest file state
@@ -365,6 +397,10 @@ internal sealed class AgentSessionWatcher : IDisposable
         {
             object cwdObj = null;
             if (data.ContainsKey("cwd") && data["cwd"] != null) cwdObj = data["cwd"];
+            else if (data.ContainsKey("workspace") && data["workspace"] != null) cwdObj = data["workspace"];
+            else if (data.ContainsKey("workdir") && data["workdir"] != null) cwdObj = data["workdir"];
+            else if (data.ContainsKey("project_path") && data["project_path"] != null) cwdObj = data["project_path"];
+            else if (data.ContainsKey("root_path") && data["root_path"] != null) cwdObj = data["root_path"];
             else if (data.ContainsKey("payload"))
             {
                 Dictionary<string, object> payload = data["payload"] as Dictionary<string, object>;
@@ -1035,6 +1071,64 @@ internal sealed class AgentSessionWatcher : IDisposable
             }
         }
 
+        // 6. Universal Schema-Agnostic Heuristics
+        // A) Any object with role == user / human
+        if (data.ContainsKey("role"))
+        {
+            string r = data["role"] as string;
+            if (string.Equals(r, "user", StringComparison.OrdinalIgnoreCase) || string.Equals(r, "human", StringComparison.OrdinalIgnoreCase))
+            {
+                string text = ExtractTextFromCommonKeys(data);
+                if (!string.IsNullOrEmpty(text)) return CleanUserRequest(text);
+            }
+        }
+        // B) Direct prompt keys
+        string[] promptKeys = new string[] { "prompt", "user_prompt", "user_request", "userPrompt", "userRequest" };
+        for (int i = 0; i < promptKeys.Length; i++)
+        {
+            string pk = promptKeys[i];
+            if (data.ContainsKey(pk) && data[pk] is string)
+            {
+                string pStr = data[pk] as string;
+                if (!string.IsNullOrEmpty(pStr) && pStr.Length >= 2) return CleanUserRequest(pStr);
+            }
+        }
+        // C) Type suffix matching: e.g. "UserMessage", "user_message", "user_input"
+        if (data.ContainsKey("type") && data["type"] is string)
+        {
+            string t = (data["type"] as string).ToLowerInvariant();
+            if (t.Contains("usermessage") || t.Contains("user_message") || t.Contains("userinput") || t.Contains("user_input"))
+            {
+                string text = ExtractTextFromCommonKeys(data);
+                if (!string.IsNullOrEmpty(text)) return CleanUserRequest(text);
+            }
+        }
+
+        return null;
+    }
+
+    private static string ExtractTextFromCommonKeys(Dictionary<string, object> d)
+    {
+        if (d == null) return null;
+        if (d.ContainsKey("content"))
+        {
+            if (d["content"] is string) return d["content"] as string;
+            if (d["content"] is IList)
+            {
+                foreach (object item in (IList)d["content"])
+                {
+                    if (item is string) return (string)item;
+                    if (item is Dictionary<string, object>)
+                    {
+                        Dictionary<string, object> part = (Dictionary<string, object>)item;
+                        if (part.ContainsKey("text") && part["text"] != null) return part["text"].ToString();
+                    }
+                }
+            }
+        }
+        if (d.ContainsKey("text") && d["text"] is string) return d["text"] as string;
+        if (d.ContainsKey("message") && d["message"] is string) return d["message"] as string;
+        if (d.ContainsKey("summary") && d["summary"] is string) return d["summary"] as string;
         return null;
     }
 
@@ -1378,6 +1472,34 @@ internal sealed class AgentSessionWatcher : IDisposable
                         return ExtractFriendlyAction("read_file", new Dictionary<string, object> { { "Path", item["path"] } }, isZh);
                     }
                 }
+            }
+        }
+
+        // 5. Universal tool heuristics
+        string toolName = null;
+        Dictionary<string, object> toolArgs = null;
+
+        if (data.ContainsKey("tool") && data["tool"] is string) toolName = data["tool"] as string;
+        else if (data.ContainsKey("tool_name") && data["tool_name"] is string) toolName = data["tool_name"] as string;
+        else if (data.ContainsKey("function") && data["function"] is string) toolName = data["function"] as string;
+
+        if (!string.IsNullOrEmpty(toolName))
+        {
+            if (data.ContainsKey("args") && data["args"] is Dictionary<string, object>) toolArgs = (Dictionary<string, object>)data["args"];
+            else if (data.ContainsKey("arguments") && data["arguments"] is Dictionary<string, object>) toolArgs = (Dictionary<string, object>)data["arguments"];
+            else if (data.ContainsKey("parameters") && data["parameters"] is Dictionary<string, object>) toolArgs = (Dictionary<string, object>)data["parameters"];
+            else if (data.ContainsKey("input") && data["input"] is Dictionary<string, object>) toolArgs = (Dictionary<string, object>)data["input"];
+            string action = ExtractFriendlyAction(toolName, toolArgs, isZh);
+            if (!string.IsNullOrEmpty(action)) return action;
+        }
+
+        // Direct command execution key
+        if (data.ContainsKey("command") || data.ContainsKey("cmd"))
+        {
+            string c = (data.ContainsKey("command") ? data["command"] : data["cmd"]) as string;
+            if (!string.IsNullOrEmpty(c))
+            {
+                return ExtractFriendlyAction("run_command", new Dictionary<string, object> { { "CommandLine", c } }, isZh);
             }
         }
 
@@ -1744,6 +1866,11 @@ internal sealed class AgentSessionWatcher : IDisposable
             return null;
         }
 
+        if (data.ContainsKey("tool_calls") && data["tool_calls"] is System.Collections.IList && ((System.Collections.IList)data["tool_calls"]).Count > 0)
+        {
+            return null;
+        }
+
         // 1. Antigravity format:
         // Must be PLANNER_RESPONSE with status == "DONE" and NO active tool_calls.
         // If tool_calls has elements, the agent is executing tools (Processing), NOT finished!
@@ -1839,6 +1966,28 @@ internal sealed class AgentSessionWatcher : IDisposable
             }
         }
 
+        // 4. Universal completion heuristic
+        string status = data.ContainsKey("status") ? data["status"] as string : (data.ContainsKey("state") ? data["state"] as string : null);
+        if (!string.IsNullOrEmpty(status))
+        {
+            if (string.Equals(status, "DONE", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(status, "COMPLETED", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(status, "SUCCESS", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(status, "FINISHED", StringComparison.OrdinalIgnoreCase))
+            {
+                string text = ExtractTextFromCommonKeys(data);
+                if (!string.IsNullOrEmpty(text)) return text;
+                return "Task completed.";
+            }
+        }
+        string finishReason = data.ContainsKey("finish_reason") ? data["finish_reason"] as string : (data.ContainsKey("stop_reason") ? data["stop_reason"] as string : null);
+        if (string.Equals(finishReason, "stop", StringComparison.OrdinalIgnoreCase) || string.Equals(finishReason, "end_turn", StringComparison.OrdinalIgnoreCase))
+        {
+            string text = ExtractTextFromCommonKeys(data);
+            if (!string.IsNullOrEmpty(text)) return text;
+            return "Task completed.";
+        }
+
         return null;
     }
 
@@ -1928,6 +2077,11 @@ internal sealed class AgentSessionWatcher : IDisposable
     {
         if (disposed) return;
         disposed = true;
+        if (processSyncTimer != null)
+        {
+            try { processSyncTimer.Dispose(); } catch { }
+            processSyncTimer = null;
+        }
         lock (syncLock)
         {
             for (int i = 0; i < watchers.Count; i++)
@@ -1940,6 +2094,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                 catch { }
             }
             watchers.Clear();
+            watchedDirs.Clear();
             foreach (System.Threading.Timer t in fileDebounceTimers.Values)
             {
                 try { t.Dispose(); } catch { }

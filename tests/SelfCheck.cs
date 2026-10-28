@@ -3929,6 +3929,141 @@ internal static class TestCheck
                 }
 
                 Console.WriteLine("PASS: AI collaboration 5-in-1 upgrades (HITL feedback perception, error state distinction, project hint routing, trivial confirmation immunity & cognitive flow) verified.");
+
+                // 48. Verify Process-guided dynamic watcher & Universal schema-agnostic parsing
+                MethodInfo mResolveDirs = agentWatcherType.GetMethod("ResolveCandidateDirectories", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mResolveDirs != null)
+                {
+                    var codexDirs = (List<string>)mResolveDirs.Invoke(null, new object[] { "Codex" });
+                    if (codexDirs == null || codexDirs.Count == 0)
+                    {
+                        Console.WriteLine("FAIL: ResolveCandidateDirectories failed for Codex");
+                        return 70;
+                    }
+
+                    var claudeDirs = (List<string>)mResolveDirs.Invoke(null, new object[] { "Claude Code" });
+                    if (claudeDirs == null || claudeDirs.Count == 0)
+                    {
+                        Console.WriteLine("FAIL: ResolveCandidateDirectories failed for Claude Code");
+                        return 70;
+                    }
+                }
+
+                // Universal user request
+                if (mExtractUser != null)
+                {
+                    var uData1 = new Dictionary<string, object> {
+                        { "role", "user" },
+                        { "content", "实现通用智能体感知" }
+                    };
+                    string uReq1 = (string)mExtractUser.Invoke(null, new object[] { uData1 });
+                    if (uReq1 != "实现通用智能体感知")
+                    {
+                        Console.WriteLine("FAIL: Universal user request extraction failed: " + uReq1);
+                        return 71;
+                    }
+
+                    var uData2 = new Dictionary<string, object> {
+                        { "prompt", "自动识别任意智能体任务状态" }
+                    };
+                    string uReq2 = (string)mExtractUser.Invoke(null, new object[] { uData2 });
+                    if (uReq2 != "自动识别任意智能体任务状态")
+                    {
+                        Console.WriteLine("FAIL: Universal prompt extraction failed: " + uReq2);
+                        return 71;
+                    }
+                }
+
+                // Universal tool summary
+                if (mExtractTool != null)
+                {
+                    var uTool1 = new Dictionary<string, object> {
+                        { "tool", "exec_command" },
+                        { "args", new Dictionary<string, object> { { "CommandLine", "npm test" } } }
+                    };
+                    string tAct1 = (string)mExtractTool.Invoke(null, new object[] { uTool1, true });
+                    if (tAct1 == null || !tAct1.Contains("运行:") || !tAct1.Contains("npm test"))
+                    {
+                        Console.WriteLine("FAIL: Universal tool extraction failed: " + tAct1);
+                        return 72;
+                    }
+
+                    var uTool2 = new Dictionary<string, object> {
+                        { "command", "git status" }
+                    };
+                    string tAct2 = (string)mExtractTool.Invoke(null, new object[] { uTool2, true });
+                    if (tAct2 == null || !tAct2.Contains("运行:") || !tAct2.Contains("git status"))
+                    {
+                        Console.WriteLine("FAIL: Universal command extraction failed: " + tAct2);
+                        return 72;
+                    }
+                }
+
+                // Universal completion
+                if (mExtractComp != null)
+                {
+                    var uComp1 = new Dictionary<string, object> {
+                        { "status", "COMPLETED" },
+                        { "summary", "所有模块优化就绪" }
+                    };
+                    string cRes1 = (string)mExtractComp.Invoke(null, new object[] { uComp1 });
+                    if (cRes1 != "所有模块优化就绪")
+                    {
+                        Console.WriteLine("FAIL: Universal completion extraction failed: " + cRes1);
+                        return 73;
+                    }
+
+                    var uComp2 = new Dictionary<string, object> {
+                        { "finish_reason", "stop" },
+                        { "text", "All tasks done." }
+                    };
+                    string cRes2 = (string)mExtractComp.Invoke(null, new object[] { uComp2 });
+                    if (cRes2 != "All tasks done.")
+                    {
+                        Console.WriteLine("FAIL: Universal finish_reason extraction failed: " + cRes2);
+                        return 73;
+                    }
+                }
+
+                // Universal project hint
+                if (mExtractProj != null)
+                {
+                    var uProj = new Dictionary<string, object> {
+                        { "workspace", @"d:\AIStudio\iClock" }
+                    };
+                    string pHint = (string)mExtractProj.Invoke(null, new object[] { uProj, null });
+                    if (pHint != "iClock")
+                    {
+                        Console.WriteLine("FAIL: Universal project hint extraction failed: " + pHint);
+                        return 74;
+                    }
+                }
+
+                // AgentHud deterministic color & label
+                Type hudType = appType.Assembly.GetType("AgentHud");
+                if (hudType != null)
+                {
+                    MethodInfo mColor = hudType.GetMethod("GetDeterministicAgentColor", BindingFlags.NonPublic | BindingFlags.Static);
+                    MethodInfo mLabel = hudType.GetMethod("GetShortAgentBadgeLabel", BindingFlags.NonPublic | BindingFlags.Static);
+                    if (mColor != null && mLabel != null)
+                    {
+                        Color c1 = (Color)mColor.Invoke(null, new object[] { "Windsurf" });
+                        Color c2 = (Color)mColor.Invoke(null, new object[] { "UnknownAgent" });
+                        if (c1.A == 0 || c2.A == 0)
+                        {
+                            Console.WriteLine("FAIL: GetDeterministicAgentColor returned transparent color");
+                            return 75;
+                        }
+                        string l1 = (string)mLabel.Invoke(null, new object[] { "CustomAgentLongName" });
+                        if (l1 == null || l1.Length > 7)
+                        {
+                            Console.WriteLine("FAIL: GetShortAgentBadgeLabel failed: " + l1);
+                            return 75;
+                        }
+                    }
+                }
+
+                Console.WriteLine("PASS: Process-guided dynamic watcher & Universal schema-agnostic parsing verified.");
             }
 
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);

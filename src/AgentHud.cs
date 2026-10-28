@@ -498,10 +498,30 @@ internal sealed class AgentTaskStatusHud : Form
                     badgeColor = Color.FromArgb(16, 185, 129); // Cursor Emerald #10B981
                     badgeLabel = "Cursor";
                 }
+                else if (rawName.IndexOf("Windsurf", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    badgeColor = Color.FromArgb(6, 182, 212); // Windsurf Teal #06B6D4
+                    badgeLabel = "Windsurf";
+                }
+                else if (rawName.IndexOf("Trae", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    badgeColor = Color.FromArgb(139, 92, 246); // Trae Purple #8B5CF6
+                    badgeLabel = "Trae";
+                }
+                else if (rawName.IndexOf("Aider", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    badgeColor = Color.FromArgb(249, 115, 22); // Aider Orange #F97316
+                    badgeLabel = "Aider";
+                }
+                else if (rawName.IndexOf("Copilot", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    badgeColor = Color.FromArgb(99, 102, 241); // Copilot Indigo #6366F1
+                    badgeLabel = "Copilot";
+                }
                 else
                 {
-                    badgeColor = AppContext.Win11Accent;
-                    badgeLabel = !string.IsNullOrEmpty(rawName) ? (rawName.Length > 6 ? rawName.Substring(0, 5) + "…" : rawName) : "AI";
+                    badgeColor = GetDeterministicAgentColor(rawName);
+                    badgeLabel = GetShortAgentBadgeLabel(rawName);
                 }
 
                 SizeF badgeTextSize = g.MeasureString(badgeLabel, badgeFont);
@@ -811,5 +831,21 @@ internal sealed class AgentTaskStatusHud : Form
         x = Math.Max(work.Left, Math.Min(work.Right - Width, x));
         y = Math.Max(work.Top, Math.Min(work.Bottom - Height, y));
         Location = new Point(x, y);
+    }
+    internal static Color GetDeterministicAgentColor(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return AppContext.Win11Accent;
+        int hash = Math.Abs(name.GetHashCode());
+        int[] hues = new int[] { 0x38BDF8, 0x818CF8, 0xA855F7, 0xEC4899, 0xF43F5E, 0xFB923C, 0xFBBF24, 0x34D399, 0x2DD4BF };
+        int rgb = hues[hash % hues.Length];
+        return Color.FromArgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+    }
+
+    internal static string GetShortAgentBadgeLabel(string rawName)
+    {
+        if (string.IsNullOrEmpty(rawName)) return "AI";
+        string s = rawName.Trim();
+        if (s.Length <= 6) return s;
+        return s.Substring(0, 5) + "…";
     }
 }
