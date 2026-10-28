@@ -3813,7 +3813,52 @@ internal static class TestCheck
                     }
                 }
 
-                Console.WriteLine("PASS: AI collaboration 5-in-1 upgrades (HITL feedback perception, error state distinction, project hint routing) verified.");
+                // 46. Verify Trivial Confirmation immunity & Enhanced Friendly Actions
+                MethodInfo mIsTrivial = agentWatcherType.GetMethod("IsTrivialConfirmation", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mIsTrivial != null)
+                {
+                    bool t1 = (bool)mIsTrivial.Invoke(null, new object[] { "好" });
+                    bool t2 = (bool)mIsTrivial.Invoke(null, new object[] { "好的，推进吧" });
+                    bool t3 = (bool)mIsTrivial.Invoke(null, new object[] { "continue" });
+                    bool t4 = (bool)mIsTrivial.Invoke(null, new object[] { "确认实施" });
+                    bool t5 = (bool)mIsTrivial.Invoke(null, new object[] { "检测AI协作模块优化状态显示与体验" });
+
+                    if (!t1 || !t2 || !t3 || !t4 || t5)
+                    {
+                        Console.WriteLine("FAIL: IsTrivialConfirmation check failed: t1=" + t1 + ", t2=" + t2 + ", t3=" + t3 + ", t4=" + t4 + ", t5=" + t5);
+                        return 67;
+                    }
+                }
+
+                MethodInfo mExtractAction = agentWatcherType.GetMethod("ExtractFriendlyAction", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mExtractAction != null)
+                {
+                    var subArgs = new Dictionary<string, object> { { "Role", "Codebase Researcher" } };
+                    string subRes = (string)mExtractAction.Invoke(null, new object[] { "invoke_subagent", subArgs, true });
+                    if (subRes == null || !subRes.Contains("调度") || !subRes.Contains("Codebase Researcher"))
+                    {
+                        Console.WriteLine("FAIL: ExtractFriendlyAction subagent failed: " + subRes);
+                        return 68;
+                    }
+
+                    var cmdArgs = new Dictionary<string, object> { { "CommandLine", "powershell -File build.ps1" } };
+                    string cmdRes = (string)mExtractAction.Invoke(null, new object[] { "run_command", cmdArgs, true });
+                    if (cmdRes == null || !cmdRes.Contains("运行:") || !cmdRes.Contains("build.ps1"))
+                    {
+                        Console.WriteLine("FAIL: ExtractFriendlyAction run_command failed: " + cmdRes);
+                        return 68;
+                    }
+
+                    var fileArgs = new Dictionary<string, object> { { "Path", "d:\\AIStudio\\iClock\\src\\AgentWatcher.cs" } };
+                    string fileRes = (string)mExtractAction.Invoke(null, new object[] { "read_file", fileArgs, true });
+                    if (fileRes == null || !fileRes.Contains("读取") || !fileRes.Contains("AgentWatcher.cs"))
+                    {
+                        Console.WriteLine("FAIL: ExtractFriendlyAction read_file failed: " + fileRes);
+                        return 68;
+                    }
+                }
+
+                Console.WriteLine("PASS: AI collaboration 5-in-1 upgrades (HITL feedback perception, error state distinction, project hint routing, trivial confirmation immunity & cognitive flow) verified.");
             }
 
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);

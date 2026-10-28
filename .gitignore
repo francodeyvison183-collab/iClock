@@ -25,3 +25,6 @@ Desktop.ini
 
 # Playwright MCP tool snapshots
 .playwright-mcp/
+
+# CodeGraph directory
+.codegraph/

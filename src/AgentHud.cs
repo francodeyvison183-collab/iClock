@@ -115,6 +115,7 @@ internal sealed class AgentTaskStatusHud : Form
         Point cursorPos = Cursor.Position;
         bool inBounds = Bounds.Contains(cursorPos);
         DateTime now = DateTime.Now;
+        bool hoverChanged = false;
 
         if (inBounds)
         {
@@ -122,6 +123,7 @@ internal sealed class AgentTaskStatusHud : Form
             if (!isHovered)
             {
                 isHovered = true;
+                hoverChanged = true;
                 UpdateLayoutAndSize();
             }
         }
@@ -131,6 +133,7 @@ internal sealed class AgentTaskStatusHud : Form
             if (isHovered && (now - lastHoverTime).TotalMilliseconds > 160 && !moving && !resizingWidth)
             {
                 isHovered = false;
+                hoverChanged = true;
                 UpdateLayoutAndSize();
             }
 
@@ -161,7 +164,27 @@ internal sealed class AgentTaskStatusHud : Form
             }
         }
 
-        RenderLayeredWindow();
+        // Static state throttling: When idle/completed with static graphics and no hover/drag, skip redundant 60ms redraws
+        bool hasActiveAnimation = moving || resizingWidth || isHovered || hoverChanged;
+        if (!hasActiveAnimation && tasks != null && tasks.Count > 0)
+        {
+            for (int i = 0; i < tasks.Count; i++)
+            {
+                AgentTaskStatus t = tasks[i];
+                bool done = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("✅") || t.Message.Contains("完成") || t.Message.Contains("Completed"));
+                bool err = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("⚠️") || t.Message.Contains("异常") || t.Message.Contains("死循环"));
+                if (!done && !err)
+                {
+                    hasActiveAnimation = true;
+                    break;
+                }
+            }
+        }
+
+        if (hasActiveAnimation || hoverChanged)
+        {
+            RenderLayeredWindow();
+        }
     }
 
     private void UpdateLayoutAndSize()
@@ -526,50 +549,6 @@ internal sealed class AgentTaskStatusHud : Form
                 float ringCenterY = cardY + 14f;
                 float ringRadius = 6.0f;
 
-                float textX = badgeRect.Right + 8f;
-                float textW = Math.Max(40f, (ringCenterX - 10f) - textX);
-                RectangleF titleRect = new RectangleF(textX, cardY + 4f, textW, 20f);
-
-                string textToDraw;
-                if (!isHovered && !string.IsNullOrEmpty(task.StepProgress))
-                {
-                    // Collapsed mode with active step/TODO: prioritize displaying the step e.g. "1/3 正在执行算法优化"
-                    string combined = !string.IsNullOrEmpty(displayTitle) ? (displayTitle + " · " + task.StepProgress) : task.StepProgress;
-                    if (!string.IsNullOrEmpty(displayTitle) && !string.Equals(displayTitle, task.StepProgress, StringComparison.OrdinalIgnoreCase)
-                        && g.MeasureString(combined, titleFont).Width <= textW)
-                    {
-                        textToDraw = combined;
-                    }
-                    else
-                    {
-                        textToDraw = task.StepProgress;
-                    }
-                }
-                else
-                {
-                    if (!string.IsNullOrEmpty(displaySuffix))
-                    {
-                        string combined = displayTitle + " · " + displaySuffix;
-                        if (g.MeasureString(combined, titleFont).Width <= textW)
-                        {
-                            textToDraw = combined;
-                        }
-                        else
-                        {
-                            textToDraw = displayTitle;
-                        }
-                    }
-                    else
-                    {
-                        textToDraw = displayTitle;
-                    }
-                }
-                g.DrawString(textToDraw, titleFont, titleBrush, titleRect, titleFormat);
-
-                // 4. Right-Side Slot: Targeted In-place Morphing (Status Indicator vs Close Button [✕])
-                Rectangle cornerCloseRect = new Rectangle((int)ringCenterX - 9, (int)ringCenterY - 9, 18, 18);
-                bool hoverCorner = cornerCloseRect.Contains(clientCursor);
-
                 bool isCompleted = !string.IsNullOrEmpty(task.Message) && (task.Message.Contains("完成") || task.Message.Contains("Completed") || task.Message.StartsWith("✅"));
                 if (task.HasProgress && !string.IsNullOrEmpty(task.StepProgress))
                 {
@@ -584,6 +563,100 @@ internal sealed class AgentTaskStatusHud : Form
                 else if (isError) statusColor = ColorError;
                 else if (isWaiting) statusColor = ColorWaiting;
                 else statusColor = ColorRunning;
+
+                float textX = badgeRect.Right + 8f;
+                float textW = Math.Max(40f, (ringCenterX - 10f) - textX);
+                RectangleF titleRect = new RectangleF(textX, cardY + 4f, textW, 20f);
+
+                string textToDraw;
+                if (!isHovered)
+                {
+                    if (!string.IsNullOrEmpty(task.StepProgress))
+                    {
+                        // Collapsed mode with active step/TODO: prioritize displaying the step e.g. "1/3 正在执行算法优化"
+                        string combined = !string.IsNullOrEmpty(displayTitle) ? (displayTitle + " · " + task.StepProgress) : task.StepProgress;
+                        if (!string.IsNullOrEmpty(displayTitle) && !string.Equals(displayTitle, task.StepProgress, StringComparison.OrdinalIgnoreCase)
+                            && g.MeasureString(combined, titleFont).Width <= textW)
+                        {
+                            textToDraw = combined;
+                        }
+                        else
+                        {
+                            textToDraw = task.StepProgress;
+                        }
+                    }
+                    else if (isRunning)
+                    {
+                        int elapsedSec = task.TurnStartTime > DateTime.MinValue ? Math.Max(0, (int)(DateTime.Now - task.TurnStartTime).TotalSeconds) : 0;
+                        string timeBadge = elapsedSec >= 1 ? (elapsedSec >= 60 ? (elapsedSec / 60 + "m" + (elapsedSec % 60).ToString("D2") + "s") : (elapsedSec + "s")) : "";
+
+                        string briefAction = "";
+                        if (!string.IsNullOrEmpty(task.SubDetail))
+                        {
+                            briefAction = task.SubDetail.Replace("正在执行: ", "").Replace("Running: ", "").Trim();
+                            if (briefAction.Length > 28) briefAction = briefAction.Substring(0, 25) + "...";
+                        }
+
+                        // Try candidate 1: Title + Action + Time
+                        string c1 = !string.IsNullOrEmpty(briefAction) && !string.IsNullOrEmpty(timeBadge)
+                            ? (displayTitle + " · " + briefAction + " (" + timeBadge + ")")
+                            : (!string.IsNullOrEmpty(briefAction) ? (displayTitle + " · " + briefAction) : (!string.IsNullOrEmpty(timeBadge) ? (displayTitle + " · " + timeBadge) : displayTitle));
+
+                        if (g.MeasureString(c1, titleFont).Width <= textW)
+                        {
+                            textToDraw = c1;
+                        }
+                        else
+                        {
+                            // Try candidate 2: Title + Action
+                            string c2 = !string.IsNullOrEmpty(briefAction) ? (displayTitle + " · " + briefAction) : null;
+                            if (c2 != null && g.MeasureString(c2, titleFont).Width <= textW)
+                            {
+                                textToDraw = c2;
+                            }
+                            else
+                            {
+                                // Try candidate 3: Title + Time
+                                string c3 = !string.IsNullOrEmpty(timeBadge) ? (displayTitle + " · " + timeBadge) : null;
+                                if (c3 != null && g.MeasureString(c3, titleFont).Width <= textW)
+                                {
+                                    textToDraw = c3;
+                                }
+                                else
+                                {
+                                    textToDraw = displayTitle;
+                                }
+                            }
+                        }
+                    }
+                    else if (isCompleted)
+                    {
+                        if (!string.IsNullOrEmpty(displaySuffix))
+                        {
+                            string combined = displayTitle + " · " + displaySuffix;
+                            if (g.MeasureString(combined, titleFont).Width <= textW) textToDraw = combined;
+                            else textToDraw = displayTitle;
+                        }
+                        else
+                        {
+                            textToDraw = displayTitle;
+                        }
+                    }
+                    else
+                    {
+                        textToDraw = displayTitle;
+                    }
+                }
+                else
+                {
+                    // Expanded mode: top row keeps title clean, details rendered in drawer
+                    textToDraw = displayTitle;
+                }
+                g.DrawString(textToDraw, titleFont, titleBrush, titleRect, titleFormat);
+
+                // 4. Right-Side Slot: Targeted In-place Morphing (Status Indicator vs Close Button [✕])
+                Rectangle cornerCloseRect = new Rectangle((int)ringCenterX - 9, (int)ringCenterY - 9, 18, 18);
+                bool hoverCorner = cornerCloseRect.Contains(clientCursor);
 
                 if (hoverCorner)
                 {

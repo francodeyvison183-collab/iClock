@@ -220,13 +220,13 @@ internal sealed class AgentSessionWatcher : IDisposable
         // Active CLI overrides passive watcher
         if (appContext != null && appContext.HasRecentCliActivity(agentName)) return;
 
-        List<string> lines = ReadRecentJsonLines(fullPath, 65536);
+        List<string> lines = ReadRecentJsonLines(fullPath, 131072);
         if (lines == null || lines.Count == 0) return;
 
         DispatchParsedEvents(lines, fullPath, agentName);
     }
 
-    internal static List<string> ReadRecentJsonLines(string path, int maxBytes = 65536)
+    internal static List<string> ReadRecentJsonLines(string path, int maxBytes = 131072)
     {
         List<string> result = new List<string>();
         try
@@ -255,32 +255,54 @@ internal sealed class AgentSessionWatcher : IDisposable
         return result;
     }
 
-    private static List<string> ReadHeadJsonLines(string path, int maxBytes = 8192)
+    internal static bool IsTrivialConfirmation(string text)
     {
-        List<string> result = new List<string>();
+        if (string.IsNullOrEmpty(text)) return false;
+        string t = text.Trim().Trim('。', '！', '!', '，', ',', '、', ' ', '\t', '\r', '\n', '.', '~').ToLowerInvariant();
+        if (t.Length == 0) return false;
+        if (t == "好" || t == "好的" || t == "好的呢" || t == "行" || t == "可以" || t == "行的" || t == "可以的" ||
+            t == "确认" || t == "确认实施" || t == "确认推进" || t == "继续" || t == "推进" || t == "实施" ||
+            t == "继续推进" || t == "全部实施" || t == "全部一并实施" || t == "开始" || t == "开始实施" ||
+            t == "ok" || t == "okay" || t == "sure" || t == "yes" || t == "y" || t == "proceed" ||
+            t == "continue" || t == "go ahead" || t == "lgtm" || t == "do it")
+        {
+            return true;
+        }
+        if (Regex.IsMatch(t, @"^(?:好|好的|行|可以|确认|继续|推进|实施|ok|yes|proceed)\s*[,，、 ]\s*(?:好|好的|行|可以|确认|继续|推进|实施|开始|实施吧|推进吧|开始吧|继续吧|做吧|执行|请继续|请推进)$", RegexOptions.IgnoreCase))
+        {
+            return true;
+        }
+        return false;
+    }
+
+    internal static string FindLatestUserRequestInFile(string filePath, JavaScriptSerializer serializer)
+    {
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
         try
         {
-            using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            List<string> lines = ReadRecentJsonLines(filePath, 262144);
+            string lastTrivial = null;
+            for (int i = lines.Count - 1; i >= 0; i--)
             {
-                if (fs.Length == 0) return result;
-                long len = Math.Min(fs.Length, maxBytes);
-                byte[] buffer = new byte[len];
-                int bytesRead = fs.Read(buffer, 0, (int)len);
-                if (bytesRead <= 0) return result;
-                string text = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                string[] lines = text.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                for (int i = 0; i < lines.Length; i++)
+                try
                 {
-                    string line = lines[i].Trim().Trim('\uFEFF');
-                    if (line.StartsWith("{") && line.EndsWith("}"))
+                    Dictionary<string, object> d = serializer.Deserialize<Dictionary<string, object>>(lines[i]);
+                    string req = ExtractUserRequest(d);
+                    if (!string.IsNullOrEmpty(req))
                     {
-                        result.Add(line);
+                        if (!IsTrivialConfirmation(req))
+                        {
+                            return req;
+                        }
+                        if (lastTrivial == null) lastTrivial = req;
                     }
                 }
+                catch { }
             }
+            return lastTrivial;
         }
         catch { }
-        return result;
+        return null;
     }
 
     internal static string ExtractProjectHint(Dictionary<string, object> data, string filePath)
@@ -397,42 +419,56 @@ internal sealed class AgentSessionWatcher : IDisposable
         {
             lock (syncLock)
             {
-                if (!string.Equals(session.Target, latestReq, StringComparison.Ordinal))
+                bool isTrivial = IsTrivialConfirmation(latestReq);
+                bool hasRealTarget = !string.IsNullOrEmpty(session.Target) &&
+                                     !session.Target.Equals("当前会话", StringComparison.Ordinal) &&
+                                     !session.Target.Equals("当前任务", StringComparison.Ordinal) &&
+                                     !session.Target.Equals("Session", StringComparison.Ordinal) &&
+                                     !session.Target.Equals("Task", StringComparison.Ordinal) &&
+                                     session.Target.Length > 2;
+
+                if (!isTrivial || !hasRealTarget)
                 {
-                    session.Target = latestReq;
-                    session.StartTime = DateTime.Now;
-                    session.State = TurnState.Processing;
-                    session.ToolCount = 0;
-                    session.WindowStart = DateTime.Now;
-                    session.Version++;
-                    session.ActiveStep = 0;
-                    session.TotalSteps = 0;
-                    session.StepDescription = "";
-                    session.LastToolAction = "";
+                    if (isTrivial && !hasRealTarget && !string.IsNullOrEmpty(filePath))
+                    {
+                        string preceding = FindLatestUserRequestInFile(filePath, jsonSerializer);
+                        if (!string.IsNullOrEmpty(preceding) && !IsTrivialConfirmation(preceding))
+                        {
+                            session.Target = preceding;
+                        }
+                        else
+                        {
+                            session.Target = latestReq;
+                        }
+                    }
+                    else
+                    {
+                        session.Target = latestReq;
+                    }
                 }
+
+                session.StartTime = DateTime.Now;
+                session.State = TurnState.Processing;
+                session.ToolCount = 0;
+                session.WindowStart = DateTime.Now;
+                session.Version++;
+                session.ActiveStep = 0;
+                session.TotalSteps = 0;
+                session.StepDescription = "";
+                session.LastToolAction = "";
             }
         }
         else if (string.IsNullOrEmpty(session.Target) && !string.IsNullOrEmpty(filePath))
         {
-            try
+            string found = FindLatestUserRequestInFile(filePath, jsonSerializer);
+            if (!string.IsNullOrEmpty(found))
             {
-                List<string> head = ReadHeadJsonLines(filePath, 8192);
-                for (int i = 0; i < head.Count; i++)
+                lock (syncLock)
                 {
-                    Dictionary<string, object> d = jsonSerializer.Deserialize<Dictionary<string, object>>(head[i]);
-                    string req = ExtractUserRequest(d);
-                    if (!string.IsNullOrEmpty(req))
-                    {
-                        lock (syncLock)
-                        {
-                            session.Target = req;
-                            session.StartTime = DateTime.Now;
-                        }
-                        break;
-                    }
+                    session.Target = found;
+                    session.StartTime = DateTime.Now;
                 }
             }
-            catch { }
         }
 
         // 2. Scan recent lines backwards for step progress / TODO updates and active tool action in this turn
@@ -543,7 +579,18 @@ internal sealed class AgentSessionWatcher : IDisposable
         {
             lock (syncLock)
             {
-                session.Target = userReq;
+                bool isTrivial = IsTrivialConfirmation(userReq);
+                bool hasRealTarget = !string.IsNullOrEmpty(session.Target) &&
+                                     !session.Target.Equals("当前会话", StringComparison.Ordinal) &&
+                                     !session.Target.Equals("当前任务", StringComparison.Ordinal) &&
+                                     !session.Target.Equals("Session", StringComparison.Ordinal) &&
+                                     !session.Target.Equals("Task", StringComparison.Ordinal) &&
+                                     session.Target.Length > 2;
+
+                if (!isTrivial || !hasRealTarget)
+                {
+                    session.Target = userReq;
+                }
                 session.StartTime = DateTime.Now;
                 session.State = TurnState.Processing;
                 session.ToolCount = 0;
@@ -554,8 +601,9 @@ internal sealed class AgentSessionWatcher : IDisposable
                 session.StepDescription = "";
                 session.LastToolAction = "";
             }
+            string planDesc = isZh ? "💭 正在分析需求与规划方案..." : "💭 Analyzing request & planning...";
             string msg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
-            appContext.SetAgentTaskMessage(msg, agentName, true, null, null, -1f, session.ProjectHint);
+            appContext.SetAgentTaskMessage(msg, agentName, true, planDesc, null, -1f, session.ProjectHint);
             return;
         }
 
@@ -650,9 +698,10 @@ internal sealed class AgentSessionWatcher : IDisposable
         }
 
         // 4. Processing Phase: Tool calls or Thinking
-        // Runaway loop watchdog (> 25 calls in 90s)
+        // Runaway loop watchdog (> 60 calls in 90s)
         DateTime nowDate = DateTime.Now;
         int count = 1;
+        bool isGenericOutput = data.ContainsKey("type") && "GENERIC".Equals(data["type"]);
         string toolSummary = ExtractToolSummary(data, isZh);
 
         lock (syncLock)
@@ -719,17 +768,29 @@ internal sealed class AgentSessionWatcher : IDisposable
         }
 
         string subDetail;
-        if (!string.IsNullOrEmpty(toolSummary))
-        {
-            subDetail = isZh ? ("正在执行: " + toolSummary) : ("Running: " + toolSummary);
-        }
-        else if (!string.IsNullOrEmpty(stepProgressText))
+        if (!string.IsNullOrEmpty(stepProgressText))
         {
             subDetail = isZh ? ("正在执行: " + stepProgressText) : ("Running: " + stepProgressText);
         }
+        else if (isGenericOutput)
+        {
+            // Tool execution finished; model is now analyzing output & planning next step
+            if (!string.IsNullOrEmpty(toolSummary))
+            {
+                subDetail = isZh ? ("💭 已完成 " + toolSummary + "，正在分析...") : ("💭 Finished " + toolSummary + ", analyzing...");
+            }
+            else
+            {
+                subDetail = isZh ? "💭 正在分析工具结果与构思下一步..." : "💭 Analyzing tool results & planning next step...";
+            }
+        }
+        else if (!string.IsNullOrEmpty(toolSummary))
+        {
+            subDetail = isZh ? ("正在执行: " + toolSummary) : ("Running: " + toolSummary);
+        }
         else
         {
-            subDetail = null;
+            subDetail = isZh ? "💭 思考分析与规划中..." : "💭 Thinking & planning...";
         }
 
         string procMsg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
@@ -976,7 +1037,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         }
 
         // 5. Subagent / Task delegation
-        if (lowerName.Contains("subagent") || lowerName.Contains("task"))
+        if (lowerName == "invoke_subagent" || lowerName.Contains("subagent") || lowerName.Contains("task"))
         {
             string role = null;
             if (args != null)
@@ -985,7 +1046,24 @@ internal sealed class AgentSessionWatcher : IDisposable
                 else if (args.ContainsKey("TypeName")) role = CleanToolParam(args["TypeName"]);
             }
             if (!string.IsNullOrEmpty(role))
-                return isZh ? ("子任务: " + role) : ("Subtask: " + role);
+                return isZh ? ("调度: " + role) : ("Subagent: " + role);
+            return isZh ? "调度子智能体" : "Invoke subagent";
+        }
+        if (lowerName == "manage_subagents" || lowerName.Contains("manage_subagent"))
+        {
+            string act = null;
+            if (args != null && args.ContainsKey("Action")) act = CleanToolParam(args["Action"]);
+            return isZh ? ("管理智能体" + (!string.IsNullOrEmpty(act) ? (": " + act) : "")) : ("Manage subagents" + (!string.IsNullOrEmpty(act) ? (": " + act) : ""));
+        }
+        if (lowerName == "send_message")
+        {
+            return isZh ? "发送协作消息" : "Send message";
+        }
+        if (lowerName.Contains("marketplace"))
+        {
+            string q = null;
+            if (args != null && args.ContainsKey("queries")) q = CleanToolParam(args["queries"]);
+            return isZh ? ("检索插件" + (!string.IsNullOrEmpty(q) ? (": " + q) : "")) : ("Search marketplace" + (!string.IsNullOrEmpty(q) ? (": " + q) : ""));
         }
 
         // 6. Generic friendly name fallbacks
