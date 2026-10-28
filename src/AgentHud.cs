@@ -67,6 +67,19 @@ internal sealed class AgentTaskStatusHud : Form
     private Form snapGuideForm;
     private Bitmap renderBitmap;
     private byte[] premulBuffer;
+    private Font cachedBadgeFont;
+    private Font cachedTitleFont;
+    private float cachedTitleFontSize = -1f;
+    private Font cachedSubFont;
+    private Font cachedCloseFont;
+    private SolidBrush cachedTitleBrush;
+    private SolidBrush cachedSubBrush;
+    private Pen cachedBorderNormal;
+    private Pen cachedBorderHover;
+    private Pen cachedDividerPen;
+    private StringFormat cachedTitleFormat;
+    private StringFormat cachedSubFormat;
+    private StringFormat cachedCenterFormat;
 
     private Timer heartbeatTimer;
     private bool isHovered;
@@ -105,7 +118,7 @@ internal sealed class AgentTaskStatusHud : Form
         base.OnFormClosed(e);
         if (heartbeatTimer != null) { heartbeatTimer.Stop(); heartbeatTimer.Dispose(); heartbeatTimer = null; }
         if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
-        if (snapGuideForm != null) { snapGuideForm.Dispose(); snapGuideForm = null; }
+        if (snapGuideForm != null) { snapGuideForm.Dispose(); snapGuideForm = null; } CleanupCachedGdiObjects();
     }
 
     private void OnHeartbeatTick(object sender, EventArgs e)
@@ -446,17 +459,18 @@ internal sealed class AgentTaskStatusHud : Form
         int unitH = isHovered ? ExpandedHeight : CollapsedHeight;
         Point clientCursor = PointToClient(Cursor.Position);
 
-        using (Font badgeFont = new Font("Microsoft YaHei UI", 7.5f, FontStyle.Bold, GraphicsUnit.Point))
-        using (Font titleFont = new Font("Microsoft YaHei UI", fs, FontStyle.Regular, GraphicsUnit.Point))
-        using (Font subFont = new Font("Microsoft YaHei UI", 8.5f, FontStyle.Regular, GraphicsUnit.Point))
-        using (Font closeFont = new Font("Segoe UI", 7.5f, FontStyle.Regular, GraphicsUnit.Point))
-        using (SolidBrush titleBrush = new SolidBrush(ColorTitleText))
-        using (SolidBrush subBrush = new SolidBrush(ColorSubDetail))
-        using (Pen borderPen = new Pen(isHovered ? ColorBorderHover : ColorBorderNormal, 1.0f))
-        using (Pen dividerPen = new Pen(Color.FromArgb(30, 255, 255, 255), 1.0f))
-        using (StringFormat titleFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
-        using (StringFormat subFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap })
-        using (StringFormat centerFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+        EnsureCachedGdiObjects(fs);
+        Font badgeFont = cachedBadgeFont;
+        Font titleFont = cachedTitleFont;
+        Font subFont = cachedSubFont;
+        Font closeFont = cachedCloseFont;
+        SolidBrush titleBrush = cachedTitleBrush;
+        SolidBrush subBrush = cachedSubBrush;
+        Pen borderPen = isHovered ? cachedBorderHover : cachedBorderNormal;
+        Pen dividerPen = cachedDividerPen;
+        StringFormat titleFormat = cachedTitleFormat;
+        StringFormat subFormat = cachedSubFormat;
+        StringFormat centerFormat = cachedCenterFormat;
         {
             double pulse = (DateTime.Now.Ticks / 10000000.0) * Math.PI * 1.5;
 
@@ -847,5 +861,31 @@ internal sealed class AgentTaskStatusHud : Form
         string s = rawName.Trim();
         if (s.Length <= 6) return s;
         return s.Substring(0, 5) + "…";
+    }
+    private void EnsureCachedGdiObjects(float fs)
+    {
+        if (cachedBadgeFont == null) cachedBadgeFont = new Font("Microsoft YaHei UI", 7.5f, FontStyle.Bold, GraphicsUnit.Point);
+        if (cachedTitleFont == null || Math.Abs(cachedTitleFontSize - fs) > 0.01f)
+        {
+            if (cachedTitleFont != null) cachedTitleFont.Dispose();
+            cachedTitleFont = new Font("Microsoft YaHei UI", fs, FontStyle.Regular, GraphicsUnit.Point);
+            cachedTitleFontSize = fs;
+        }
+        if (cachedSubFont == null) cachedSubFont = new Font("Microsoft YaHei UI", 8.5f, FontStyle.Regular, GraphicsUnit.Point);
+        if (cachedCloseFont == null) cachedCloseFont = new Font("Segoe UI", 7.5f, FontStyle.Regular, GraphicsUnit.Point);
+        if (cachedTitleBrush == null) cachedTitleBrush = new SolidBrush(ColorTitleText);
+        if (cachedSubBrush == null) cachedSubBrush = new SolidBrush(ColorSubDetail);
+        if (cachedBorderNormal == null) cachedBorderNormal = new Pen(ColorBorderNormal, 1.0f);
+        if (cachedBorderHover == null) cachedBorderHover = new Pen(ColorBorderHover, 1.0f);
+        if (cachedDividerPen == null) cachedDividerPen = new Pen(Color.FromArgb(30, 255, 255, 255), 1.0f);
+        if (cachedTitleFormat == null) cachedTitleFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
+        if (cachedSubFormat == null) cachedSubFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
+        if (cachedCenterFormat == null) cachedCenterFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+    }
+
+    private void CleanupCachedGdiObjects()
+    {
+        IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedTitleFont, cachedSubFont, cachedCloseFont, cachedTitleBrush, cachedSubBrush, cachedBorderNormal, cachedBorderHover, cachedDividerPen, cachedTitleFormat, cachedSubFormat, cachedCenterFormat };
+        for (int i = 0; i < d.Length; i++) if (d[i] != null) try { d[i].Dispose(); } catch { }
     }
 }

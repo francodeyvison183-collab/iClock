@@ -167,6 +167,7 @@ internal sealed class AppContext : ApplicationContext
         return false;
     }
     private Timer hudClearDeferTimer;
+    private System.Threading.Timer memTrimTimer;
     private bool hudClearPending;
     private NotifyIcon tray;
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuLanguage, menuLangZh, menuLangEn, menuAbout, menuExit, menuUpdate;
@@ -445,12 +446,8 @@ internal sealed class AppContext : ApplicationContext
             ShowSettings();
         };
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
-        Timer startupTrim = new Timer(); startupTrim.Interval = 5000;
-        startupTrim.Tick += delegate { startupTrim.Stop(); startupTrim.Dispose(); TrimMemory(); };
-        startupTrim.Start();
-        Timer memTrim = new Timer(); memTrim.Interval = 30000;
-        memTrim.Tick += delegate { if (Process.GetCurrentProcess().WorkingSet64 > 12L * 1024 * 1024) TrimMemory(); };
-        memTrim.Start();
+        new System.Threading.Timer(delegate { TrimMemory(); }, null, 3500, System.Threading.Timeout.Infinite);
+        memTrimTimer = new System.Threading.Timer(delegate { if (Process.GetCurrentProcess().WorkingSet64 > 12L * 1024 * 1024) TrimMemory(); }, null, 8000, 8000);
         ApplyStartup();
         EnsureStartMenuShortcut(false);
         ResetDisplay();
@@ -4229,7 +4226,7 @@ internal sealed class AppContext : ApplicationContext
         if (usageTracker != null) { try { usageTracker.Stop(); } catch { } usageTracker = null; }
         if (activeEyeCare != null && !activeEyeCare.IsDisposed) { activeEyeCare.Close(); activeEyeCare = null; }
         if (eyeCare != null) { try { eyeCare.Stop(); } catch { } eyeCare = null; }
-        if (trayClickTimer != null) { try { trayClickTimer.Stop(); trayClickTimer.Dispose(); } catch { } trayClickTimer = null; }
+        if (memTrimTimer != null) { try { memTrimTimer.Dispose(); } catch { } memTrimTimer = null; } if (trayClickTimer != null) { try { trayClickTimer.Stop(); trayClickTimer.Dispose(); } catch { } trayClickTimer = null; }
         if (taskStatusHud != null && !taskStatusHud.IsDisposed) { taskStatusHud.Close(); taskStatusHud.Dispose(); taskStatusHud = null; }
         overlay.Close(); overlay.Dispose(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); timer.Dispose(); ExitThread();
     }

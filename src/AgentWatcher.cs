@@ -49,7 +49,7 @@ internal sealed class AgentSessionWatcher : IDisposable
             SyncActiveAgentWatchers();
 
             // Periodic sync (every 3 seconds): zero overhead via Toolhelp process snapshot cache
-            processSyncTimer = new System.Threading.Timer(delegate { SyncActiveAgentWatchers(); }, null, 3000, 3000);
+            processSyncTimer = new System.Threading.Timer(delegate { SyncActiveAgentWatchers(); }, null, 10000, 10000);
         }
         catch { }
     }
@@ -652,6 +652,8 @@ internal sealed class AgentSessionWatcher : IDisposable
             if (l.Contains("\"token_usage_record\"") || l.Contains("\"type\":\"token_count\"") || l.Contains("\"type\": \"token_count\""))
                 continue;
             if (l.Contains("\"type\":\"SYSTEM_MESSAGE\"") || l.Contains("\"type\":\"CHECKPOINT\"") || l.Contains("\"type\": \"SYSTEM_MESSAGE\"") || l.Contains("\"type\": \"CHECKPOINT\""))
+                continue;
+            if (!l.Contains("tool") && !l.Contains("step") && !l.Contains("task") && !l.Contains("cwd") && !l.Contains("work") && !l.Contains("call") && !l.Contains("user") && !l.Contains("prompt"))
                 continue;
             try
             {
