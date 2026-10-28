@@ -401,6 +401,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                 {
                     session.Target = latestReq;
                     session.StartTime = DateTime.Now;
+                    session.State = TurnState.Processing;
                     session.ToolCount = 0;
                     session.WindowStart = DateTime.Now;
                     session.Version++;
@@ -442,6 +443,8 @@ internal sealed class AgentSessionWatcher : IDisposable
             if (l.Contains("\"atis-latch\"") || l.Contains("\"agent-name\"") || l.Contains("\"api-request-blob\"") || l.Contains("\"stop_hook_summary\""))
                 continue;
             if (l.Contains("\"mode\"") && !l.Contains("\"message\""))
+                continue;
+            if (l.Contains("\"type\":\"SYSTEM_MESSAGE\"") || l.Contains("\"type\":\"CHECKPOINT\"") || l.Contains("\"type\": \"SYSTEM_MESSAGE\"") || l.Contains("\"type\": \"CHECKPOINT\""))
                 continue;
             try
             {
@@ -1347,6 +1350,7 @@ internal sealed class AgentSessionWatcher : IDisposable
     internal static string ExtractErrorSummary(Dictionary<string, object> data, bool isZh = true)
     {
         if (data == null) return null;
+        if (data.ContainsKey("type") && "GENERIC".Equals(data["type"])) return null;
         bool isErr = false;
         string errDetail = null;
 
@@ -1402,22 +1406,45 @@ internal sealed class AgentSessionWatcher : IDisposable
 
     private static string ExtractCompletionSummary(Dictionary<string, object> data)
     {
-        // Antigravity format: status == "DONE"
-        if (data.ContainsKey("status") && "DONE".Equals(data["status"]))
+        if (data == null) return null;
+
+        // Tool output lines (GENERIC) are intermediate tool results, never a turn completion
+        if (data.ContainsKey("type") && "GENERIC".Equals(data["type"]))
         {
-            if (data.ContainsKey("content") && data["content"] != null)
-            {
-                string c = data["content"].ToString().Trim();
-                if (!string.IsNullOrEmpty(c)) return c;
-            }
-            if (data.ContainsKey("result") && data["result"] != null)
-            {
-                return data["result"].ToString().Trim();
-            }
-            return "Task completed.";
+            return null;
         }
 
-        // Claude Code format: assistant message with stop_reason == "end_turn" or "stop_sequence"
+        // 1. Antigravity format:
+        // Must be PLANNER_RESPONSE with status == "DONE" and NO active tool_calls.
+        // If tool_calls has elements, the agent is executing tools (Processing), NOT finished!
+        if (data.ContainsKey("type") && "PLANNER_RESPONSE".Equals(data["type"]) &&
+            data.ContainsKey("status") && "DONE".Equals(data["status"]))
+        {
+            bool hasToolCalls = false;
+            if (data.ContainsKey("tool_calls") && data["tool_calls"] != null)
+            {
+                IList tc = data["tool_calls"] as IList;
+                if (tc != null && tc.Count > 0) hasToolCalls = true;
+            }
+
+            if (!hasToolCalls)
+            {
+                if (data.ContainsKey("content") && data["content"] != null)
+                {
+                    string c = data["content"].ToString().Trim();
+                    if (!string.IsNullOrEmpty(c)) return c;
+                }
+                if (data.ContainsKey("result") && data["result"] != null)
+                {
+                    string r = data["result"].ToString().Trim();
+                    if (!string.IsNullOrEmpty(r)) return r;
+                }
+                return "Task completed.";
+            }
+        }
+
+        // 2. Claude Code format: assistant message with stop_reason == "end_turn" or "stop_sequence"
+        // and NO tool_use in message.content
         if (data.ContainsKey("type") && "assistant".Equals(data["type"]))
         {
             if (data.ContainsKey("message"))
@@ -1445,7 +1472,8 @@ internal sealed class AgentSessionWatcher : IDisposable
                                     if ("text".Equals(part["type"]) && part.ContainsKey("text")) text = part["text"] as string;
                                 }
                             }
-                            if (!hasTool && !string.IsNullOrEmpty(text))
+                            if (hasTool) return null; // Tool use in progress, not end of turn!
+                            if (!string.IsNullOrEmpty(text))
                             {
                                 return text;
                             }
@@ -1455,9 +1483,9 @@ internal sealed class AgentSessionWatcher : IDisposable
                 }
             }
         }
+
         return null;
     }
-
 
     internal static string CleanSummaryText(string text)
     {

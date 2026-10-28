@@ -3769,6 +3769,50 @@ internal static class TestCheck
                     }
                 }
 
+                MethodInfo mExtractComp = agentWatcherType.GetMethod("ExtractCompletionSummary", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mExtractComp != null)
+                {
+                    // Case A: tool call with status DONE (must NOT complete)
+                    var toolCallObj = new Dictionary<string, object> { { "name", "run_command" } };
+                    var dTool = new Dictionary<string, object> {
+                        { "type", "PLANNER_RESPONSE" },
+                        { "status", "DONE" },
+                        { "tool_calls", new ArrayList { toolCallObj } }
+                    };
+                    string cTool = (string)mExtractComp.Invoke(null, new object[] { dTool });
+                    if (cTool != null)
+                    {
+                        Console.WriteLine("FAIL: ExtractCompletionSummary must be null for PLANNER_RESPONSE with tool_calls");
+                        return 66;
+                    }
+
+                    // Case B: tool output GENERIC with status DONE (must NOT complete)
+                    var dGeneric = new Dictionary<string, object> {
+                        { "type", "GENERIC" },
+                        { "status", "DONE" },
+                        { "content", "Command exited with code 0" }
+                    };
+                    string cGen = (string)mExtractComp.Invoke(null, new object[] { dGeneric });
+                    if (cGen != null)
+                    {
+                        Console.WriteLine("FAIL: ExtractCompletionSummary must be null for GENERIC tool output");
+                        return 66;
+                    }
+
+                    // Case C: true completion (MUST complete)
+                    var dDone = new Dictionary<string, object> {
+                        { "type", "PLANNER_RESPONSE" },
+                        { "status", "DONE" },
+                        { "content", "Task finished successfully." }
+                    };
+                    string cDone = (string)mExtractComp.Invoke(null, new object[] { dDone });
+                    if (cDone != "Task finished successfully.")
+                    {
+                        Console.WriteLine("FAIL: ExtractCompletionSummary failed on true completion: " + cDone);
+                        return 66;
+                    }
+                }
+
                 Console.WriteLine("PASS: AI collaboration 5-in-1 upgrades (HITL feedback perception, error state distinction, project hint routing) verified.");
             }
 
