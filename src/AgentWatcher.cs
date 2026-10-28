@@ -306,13 +306,13 @@ internal sealed class AgentSessionWatcher : IDisposable
         // Active CLI overrides passive watcher
         if (appContext != null && appContext.HasRecentCliActivity(agentName)) return;
 
-        List<string> lines = ReadRecentJsonLines(fullPath, 262144);
+        List<string> lines = ReadRecentJsonLines(fullPath, 65536);
         if (lines == null || lines.Count == 0) return;
 
         DispatchParsedEvents(lines, fullPath, agentName);
     }
 
-    internal static List<string> ReadRecentJsonLines(string path, int maxBytes = 131072)
+    internal static List<string> ReadRecentJsonLines(string path, int maxBytes = 65536)
     {
         List<string> result = new List<string>();
         try
@@ -320,7 +320,7 @@ internal sealed class AgentSessionWatcher : IDisposable
             using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
             {
                 if (fs.Length == 0) return result;
-                long seekLen = Math.Min(fs.Length, maxBytes);
+                long seekLen = Math.Min(fs.Length, Math.Min(maxBytes, 65536));
                 fs.Seek(-seekLen, SeekOrigin.End);
                 byte[] buffer = new byte[seekLen];
                 int bytesRead = fs.Read(buffer, 0, (int)seekLen);
@@ -366,26 +366,57 @@ internal sealed class AgentSessionWatcher : IDisposable
         if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return null;
         try
         {
-            List<string> lines = ReadRecentJsonLines(filePath, 4194304);
-            string lastTrivial = null;
-            for (int i = lines.Count - 1; i >= 0; i--)
+            using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
             {
-                try
+                long flen = fs.Length;
+                if (flen == 0) return null;
+
+                byte[] buf = new byte[65536];
+                long maxScan = Math.Min(flen, 2097152L);
+                long readEnd = flen;
+                string lastTrivial = null;
+
+                while (readEnd > 0 && (flen - readEnd) < maxScan)
                 {
-                    Dictionary<string, object> d = serializer.Deserialize<Dictionary<string, object>>(lines[i]);
-                    string req = ExtractUserRequest(d);
-                    if (!string.IsNullOrEmpty(req))
+                    long chunkStart = Math.Max(0, readEnd - buf.Length);
+                    int toRead = (int)(readEnd - chunkStart);
+                    fs.Seek(chunkStart, SeekOrigin.Begin);
+                    int bytesRead = fs.Read(buf, 0, toRead);
+                    if (bytesRead <= 0) break;
+
+                    string chunkText = Encoding.UTF8.GetString(buf, 0, bytesRead);
+                    string[] lines = chunkText.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    for (int i = lines.Length - 1; i >= 0; i--)
                     {
-                        if (!IsTrivialConfirmation(req))
+                        string line = lines[i].Trim().Trim('\uFEFF');
+                        if (!line.StartsWith("{") || !line.EndsWith("}")) continue;
+
+                        if (line.IndexOf("user", StringComparison.OrdinalIgnoreCase) < 0 &&
+                            line.IndexOf("prompt", StringComparison.OrdinalIgnoreCase) < 0 &&
+                            line.IndexOf("USER_INPUT", StringComparison.Ordinal) < 0)
                         {
-                            return req;
+                            continue;
                         }
-                        if (lastTrivial == null) lastTrivial = req;
+
+                        try
+                        {
+                            Dictionary<string, object> d = serializer.Deserialize<Dictionary<string, object>>(line);
+                            string req = ExtractUserRequest(d);
+                            if (!string.IsNullOrEmpty(req))
+                            {
+                                if (!IsTrivialConfirmation(req)) return req;
+                                if (lastTrivial == null) lastTrivial = req;
+                            }
+                        }
+                        catch { }
                     }
+
+                    if (lastTrivial != null) return lastTrivial;
+                    readEnd = chunkStart;
                 }
-                catch { }
+                return lastTrivial;
             }
-            return lastTrivial;
         }
         catch { }
         return null;
@@ -533,9 +564,16 @@ internal sealed class AgentSessionWatcher : IDisposable
         string latestReq = null;
         for (int i = lines.Count - 1; i >= 0; i--)
         {
+            string l = lines[i];
+            if (l.IndexOf("user", StringComparison.OrdinalIgnoreCase) < 0 &&
+                l.IndexOf("prompt", StringComparison.OrdinalIgnoreCase) < 0 &&
+                l.IndexOf("USER_INPUT", StringComparison.Ordinal) < 0)
+            {
+                continue;
+            }
             try
             {
-                Dictionary<string, object> d = jsonSerializer.Deserialize<Dictionary<string, object>>(lines[i]);
+                Dictionary<string, object> d = jsonSerializer.Deserialize<Dictionary<string, object>>(l);
                 string req = ExtractUserRequest(d);
                 if (!string.IsNullOrEmpty(req))
                 {
@@ -829,6 +867,7 @@ internal sealed class AgentSessionWatcher : IDisposable
             string cleanCompletion = CleanSummaryText(completionSummary);
             appContext.SetAgentTaskMessage(msg, agentName, false, cleanCompletion, null, -2f, session.ProjectHint);
             ScheduleClearProgress(agentName, currentVer, 600000); // Keep completed state visible for 10 minutes so user always sees the result
+            AppContext.TrimMemory();
             return;
         }
 

@@ -267,7 +267,16 @@ internal sealed class AppContext : ApplicationContext
             GC.Collect(2, GCCollectionMode.Forced);
             GC.WaitForPendingFinalizers();
             GC.Collect(2, GCCollectionMode.Forced);
-            NativeMethods.EmptyWorkingSet(Process.GetCurrentProcess().Handle);
+            IntPtr hProc = NativeMethods.OpenProcess(0x0500, false, Process.GetCurrentProcess().Id);
+            if (hProc != IntPtr.Zero)
+            {
+                NativeMethods.EmptyWorkingSet(hProc);
+                NativeMethods.CloseHandle(hProc);
+            }
+            else
+            {
+                NativeMethods.EmptyWorkingSet(Process.GetCurrentProcess().Handle);
+            }
         }
         catch { }
     }
@@ -436,11 +445,11 @@ internal sealed class AppContext : ApplicationContext
             ShowSettings();
         };
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
-        Timer startupTrim = new Timer(); startupTrim.Interval = 3500;
+        Timer startupTrim = new Timer(); startupTrim.Interval = 5000;
         startupTrim.Tick += delegate { startupTrim.Stop(); startupTrim.Dispose(); TrimMemory(); };
         startupTrim.Start();
-        Timer memTrim = new Timer(); memTrim.Interval = 300000;
-        memTrim.Tick += delegate { if (Process.GetCurrentProcess().WorkingSet64 > 8L * 1024 * 1024) TrimMemory(); };
+        Timer memTrim = new Timer(); memTrim.Interval = 30000;
+        memTrim.Tick += delegate { if (Process.GetCurrentProcess().WorkingSet64 > 12L * 1024 * 1024) TrimMemory(); };
         memTrim.Start();
         ApplyStartup();
         EnsureStartMenuShortcut(false);
