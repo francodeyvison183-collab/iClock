@@ -42,7 +42,6 @@ internal sealed class AgentTaskStatusHud : Form
     private const int MinHudWidth = 200;
     private const int MaxHudWidth = 1400;
     private const int CollapsedHeight = 28;
-    private const int ExpandedHeight = 48;
 
     // Standardized typography & state color palette (Option A)
     private static readonly Color ColorBg = Color.FromArgb(235, 18, 20, 24);              // Deep acrylic glass #121418
@@ -68,9 +67,7 @@ internal sealed class AgentTaskStatusHud : Form
     private Font cachedBadgeFont;
     private Font cachedTitleFont;
     private float cachedTitleFontSize = -1f;
-    private Font cachedSubFont;
     private SolidBrush cachedTitleBrush;
-    private SolidBrush cachedSubBrush;
     private Pen cachedBorderNormal;
     private Pen cachedBorderHover;
     private StringFormat cachedTitleFormat;
@@ -210,7 +207,7 @@ internal sealed class AgentTaskStatusHud : Form
             {
                 isHovered = true;
                 hoverChanged = true;
-                UpdateLayoutAndSize();
+                RenderLayeredWindow();
             }
         }
         else
@@ -220,7 +217,7 @@ internal sealed class AgentTaskStatusHud : Form
             {
                 isHovered = false;
                 hoverChanged = true;
-                UpdateLayoutAndSize();
+                RenderLayeredWindow();
             }
         }
 
@@ -336,8 +333,7 @@ internal sealed class AgentTaskStatusHud : Form
         if (active.Count == 0) return;
         if (currentAgentIndex >= active.Count) currentAgentIndex = Math.Max(0, active.Count - 1);
 
-        int cardH = isHovered ? ExpandedHeight : CollapsedHeight;
-        int totalH = cardH + (active.Count > 1 ? 14 : 0);
+        int totalH = CollapsedHeight + (active.Count > 1 ? 20 : 0);
 
         if (Height != totalH || Width != CurrentWidth)
         {
@@ -407,7 +403,7 @@ internal sealed class AgentTaskStatusHud : Form
     {
         Color c; string label;
         GetAgentBadge(name, out c, out label);
-        return Math.Max(42f, (label != null ? label.Length : 2) * 8.5f + 18f);
+        return Math.Max(48f, (label != null ? label.Length : 2) * 10f + 20f);
     }
 
     private int GetIndicatorDotIndex(Point pt, int cardH)
@@ -418,13 +414,13 @@ internal sealed class AgentTaskStatusHud : Form
         if (count <= 1) return -1;
         float totalW = 0f;
         for (int i = 0; i < count; i++) totalW += GetPillWidth(active[i].AgentName);
-        totalW += (count - 1) * 6f;
+        totalW += (count - 1) * 8f;
         float curX = (Width - totalW) / 2f;
         for (int i = 0; i < count; i++)
         {
             float pillW = GetPillWidth(active[i].AgentName);
-            if (pt.X >= curX - 2 && pt.X <= curX + pillW + 2 && pt.Y >= cardH && pt.Y <= cardH + 14) return i;
-            curX += pillW + 6f;
+            if (pt.X >= curX - 2 && pt.X <= curX + pillW + 2 && pt.Y >= cardH && pt.Y <= cardH + 20) return i;
+            curX += pillW + 8f;
         }
         return -1;
     }
@@ -434,7 +430,7 @@ internal sealed class AgentTaskStatusHud : Form
         var active = GetActiveTasks();
         if (active.Count == 0) return;
         if (currentAgentIndex >= active.Count) currentAgentIndex = 0;
-        int cardH = isHovered ? ExpandedHeight : CollapsedHeight;
+        int cardH = CollapsedHeight;
 
         // Bottom indicator click
         int dotIdx = GetIndicatorDotIndex(e.Location, cardH);
@@ -488,7 +484,7 @@ internal sealed class AgentTaskStatusHud : Form
     {
         if (!moving && !resizingWidth)
         {
-            int cardH = isHovered ? ExpandedHeight : CollapsedHeight;
+            int cardH = CollapsedHeight;
             if (e.X >= Width - 8 && e.Y < cardH)
             {
                 if (Cursor.Current != Cursors.SizeWE) Cursor.Current = Cursors.SizeWE;
@@ -540,7 +536,7 @@ internal sealed class AgentTaskStatusHud : Form
         if (Math.Abs(Cursor.Position.X - dragStart.X) < 4 && Math.Abs(Cursor.Position.Y - dragStart.Y) < 4)
         {
             var active = GetActiveTasks();
-            int cardH = isHovered ? ExpandedHeight : CollapsedHeight;
+            int cardH = CollapsedHeight;
             if (e.Y < cardH && active.Count > 0)
             {
                 if (currentAgentIndex >= active.Count) currentAgentIndex = 0;
@@ -596,28 +592,26 @@ internal sealed class AgentTaskStatusHud : Form
         if (currentAgentIndex >= active.Count) currentAgentIndex = 0;
 
         float fs = settings != null && settings.TaskStatusFontSize > 0 ? settings.TaskStatusFontSize : 9.5f;
-        int unitH = isHovered ? ExpandedHeight : CollapsedHeight;
+        int unitH = CollapsedHeight;
         Point clientCursor = PointToClient(Cursor.Position);
 
         EnsureCachedGdiObjects(fs);
         Font badgeFont = cachedBadgeFont;
         Font titleFont = cachedTitleFont;
-        Font subFont = cachedSubFont;
         SolidBrush titleBrush = cachedTitleBrush;
-        SolidBrush subBrush = cachedSubBrush;
         Pen borderPen = isHovered ? cachedBorderHover : cachedBorderNormal;
         StringFormat titleFormat = cachedTitleFormat;
         StringFormat centerFormat = cachedCenterFormat;
 
         double pulse = (DateTime.Now.Ticks / 10000000.0) * Math.PI * 1.5;
 
-        // Render single active card
+        // Render single active card (Fixed 28px single row)
         AgentTaskStatus task = active[currentAgentIndex];
         int cardY = 0;
         Rectangle cardRect = new Rectangle(0, cardY, Width - 1, unitH - 1);
 
         // 1. Fluent Acrylic Pill Background
-        using (GraphicsPath path = AppContext.GetRoundedRectPath(cardRect, isHovered ? 10 : 14))
+        using (GraphicsPath path = AppContext.GetRoundedRectPath(cardRect, 14))
         using (SolidBrush bgBrush = new SolidBrush(ColorBg))
         {
             g.FillPath(bgBrush, path);
@@ -643,7 +637,7 @@ internal sealed class AgentTaskStatusHud : Form
         Color statusColor = isCompleted ? ColorDone : (isError ? ColorError : (isWaiting ? ColorWaiting : ColorRunning));
 
         // 2. Agent Brand Badge (Only in single-agent mode; multi-agent has branded pills below)
-        float textX = 12f;
+        float textX = 10f;
         if (!isMulti)
         {
             Color badgeColor;
@@ -651,7 +645,7 @@ internal sealed class AgentTaskStatusHud : Form
             GetAgentBadge(task.AgentName, out badgeColor, out badgeLabel);
 
             SizeF badgeTextSize = g.MeasureString(badgeLabel, badgeFont);
-            float badgeW = Math.Max(30f, badgeTextSize.Width + 10f);
+            float badgeW = Math.Max(32f, badgeTextSize.Width + 12f);
             RectangleF badgeRect = new RectangleF(8f, cardY + 5f, badgeW, 18f);
 
             using (GraphicsPath badgePath = AppContext.GetRoundedRectPath(Rectangle.Round(badgeRect), 4))
@@ -666,29 +660,45 @@ internal sealed class AgentTaskStatusHud : Form
             textX = badgeRect.Right + 8f;
         }
 
-        // 3. Row 1: Live Dynamic Action + Project (Inverted hierarchy)
-        string projPrefix = !string.IsNullOrEmpty(task.ProjectHint) ? ("[" + task.ProjectHint + "] ") : "";
-        string liveAction = task.SubDetail;
-        if (string.IsNullOrEmpty(liveAction))
+        // 3. Eye-catching Project Hint Chip (Distinctive styling)
+        if (!string.IsNullOrEmpty(task.ProjectHint))
         {
-            if (!string.IsNullOrEmpty(task.StepProgress)) liveAction = "[" + task.StepProgress + "]";
-            else
+            string pName = task.ProjectHint;
+            SizeF pSize = g.MeasureString(pName, badgeFont);
+            float pW = Math.Max(26f, pSize.Width + 10f);
+            RectangleF pRect = new RectangleF(textX, cardY + 5f, pW, 18f);
+
+            Color pColor = Color.FromArgb(56, 189, 248);
+            using (GraphicsPath pPath = AppContext.GetRoundedRectPath(Rectangle.Round(pRect), 4))
+            using (SolidBrush pBg = new SolidBrush(Color.FromArgb(40, pColor)))
+            using (Pen pBorder = new Pen(Color.FromArgb(110, pColor), 1f))
+            using (SolidBrush pTextBrush = new SolidBrush(pColor))
             {
-                string target = ExtractGoal(task.Message);
-                liveAction = !string.IsNullOrEmpty(target) ? target : "";
+                g.FillPath(pBg, pPath);
+                g.DrawPath(pBorder, pPath);
+                g.DrawString(pName, badgeFont, pTextBrush, pRect, centerFormat);
             }
+            textX = pRect.Right + 8f;
         }
-        if (isCompleted && !string.IsNullOrEmpty(liveAction) && !liveAction.StartsWith("✅"))
+
+        // 4. Main Line Content: Three-State Dispatch (Live Action default, Title on Hover & Done)
+        string targetGoal = ExtractGoal(task.Message);
+        string mainText;
+
+        if (isCompleted)
         {
-            liveAction = "✅ " + liveAction;
+            mainText = !string.IsNullOrEmpty(targetGoal) ? targetGoal : task.SubDetail;
+            if (!string.IsNullOrEmpty(mainText) && !mainText.StartsWith("✅")) mainText = "✅ " + mainText;
         }
-        else if (isWaiting && !string.IsNullOrEmpty(liveAction) && !liveAction.StartsWith("❓"))
+        else if (isHovered)
         {
-            liveAction = "❓ " + liveAction;
+            mainText = !string.IsNullOrEmpty(targetGoal) ? ("🎯 " + targetGoal) : task.SubDetail;
         }
-        else if (isError && !string.IsNullOrEmpty(liveAction) && !liveAction.StartsWith("⚠️"))
+        else
         {
-            liveAction = "⚠️ " + liveAction;
+            mainText = !string.IsNullOrEmpty(task.SubDetail) ? task.SubDetail : targetGoal;
+            if (isWaiting && !string.IsNullOrEmpty(mainText) && !mainText.StartsWith("❓")) mainText = "❓ " + mainText;
+            else if (isError && !string.IsNullOrEmpty(mainText) && !mainText.StartsWith("⚠️")) mainText = "⚠️ " + mainText;
         }
 
         string timeBadge = "";
@@ -698,7 +708,7 @@ internal sealed class AgentTaskStatusHud : Form
             if (elapsedSec >= 1) timeBadge = " (" + FormatElapsed(elapsedSec) + ")";
         }
 
-        string textToDraw = projPrefix + liveAction + timeBadge;
+        string textToDraw = (!string.IsNullOrEmpty(mainText) ? mainText : "") + timeBadge;
         float textW = Math.Max(40f, (ringCenterX - 10f) - textX);
         RectangleF titleRect = new RectangleF(textX, cardY + 4f, textW, 20f);
         g.DrawString(textToDraw, titleFont, titleBrush, titleRect, titleFormat);
@@ -799,28 +809,16 @@ internal sealed class AgentTaskStatusHud : Form
             }
         }
 
-        // 5. Expanded Micro-Drawer Details (Row 2: Macro Goal)
-        if (isHovered)
-        {
-            g.DrawLine(cachedBorderNormal, 10f, cardY + 26f, Width - 10f, cardY + 26f);
-
-            string goal = ExtractGoal(task.Message);
-            string goalText = !string.IsNullOrEmpty(goal) ? ("🎯 " + goal) : (!string.IsNullOrEmpty(task.ProjectHint) ? ("📁 " + task.ProjectHint) : "");
-            float subW = Math.Max(40f, Width - 10f - textX);
-            RectangleF subRect = new RectangleF(textX, cardY + 27f, subW, 17f);
-            g.DrawString(goalText, subFont, subBrush, subRect, titleFormat);
-        }
-
-        // 6. Centered Multi-Agent Status Pills Below Card (Only when active.Count > 1)
+        // 5. Centered Multi-Agent Status Pills Below Card (17px height, 9pt font, 8px radius Stadium Pill; current agent only gets capsule background)
         if (isMulti)
         {
             float totalW = 0f;
             for (int i = 0; i < active.Count; i++) totalW += GetPillWidth(active[i].AgentName);
-            totalW += (active.Count - 1) * 6f;
+            totalW += (active.Count - 1) * 8f;
 
             float curX = (Width - totalW) / 2f;
-            int pillY = unitH + 1;
-            int pillH = 12;
+            int pillY = 29;
+            int pillH = 17;
 
             for (int i = 0; i < active.Count; i++)
             {
@@ -837,34 +835,39 @@ internal sealed class AgentTaskStatusHud : Form
                 if (t.HasProgress && !string.IsNullOrEmpty(t.StepProgress)) isDone = false;
                 Color dotColor = isDone ? ColorDone : (isErr ? ColorError : (isWait ? ColorWaiting : ColorRunning));
 
-                using (GraphicsPath pPath = AppContext.GetRoundedRectPath(pillRect, 3))
-                using (SolidBrush pBg = new SolidBrush(isCur ? Color.FromArgb(70, bColor) : Color.FromArgb(32, 255, 255, 255)))
-                using (Pen pBorder = new Pen(isCur ? Color.FromArgb(200, Color.White) : Color.FromArgb(50, 255, 255, 255), 1.0f))
+                if (isCur)
+                {
+                    using (GraphicsPath pPath = AppContext.GetRoundedRectPath(pillRect, 8))
+                    using (SolidBrush pBg = new SolidBrush(Color.FromArgb(70, bColor)))
+                    using (Pen pBorder = new Pen(Color.FromArgb(210, Color.White), 1.0f))
+                    {
+                        g.FillPath(pBg, pPath);
+                        g.DrawPath(pBorder, pPath);
+                    }
+                }
+
                 using (SolidBrush textBrush = new SolidBrush(isCur ? Color.White : Color.FromArgb(170, 203, 213, 225)))
                 {
-                    g.FillPath(pBg, pPath);
-                    g.DrawPath(pBorder, pPath);
-
-                    RectangleF labelRect = new RectangleF(pillRect.X + 4f, pillRect.Y - 1f, pillRect.Width - 14f, pillRect.Height + 2f);
+                    RectangleF labelRect = new RectangleF(pillRect.X + 6f, pillRect.Y, pillRect.Width - 18f, pillRect.Height);
                     g.DrawString(bLabel, badgeFont, textBrush, labelRect, cachedCenterFormat);
 
-                    float dotX = pillRect.Right - 6f;
-                    float dotY = pillRect.Y + pillH / 2f;
+                    float dotX = pillRect.Right - 8f;
+                    float dotY = pillRect.Y + 8.5f;
                     if (isWait || isErr)
                     {
                         float pulseAlpha = (float)(0.3 + 0.7 * ((Math.Sin(pulse * 2.5) + 1.0) / 2.0));
                         using (SolidBrush glow = new SolidBrush(Color.FromArgb((int)(130 * pulseAlpha), dotColor)))
                         {
-                            g.FillEllipse(glow, dotX - 4f, dotY - 4f, 8f, 8f);
+                            g.FillEllipse(glow, dotX - 4.5f, dotY - 4.5f, 9f, 9f);
                         }
                     }
                     using (SolidBrush dotBrush = new SolidBrush(dotColor))
                     {
-                        g.FillEllipse(dotBrush, dotX - 2.2f, dotY - 2.2f, 4.4f, 4.4f);
+                        g.FillEllipse(dotBrush, dotX - 2.5f, dotY - 2.5f, 5.0f, 5.0f);
                     }
                 }
 
-                curX += pillW + 6f;
+                curX += pillW + 8f;
             }
         }
     }
@@ -918,16 +921,14 @@ internal sealed class AgentTaskStatusHud : Form
     }
     private void EnsureCachedGdiObjects(float fs)
     {
-        if (cachedBadgeFont == null) cachedBadgeFont = new Font("Microsoft YaHei UI", 7.5f, FontStyle.Bold, GraphicsUnit.Point);
+        if (cachedBadgeFont == null) cachedBadgeFont = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular, GraphicsUnit.Point);
         if (cachedTitleFont == null || Math.Abs(cachedTitleFontSize - fs) > 0.01f)
         {
             if (cachedTitleFont != null) cachedTitleFont.Dispose();
             cachedTitleFont = new Font("Microsoft YaHei UI", fs, FontStyle.Regular, GraphicsUnit.Point);
             cachedTitleFontSize = fs;
         }
-        if (cachedSubFont == null) cachedSubFont = new Font("Microsoft YaHei UI", 8.5f, FontStyle.Regular, GraphicsUnit.Point);
         if (cachedTitleBrush == null) cachedTitleBrush = new SolidBrush(ColorTitleText);
-        if (cachedSubBrush == null) cachedSubBrush = new SolidBrush(ColorSubDetail);
         if (cachedBorderNormal == null) cachedBorderNormal = new Pen(ColorBorderNormal, 1.0f);
         if (cachedBorderHover == null) cachedBorderHover = new Pen(ColorBorderHover, 1.0f);
         if (cachedTitleFormat == null) cachedTitleFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
@@ -936,7 +937,7 @@ internal sealed class AgentTaskStatusHud : Form
 
     private void CleanupCachedGdiObjects()
     {
-        IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedTitleFont, cachedSubFont, cachedTitleBrush, cachedSubBrush, cachedBorderNormal, cachedBorderHover, cachedTitleFormat, cachedCenterFormat };
+        IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedTitleFont, cachedTitleBrush, cachedBorderNormal, cachedBorderHover, cachedTitleFormat, cachedCenterFormat };
         for (int i = 0; i < d.Length; i++) if (d[i] != null) try { d[i].Dispose(); } catch { }
     }
 }

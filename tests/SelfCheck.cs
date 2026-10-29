@@ -4293,10 +4293,10 @@ internal static class TestCheck
                     testTasks.Add(t2);
                     mSetTasks.Invoke(hudInstance, new object[] { testTasks });
 
-                    // Single-bar height constraint: Collapsed 28px + 14px bottom indicator = 42px (NOT 28*2 = 56px)
-                    if (hudInstance.Height != 42)
+                    // Single-bar height constraint: Collapsed 28px + 20px bottom indicator = 48px
+                    if (hudInstance.Height != 48)
                     {
-                        Console.WriteLine("FAIL: Multi-agent HUD should maintain single bar height 42px, got " + hudInstance.Height);
+                        Console.WriteLine("FAIL: Multi-agent HUD should maintain single bar height 48px, got " + hudInstance.Height);
                         return 76;
                     }
 
@@ -4345,12 +4345,12 @@ internal static class TestCheck
                         }
                         fHover.SetValue(hudInstance, false);
 
-                        // Verify bottom status pills hit testing
+                        // Verify bottom status pills hit testing (17px height, stadium pill)
                         MethodInfo mGetDot = statusHudType.GetMethod("GetIndicatorDotIndex", BindingFlags.NonPublic | BindingFlags.Instance);
                         if (mGetDot != null)
                         {
-                            int hit0 = (int)mGetDot.Invoke(hudInstance, new object[] { new Point(hudInstance.Width / 2 - 20, 35), 28 });
-                            int hit1 = (int)mGetDot.Invoke(hudInstance, new object[] { new Point(hudInstance.Width / 2 + 20, 35), 28 });
+                            int hit0 = (int)mGetDot.Invoke(hudInstance, new object[] { new Point(hudInstance.Width / 2 - 25, 36), 28 });
+                            int hit1 = (int)mGetDot.Invoke(hudInstance, new object[] { new Point(hudInstance.Width / 2 + 25, 36), 28 });
                             if (hit0 != 0 || hit1 != 1)
                             {
                                 Console.WriteLine("FAIL: Multi-agent bottom pill hit testing failed: hit0=" + hit0 + ", hit1=" + hit1);
