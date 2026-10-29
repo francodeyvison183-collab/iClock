@@ -3180,7 +3180,19 @@ internal static class TestCheck
                 return 58;
             }
 
-            // Verify companion CLI script and terminal foreground probe
+            // Verify companion CLI launcher and batch script
+            string distCom = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "iclock.com");
+            if (!System.IO.File.Exists(distCom))
+            {
+                Console.WriteLine("FAIL: iclock.com missing in dist directory");
+                return 58;
+            }
+            long comLen = new System.IO.FileInfo(distCom).Length;
+            if (comLen <= 0 || comLen > 15000)
+            {
+                Console.WriteLine("FAIL: iclock.com size abnormal: " + comLen);
+                return 58;
+            }
             string distCmd = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "iclock.cmd");
             if (System.IO.File.Exists(distCmd))
             {
@@ -3190,13 +3202,6 @@ internal static class TestCheck
                     Console.WriteLine("FAIL: iclock.cmd missing invocation target");
                     return 58;
                 }
-            }
-            Type progType = asm.GetType("Program");
-            MethodInfo mIsTerm = progType != null ? progType.GetMethod("IsTerminalForeground", BindingFlags.NonPublic | BindingFlags.Static) : null;
-            if (mIsTerm == null)
-            {
-                Console.WriteLine("FAIL: Program.IsTerminalForeground method missing");
-                return 58;
             }
 
             // Verify AskHumanDialog type exists and instantiates with options

@@ -13,16 +13,13 @@ $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $outputDir = Join-Path $projectRoot 'dist'
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 $outputExe = Join-Path $outputDir 'iClock.exe'
-$legacyCli = Join-Path $outputDir 'iclock.com'
-$sources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Filter '*.cs' | Sort-Object Name | ForEach-Object { $_.FullName }
+$outputCli = Join-Path $outputDir 'iclock.com'
+$sources = Get-ChildItem -LiteralPath (Join-Path $projectRoot 'src') -Filter '*.cs' | Where-Object { $_.Name -ne 'CliLauncher.cs' } | Sort-Object Name | ForEach-Object { $_.FullName }
 $zan = Join-Path $projectRoot 'src\zan.jpg'
 $appIco = Join-Path $projectRoot 'src\app.ico'
 $logoPng = Join-Path $projectRoot 'docs\icon-32.png'
 
 Get-Process | Where-Object { $_.ProcessName -like "iClock*" -or $_.ProcessName -eq "SelfCheck" } | Stop-Process -Force
-if (Test-Path -LiteralPath $legacyCli) {
-    Remove-Item -LiteralPath $legacyCli -Force
-}
 
 $compilerArgs = @('/nologo', '/target:winexe', '/optimize+', '/debug-', '/codepage:65001', "/out:$outputExe", '/r:System.Core.dll', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Runtime.WindowsRuntime.dll', '/r:System.Web.Extensions.dll')
 if (Test-Path -LiteralPath $zan) {
@@ -43,6 +40,14 @@ if ($LASTEXITCODE -ne 0) { throw "Compilation failed with exit code $LASTEXITCOD
 
 $size = (Get-Item -LiteralPath $outputExe).Length
 Write-Host "Built $outputExe ($size bytes)."
+
+$cliLauncherSource = Join-Path $projectRoot 'src\CliLauncher.cs'
+if (Test-Path -LiteralPath $cliLauncherSource) {
+    & $compiler @('/nologo', '/target:exe', '/optimize+', '/codepage:65001', "/out:$outputCli", $cliLauncherSource)
+    if ($LASTEXITCODE -ne 0) { throw "iclock.com compilation failed with exit code $LASTEXITCODE." }
+    $cliSize = (Get-Item -LiteralPath $outputCli).Length
+    Write-Host "Built $outputCli ($cliSize bytes)."
+}
 
 $cmdScript = Join-Path $outputDir 'iclock.cmd'
 $cmdContent = "@echo off`r`nif `"%~1`"==`"`" (`r`n    start `"`" `"%~dp0iClock.exe`"`r`n    exit /b 0`r`n) else (`r`n    `"%~dp0iClock.exe`" %*`r`n    exit /b %ERRORLEVEL%`r`n)"
