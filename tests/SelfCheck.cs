@@ -644,6 +644,19 @@ internal static class TestCheck
                 Console.WriteLine("FAIL: menuHistory should show today's focus time as ShortcutKeyDisplayString");
                 return 24;
             }
+            if (menuHistory.GetType().Name != "HistoryMenuItem")
+            {
+                Console.WriteLine("FAIL: menuHistory should be HistoryMenuItem composite item, got: " + menuHistory.GetType().Name);
+                return 24;
+            }
+            foreach (ToolStripItem it in tray.ContextMenuStrip.Items)
+            {
+                if (it != null && it.GetType().Name == "UsageStripItem")
+                {
+                    Console.WriteLine("FAIL: UsageStripItem should be eliminated and merged into menuHistory");
+                    return 24;
+                }
+            }
             if (menuExit.Text != "退出" && menuExit.Text != "Exit")
             {
                 Console.WriteLine("FAIL: menuExit text should be '退出' / 'Exit', got: " + menuExit.Text);

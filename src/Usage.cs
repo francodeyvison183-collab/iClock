@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Text;
@@ -638,57 +638,45 @@ internal sealed class UsageTracker
     }
 }
 
-internal sealed class UsageStripItem : ToolStripItem
+internal sealed class HistoryMenuItem : ToolStripMenuItem
 {
-    private List<UsageSegment> segments = new List<UsageSegment>();
-    private DateTime axisStart = DateTime.Today;
-    private DateTime axisEnd = DateTime.Now;
-
-    public UsageStripItem()
-    {
-        AutoSize = true;
-        Height = 10;
-        Overflow = ToolStripItemOverflow.Never;
-        Margin = Padding.Empty;
-        Padding = Padding.Empty;
-        DisplayStyle = ToolStripItemDisplayStyle.None;
-        Text = "";
-    }
+    private List<UsageSegment> segments;
+    private DateTime axisStart, axisEnd;
+    public bool ShowStrip;
 
     public override Size GetPreferredSize(Size constrainingSize)
     {
-        return new Size(0, Height);
+        Size sz = base.GetPreferredSize(constrainingSize);
+        return ShowStrip ? new Size(sz.Width, 38) : sz;
     }
 
-    public void SetSegments(List<UsageSegment> segs, DateTime start, DateTime end)
+    public void SetSegments(List<UsageSegment> segs, DateTime start, DateTime end, bool show)
     {
-        segments = segs != null ? segs : new List<UsageSegment>();
+        ShowStrip = show;
+        segments = segs;
         axisStart = start;
         axisEnd = end <= start ? start.AddMinutes(1) : end;
         Invalidate();
     }
 
-    protected override void OnPaint(PaintEventArgs e)
+    internal void DrawStrip(Graphics g, int width, int height, bool selected)
     {
-        // 这条不是菜单项，布局把它放在 Padding.Left（X=8），文字项在 X=0。
-        // 绘制时扣掉这个偏移，左边才和文字对齐，右边才和开关胶囊对齐。
-        int shift = Bounds.X;
-        int left = ModernMenuRenderer.MenuTextLeft - shift;
-        int right = Width - ModernMenuRenderer.MenuShortcutRight - 2 - shift;
-        if (left < 0) left = 0;
+        if (!ShowStrip) return;
+        int left = ModernMenuRenderer.MenuTextLeft;
+        int right = width - ModernMenuRenderer.MenuShortcutRight - 2;
         int barH = 6;
-        int y = Math.Max(0, (Height - barH) / 2);
-        Rectangle rc = new Rectangle(left, y, Math.Max(8, right - left), barH);
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using (GraphicsPath path = AppContext.GetRoundedRectPath(rc, 4))
+        Rectangle rc = new Rectangle(left, height - barH - 6, Math.Max(8, right - left), barH);
+        SmoothingMode prev = g.SmoothingMode;
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        using (GraphicsPath path = AppContext.GetRoundedRectPath(rc, 3))
         {
-            using (SolidBrush bg = new SolidBrush(Color.FromArgb(230, 232, 236)))
-                e.Graphics.FillPath(bg, path);
+            using (SolidBrush bg = new SolidBrush(selected ? Color.FromArgb(220, 224, 230) : Color.FromArgb(230, 232, 236)))
+                g.FillPath(bg, path);
             if (segments != null && segments.Count > 0)
             {
                 double span = Math.Max(1.0, (axisEnd - axisStart).TotalSeconds);
-                Region old = e.Graphics.Clip;
-                e.Graphics.SetClip(path);
+                Region old = g.Clip;
+                g.SetClip(path);
                 for (int i = 0; i < segments.Count; i++)
                 {
                     UsageSegment s = segments[i];
@@ -700,11 +688,12 @@ internal sealed class UsageStripItem : ToolStripItem
                     int x = rc.X + (int)Math.Round(a * rc.Width);
                     int w = Math.Max(1, (int)Math.Round((b - a) * rc.Width));
                     using (SolidBrush br = new SolidBrush(UsageLog.ColorFor(s.State, s.Exe)))
-                        e.Graphics.FillRectangle(br, x, rc.Y, w, rc.Height);
+                        g.FillRectangle(br, x, rc.Y, w, rc.Height);
                 }
-                e.Graphics.Clip = old;
+                g.Clip = old;
             }
         }
+        g.SmoothingMode = prev;
     }
 }
 

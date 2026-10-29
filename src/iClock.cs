@@ -236,7 +236,6 @@ internal sealed class AppContext : ApplicationContext
     private UsageTracker usageTracker;
     private EyeCareTracker eyeCare;
     private NoticeDialog activeEyeCare;
-    private UsageStripItem menuUsageStrip;
     private bool openHistoryOnUsageTab;
     private Action<bool> historySetUsageTab;
     private bool pausedByLock;
@@ -593,8 +592,8 @@ internal sealed class AppContext : ApplicationContext
                 UpdateMenuText();
             }
             finally { m.ResumeLayout(false); }
-            FitTrayMenuWidth(m);
             RefreshUsageStrip(m);
+            FitTrayMenuWidth(m);
         };
         m.Closing += delegate(object sender, ToolStripDropDownClosingEventArgs e)
         {
@@ -612,11 +611,12 @@ internal sealed class AppContext : ApplicationContext
         menuReset = AddMenuItem(m, delegate { Reset(); });
         menuMove = AddMenuItem(m, delegate { ToggleMove(); });
         m.Items.Add(new ToolStripSeparator());
-        menuHistory = AddMenuItem(m, delegate { openHistoryOnUsageTab = false; ShowHistory(); });
-        menuUsageStrip = new UsageStripItem();
-        menuUsageStrip.Click += delegate { openHistoryOnUsageTab = true; ShowHistory(); };
-        menuUsageStrip.Visible = false;
-        m.Items.Add(menuUsageStrip);
+        HistoryMenuItem hItem = new HistoryMenuItem();
+        hItem.Padding = new Padding(32, 7, 32, 7);
+        hItem.ForeColor = Win11TextPrimary;
+        hItem.Click += delegate { openHistoryOnUsageTab = false; ShowHistory(); };
+        m.Items.Add(hItem);
+        menuHistory = hItem;
         menuSettings = AddMenuItem(m, delegate { ShowSettings(); });
         m.Items.Add(new ToolStripSeparator());
         menuLanguage = AddMenuItem(m, null);
@@ -874,17 +874,16 @@ internal sealed class AppContext : ApplicationContext
 
     private void RefreshUsageStrip(ContextMenuStrip m)
     {
-        if (menuUsageStrip == null) return;
+        HistoryMenuItem hmi = menuHistory as HistoryMenuItem;
+        if (hmi == null) return;
         bool show = !isOneShot;
-        menuUsageStrip.Available = show;
-        menuUsageStrip.Visible = show;
-        if (!show) return;
+        if (!show) { hmi.SetSegments(null, DateTime.Today, DateTime.Now, false); return; }
         string today = DateTime.Today.ToString("yyyyMMdd");
         List<UsageSegment> segs = usageTracker != null ? usageTracker.GetDayWithOpen(today) : UsageLog.LoadDay(today);
         // Tray ribbon covers only today's actual activity window.
         DateTime start = segs.Count > 0 ? segs[0].Start : DateTime.Now.Date;
         DateTime end = segs.Count > 0 ? segs[segs.Count - 1].End : DateTime.Now;
-        menuUsageStrip.SetSegments(segs, start, end);
+        hmi.SetSegments(segs, start, end, true);
     }
 
     // 左侧固定「今日记录」，右侧提示位写当天累计；有目标时带上 / 目标。连胜只在历史窗口里看。

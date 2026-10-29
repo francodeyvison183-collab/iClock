@@ -77,6 +77,8 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
         }
         MenuSwitchItem sw = e.Item as MenuSwitchItem;
         if (sw != null) DrawMenuSwitch(e.Graphics, e.Item.Width, e.Item.Height, sw.On);
+        HistoryMenuItem hmi = e.Item as HistoryMenuItem;
+        if (hmi != null && hmi.ShowStrip) hmi.DrawStrip(e.Graphics, e.Item.Width, e.Item.Height, e.Item.Selected);
     }
 
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
@@ -88,7 +90,9 @@ internal sealed class ModernMenuRenderer : ToolStripProfessionalRenderer
             : (mi != null && mi.HasDropDownItems ? MenuShortcutRight + 16 : MenuShortcutRight);
         int right = e.Item.Width - rightPad;
         int width = Math.Max(0, right - left);
-        e.TextRectangle = new Rectangle(left, 0, width, e.Item.Height);
+        HistoryMenuItem hmi = e.Item as HistoryMenuItem;
+        int textH = (hmi != null && hmi.ShowStrip) ? 22 : e.Item.Height;
+        e.TextRectangle = new Rectangle(left, 0, width, textH);
 
         bool isShortcut = mi != null && !string.IsNullOrEmpty(mi.ShortcutKeyDisplayString) && e.Text == mi.ShortcutKeyDisplayString;
 
