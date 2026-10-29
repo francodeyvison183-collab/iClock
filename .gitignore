@@ -23,6 +23,9 @@ Desktop.ini
 # Scratch & temporary scripts
 /scratch/
 
+# Local plan documents
+/plan/
+
 # Playwright MCP tool snapshots
 .playwright-mcp/
 
