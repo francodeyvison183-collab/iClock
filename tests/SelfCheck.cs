@@ -4344,6 +4344,19 @@ internal static class TestCheck
                             return 76;
                         }
                         fHover.SetValue(hudInstance, false);
+
+                        // Verify bottom status pills hit testing
+                        MethodInfo mGetDot = statusHudType.GetMethod("GetIndicatorDotIndex", BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (mGetDot != null)
+                        {
+                            int hit0 = (int)mGetDot.Invoke(hudInstance, new object[] { new Point(hudInstance.Width / 2 - 20, 35), 28 });
+                            int hit1 = (int)mGetDot.Invoke(hudInstance, new object[] { new Point(hudInstance.Width / 2 + 20, 35), 28 });
+                            if (hit0 != 0 || hit1 != 1)
+                            {
+                                Console.WriteLine("FAIL: Multi-agent bottom pill hit testing failed: hit0=" + hit0 + ", hit1=" + hit1);
+                                return 76;
+                            }
+                        }
                     }
                 }
                 hudInstance.Close();
