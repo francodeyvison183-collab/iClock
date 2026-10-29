@@ -59,6 +59,8 @@ internal sealed class AgentTaskStatusHud : Form
     private List<AgentTaskStatus> tasks = new List<AgentTaskStatus>();
     private bool moving;
     private bool resizingWidth;
+    private Form snapGuideForm;
+    private bool snapGuideV;
     private Point dragStart;
     private Point formStart;
     private int dragStartWidth;
@@ -515,9 +517,24 @@ internal sealed class AgentTaskStatusHud : Form
         Rectangle screen = Screen.FromPoint(Cursor.Position).WorkingArea;
         int centerX = screen.Left + screen.Width / 2;
         int windowCenterX = newX + Width / 2;
-        const int snapThreshold = 16;
-        if (Math.Abs(windowCenterX - centerX) <= snapThreshold) newX = centerX - Width / 2;
+        const int snapThreshold = 18;
+        bool snapH = Math.Abs(windowCenterX - centerX) <= snapThreshold;
+        if (snapH) newX = centerX - Width / 2;
         Location = new Point(newX, newY);
+
+        if (snapH)
+        {
+            if (snapGuideForm == null || !snapGuideForm.Visible) ShowSnapGuide();
+            if (snapGuideForm != null)
+            {
+                snapGuideV = true;
+                snapGuideForm.Invalidate();
+            }
+        }
+        else
+        {
+            HideSnapGuide();
+        }
     }
 
     private void OnHudMouseUp(object sender, MouseEventArgs e)
@@ -531,6 +548,7 @@ internal sealed class AgentTaskStatusHud : Form
         }
         if (!moving) return;
         moving = false;
+        HideSnapGuide();
 
         // Left-click without drag (< 4px): direct Warp/Focus to agent window + auto-dismiss if already completed!
         if (Math.Abs(Cursor.Position.X - dragStart.X) < 4 && Math.Abs(Cursor.Position.Y - dragStart.Y) < 4)
@@ -935,8 +953,28 @@ internal sealed class AgentTaskStatusHud : Form
         if (cachedCenterFormat == null) cachedCenterFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
     }
 
+    private void ShowSnapGuide()
+    {
+        if (snapGuideForm == null) snapGuideForm = AppContext.CreateSnapGuide(OnSnapGuidePaint);
+        Rectangle scr = Screen.FromPoint(Cursor.Position).WorkingArea;
+        snapGuideForm.Bounds = scr;
+        snapGuideForm.Show();
+    }
+
+    private void HideSnapGuide()
+    {
+        if (snapGuideForm != null && snapGuideForm.Visible) snapGuideForm.Hide();
+    }
+
+    private void OnSnapGuidePaint(object sender, PaintEventArgs e)
+    {
+        AppContext.DrawSnapGuideLines((Form)sender, e, snapGuideV, false);
+    }
+
     private void CleanupCachedGdiObjects()
     {
+        HideSnapGuide();
+        if (snapGuideForm != null) { try { snapGuideForm.Dispose(); } catch { } snapGuideForm = null; }
         IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedTitleFont, cachedTitleBrush, cachedBorderNormal, cachedBorderHover, cachedTitleFormat, cachedCenterFormat };
         for (int i = 0; i < d.Length; i++) if (d[i] != null) try { d[i].Dispose(); } catch { }
     }
