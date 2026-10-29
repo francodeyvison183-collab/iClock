@@ -48,8 +48,6 @@ internal sealed class AgentTaskStatusHud : Form
     private static readonly Color ColorBorderNormal = Color.FromArgb(45, 255, 255, 255);      // 18% frosted border
     private static readonly Color ColorBorderHover = Color.FromArgb(90, 255, 255, 255);       // 35% hover border
     private static readonly Color ColorTitleText = Color.FromArgb(248, 250, 252);          // #F8FAFC crisp white
-    private static readonly Color ColorSuffixText = Color.FromArgb(148, 163, 184);         // #94A3B8 soft slate
-    private static readonly Color ColorSubDetail = Color.FromArgb(203, 213, 225);          // #CBD5E1 ice gray
     private static readonly Color ColorRunning = Color.FromArgb(56, 189, 248);             // #38BDF8 Cyan Blue
     private static readonly Color ColorWaiting = Color.FromArgb(245, 158, 11);             // #F59E0B Amber
     private static readonly Color ColorError = Color.FromArgb(248, 113, 113);              // #F87171 Coral Red
@@ -61,6 +59,7 @@ internal sealed class AgentTaskStatusHud : Form
     private bool resizingWidth;
     private Form snapGuideForm;
     private bool snapGuideV;
+    private string pinnedAgent;
     private Point dragStart;
     private Point formStart;
     private int dragStartWidth;
@@ -117,8 +116,8 @@ internal sealed class AgentTaskStatusHud : Form
         var active = GetActiveTasks();
         if (active.Count <= 1) return;
 
-        // If mouse is currently hovering over HUD, keep current display locked unchanged
-        if (isHovered) return;
+        // If pinned by user or mouse is currently hovering over HUD, keep current display locked
+        if (!string.IsNullOrEmpty(pinnedAgent) || isHovered) return;
 
         // If user manually switched recently, don't interrupt unless high priority alert
         if (Environment.TickCount < manualLockUntilTick && !isHighPriority) return;
@@ -223,9 +222,16 @@ internal sealed class AgentTaskStatusHud : Form
             }
         }
 
-        // Fixed-cadence rotation when idle: if not hovered and not manually locked, advance every 5s
         var active = GetActiveTasks();
-        if (active.Count > 1 && !isHovered && Environment.TickCount > manualLockUntilTick)
+        if (!string.IsNullOrEmpty(pinnedAgent))
+        {
+            int pIdx = active.FindIndex(t => string.Equals(t.AgentName, pinnedAgent, StringComparison.OrdinalIgnoreCase));
+            if (pIdx >= 0) { if (currentAgentIndex != pIdx) { currentAgentIndex = pIdx; RenderLayeredWindow(); } }
+            else { pinnedAgent = null; }
+        }
+
+        // Fixed-cadence rotation when idle: if not pinned, not hovered and not manually locked, advance every 5s
+        if (active.Count > 1 && string.IsNullOrEmpty(pinnedAgent) && !isHovered && Environment.TickCount > manualLockUntilTick)
         {
             if (Environment.TickCount - lastRotationTick >= AutoRotationCadenceMs)
             {
@@ -439,6 +445,7 @@ internal sealed class AgentTaskStatusHud : Form
         if (dotIdx >= 0)
         {
             currentAgentIndex = dotIdx;
+            if (!string.IsNullOrEmpty(pinnedAgent)) pinnedAgent = active[dotIdx].AgentName;
             lastRotationTick = Environment.TickCount;
             manualLockUntilTick = Environment.TickCount + 5000;
             RenderLayeredWindow();
@@ -457,6 +464,15 @@ internal sealed class AgentTaskStatusHud : Form
         }
 
         if (e.Button != MouseButtons.Left) return;
+
+        // Pin button [📌] (Left of status icon)
+        Rectangle pinRect = new Rectangle(Width - 45, 5, 18, 18);
+        if ((isHovered || !string.IsNullOrEmpty(pinnedAgent)) && pinRect.Contains(e.Location))
+        {
+            pinnedAgent = string.IsNullOrEmpty(pinnedAgent) ? active[currentAgentIndex].AgentName : null;
+            RenderLayeredWindow();
+            return;
+        }
 
         // Top-right close button [✕]
         Rectangle cornerClose = new Rectangle(Width - 27, 5, 18, 18);
@@ -493,7 +509,8 @@ internal sealed class AgentTaskStatusHud : Form
             }
             else
             {
-                bool hand = new Rectangle(Width - 27, 5, 18, 18).Contains(e.Location) || GetIndicatorDotIndex(e.Location, cardH) >= 0;
+                bool showPin = isHovered || !string.IsNullOrEmpty(pinnedAgent);
+                bool hand = new Rectangle(Width - 27, 5, 18, 18).Contains(e.Location) || (showPin && new Rectangle(Width - 45, 5, 18, 18).Contains(e.Location)) || GetIndicatorDotIndex(e.Location, cardH) >= 0;
                 Cursor.Current = hand ? Cursors.Hand : Cursors.Default;
             }
         }
@@ -643,60 +660,24 @@ internal sealed class AgentTaskStatusHud : Form
         float ringCenterY = cardY + 14f;
         float ringRadius = 6.0f;
 
-        bool isCompleted = !string.IsNullOrEmpty(task.Message) && (task.Message.Contains("完成") || task.Message.Contains("Completed") || task.Message.StartsWith("✅"));
-        if (task.HasProgress && !string.IsNullOrEmpty(task.StepProgress))
-        {
-            isCompleted = false;
-        }
-        bool isError = !string.IsNullOrEmpty(task.Message) && (task.Message.StartsWith("⚠️") || task.Message.Contains("异常") || task.Message.Contains("死循环") || task.Message.IndexOf("Error", StringComparison.OrdinalIgnoreCase) >= 0 || task.Message.IndexOf("Runaway", StringComparison.OrdinalIgnoreCase) >= 0);
-        bool isWaiting = isError || (!string.IsNullOrEmpty(task.Message) && (task.Message.Contains("等待") || task.Message.Contains("Waiting") || task.Message.Contains("决策") || task.Message.StartsWith("❓")));
-        bool isRunning = (task.IsThinking || task.HasProgress || (!isCompleted && !isWaiting)) && !isError && !isWaiting;
+        Color statusColor = GetTaskStatusColor(task);
+        bool isCompleted = statusColor == ColorDone;
+        bool isError = statusColor == ColorError;
+        bool isWaiting = statusColor == ColorWaiting || isError;
+        bool isRunning = statusColor == ColorRunning;
 
-        Color statusColor = isCompleted ? ColorDone : (isError ? ColorError : (isWaiting ? ColorWaiting : ColorRunning));
-
-        // 2. Agent Brand Badge (Only in single-agent mode; multi-agent has branded pills below)
+        // 2. Agent Brand Badge (Single-agent only) & Project Hint Chip
         float textX = 10f;
         if (!isMulti)
         {
-            Color badgeColor;
-            string badgeLabel;
+            Color badgeColor; string badgeLabel;
             GetAgentBadge(task.AgentName, out badgeColor, out badgeLabel);
-
-            SizeF badgeTextSize = g.MeasureString(badgeLabel, badgeFont);
-            float badgeW = Math.Max(32f, badgeTextSize.Width + 12f);
-            RectangleF badgeRect = new RectangleF(8f, cardY + 5f, badgeW, 18f);
-
-            using (GraphicsPath badgePath = AppContext.GetRoundedRectPath(Rectangle.Round(badgeRect), 4))
-            using (SolidBrush badgeBg = new SolidBrush(Color.FromArgb(45, badgeColor)))
-            using (Pen badgeBorder = new Pen(Color.FromArgb(140, badgeColor), 1f))
-            using (SolidBrush badgeTextBrush = new SolidBrush(badgeColor))
-            {
-                g.FillPath(badgeBg, badgePath);
-                g.DrawPath(badgeBorder, badgePath);
-                g.DrawString(badgeLabel, badgeFont, badgeTextBrush, badgeRect, centerFormat);
-            }
-            textX = badgeRect.Right + 8f;
+            textX = DrawChip(g, 8f, cardY + 5f, badgeLabel, badgeFont, badgeColor, centerFormat);
         }
 
-        // 3. Eye-catching Project Hint Chip (Distinctive styling)
         if (!string.IsNullOrEmpty(task.ProjectHint))
         {
-            string pName = task.ProjectHint;
-            SizeF pSize = g.MeasureString(pName, badgeFont);
-            float pW = Math.Max(26f, pSize.Width + 10f);
-            RectangleF pRect = new RectangleF(textX, cardY + 5f, pW, 18f);
-
-            Color pColor = Color.FromArgb(56, 189, 248);
-            using (GraphicsPath pPath = AppContext.GetRoundedRectPath(Rectangle.Round(pRect), 4))
-            using (SolidBrush pBg = new SolidBrush(Color.FromArgb(40, pColor)))
-            using (Pen pBorder = new Pen(Color.FromArgb(110, pColor), 1f))
-            using (SolidBrush pTextBrush = new SolidBrush(pColor))
-            {
-                g.FillPath(pBg, pPath);
-                g.DrawPath(pBorder, pPath);
-                g.DrawString(pName, badgeFont, pTextBrush, pRect, centerFormat);
-            }
-            textX = pRect.Right + 8f;
+            textX = DrawChip(g, textX, cardY + 5f, task.ProjectHint, badgeFont, Color.FromArgb(56, 189, 248), centerFormat);
         }
 
         // 4. Main Line Content: Three-State Dispatch (Live Action default, Title on Hover & Done)
@@ -727,9 +708,40 @@ internal sealed class AgentTaskStatusHud : Form
         }
 
         string textToDraw = (!string.IsNullOrEmpty(mainText) ? mainText : "") + timeBadge;
-        float textW = Math.Max(40f, (ringCenterX - 10f) - textX);
+        bool showPin = isHovered || !string.IsNullOrEmpty(pinnedAgent);
+        float rightLimit = showPin ? (ringCenterX - 28f) : (ringCenterX - 10f);
+        float textW = Math.Max(40f, rightLimit - textX);
         RectangleF titleRect = new RectangleF(textX, cardY + 4f, textW, 20f);
         g.DrawString(textToDraw, titleFont, titleBrush, titleRect, titleFormat);
+
+        // 4a. Pin Icon Slot (Directly left of status ring: ringCenterX - 20f)
+        if (showPin)
+        {
+            bool isPinned = !string.IsNullOrEmpty(pinnedAgent);
+            Rectangle pinRect = new Rectangle((int)ringCenterX - 27, (int)ringCenterY - 9, 18, 18);
+            bool hoverPin = isHovered && pinRect.Contains(clientCursor);
+
+            if (hoverPin)
+            {
+                using (SolidBrush pinBg = new SolidBrush(Color.FromArgb(45, 255, 255, 255)))
+                {
+                    g.FillEllipse(pinBg, pinRect);
+                }
+            }
+
+            Color pinColor = isPinned ? Color.FromArgb(56, 189, 248) : (hoverPin ? Color.White : Color.FromArgb(160, 203, 213, 225));
+            float px = pinRect.X + pinRect.Width / 2f;
+            float py = pinRect.Y + pinRect.Height / 2f;
+
+            using (Pen pinPen = new Pen(pinColor, 1.4f))
+            {
+                pinPen.StartCap = LineCap.Round;
+                pinPen.EndCap = LineCap.Round;
+                g.DrawLine(pinPen, px - 3.5f, py - 4f, px + 3.5f, py - 4f);
+                g.DrawLine(pinPen, px - 2f, py, px + 2f, py);
+                g.DrawLine(pinPen, px, py - 4f, px, py + 4.5f);
+            }
+        }
 
         // 4. Right-Side Slot: Targeted In-place Morphing (Status Indicator vs Close Button [✕])
         Rectangle cornerCloseRect = new Rectangle((int)ringCenterX - 9, (int)ringCenterY - 9, 18, 18);
@@ -762,17 +774,12 @@ internal sealed class AgentTaskStatusHud : Form
                     g.FillEllipse(coreGlow, ringCenterX - 2f, ringCenterY - 2f, 4f, 4f);
                 }
 
-                // 3. Orbiting Comet with 4-segment high-energy drag tail
+                // 3. Orbiting Comet arc
                 double t = (DateTime.Now.Ticks / 10000000.0);
                 float headAngle = (float)((t * 280.0) % 360.0);
-
-                float sweepStart = headAngle - 88f;
-                for (int s = 0; s < 4; s++)
+                using (Pen tailPen = new Pen(Color.FromArgb(180, statusColor), 1.6f))
                 {
-                    using (Pen tailPen = new Pen(Color.FromArgb(35 + s * 60, statusColor), 1.5f + s * 0.15f))
-                    {
-                        g.DrawArc(tailPen, ringCenterX - ringRadius, ringCenterY - ringRadius, ringRadius * 2f, ringRadius * 2f, sweepStart + s * 22f, 22f);
-                    }
+                    g.DrawArc(tailPen, ringCenterX - ringRadius, ringCenterY - ringRadius, ringRadius * 2f, ringRadius * 2f, headAngle - 80f, 80f);
                 }
 
                 // 4. Comet Head (High-contrast bright white/cyan core)
@@ -847,20 +854,16 @@ internal sealed class AgentTaskStatusHud : Form
                 float pillW = GetPillWidth(t.AgentName);
                 Rectangle pillRect = new Rectangle((int)curX, pillY, (int)pillW, pillH);
 
-                bool isErr = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("⚠️") || t.Message.Contains("异常") || t.Message.Contains("死循环"));
-                bool isWait = isErr || (!string.IsNullOrEmpty(t.Message) && (t.Message.Contains("等待") || t.Message.Contains("Waiting") || t.Message.Contains("决策") || t.Message.StartsWith("❓")));
-                bool isDone = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("✅") || t.Message.Contains("完成") || t.Message.Contains("Completed"));
-                if (t.HasProgress && !string.IsNullOrEmpty(t.StepProgress)) isDone = false;
-                Color dotColor = isDone ? ColorDone : (isErr ? ColorError : (isWait ? ColorWaiting : ColorRunning));
+                Color dotColor = GetTaskStatusColor(t);
+                bool isErr = dotColor == ColorError;
+                bool isWait = dotColor == ColorWaiting || isErr;
 
                 if (isCur)
                 {
                     using (GraphicsPath pPath = AppContext.GetRoundedRectPath(pillRect, 8))
-                    using (SolidBrush pBg = new SolidBrush(Color.FromArgb(70, bColor)))
-                    using (Pen pBorder = new Pen(Color.FromArgb(210, Color.White), 1.0f))
+                    using (SolidBrush pBg = new SolidBrush(Color.FromArgb(36, bColor)))
                     {
                         g.FillPath(pBg, pPath);
-                        g.DrawPath(pBorder, pPath);
                     }
                 }
 
@@ -904,6 +907,32 @@ internal sealed class AgentTaskStatusHud : Form
 
 
 
+    private static float DrawChip(Graphics g, float x, float y, string text, Font font, Color color, StringFormat sf)
+    {
+        float w = Math.Max(28f, g.MeasureString(text, font).Width + 10f);
+        Rectangle r = new Rectangle((int)x, (int)y, (int)w, 18);
+        using (GraphicsPath path = AppContext.GetRoundedRectPath(r, 4))
+        using (SolidBrush bg = new SolidBrush(Color.FromArgb(40, color)))
+        using (Pen border = new Pen(Color.FromArgb(120, color), 1f))
+        using (SolidBrush fg = new SolidBrush(color))
+        {
+            g.FillPath(bg, path);
+            g.DrawPath(border, path);
+            g.DrawString(text, font, fg, r, sf);
+        }
+        return r.Right + 8f;
+    }
+
+    private static Color GetTaskStatusColor(AgentTaskStatus t)
+    {
+        string m = t.Message ?? "";
+        if (t.HasProgress && !string.IsNullOrEmpty(t.StepProgress)) return ColorRunning;
+        if (m.StartsWith("✅") || m.Contains("完成") || m.Contains("Completed")) return ColorDone;
+        if (m.StartsWith("⚠️") || m.Contains("异常") || m.IndexOf("Error", StringComparison.OrdinalIgnoreCase) >= 0) return ColorError;
+        if (m.StartsWith("❓") || m.Contains("等待") || m.Contains("Waiting") || m.Contains("决策")) return ColorWaiting;
+        return ColorRunning;
+    }
+
     private static string ExtractGoal(string msg)
     {
         if (string.IsNullOrEmpty(msg)) return "";
@@ -926,7 +955,7 @@ internal sealed class AgentTaskStatusHud : Form
         else if (ln.Contains("trae")) { rgb = 0x8B5CF6; label = "Trae"; }
         else if (ln.Contains("aider")) { rgb = 0xF97316; label = "Aider"; }
         else if (ln.Contains("copilot")) { rgb = 0x6366F1; label = "Copilot"; }
-        if (label != null) { color = Color.FromArgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF); return; }
+        if (label != null) { color = Color.FromArgb(rgb | unchecked((int)0xFF000000)); return; }
         color = GetDeterministicAgentColor(n);
         label = n.Length <= 6 ? (n.Length == 0 ? "AI" : n) : n.Substring(0, 5) + "…";
     }
@@ -934,8 +963,7 @@ internal sealed class AgentTaskStatusHud : Form
     internal static Color GetDeterministicAgentColor(string name)
     {
         if (string.IsNullOrEmpty(name)) return AppContext.Win11Accent;
-        int rgb = AgentHues[Math.Abs(name.GetHashCode()) % AgentHues.Length];
-        return Color.FromArgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+        return Color.FromArgb(AgentHues[Math.Abs(name.GetHashCode()) % AgentHues.Length] | unchecked((int)0xFF000000));
     }
     private void EnsureCachedGdiObjects(float fs)
     {
