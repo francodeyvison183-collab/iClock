@@ -576,7 +576,7 @@ internal sealed class AgentTaskStatusHud : Form
         using (Graphics g = Graphics.FromImage(renderBitmap))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+            g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
             g.Clear(Color.FromArgb(0, 0, 0, 0));
             DrawTasks(g);
         }
@@ -846,7 +846,7 @@ internal sealed class AgentTaskStatusHud : Form
                     }
                 }
 
-                using (SolidBrush textBrush = new SolidBrush(isCur ? Color.White : Color.FromArgb(170, 203, 213, 225)))
+                using (SolidBrush textBrush = new SolidBrush(isCur ? Color.White : Color.FromArgb(190, 203, 213, 225)))
                 {
                     RectangleF labelRect = new RectangleF(pillRect.X + 6f, pillRect.Y, pillRect.Width - 18f, pillRect.Height);
                     g.DrawString(bLabel, badgeFont, textBrush, labelRect, cachedCenterFormat);

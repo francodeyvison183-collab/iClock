@@ -23,8 +23,6 @@ internal sealed class AgentSessionWatcher : IDisposable
         internal string Target = "";
         internal DateTime StartTime = DateTime.MinValue;
         internal TurnState State = TurnState.Idle;
-        internal int ToolCount = 0;
-        internal DateTime WindowStart = DateTime.MinValue;
         internal int Version = 0;
         internal int ActiveStep = 0;
         internal int TotalSteps = 0;
@@ -608,8 +606,6 @@ internal sealed class AgentSessionWatcher : IDisposable
 
                 session.StartTime = DateTime.Now;
                 session.State = TurnState.Processing;
-                session.ToolCount = 0;
-                session.WindowStart = DateTime.Now;
                 session.Version++;
                 session.ActiveStep = session.TotalSteps = 0;
                 session.StepDescription = session.LastToolAction = "";
@@ -826,8 +822,6 @@ internal sealed class AgentSessionWatcher : IDisposable
                 }
                 session.StartTime = DateTime.Now;
                 session.State = TurnState.Processing;
-                session.ToolCount = 0;
-                session.WindowStart = DateTime.Now;
                 session.Version++;
                 session.ActiveStep = session.TotalSteps = 0;
                 session.StepDescription = session.LastToolAction = "";
@@ -850,7 +844,6 @@ internal sealed class AgentSessionWatcher : IDisposable
             lock (syncLock)
             {
                 session.State = TurnState.Waiting;
-                session.ToolCount = 0;
                 if (string.IsNullOrEmpty(session.Target))
                 {
                     session.Target = !string.IsNullOrEmpty(session.ProjectHint) ? session.ProjectHint : "";
@@ -872,7 +865,6 @@ internal sealed class AgentSessionWatcher : IDisposable
             lock (syncLock)
             {
                 session.State = TurnState.Idle;
-                session.ToolCount = 0;
                 session.ActiveStep = session.TotalSteps = 0;
                 session.StepDescription = session.LastToolAction = "";
                 if (string.IsNullOrEmpty(session.Target))
@@ -906,9 +898,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         }
 
         // 4. Processing Phase: Tool calls or Thinking
-        // Runaway loop watchdog (> 60 calls in 90s)
         DateTime nowDate = DateTime.Now;
-        int count = 1;
         bool isGenericOutput = (data.ContainsKey("type") && "GENERIC".Equals(data["type"])) ||
                                (data.ContainsKey("type") && "response_item".Equals(data["type"]) && data.ContainsKey("payload") &&
                                 data["payload"] is Dictionary<string, object> && "function_call_output".Equals(((Dictionary<string, object>)data["payload"])["type"]));
@@ -917,16 +907,6 @@ internal sealed class AgentSessionWatcher : IDisposable
         lock (syncLock)
         {
             if (!string.IsNullOrEmpty(curTool)) session.LastToolAction = curTool;
-            if (session.WindowStart > DateTime.MinValue && (nowDate - session.WindowStart).TotalSeconds < 90)
-            {
-                count = ++session.ToolCount;
-            }
-            else
-            {
-                session.WindowStart = nowDate;
-                session.ToolCount = 1;
-                count = 1;
-            }
 
             // Fallback session target anchor if user prompt arrived before watcher was attached
             if (string.IsNullOrEmpty(session.Target))
@@ -934,14 +914,6 @@ internal sealed class AgentSessionWatcher : IDisposable
                 string tAct = curTool ?? session.LastToolAction; session.Target = !string.IsNullOrEmpty(tAct) ? (CleanUserRequest(tAct) ?? tAct) : (!string.IsNullOrEmpty(session.ProjectHint) ? session.ProjectHint : (isZh ? "当前任务" : "Task"));
                 session.StartTime = nowDate;
             }
-        }
-
-        if (count >= 60)
-        {
-            string warn = "⚠️ [" + session.Target + "] " + (isZh ? ("疑似死循环 (" + count + "次)") : ("Runaway loop (" + count + " calls)"));
-            appContext.SetAgentTaskMessage(warn, agentName, false, isZh ? "90秒内工具调用频率过高，疑似陷入循环" : "Runaway loop detected (>200 calls in 90s)", null, -2f, session.ProjectHint, msgTime);
-            AppContext.PlayAiSound();
-            return;
         }
 
         // In State 1 (Processing):
@@ -1056,7 +1028,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                     TurnSession s;
                     if (!sessions.TryGetValue(agentName, out s) || s.Version != expectedVer) return;
                     s.State = TurnState.Completed;
-                    s.ToolCount = s.ActiveStep = s.TotalSteps = 0; s.StepDescription = s.LastToolAction = "";
+                    s.ActiveStep = s.TotalSteps = 0; s.StepDescription = s.LastToolAction = "";
                     target = s.Target;
                     summary = s.PendingCompletionSummary;
                     if (s.StartTime > DateTime.MinValue) sec = (int)(DateTime.Now - s.StartTime).TotalSeconds;
