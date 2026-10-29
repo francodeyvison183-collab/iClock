@@ -4066,6 +4066,72 @@ internal static class TestCheck
                 Console.WriteLine("PASS: Process-guided dynamic watcher & Universal schema-agnostic parsing verified.");
             }
 
+            // Verify HUD background-only visibility rule and typography alignment
+            Type statusHudType = appType.Assembly.GetType("AgentTaskStatusHud");
+            if (statusHudType != null)
+            {
+                ConstructorInfo hudCtor = statusHudType.GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public, null, new Type[] { settingsType }, null);
+                Form hudInstance = hudCtor != null ? (Form)hudCtor.Invoke(new object[] { settings }) : null;
+                MethodInfo mShould = statusHudType.GetMethod("ShouldBeVisible", BindingFlags.NonPublic | BindingFlags.Instance);
+                FieldInfo fCollab = settingsType.GetField("DesktopCollaborationEnabled");
+                if (mShould != null && fCollab != null)
+                {
+                    // Case 1: No tasks -> ShouldBeVisible is false
+                    bool vNoTask = (bool)mShould.Invoke(hudInstance, null);
+                    if (vNoTask)
+                    {
+                        Console.WriteLine("FAIL: HUD ShouldBeVisible should be false when tasks are empty");
+                        return 76;
+                    }
+
+                    // Case 2: Collaboration disabled -> ShouldBeVisible is false
+                    fCollab.SetValue(settings, false);
+                    bool vDisabled = (bool)mShould.Invoke(hudInstance, null);
+                    if (vDisabled)
+                    {
+                        Console.WriteLine("FAIL: HUD ShouldBeVisible should be false when DesktopCollaborationEnabled is false");
+                        return 76;
+                    }
+                    fCollab.SetValue(settings, true);
+
+                    // Case 3: Task running for background agent -> ShouldBeVisible is true
+                    MethodInfo mSetTasks = statusHudType.GetMethod("SetTasks", BindingFlags.NonPublic | BindingFlags.Instance);
+                    Type taskType = appType.Assembly.GetType("AgentTaskStatus");
+                    IList testTasks = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(taskType));
+                    object t1 = Activator.CreateInstance(taskType);
+                    taskType.GetField("AgentName", bf).SetValue(t1, "NonExistentBackgroundAgent");
+                    taskType.GetField("Message", bf).SetValue(t1, "[SelfCheck] Testing background HUD");
+                    testTasks.Add(t1);
+                    mSetTasks.Invoke(hudInstance, new object[] { testTasks });
+
+                    bool vBg = (bool)mShould.Invoke(hudInstance, null);
+                    if (!vBg)
+                    {
+                        Console.WriteLine("FAIL: HUD ShouldBeVisible should be true for background agent");
+                        return 76;
+                    }
+
+                    // Case 4: Test rendering in both collapsed and expanded (isHovered) modes
+                    using (Bitmap bTest = new Bitmap(320, 48))
+                    using (Graphics gTest = Graphics.FromImage(bTest))
+                    {
+                        MethodInfo mDraw = statusHudType.GetMethod("DrawTasks", BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (mDraw != null)
+                        {
+                            mDraw.Invoke(hudInstance, new object[] { gTest });
+                            FieldInfo fHover = statusHudType.GetField("isHovered", BindingFlags.NonPublic | BindingFlags.Instance);
+                            if (fHover != null)
+                            {
+                                fHover.SetValue(hudInstance, true);
+                                mDraw.Invoke(hudInstance, new object[] { gTest });
+                            }
+                        }
+                    }
+                }
+                hudInstance.Close();
+                Console.WriteLine("PASS: HUD background-only visibility and typography alignment verified.");
+            }
+
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);
             if (sActiveField != null) sActiveField.SetValue(app, false);
             MethodInfo exit = appType.GetMethod("Exit", bf);

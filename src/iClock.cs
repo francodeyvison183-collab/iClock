@@ -1360,17 +1360,24 @@ internal sealed class AppContext : ApplicationContext
     {
         if (taskStatusHud == null || taskStatusHud.IsDisposed) return;
         taskStatusHud.SetTasks(agentTaskStatuses);
-        if (agentTaskStatuses.Count == 0)
+        if (agentTaskStatuses.Count == 0 || settings == null || !settings.DesktopCollaborationEnabled)
         {
-            taskStatusHud.Hide();
+            if (taskStatusHud.Visible) taskStatusHud.Hide();
             return;
         }
-        UpdateTaskStatusHudPosition();
-        if (!taskStatusHud.Visible) taskStatusHud.Show();
-        UpdateTaskStatusHudPosition();
+        if (taskStatusHud.ShouldBeVisible())
+        {
+            UpdateTaskStatusHudPosition();
+            if (!taskStatusHud.Visible) taskStatusHud.Show();
+            UpdateTaskStatusHudPosition();
+        }
+        else
+        {
+            if (taskStatusHud.Visible) taskStatusHud.Hide();
+        }
     }
 
-    private void UpdateTaskStatusHudPosition()
+    internal void UpdateTaskStatusHudPosition()
     {
         if (taskStatusHud == null || taskStatusHud.IsDisposed || overlay == null || agentTaskStatuses.Count == 0) return;
         // If the user dragged the HUD somewhere, keep that spot instead of chasing the clock.
@@ -2453,16 +2460,23 @@ internal sealed class AppContext : ApplicationContext
 
             if (!string.IsNullOrEmpty(agentName))
             {
+                bool isAgy = agentName.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0 || agentName.IndexOf("gemini", StringComparison.OrdinalIgnoreCase) >= 0 || agentName.IndexOf("agy", StringComparison.OrdinalIgnoreCase) >= 0;
                 if (procName != null && procName.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) return true;
                 if (!string.IsNullOrEmpty(title) && title.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) return true;
-                if (agentName.IndexOf("Claude", StringComparison.OrdinalIgnoreCase) >= 0 && procName != null && IsTerminalOrIdeHost(procName))
+                if (isAgy)
                 {
-                    if (!string.IsNullOrEmpty(title) && title.IndexOf("claude", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+                    if (procName != null && (procName.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0 || procName.IndexOf("gemini", StringComparison.OrdinalIgnoreCase) >= 0)) return true;
+                    if (!string.IsNullOrEmpty(title) && (title.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0 || title.IndexOf("gemini", StringComparison.OrdinalIgnoreCase) >= 0 || title.IndexOf("agy", StringComparison.OrdinalIgnoreCase) >= 0)) return true;
                 }
+                if (agentName.IndexOf("Claude", StringComparison.OrdinalIgnoreCase) >= 0 && procName != null && (procName.IndexOf("Claude", StringComparison.OrdinalIgnoreCase) >= 0 || (IsTerminalOrIdeHost(procName) && !string.IsNullOrEmpty(title) && title.IndexOf("claude", StringComparison.OrdinalIgnoreCase) >= 0))) return true;
+                string matched = MatchAgent(procName ?? "");
+                if (matched != null && string.Equals(matched, agentName, StringComparison.OrdinalIgnoreCase)) return true;
             }
-
-            if (procName != null && MatchAgent(procName) != null) return true;
-            if (!string.IsNullOrEmpty(title) && MatchAgent(title) != null) return true;
+            else
+            {
+                if (procName != null && MatchAgent(procName) != null) return true;
+                if (!string.IsNullOrEmpty(title) && MatchAgent(title) != null) return true;
+            }
         }
         catch { }
         return false;

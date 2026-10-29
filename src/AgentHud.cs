@@ -100,6 +100,7 @@ internal sealed class AgentTaskStatusHud : Form
         StartPosition = FormStartPosition.Manual;
         TopMost = true;
         Size = new Size(CurrentWidth, CollapsedHeight);
+        IntPtr forceHandle = Handle;
 
         MouseDown += OnHudMouseDown;
         MouseMove += OnHudMouseMove;
@@ -122,12 +123,34 @@ internal sealed class AgentTaskStatusHud : Form
         if (snapGuideForm != null) { snapGuideForm.Dispose(); snapGuideForm = null; } CleanupCachedGdiObjects();
     }
 
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+        if (Visible) RenderLayeredWindow();
+    }
+
+    internal bool ShouldBeVisible()
+    {
+        if (settings == null || !settings.DesktopCollaborationEnabled) return false;
+        if (tasks == null || tasks.Count == 0) return false;
+        if (isHovered || moving || resizingWidth) return true;
+        for (int i = 0; i < tasks.Count; i++)
+        {
+            AgentTaskStatus t = tasks[i];
+            if (!AppContext.IsAgentWindowInForeground(t.AgentName, t.ProjectHint))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void OnHeartbeatTick(object sender, EventArgs e)
     {
         if (!IsHandleCreated || IsDisposed) return;
 
         Point cursorPos = Cursor.Position;
-        bool inBounds = Bounds.Contains(cursorPos);
+        bool inBounds = Visible && Bounds.Contains(cursorPos);
         DateTime now = DateTime.Now;
         bool hoverChanged = false;
 
@@ -150,29 +173,44 @@ internal sealed class AgentTaskStatusHud : Form
                 hoverChanged = true;
                 UpdateLayoutAndSize();
             }
+        }
+
+        // Environmental awareness & auto-show/hide: only show status bar when agent is in background
+        if (!moving && !resizingWidth && tasks != null && tasks.Count > 0 && (now - lastFgCheckTime).TotalMilliseconds >= 250)
+        {
+            lastFgCheckTime = now;
+            bool shouldShow = ShouldBeVisible();
+            if (shouldShow != Visible)
+            {
+                if (shouldShow)
+                {
+                    if (AppContext.Current != null) AppContext.Current.UpdateTaskStatusHudPosition();
+                    Show();
+                }
+                else
+                {
+                    Hide();
+                }
+            }
 
             // Auto-acknowledge completed tasks after user focuses the agent window for >= 5s
-            if (!isHovered && !moving && !resizingWidth && Visible && tasks.Count > 0 && (now - lastFgCheckTime).TotalMilliseconds >= 1000)
+            for (int i = tasks.Count - 1; i >= 0; i--)
             {
-                lastFgCheckTime = now;
-                for (int i = tasks.Count - 1; i >= 0; i--)
+                AgentTaskStatus t = tasks[i];
+                bool done = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("✅") || t.Message.Contains("完成") || t.Message.Contains("Completed"));
+                if (done && (!t.HasProgress || string.IsNullOrEmpty(t.StepProgress)))
                 {
-                    AgentTaskStatus t = tasks[i];
-                    bool done = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("✅") || t.Message.Contains("完成") || t.Message.Contains("Completed"));
-                    if (done && (!t.HasProgress || string.IsNullOrEmpty(t.StepProgress)))
+                    if (AppContext.IsAgentWindowInForeground(t.AgentName, t.ProjectHint))
                     {
-                        if (AppContext.IsAgentWindowInForeground(t.AgentName, t.ProjectHint))
+                        t.ForegroundSeenSeconds += 0.25;
+                        if (t.ForegroundSeenSeconds >= 5.0 && AppContext.Current != null)
                         {
-                            t.ForegroundSeenSeconds += 1.0;
-                            if (t.ForegroundSeenSeconds >= 5.0 && AppContext.Current != null)
-                            {
-                                AppContext.Current.ClearAgentProgress(t.AgentName);
-                            }
+                            AppContext.Current.ClearAgentProgress(t.AgentName);
                         }
-                        else
-                        {
-                            t.ForegroundSeenSeconds = 0;
-                        }
+                    }
+                    else
+                    {
+                        t.ForegroundSeenSeconds = 0;
                     }
                 }
             }
@@ -195,7 +233,7 @@ internal sealed class AgentTaskStatusHud : Form
             }
         }
 
-        if (hasActiveAnimation || hoverChanged)
+        if (Visible && (hasActiveAnimation || hoverChanged))
         {
             RenderLayeredWindow();
         }
@@ -410,6 +448,7 @@ internal sealed class AgentTaskStatusHud : Form
                 {
                     AppContext.Current.ClearAgentProgress(clicked.AgentName);
                 }
+                if (!ShouldBeVisible()) Hide();
             }
             return;
         }
@@ -761,9 +800,9 @@ internal sealed class AgentTaskStatusHud : Form
                         }
                     }
 
-                    float subW = Math.Max(40f, Width - 12f - textX - rightReserved);
+                    float subW = Math.Max(40f, Width - 10f - textX - rightReserved);
                     RectangleF subRect = new RectangleF(textX, cardY + 27f, subW, 17f);
-                    g.DrawString(sub, subFont, subBrush, subRect, subFormat);
+                    g.DrawString(sub != null ? sub.Trim() : "", subFont, subBrush, subRect, subFormat);
                 }
             }
         }
