@@ -64,26 +64,25 @@ internal sealed class AgentTaskStatusHud : Form
     private Point dragStart;
     private Point formStart;
     private int dragStartWidth;
-    private bool snapV;
-    private Form snapGuideForm;
     private Bitmap renderBitmap;
     private byte[] premulBuffer;
     private Font cachedBadgeFont;
     private Font cachedTitleFont;
     private float cachedTitleFontSize = -1f;
     private Font cachedSubFont;
-    private Font cachedCloseFont;
     private SolidBrush cachedTitleBrush;
     private SolidBrush cachedSubBrush;
     private Pen cachedBorderNormal;
     private Pen cachedBorderHover;
-    private Pen cachedDividerPen;
     private StringFormat cachedTitleFormat;
-        private StringFormat cachedCenterFormat;
+    private StringFormat cachedCenterFormat;
 
     private Timer heartbeatTimer;
     private bool isHovered;
-
+    private int currentAgentIndex = 0;
+    private int lastRotationTick = Environment.TickCount;
+    private int manualLockUntilTick = 0;
+    private const int AutoRotationCadenceMs = 5000;
 
     private DateTime lastHoverTime;
     private DateTime lastFgCheckTime = DateTime.MinValue;
@@ -91,6 +90,46 @@ internal sealed class AgentTaskStatusHud : Form
     private int CurrentWidth
     {
         get { return settings != null && settings.TaskStatusWidth > 0 ? settings.TaskStatusWidth : DefaultHudWidth; }
+    }
+
+    private List<AgentTaskStatus> GetActiveTasks()
+    {
+        List<AgentTaskStatus> active = new List<AgentTaskStatus>();
+        if (tasks == null) return active;
+        DateTime now = DateTime.Now;
+        for (int i = 0; i < tasks.Count; i++)
+        {
+            AgentTaskStatus t = tasks[i];
+            if (t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
+            active.Add(t);
+        }
+        return active;
+    }
+
+    internal void OnAgentDynamicUpdated(string agentName, bool isHighPriority = false)
+    {
+        var active = GetActiveTasks();
+        if (active.Count <= 1) return;
+
+        // If mouse is currently hovering over HUD, keep current display locked unchanged
+        if (isHovered) return;
+
+        // If user manually switched recently, don't interrupt unless high priority alert
+        if (Environment.TickCount < manualLockUntilTick && !isHighPriority) return;
+
+        for (int i = 0; i < active.Count; i++)
+        {
+            if (string.Equals(active[i].AgentName, agentName, StringComparison.OrdinalIgnoreCase))
+            {
+                if (currentAgentIndex != i)
+                {
+                    currentAgentIndex = i;
+                    lastRotationTick = Environment.TickCount;
+                    RenderLayeredWindow();
+                }
+                break;
+            }
+        }
     }
 
     internal AgentTaskStatusHud(Settings settings)
@@ -121,7 +160,7 @@ internal sealed class AgentTaskStatusHud : Form
         base.OnFormClosed(e);
         if (heartbeatTimer != null) { heartbeatTimer.Stop(); heartbeatTimer.Dispose(); heartbeatTimer = null; }
         if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
-        if (snapGuideForm != null) { snapGuideForm.Dispose(); snapGuideForm = null; } CleanupCachedGdiObjects();
+        CleanupCachedGdiObjects();
     }
 
     protected override void OnVisibleChanged(EventArgs e)
@@ -133,14 +172,12 @@ internal sealed class AgentTaskStatusHud : Form
     internal bool ShouldBeVisible()
     {
         if (settings == null || !settings.DesktopCollaborationEnabled) return false;
-        if (tasks == null || tasks.Count == 0) return false;
+        var active = GetActiveTasks();
+        if (active.Count == 0) return false;
         if (isHovered || moving || resizingWidth) return true;
-        DateTime now = DateTime.Now;
-        for (int i = 0; i < tasks.Count; i++)
+        for (int i = 0; i < active.Count; i++)
         {
-            AgentTaskStatus t = tasks[i];
-            // 5分钟内无新消息，不显示
-            if (t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
+            AgentTaskStatus t = active[i];
             if (!AppContext.IsAgentWindowInForeground(t.AgentName, t.ProjectHint))
             {
                 return true;
@@ -179,6 +216,18 @@ internal sealed class AgentTaskStatusHud : Form
             }
         }
 
+        // Fixed-cadence rotation when idle: if not hovered and not manually locked, advance every 5s
+        var active = GetActiveTasks();
+        if (active.Count > 1 && !isHovered && Environment.TickCount > manualLockUntilTick)
+        {
+            if (Environment.TickCount - lastRotationTick >= AutoRotationCadenceMs)
+            {
+                currentAgentIndex = (currentAgentIndex + 1) % active.Count;
+                lastRotationTick = Environment.TickCount;
+                RenderLayeredWindow();
+            }
+        }
+
         // Environmental awareness & auto-show/hide: only show status bar when agent is in background
         if (!moving && !resizingWidth && tasks != null && tasks.Count > 0 && (now - lastFgCheckTime).TotalMilliseconds >= 250)
         {
@@ -186,15 +235,8 @@ internal sealed class AgentTaskStatusHud : Form
             bool shouldShow = ShouldBeVisible();
             if (shouldShow != Visible)
             {
-                if (shouldShow)
-                {
-                    if (AppContext.Current != null) AppContext.Current.UpdateTaskStatusHudPosition();
-                    Show();
-                }
-                else
-                {
-                    Hide();
-                }
+                if (shouldShow && AppContext.Current != null) AppContext.Current.UpdateTaskStatusHudPosition();
+                Visible = shouldShow;
             }
 
             // Auto-acknowledge completed tasks after user focuses the agent window for >= 5s
@@ -220,26 +262,15 @@ internal sealed class AgentTaskStatusHud : Form
             }
         }
 
-        // Animation self-driven: running comet ring & waiting pulse run continuously regardless of mouse hover
+        // Animation self-driven: running comet ring & waiting pulse run continuously
         bool hasActiveAnimation = moving || resizingWidth || isHovered || hoverChanged;
-        if (!hasActiveAnimation && tasks != null && tasks.Count > 0)
+        if (!hasActiveAnimation && active.Count > 0)
         {
-            DateTime nowUtc = DateTime.Now;
-            for (int i = 0; i < tasks.Count; i++)
-            {
-                AgentTaskStatus t = tasks[i];
-                if (t.MessageTimestamp > DateTime.MinValue && (nowUtc - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
-                bool done = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("✅") || t.Message.Contains("完成") || t.Message.Contains("Completed"));
-                if (t.HasProgress && !string.IsNullOrEmpty(t.StepProgress)) done = false;
-                bool err = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("⚠️") || t.Message.Contains("异常") || t.Message.Contains("死循环"));
-                bool waiting = err || (!string.IsNullOrEmpty(t.Message) && (t.Message.Contains("等待") || t.Message.Contains("Waiting") || t.Message.Contains("决策") || t.Message.StartsWith("❓")));
-                bool running = (t.IsThinking || t.HasProgress || (!done && !waiting)) && !err && !waiting;
-                if (running || waiting)
-                {
-                    hasActiveAnimation = true;
-                    break;
-                }
-            }
+            if (currentAgentIndex >= active.Count) currentAgentIndex = 0;
+            AgentTaskStatus t = active[currentAgentIndex];
+            bool done = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("✅") || t.Message.Contains("完成") || t.Message.Contains("Completed"));
+            if (t.HasProgress && !string.IsNullOrEmpty(t.StepProgress)) done = false;
+            hasActiveAnimation = !done;
         }
 
         if (Visible && (hasActiveAnimation || hoverChanged))
@@ -250,10 +281,12 @@ internal sealed class AgentTaskStatusHud : Form
 
     private void UpdateLayoutAndSize()
     {
-        if (tasks == null || tasks.Count == 0) return;
-        int taskCount = Math.Max(1, tasks.Count);
-        int unitH = isHovered ? ExpandedHeight : CollapsedHeight;
-        int totalH = unitH * taskCount + (taskCount > 1 ? (taskCount - 1) * 4 : 0);
+        var active = GetActiveTasks();
+        if (active.Count == 0) return;
+        if (currentAgentIndex >= active.Count) currentAgentIndex = Math.Max(0, active.Count - 1);
+
+        int cardH = isHovered ? ExpandedHeight : CollapsedHeight;
+        int totalH = cardH + (active.Count > 1 ? 7 : 0);
 
         if (Height != totalH || Width != CurrentWidth)
         {
@@ -269,24 +302,29 @@ internal sealed class AgentTaskStatusHud : Form
         RenderLayeredWindow();
     }
 
-    private int GetTaskIndexAt(Point pt)
-    {
-        if (tasks == null || tasks.Count == 0) return -1;
-        int unitH = isHovered ? ExpandedHeight : CollapsedHeight;
-        int idx = pt.Y / (unitH + 4);
-        return (idx >= 0 && idx < tasks.Count) ? idx : -1;
-    }
-
     private void OnHudMouseWheel(object sender, MouseEventArgs e)
     {
         bool ctrlAlt = (Control.ModifierKeys & Keys.Control) != 0 && (Control.ModifierKeys & Keys.Alt) != 0;
-        if (!ctrlAlt) return;
-        float delta = e.Delta > 0 ? 0.5f : -0.5f;
-        float next = Math.Max(7.0f, Math.Min(16.0f, settings.TaskStatusFontSize + delta));
-        if (Math.Abs(next - settings.TaskStatusFontSize) < 0.01f) return;
-        settings.TaskStatusFontSize = next;
-        settings.Save();
-        UpdateLayoutAndSize();
+        if (ctrlAlt)
+        {
+            float delta = e.Delta > 0 ? 0.5f : -0.5f;
+            float next = Math.Max(7.0f, Math.Min(16.0f, settings.TaskStatusFontSize + delta));
+            if (Math.Abs(next - settings.TaskStatusFontSize) < 0.01f) return;
+            settings.TaskStatusFontSize = next;
+            settings.Save();
+            UpdateLayoutAndSize();
+            return;
+        }
+
+        var active = GetActiveTasks();
+        if (active.Count > 1)
+        {
+            int step = e.Delta > 0 ? -1 : 1;
+            currentAgentIndex = (currentAgentIndex + step + active.Count) % active.Count;
+            lastRotationTick = Environment.TickCount;
+            manualLockUntilTick = Environment.TickCount + 5000;
+            RenderLayeredWindow();
+        }
     }
 
     protected override bool ShowWithoutActivation { get { return true; } }
@@ -314,13 +352,41 @@ internal sealed class AgentTaskStatusHud : Form
         base.WndProc(ref m);
     }
 
+    private int GetIndicatorDotIndex(Point pt, int cardH, int count)
+    {
+        if (pt.Y < cardH || count <= 1) return -1;
+        float curX = (Width - ((count - 1) * 10 + 14)) / 2f;
+        for (int i = 0; i < count; i++)
+        {
+            float w = (i == currentAgentIndex) ? 14f : 4f;
+            if (pt.X >= curX - 2 && pt.X <= curX + w + 2 && pt.Y >= cardH && pt.Y <= cardH + 7) return i;
+            curX += w + 6f;
+        }
+        return -1;
+    }
+
     private void OnHudMouseDown(object sender, MouseEventArgs e)
     {
+        var active = GetActiveTasks();
+        if (active.Count == 0) return;
+        if (currentAgentIndex >= active.Count) currentAgentIndex = 0;
+        int cardH = isHovered ? ExpandedHeight : CollapsedHeight;
+
+        // Bottom indicator click
+        int dotIdx = GetIndicatorDotIndex(e.Location, cardH, active.Count);
+        if (dotIdx >= 0)
+        {
+            currentAgentIndex = dotIdx;
+            lastRotationTick = Environment.TickCount;
+            manualLockUntilTick = Environment.TickCount + 5000;
+            RenderLayeredWindow();
+            return;
+        }
+
         // Right-click: quickly dismiss/clear current agent progress
         if (e.Button == MouseButtons.Right)
         {
-            int idx = GetTaskIndexAt(e.Location);
-            string agent = (idx >= 0 && idx < tasks.Count) ? tasks[idx].AgentName : (tasks.Count > 0 ? tasks[0].AgentName : null);
+            string agent = active[currentAgentIndex].AgentName;
             if (AppContext.Current != null)
             {
                 AppContext.Current.ClearAgentProgress(agent);
@@ -330,19 +396,15 @@ internal sealed class AgentTaskStatusHud : Form
 
         if (e.Button != MouseButtons.Left) return;
 
-        int taskIdx = GetTaskIndexAt(e.Location);
-        if (taskIdx >= 0 && taskIdx < tasks.Count)
+        // Top-right close button [✕]
+        Rectangle cornerClose = new Rectangle(Width - 27, 5, 18, 18);
+        if (cornerClose.Contains(e.Location))
         {
-            AgentTaskStatus clickedTask = tasks[taskIdx];
-            int unitH = isHovered ? ExpandedHeight : CollapsedHeight;
-            int cardY = taskIdx * (unitH + 4);
-            Rectangle cornerClose = new Rectangle(Width - 27, cardY + 5, 18, 18);
-
-            if (cornerClose.Contains(e.Location))
+            if (AppContext.Current != null)
             {
-                if (AppContext.Current != null) AppContext.Current.ClearAgentProgress(clickedTask.AgentName);
-                return;
+                AppContext.Current.ClearAgentProgress(active[currentAgentIndex].AgentName);
             }
+            return;
         }
 
         // Right edge (last 8px) resizes width; elsewhere starts move / click
@@ -362,31 +424,15 @@ internal sealed class AgentTaskStatusHud : Form
     {
         if (!moving && !resizingWidth)
         {
-            if (e.X >= Width - 8)
+            int cardH = isHovered ? ExpandedHeight : CollapsedHeight;
+            if (e.X >= Width - 8 && e.Y < cardH)
             {
                 if (Cursor.Current != Cursors.SizeWE) Cursor.Current = Cursors.SizeWE;
             }
             else
             {
-                int idx = GetTaskIndexAt(e.Location);
-                if (idx >= 0)
-                {
-                    int unitH = isHovered ? ExpandedHeight : CollapsedHeight;
-                    int cardY = idx * (unitH + 4);
-                    Rectangle cornerClose = new Rectangle(Width - 27, cardY + 5, 18, 18);
-                    if (cornerClose.Contains(e.Location))
-                    {
-                        if (Cursor.Current != Cursors.Hand) Cursor.Current = Cursors.Hand;
-                    }
-                    else
-                    {
-                        if (Cursor.Current != Cursors.Default) Cursor.Current = Cursors.Default;
-                    }
-                }
-                else
-                {
-                    if (Cursor.Current != Cursors.Default) Cursor.Current = Cursors.Default;
-                }
+                bool hand = new Rectangle(Width - 27, 5, 18, 18).Contains(e.Location) || GetIndicatorDotIndex(e.Location, cardH, tasks != null ? tasks.Count : 0) >= 0;
+                Cursor.Current = hand ? Cursors.Hand : Cursors.Default;
             }
         }
 
@@ -410,24 +456,8 @@ internal sealed class AgentTaskStatusHud : Form
         int centerX = screen.Left + screen.Width / 2;
         int windowCenterX = newX + Width / 2;
         const int snapThreshold = 16;
-        snapV = Math.Abs(windowCenterX - centerX) <= snapThreshold;
-        if (snapV) newX = centerX - Width / 2;
+        if (Math.Abs(windowCenterX - centerX) <= snapThreshold) newX = centerX - Width / 2;
         Location = new Point(newX, newY);
-
-        if (snapV)
-        {
-            if (snapGuideForm == null)
-            {
-                snapGuideForm = AppContext.CreateSnapGuide(OnSnapGuidePaint);
-            }
-            snapGuideForm.Bounds = screen;
-            if (!snapGuideForm.Visible) snapGuideForm.Show();
-            snapGuideForm.Invalidate();
-        }
-        else if (snapGuideForm != null && snapGuideForm.Visible)
-        {
-            snapGuideForm.Hide();
-        }
     }
 
     private void OnHudMouseUp(object sender, MouseEventArgs e)
@@ -441,35 +471,32 @@ internal sealed class AgentTaskStatusHud : Form
         }
         if (!moving) return;
         moving = false;
-        snapV = false;
-        if (snapGuideForm != null) snapGuideForm.Hide();
 
         // Left-click without drag (< 4px): direct Warp/Focus to agent window + auto-dismiss if already completed!
         if (Math.Abs(Cursor.Position.X - dragStart.X) < 4 && Math.Abs(Cursor.Position.Y - dragStart.Y) < 4)
         {
-            int idx = GetTaskIndexAt(PointToClient(dragStart));
-            if (idx >= 0 && AppContext.Current != null && idx < tasks.Count)
+            var active = GetActiveTasks();
+            int cardH = isHovered ? ExpandedHeight : CollapsedHeight;
+            if (e.Y < cardH && active.Count > 0)
             {
-                AgentTaskStatus clicked = tasks[idx];
-                AppContext.Current.WarpToAgentWindow(clicked.AgentName, clicked.ProjectHint);
-                bool done = !string.IsNullOrEmpty(clicked.Message) && (clicked.Message.StartsWith("✅") || clicked.Message.Contains("完成") || clicked.Message.Contains("Completed"));
-                if (done && (!clicked.HasProgress || string.IsNullOrEmpty(clicked.StepProgress)))
+                if (currentAgentIndex >= active.Count) currentAgentIndex = 0;
+                AgentTaskStatus clicked = active[currentAgentIndex];
+                if (AppContext.Current != null)
                 {
-                    AppContext.Current.ClearAgentProgress(clicked.AgentName);
+                    AppContext.Current.WarpToAgentWindow(clicked.AgentName, clicked.ProjectHint);
+                    bool done = !string.IsNullOrEmpty(clicked.Message) && (clicked.Message.StartsWith("✅") || clicked.Message.Contains("完成") || clicked.Message.Contains("Completed"));
+                    if (done && (!clicked.HasProgress || string.IsNullOrEmpty(clicked.StepProgress)))
+                    {
+                        AppContext.Current.ClearAgentProgress(clicked.AgentName);
+                    }
+                    if (!ShouldBeVisible()) Hide();
                 }
-                if (!ShouldBeVisible()) Hide();
             }
             return;
         }
         settings.TaskStatusX = Location.X;
         settings.TaskStatusY = Location.Y;
         settings.Save();
-    }
-
-    private void OnSnapGuidePaint(object sender, PaintEventArgs e)
-    {
-        if (!snapV) return;
-        AppContext.DrawSnapGuideLines((Form)sender, e, snapV, false);
     }
 
     internal void SetTasks(IList<AgentTaskStatus> values)
@@ -500,7 +527,9 @@ internal sealed class AgentTaskStatusHud : Form
 
     private void DrawTasks(Graphics g)
     {
-        if (tasks.Count == 0) return;
+        var active = GetActiveTasks();
+        if (active.Count == 0) return;
+        if (currentAgentIndex >= active.Count) currentAgentIndex = 0;
 
         float fs = settings != null && settings.TaskStatusFontSize > 0 ? settings.TaskStatusFontSize : 9.5f;
         int unitH = isHovered ? ExpandedHeight : CollapsedHeight;
@@ -510,309 +539,284 @@ internal sealed class AgentTaskStatusHud : Form
         Font badgeFont = cachedBadgeFont;
         Font titleFont = cachedTitleFont;
         Font subFont = cachedSubFont;
-        Font closeFont = cachedCloseFont;
         SolidBrush titleBrush = cachedTitleBrush;
         SolidBrush subBrush = cachedSubBrush;
         Pen borderPen = isHovered ? cachedBorderHover : cachedBorderNormal;
-        Pen dividerPen = cachedDividerPen;
         StringFormat titleFormat = cachedTitleFormat;
-        StringFormat subFormat = cachedTitleFormat;
         StringFormat centerFormat = cachedCenterFormat;
+
+        double pulse = (DateTime.Now.Ticks / 10000000.0) * Math.PI * 1.5;
+
+        // Render single active card
+        AgentTaskStatus task = active[currentAgentIndex];
+        int cardY = 0;
+        Rectangle cardRect = new Rectangle(0, cardY, Width - 1, unitH - 1);
+
+        // 1. Fluent Acrylic Pill Background
+        using (GraphicsPath path = AppContext.GetRoundedRectPath(cardRect, isHovered ? 10 : 14))
+        using (SolidBrush bgBrush = new SolidBrush(ColorBg))
         {
-            double pulse = (DateTime.Now.Ticks / 10000000.0) * Math.PI * 1.5;
+            g.FillPath(bgBrush, path);
+            g.DrawPath(borderPen, path);
+        }
 
-            for (int i = 0; i < tasks.Count; i++)
+        // 2. Agent Brand Badge
+        Color badgeColor;
+        string badgeLabel;
+        GetAgentBadge(task.AgentName, out badgeColor, out badgeLabel);
+
+        SizeF badgeTextSize = g.MeasureString(badgeLabel, badgeFont);
+        float badgeW = Math.Max(30f, badgeTextSize.Width + 10f);
+        RectangleF badgeRect = new RectangleF(8f, cardY + 5f, badgeW, 18f);
+
+        using (GraphicsPath badgePath = AppContext.GetRoundedRectPath(Rectangle.Round(badgeRect), 4))
+        using (SolidBrush badgeBg = new SolidBrush(Color.FromArgb(45, badgeColor)))
+        using (Pen badgeBorder = new Pen(Color.FromArgb(140, badgeColor), 1f))
+        using (SolidBrush badgeTextBrush = new SolidBrush(badgeColor))
+        {
+            g.FillPath(badgeBg, badgePath);
+            g.DrawPath(badgeBorder, badgePath);
+            g.DrawString(badgeLabel, badgeFont, badgeTextBrush, badgeRect, centerFormat);
+        }
+
+        // 3. Session Target Title (Anchor) & Suffix
+        string fullMsg = task.Message ?? "";
+        string displayTitle = fullMsg;
+        string displaySuffix = "";
+        int startBracket = fullMsg.IndexOf('[');
+        int endBracket = fullMsg.IndexOf(']');
+        if (startBracket >= 0 && endBracket > startBracket)
+        {
+            displayTitle = fullMsg.Substring(startBracket + 1, endBracket - startBracket - 1).Trim();
+            displaySuffix = fullMsg.Substring(endBracket + 1).Trim();
+        }
+        else
+        {
+            displayTitle = Regex.Replace(displayTitle, @"^[⏳✅❓⚠️]\s*", "").Trim();
+        }
+
+        if (!string.IsNullOrEmpty(displaySuffix) && (displaySuffix.Contains("处理中") || displaySuffix.IndexOf("Processing", StringComparison.OrdinalIgnoreCase) >= 0))
+        {
+            displaySuffix = "";
+        }
+        if (displayTitle.Contains("处理中") || displayTitle.Contains("任务进行中") || displayTitle.IndexOf("Task in progress", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            displayTitle = displayTitle.Replace("任务进行中", "").Replace("Task in progress", "").Replace("处理中", "").Trim(' ', '·', '-');
+        }
+
+        float ringCenterX = Width - 18f;
+        float ringCenterY = cardY + 14f;
+        float ringRadius = 6.0f;
+
+        bool isCompleted = !string.IsNullOrEmpty(task.Message) && (task.Message.Contains("完成") || task.Message.Contains("Completed") || task.Message.StartsWith("✅"));
+        if (task.HasProgress && !string.IsNullOrEmpty(task.StepProgress))
+        {
+            isCompleted = false;
+        }
+        bool isError = !string.IsNullOrEmpty(task.Message) && (task.Message.StartsWith("⚠️") || task.Message.Contains("异常") || task.Message.Contains("死循环") || task.Message.IndexOf("Error", StringComparison.OrdinalIgnoreCase) >= 0 || task.Message.IndexOf("Runaway", StringComparison.OrdinalIgnoreCase) >= 0);
+        bool isWaiting = isError || (!string.IsNullOrEmpty(task.Message) && (task.Message.Contains("等待") || task.Message.Contains("Waiting") || task.Message.Contains("决策") || task.Message.StartsWith("❓")));
+        bool isRunning = (task.IsThinking || task.HasProgress || (!isCompleted && !isWaiting)) && !isError && !isWaiting;
+
+        Color statusColor = isCompleted ? ColorDone : (isError ? ColorError : (isWaiting ? ColorWaiting : ColorRunning));
+
+        float textX = badgeRect.Right + 8f;
+        float textW = Math.Max(40f, (ringCenterX - 10f) - textX);
+        RectangleF titleRect = new RectangleF(textX, cardY + 4f, textW, 20f);
+
+        string textToDraw;
+        if (!isHovered)
+        {
+            if (!string.IsNullOrEmpty(task.StepProgress))
             {
-                AgentTaskStatus task = tasks[i];
-                int cardY = i * (unitH + 4);
-                Rectangle cardRect = new Rectangle(0, cardY, Width - 1, unitH - 1);
+                string combined = !string.IsNullOrEmpty(displayTitle) ? (displayTitle + " · " + task.StepProgress) : task.StepProgress;
+                textToDraw = (!string.IsNullOrEmpty(displayTitle) && !string.Equals(displayTitle, task.StepProgress, StringComparison.OrdinalIgnoreCase)
+                    && g.MeasureString(combined, titleFont).Width <= textW) ? combined : task.StepProgress;
+            }
+            else if (isRunning)
+            {
+                int elapsedSec = task.TurnStartTime > DateTime.MinValue ? Math.Max(0, (int)(DateTime.Now - task.TurnStartTime).TotalSeconds) : 0;
+                string timeBadge = elapsedSec >= 1 ? FormatElapsed(elapsedSec) : "";
+                string briefAction = task.SubDetail ?? "";
 
-                // 1. Fluent Acrylic Pill Background
-                using (GraphicsPath path = AppContext.GetRoundedRectPath(cardRect, isHovered ? 10 : 14))
-                using (SolidBrush bgBrush = new SolidBrush(ColorBg))
+                textToDraw = displayTitle;
+                string c1 = !string.IsNullOrEmpty(briefAction) && !string.IsNullOrEmpty(timeBadge) ? (displayTitle + " · " + briefAction + " (" + timeBadge + ")") : null;
+                string c2 = !string.IsNullOrEmpty(briefAction) ? (displayTitle + " · " + briefAction) : null;
+                string c3 = !string.IsNullOrEmpty(timeBadge) ? (displayTitle + " · " + timeBadge) : null;
+                if (c1 != null && g.MeasureString(c1, titleFont).Width <= textW) textToDraw = c1;
+                else if (c2 != null && g.MeasureString(c2, titleFont).Width <= textW) textToDraw = c2;
+                else if (c3 != null && g.MeasureString(c3, titleFont).Width <= textW) textToDraw = c3;
+            }
+            else if (isCompleted && !string.IsNullOrEmpty(displaySuffix))
+            {
+                string combined = displayTitle + " · " + displaySuffix;
+                textToDraw = (g.MeasureString(combined, titleFont).Width <= textW) ? combined : displayTitle;
+            }
+            else
+            {
+                textToDraw = displayTitle;
+            }
+        }
+        else
+        {
+            textToDraw = displayTitle;
+        }
+        g.DrawString(textToDraw, titleFont, titleBrush, titleRect, titleFormat);
+
+        // 4. Right-Side Slot: Targeted In-place Morphing (Status Indicator vs Close Button [✕])
+        Rectangle cornerCloseRect = new Rectangle((int)ringCenterX - 9, (int)ringCenterY - 9, 18, 18);
+        bool hoverCorner = cornerCloseRect.Contains(clientCursor);
+
+        if (hoverCorner)
+        {
+            // In-place Morphing: When mouse directly points at right icon area, seamlessly morph into sleek [✕]
+            using (SolidBrush cornerBg = new SolidBrush(Color.FromArgb(65, 255, 255, 255)))
+            using (SolidBrush cornerFg = new SolidBrush(Color.White))
+            {
+                g.FillEllipse(cornerBg, cornerCloseRect);
+                g.DrawString("✕", badgeFont, cornerFg, cornerCloseRect, centerFormat);
+            }
+        }
+        else
+        {
+            if (isRunning)
+            {
+                // 1. Background circular track
+                using (Pen trackPen = new Pen(Color.FromArgb(40, statusColor), 1.0f))
                 {
-                    g.FillPath(bgBrush, path);
-                    g.DrawPath(borderPen, path);
+                    g.DrawEllipse(trackPen, ringCenterX - ringRadius, ringCenterY - ringRadius, ringRadius * 2f, ringRadius * 2f);
                 }
 
-                // 2. Agent Brand Badge
-                string rn = (task.AgentName ?? "").ToLowerInvariant();
-                Color badgeColor;
-                string badgeLabel;
-                if (rn.Contains("claude")) { badgeColor = Color.FromArgb(218, 119, 86); badgeLabel = "Claude"; }
-                else if (rn.Contains("antigravity") || rn.Contains("agy") || rn.Contains("gemini")) { badgeColor = Color.FromArgb(59, 130, 246); badgeLabel = "AGY"; }
-                else if (rn.Contains("codex")) { badgeColor = Color.FromArgb(14, 165, 233); badgeLabel = "Codex"; }
-                else if (rn.Contains("cursor")) { badgeColor = Color.FromArgb(16, 185, 129); badgeLabel = "Cursor"; }
-                else if (rn.Contains("windsurf")) { badgeColor = Color.FromArgb(6, 182, 212); badgeLabel = "Windsurf"; }
-                else if (rn.Contains("trae")) { badgeColor = Color.FromArgb(139, 92, 246); badgeLabel = "Trae"; }
-                else if (rn.Contains("aider")) { badgeColor = Color.FromArgb(249, 115, 22); badgeLabel = "Aider"; }
-                else if (rn.Contains("copilot")) { badgeColor = Color.FromArgb(99, 102, 241); badgeLabel = "Copilot"; }
-                else
+                // 2. Center soft glowing core
+                float corePulse = (float)(0.4 + 0.6 * ((Math.Sin(pulse * 1.5) + 1.0) / 2.0));
+                using (SolidBrush coreGlow = new SolidBrush(Color.FromArgb((int)(75 * corePulse), statusColor)))
                 {
-                    badgeColor = GetDeterministicAgentColor(task.AgentName);
-                    badgeLabel = GetShortAgentBadgeLabel(task.AgentName);
+                    g.FillEllipse(coreGlow, ringCenterX - 2f, ringCenterY - 2f, 4f, 4f);
                 }
 
-                SizeF badgeTextSize = g.MeasureString(badgeLabel, badgeFont);
-                float badgeW = Math.Max(30f, badgeTextSize.Width + 10f);
-                RectangleF badgeRect = new RectangleF(8f, cardY + 5f, badgeW, 18f);
+                // 3. Orbiting Comet with 4-segment high-energy drag tail
+                double t = (DateTime.Now.Ticks / 10000000.0);
+                float headAngle = (float)((t * 280.0) % 360.0);
 
-                using (GraphicsPath badgePath = AppContext.GetRoundedRectPath(Rectangle.Round(badgeRect), 4))
-                using (SolidBrush badgeBg = new SolidBrush(Color.FromArgb(45, badgeColor)))
-                using (Pen badgeBorder = new Pen(Color.FromArgb(140, badgeColor), 1f))
-                using (SolidBrush badgeTextBrush = new SolidBrush(badgeColor))
+                float sweepStart = headAngle - 88f;
+                for (int s = 0; s < 4; s++)
                 {
-                    g.FillPath(badgeBg, badgePath);
-                    g.DrawPath(badgeBorder, badgePath);
-                    g.DrawString(badgeLabel, badgeFont, badgeTextBrush, badgeRect, centerFormat);
-                }
-
-                // 3. Session Target Title (Anchor) & Suffix
-                string fullMsg = task.Message ?? "";
-                string displayTitle = fullMsg;
-                string displaySuffix = "";
-                int startBracket = fullMsg.IndexOf('[');
-                int endBracket = fullMsg.IndexOf(']');
-                if (startBracket >= 0 && endBracket > startBracket)
-                {
-                    displayTitle = fullMsg.Substring(startBracket + 1, endBracket - startBracket - 1).Trim();
-                    displaySuffix = fullMsg.Substring(endBracket + 1).Trim();
-                }
-                else
-                {
-                    displayTitle = Regex.Replace(displayTitle, @"^[⏳✅❓⚠️]\s*", "").Trim();
-                }
-
-                // Filter out redundant "处理中" / "Processing" / "任务进行中" (right-side comet ring already conveys activity)
-                if (!string.IsNullOrEmpty(displaySuffix) && (displaySuffix.Contains("处理中") || displaySuffix.IndexOf("Processing", StringComparison.OrdinalIgnoreCase) >= 0))
-                {
-                    displaySuffix = "";
-                }
-                if (displayTitle.Contains("处理中") || displayTitle.Contains("任务进行中") || displayTitle.IndexOf("Task in progress", StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    displayTitle = Regex.Replace(displayTitle, @"(?:处理中\.{0,3}|任务进行中|Task in progress)", "").Trim(' ', '·', '-');
-                }
-
-                float ringCenterX = Width - 18f;
-                float ringCenterY = cardY + 14f;
-                float ringRadius = 6.0f;
-
-                bool isCompleted = !string.IsNullOrEmpty(task.Message) && (task.Message.Contains("完成") || task.Message.Contains("Completed") || task.Message.StartsWith("✅"));
-                if (task.HasProgress && !string.IsNullOrEmpty(task.StepProgress))
-                {
-                    isCompleted = false;
-                }
-                bool isError = !string.IsNullOrEmpty(task.Message) && (task.Message.StartsWith("⚠️") || task.Message.Contains("异常") || task.Message.Contains("死循环") || task.Message.IndexOf("Error", StringComparison.OrdinalIgnoreCase) >= 0 || task.Message.IndexOf("Runaway", StringComparison.OrdinalIgnoreCase) >= 0);
-                bool isWaiting = isError || (!string.IsNullOrEmpty(task.Message) && (task.Message.Contains("等待") || task.Message.Contains("Waiting") || task.Message.Contains("决策") || task.Message.StartsWith("❓")));
-                bool isRunning = (task.IsThinking || task.HasProgress || (!isCompleted && !isWaiting)) && !isError && !isWaiting;
-
-                Color statusColor;
-                if (isCompleted) statusColor = ColorDone;
-                else if (isError) statusColor = ColorError;
-                else if (isWaiting) statusColor = ColorWaiting;
-                else statusColor = ColorRunning;
-
-                float textX = badgeRect.Right + 8f;
-                float textW = Math.Max(40f, (ringCenterX - 10f) - textX);
-                RectangleF titleRect = new RectangleF(textX, cardY + 4f, textW, 20f);
-
-                string textToDraw;
-                if (!isHovered)
-                {
-                    if (!string.IsNullOrEmpty(task.StepProgress))
+                    using (Pen tailPen = new Pen(Color.FromArgb(TailAlphas[s], statusColor), 1.5f + s * 0.15f))
                     {
-                        // Collapsed mode with active step/TODO: prioritize displaying the step e.g. "1/3 正在执行算法优化"
-                        string combined = !string.IsNullOrEmpty(displayTitle) ? (displayTitle + " · " + task.StepProgress) : task.StepProgress;
-                        if (!string.IsNullOrEmpty(displayTitle) && !string.Equals(displayTitle, task.StepProgress, StringComparison.OrdinalIgnoreCase)
-                            && g.MeasureString(combined, titleFont).Width <= textW)
-                        {
-                            textToDraw = combined;
-                        }
-                        else
-                        {
-                            textToDraw = task.StepProgress;
-                        }
-                    }
-                    else if (isRunning)
-                    {
-                        int elapsedSec = task.TurnStartTime > DateTime.MinValue ? Math.Max(0, (int)(DateTime.Now - task.TurnStartTime).TotalSeconds) : 0;
-                        string timeBadge = elapsedSec >= 1 ? FormatElapsed(elapsedSec) : "";
-                        string briefAction = task.SubDetail ?? "";
-
-                        string[] candidates = new string[] {
-                            !string.IsNullOrEmpty(briefAction) && !string.IsNullOrEmpty(timeBadge) ? (displayTitle + " · " + briefAction + " (" + timeBadge + ")") : null,
-                            !string.IsNullOrEmpty(briefAction) ? (displayTitle + " · " + briefAction) : null,
-                            !string.IsNullOrEmpty(timeBadge) ? (displayTitle + " · " + timeBadge) : null
-                        };
-                        textToDraw = displayTitle;
-                        for (int ci = 0; ci < candidates.Length; ci++)
-                        {
-                            if (candidates[ci] != null && g.MeasureString(candidates[ci], titleFont).Width <= textW) { textToDraw = candidates[ci]; break; }
-                        }
-                    }
-                    else if (isCompleted)
-                    {
-                        if (!string.IsNullOrEmpty(displaySuffix))
-                        {
-                            string combined = displayTitle + " · " + displaySuffix;
-                            if (g.MeasureString(combined, titleFont).Width <= textW) textToDraw = combined;
-                            else textToDraw = displayTitle;
-                        }
-                        else
-                        {
-                            textToDraw = displayTitle;
-                        }
-                    }
-                    else
-                    {
-                        textToDraw = displayTitle;
-                    }
-                }
-                else
-                {
-                    // Expanded mode: top row keeps title clean, details rendered in drawer
-                    textToDraw = displayTitle;
-                }
-                g.DrawString(textToDraw, titleFont, titleBrush, titleRect, titleFormat);
-
-                // 4. Right-Side Slot: Targeted In-place Morphing (Status Indicator vs Close Button [✕])
-                Rectangle cornerCloseRect = new Rectangle((int)ringCenterX - 9, (int)ringCenterY - 9, 18, 18);
-                bool hoverCorner = cornerCloseRect.Contains(clientCursor);
-
-                if (hoverCorner)
-                {
-                    // In-place Morphing: When mouse directly points at right icon area, seamlessly morph into sleek [✕]
-                    using (SolidBrush cornerBg = new SolidBrush(Color.FromArgb(65, 255, 255, 255)))
-                    using (SolidBrush cornerFg = new SolidBrush(Color.White))
-                    {
-                        g.FillEllipse(cornerBg, cornerCloseRect);
-                        g.DrawString("✕", closeFont, cornerFg, cornerCloseRect, centerFormat);
-                    }
-                }
-                else
-                {
-                    if (isRunning)
-                    {
-                        // 1. Background circular track
-                        using (Pen trackPen = new Pen(Color.FromArgb(40, statusColor), 1.0f))
-                        {
-                            g.DrawEllipse(trackPen, ringCenterX - ringRadius, ringCenterY - ringRadius, ringRadius * 2f, ringRadius * 2f);
-                        }
-
-                        // 2. Center soft glowing core
-                        float corePulse = (float)(0.4 + 0.6 * ((Math.Sin(pulse * 1.5) + 1.0) / 2.0));
-                        using (SolidBrush coreGlow = new SolidBrush(Color.FromArgb((int)(75 * corePulse), statusColor)))
-                        {
-                            g.FillEllipse(coreGlow, ringCenterX - 2f, ringCenterY - 2f, 4f, 4f);
-                        }
-
-                        // 3. Orbiting Comet with 4-segment high-energy drag tail
-                        double t = (DateTime.Now.Ticks / 10000000.0);
-                        float headAngle = (float)((t * 280.0) % 360.0);
-
-                        float sweepStart = headAngle - 88f;
-                        for (int s = 0; s < 4; s++)
-                        {
-                            using (Pen tailPen = new Pen(Color.FromArgb(TailAlphas[s], statusColor), 1.5f + s * 0.15f))
-                            {
-                                g.DrawArc(tailPen, ringCenterX - ringRadius, ringCenterY - ringRadius, ringRadius * 2f, ringRadius * 2f, sweepStart + s * 22f, 22f);
-                            }
-                        }
-
-                        // 4. Comet Head (High-contrast bright white/cyan core)
-                        float headRad = (float)(headAngle * Math.PI / 180.0);
-                        float headX = ringCenterX + ringRadius * (float)Math.Cos(headRad);
-                        float headY = ringCenterY + ringRadius * (float)Math.Sin(headRad);
-
-                        using (SolidBrush headGlow = new SolidBrush(Color.FromArgb(150, statusColor)))
-                        {
-                            g.FillEllipse(headGlow, headX - 2.5f, headY - 2.5f, 5f, 5f);
-                        }
-                        using (SolidBrush headCore = new SolidBrush(Color.White))
-                        {
-                            g.FillEllipse(headCore, headX - 1.4f, headY - 1.4f, 2.8f, 2.8f);
-                        }
-                    }
-                    else if (isWaiting)
-                    {
-                        float blinkWave = (float)(0.25 + 0.75 * ((Math.Sin(pulse * 2.0) + 1.0) / 2.0));
-                        using (Pen amberPen = new Pen(Color.FromArgb((int)(200 * blinkWave), statusColor), 1.4f))
-                        {
-                            g.DrawEllipse(amberPen, ringCenterX - ringRadius, ringCenterY - ringRadius, ringRadius * 2f, ringRadius * 2f);
-                        }
-                        using (SolidBrush amberCore = new SolidBrush(Color.FromArgb((int)(240 * blinkWave), statusColor)))
-                        {
-                            g.FillEllipse(amberCore, ringCenterX - 2f, ringCenterY - 2f, 4f, 4f);
-                        }
-                    }
-                    else // Completed: Obvious vector ✅ completion badge with emerald disc and crisp white checkmark
-                    {
-                        // 1. Soft emerald ambient aura
-                        using (SolidBrush glow = new SolidBrush(Color.FromArgb(45, statusColor)))
-                        {
-                            g.FillEllipse(glow, ringCenterX - 8f, ringCenterY - 8f, 16f, 16f);
-                        }
-
-                        // 2. Solid vibrant emerald disc
-                        using (SolidBrush disc = new SolidBrush(statusColor))
-                        {
-                            g.FillEllipse(disc, ringCenterX - 6.5f, ringCenterY - 6.5f, 13f, 13f);
-                        }
-
-                        // 3. Crisp white checkmark ✓
-                        using (Pen checkPen = new Pen(Color.White, 1.8f))
-                        {
-                            checkPen.StartCap = LineCap.Round;
-                            checkPen.EndCap = LineCap.Round;
-                            checkPen.LineJoin = LineJoin.Round;
-                            PointF[] checkPts = new PointF[]
-                            {
-                                new PointF(ringCenterX - 3.2f, ringCenterY - 0.1f),
-                                new PointF(ringCenterX - 0.9f, ringCenterY + 2.4f),
-                                new PointF(ringCenterX + 3.3f, ringCenterY - 2.3f)
-                            };
-                            g.DrawLines(checkPen, checkPts);
-                        }
+                        g.DrawArc(tailPen, ringCenterX - ringRadius, ringCenterY - ringRadius, ringRadius * 2f, ringRadius * 2f, sweepStart + s * 22f, 22f);
                     }
                 }
 
-                // 6. Expanded Micro-Drawer Details
-                if (isHovered)
+                // 4. Comet Head (High-contrast bright white/cyan core)
+                float headRad = (float)(headAngle * Math.PI / 180.0);
+                float headX = ringCenterX + ringRadius * (float)Math.Cos(headRad);
+                float headY = ringCenterY + ringRadius * (float)Math.Sin(headRad);
+
+                using (SolidBrush headGlow = new SolidBrush(Color.FromArgb(150, statusColor)))
                 {
-                    g.DrawLine(dividerPen, 10f, cardY + 26f, Width - 10f, cardY + 26f);
-
-                    bool isZh = settings == null || settings.Language != "en";
-                    string sub = task.SubDetail;
-                    if (string.IsNullOrEmpty(sub))
-                    {
-                        if (!string.IsNullOrEmpty(task.StepProgress)) sub = "[" + task.StepProgress + "]";
-                        else if (task.IsThinking) sub = isZh ? "💭 思考分析中..." : "💭 Thinking...";
-                        else if (isCompleted) sub = isZh ? "✅ 任务已完成" : "✅ Task completed";
-                        else if (isError) sub = isZh ? "⚠️ 遇到异常或已中断" : "⚠️ Task interrupted";
-                        else sub = isZh ? "等待决策" : "Waiting for decision";
-                    }
-
-                    float rightReserved = 0f;
-                    if (isRunning && task.TurnStartTime > DateTime.MinValue)
-                    {
-                        int elapsedSec = Math.Max(0, (int)(DateTime.Now - task.TurnStartTime).TotalSeconds);
-                        if (elapsedSec >= 1)
-                        {
-                            string timeBadge = FormatElapsed(elapsedSec);
-                            SizeF timeSize = g.MeasureString(timeBadge, subFont);
-                            rightReserved = timeSize.Width + 6f;
-                            using (SolidBrush timerBrush = new SolidBrush(ColorSuffixText))
-                            {
-                                RectangleF timeRect = new RectangleF(Width - 10f - timeSize.Width, cardY + 27f, timeSize.Width + 2f, 17f);
-                                g.DrawString(timeBadge, subFont, timerBrush, timeRect, subFormat);
-                            }
-                        }
-                    }
-
-                    float subW = Math.Max(40f, Width - 10f - textX - rightReserved);
-                    RectangleF subRect = new RectangleF(textX, cardY + 27f, subW, 17f);
-                    g.DrawString(sub != null ? sub.Trim() : "", subFont, subBrush, subRect, subFormat);
+                    g.FillEllipse(headGlow, headX - 2.5f, headY - 2.5f, 5f, 5f);
                 }
+                using (SolidBrush headCore = new SolidBrush(Color.White))
+                {
+                    g.FillEllipse(headCore, headX - 1.4f, headY - 1.4f, 2.8f, 2.8f);
+                }
+            }
+            else if (isWaiting)
+            {
+                float blinkWave = (float)(0.25 + 0.75 * ((Math.Sin(pulse * 2.0) + 1.0) / 2.0));
+                using (Pen amberPen = new Pen(Color.FromArgb((int)(200 * blinkWave), statusColor), 1.4f))
+                {
+                    g.DrawEllipse(amberPen, ringCenterX - ringRadius, ringCenterY - ringRadius, ringRadius * 2f, ringRadius * 2f);
+                }
+                using (SolidBrush amberCore = new SolidBrush(Color.FromArgb((int)(240 * blinkWave), statusColor)))
+                {
+                    g.FillEllipse(amberCore, ringCenterX - 2f, ringCenterY - 2f, 4f, 4f);
+                }
+            }
+            else // Completed: Obvious vector ✅ completion badge with emerald disc and crisp white checkmark
+            {
+                // 1. Soft emerald ambient aura
+                using (SolidBrush glow = new SolidBrush(Color.FromArgb(45, statusColor)))
+                {
+                    g.FillEllipse(glow, ringCenterX - 8f, ringCenterY - 8f, 16f, 16f);
+                }
+
+                // 2. Solid vibrant emerald disc
+                using (SolidBrush disc = new SolidBrush(statusColor))
+                {
+                    g.FillEllipse(disc, ringCenterX - 6.5f, ringCenterY - 6.5f, 13f, 13f);
+                }
+
+                // 3. Crisp white checkmark ✓
+                using (Pen checkPen = new Pen(Color.White, 1.8f))
+                {
+                    checkPen.StartCap = LineCap.Round;
+                    checkPen.EndCap = LineCap.Round;
+                    checkPen.LineJoin = LineJoin.Round;
+                    g.DrawLine(checkPen, ringCenterX - 3.2f, ringCenterY - 0.1f, ringCenterX - 0.9f, ringCenterY + 2.4f);
+                    g.DrawLine(checkPen, ringCenterX - 0.9f, ringCenterY + 2.4f, ringCenterX + 3.3f, ringCenterY - 2.3f);
+                }
+            }
+        }
+
+        // 5. Expanded Micro-Drawer Details
+        if (isHovered)
+        {
+            g.DrawLine(cachedBorderNormal, 10f, cardY + 26f, Width - 10f, cardY + 26f);
+
+            bool isZh = settings == null || settings.Language != "en";
+            string sub = task.SubDetail;
+            if (string.IsNullOrEmpty(sub))
+            {
+                if (!string.IsNullOrEmpty(task.StepProgress)) sub = "[" + task.StepProgress + "]";
+                else if (task.IsThinking) sub = isZh ? "💭 思考分析中..." : "💭 Thinking...";
+                else if (isCompleted) sub = isZh ? "✅ 任务已完成" : "✅ Task completed";
+                else if (isError) sub = isZh ? "⚠️ 遇到异常或已中断" : "⚠️ Task interrupted";
+                else sub = isZh ? "等待决策" : "Waiting for decision";
+            }
+
+            float rightReserved = 0f;
+            if (isRunning && task.TurnStartTime > DateTime.MinValue)
+            {
+                int elapsedSec = Math.Max(0, (int)(DateTime.Now - task.TurnStartTime).TotalSeconds);
+                if (elapsedSec >= 1)
+                {
+                    string timeBadge = FormatElapsed(elapsedSec);
+                    SizeF timeSize = g.MeasureString(timeBadge, subFont);
+                    rightReserved = timeSize.Width + 6f;
+                    using (SolidBrush timerBrush = new SolidBrush(ColorSuffixText))
+                    {
+                        RectangleF timeRect = new RectangleF(Width - 10f - timeSize.Width, cardY + 27f, timeSize.Width + 2f, 17f);
+                        g.DrawString(timeBadge, subFont, timerBrush, timeRect, titleFormat);
+                    }
+                }
+            }
+
+            float subW = Math.Max(40f, Width - 10f - textX - rightReserved);
+            RectangleF subRect = new RectangleF(textX, cardY + 27f, subW, 17f);
+            g.DrawString(sub != null ? sub.Trim() : "", subFont, subBrush, subRect, titleFormat);
+        }
+
+        // 6. Centered Mini-Indicator Dots Below Card (Only when active.Count > 1)
+        if (active.Count > 1)
+        {
+            int indicatorY = unitH + 2;
+            float startX = (Width - ((active.Count - 1) * 10 + 14)) / 2f;
+
+            for (int i = 0; i < active.Count; i++)
+            {
+                AgentTaskStatus t = active[i];
+                bool isCur = (i == currentAgentIndex);
+                bool isErr = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("⚠️") || t.Message.Contains("异常") || t.Message.Contains("死循环"));
+                bool isWait = isErr || (!string.IsNullOrEmpty(t.Message) && (t.Message.Contains("等待") || t.Message.Contains("Waiting") || t.Message.Contains("决策") || t.Message.StartsWith("❓")));
+
+                Color dotColor = isCur ? Color.White : (isErr ? ColorError : (isWait ? ColorWaiting : Color.FromArgb(90, 255, 255, 255)));
+                float w = isCur ? 14f : 4f;
+                using (SolidBrush dotBrush = new SolidBrush(dotColor))
+                using (GraphicsPath dotPath = AppContext.GetRoundedRectPath(new Rectangle((int)startX, indicatorY, (int)w, 3), 1))
+                {
+                    g.FillPath(dotBrush, dotPath);
+                }
+                startX += w + 6f;
             }
         }
     }
@@ -834,20 +838,28 @@ internal sealed class AgentTaskStatusHud : Form
 
 
 
+    private static void GetAgentBadge(string rawName, out Color color, out string label)
+    {
+        string n = rawName ?? "";
+        string ln = n.ToLowerInvariant();
+        if (ln.Contains("claude")) { color = Color.FromArgb(218, 119, 86); label = "Claude"; return; }
+        if (ln.Contains("antigravity") || ln.Contains("agy") || ln.Contains("gemini")) { color = Color.FromArgb(59, 130, 246); label = "AGY"; return; }
+        if (ln.Contains("codex")) { color = Color.FromArgb(14, 165, 233); label = "Codex"; return; }
+        if (ln.Contains("cursor")) { color = Color.FromArgb(16, 185, 129); label = "Cursor"; return; }
+        if (ln.Contains("windsurf")) { color = Color.FromArgb(6, 182, 212); label = "Windsurf"; return; }
+        if (ln.Contains("trae")) { color = Color.FromArgb(139, 92, 246); label = "Trae"; return; }
+        if (ln.Contains("aider")) { color = Color.FromArgb(249, 115, 22); label = "Aider"; return; }
+        if (ln.Contains("copilot")) { color = Color.FromArgb(99, 102, 241); label = "Copilot"; return; }
+        color = GetDeterministicAgentColor(n);
+        label = n.Length <= 6 ? (n.Length == 0 ? "AI" : n) : n.Substring(0, 5) + "…";
+    }
+
     internal static Color GetDeterministicAgentColor(string name)
     {
         if (string.IsNullOrEmpty(name)) return AppContext.Win11Accent;
         int hash = Math.Abs(name.GetHashCode());
         int rgb = AgentHues[hash % AgentHues.Length];
         return Color.FromArgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
-    }
-
-    internal static string GetShortAgentBadgeLabel(string rawName)
-    {
-        if (string.IsNullOrEmpty(rawName)) return "AI";
-        string s = rawName.Trim();
-        if (s.Length <= 6) return s;
-        return s.Substring(0, 5) + "…";
     }
     private void EnsureCachedGdiObjects(float fs)
     {
@@ -859,19 +871,17 @@ internal sealed class AgentTaskStatusHud : Form
             cachedTitleFontSize = fs;
         }
         if (cachedSubFont == null) cachedSubFont = new Font("Microsoft YaHei UI", 8.5f, FontStyle.Regular, GraphicsUnit.Point);
-        if (cachedCloseFont == null) cachedCloseFont = new Font("Segoe UI", 7.5f, FontStyle.Regular, GraphicsUnit.Point);
         if (cachedTitleBrush == null) cachedTitleBrush = new SolidBrush(ColorTitleText);
         if (cachedSubBrush == null) cachedSubBrush = new SolidBrush(ColorSubDetail);
         if (cachedBorderNormal == null) cachedBorderNormal = new Pen(ColorBorderNormal, 1.0f);
         if (cachedBorderHover == null) cachedBorderHover = new Pen(ColorBorderHover, 1.0f);
-        if (cachedDividerPen == null) cachedDividerPen = new Pen(Color.FromArgb(30, 255, 255, 255), 1.0f);
         if (cachedTitleFormat == null) cachedTitleFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
-                if (cachedCenterFormat == null) cachedCenterFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        if (cachedCenterFormat == null) cachedCenterFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
     }
 
     private void CleanupCachedGdiObjects()
     {
-        IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedTitleFont, cachedSubFont, cachedCloseFont, cachedTitleBrush, cachedSubBrush, cachedBorderNormal, cachedBorderHover, cachedDividerPen, cachedTitleFormat, cachedCenterFormat };
+        IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedTitleFont, cachedSubFont, cachedTitleBrush, cachedSubBrush, cachedBorderNormal, cachedBorderHover, cachedTitleFormat, cachedCenterFormat };
         for (int i = 0; i < d.Length; i++) if (d[i] != null) try { d[i].Dispose(); } catch { }
     }
 }

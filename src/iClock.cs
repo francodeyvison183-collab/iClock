@@ -166,9 +166,7 @@ internal sealed class AppContext : ApplicationContext
         }
         return false;
     }
-    private Timer hudClearDeferTimer;
     private System.Threading.Timer memTrimTimer;
-    private bool hudClearPending;
     private NotifyIcon tray;
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuLanguage, menuLangZh, menuLangEn, menuAbout, menuExit, menuUpdate;
     private MenuSwitchItem menuStartup;
@@ -1571,6 +1569,10 @@ internal sealed class AppContext : ApplicationContext
             status.StepProgress = null;
         }
         RefreshTaskStatusHud();
+        if (taskStatusHud != null && !taskStatusHud.IsDisposed)
+        {
+            taskStatusHud.OnAgentDynamicUpdated(status.AgentName, false);
+        }
     }
 
     internal void SetAgentTaskMessage(string message, string agentName, bool isThinking = false, string subDetail = null, string stepProgress = null, float progress = -1f, string projectHint = null, DateTime? msgTime = null)
@@ -1625,6 +1627,10 @@ internal sealed class AppContext : ApplicationContext
             status.HasProgress = false;
         }
         RefreshTaskStatusHud();
+        if (taskStatusHud != null && !taskStatusHud.IsDisposed)
+        {
+            taskStatusHud.OnAgentDynamicUpdated(status.AgentName, isWaiting || isError);
+        }
     }
 
     internal void ClearAgentProgress(string agentName = null)
@@ -1632,15 +1638,6 @@ internal sealed class AppContext : ApplicationContext
         if (overlay != null && overlay.InvokeRequired)
         {
             overlay.BeginInvoke(new Action<string>(ClearAgentProgress), agentName);
-            return;
-        }
-
-        // While Alt is held (user is tweaking HUD settings), defer the clear so the HUD stays visible.
-        bool altHeld = (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
-        if (altHeld)
-        {
-            hudClearPending = true;
-            StartHudClearDeferTimer();
             return;
         }
 
@@ -1657,50 +1654,6 @@ internal sealed class AppContext : ApplicationContext
             }
         }
         RefreshTaskStatusHud();
-    }
-
-    private void StartHudClearDeferTimer()
-    {
-        if (hudClearDeferTimer == null)
-        {
-            hudClearDeferTimer = new Timer();
-            hudClearDeferTimer.Interval = 200;
-            hudClearDeferTimer.Tick += OnHudClearDeferTick;
-        }
-        hudClearDeferTimer.Stop();
-        hudClearDeferTimer.Start();
-    }
-
-    private DateTime altReleasedAt = DateTime.MinValue;
-    private bool wasAltHeld;
-
-    private void OnHudClearDeferTick(object sender, EventArgs e)
-    {
-        bool alt = (NativeMethods.GetAsyncKeyState(0x12) & 0x8000) != 0;
-        if (alt)
-        {
-            wasAltHeld = true;
-            altReleasedAt = DateTime.MinValue;
-            return;
-        }
-        if (wasAltHeld && altReleasedAt == DateTime.MinValue)
-        {
-            altReleasedAt = DateTime.UtcNow;
-            wasAltHeld = false;
-        }
-        if (!hudClearPending)
-        {
-            hudClearDeferTimer.Stop();
-            return;
-        }
-        if (altReleasedAt == DateTime.MinValue) return;
-        if ((DateTime.UtcNow - altReleasedAt).TotalSeconds >= 60)
-        {
-            hudClearPending = false;
-            hudClearDeferTimer.Stop();
-            agentTaskStatuses.Clear();
-            RefreshTaskStatusHud();
-        }
     }
 
     internal void TriggerCliNotice(string message, string agentName = null)

@@ -762,6 +762,21 @@ internal sealed class AgentSessionWatcher : IDisposable
     {
         if (appContext == null || disposed || session == null) return;
 
+        // Ignore internal background SDK retries unless max retries exhausted
+        if (data != null && data.ContainsKey("source") && "request_retry".Equals(data["source"] as string))
+        {
+            int attempt = data.ContainsKey("retryAttempt") ? Convert.ToInt32(data["retryAttempt"]) : 0;
+            int maxRetries = data.ContainsKey("maxRetries") ? Convert.ToInt32(data["maxRetries"]) : 9;
+            if (attempt < maxRetries) return;
+        }
+
+        // Ignore background scheduled wakeups without user interaction
+        if (data != null && data.ContainsKey("wakeupSource") && "schedule_wakeup".Equals(data["wakeupSource"] as string) &&
+            data.ContainsKey("promptSource") && "system".Equals(data["promptSource"] as string))
+        {
+            return;
+        }
+
         // 1. Check for Turn Start (USER_INPUT / user request) -> Anchor Session Target
         string userReq = ExtractUserRequest(data);
         if (!string.IsNullOrEmpty(userReq))
@@ -1765,16 +1780,16 @@ internal sealed class AgentSessionWatcher : IDisposable
     {
         if (data == null) return null;
         if (data.ContainsKey("type") && "GENERIC".Equals(data["type"])) return null;
+
         bool isErr = false;
         string errDetail = null;
 
         if (data.ContainsKey("status"))
         {
             string st = data["status"] as string;
-            if (string.Equals(st, "ERROR", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(st, "FAILED", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(st, "CANCELLED", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(st, "CANCELED", StringComparison.OrdinalIgnoreCase))
+            if (st != null && (st.Equals("ERROR", StringComparison.OrdinalIgnoreCase) ||
+                st.Equals("FAILED", StringComparison.OrdinalIgnoreCase) ||
+                st.StartsWith("CANCEL", StringComparison.OrdinalIgnoreCase)))
             {
                 isErr = true;
             }
@@ -1790,7 +1805,22 @@ internal sealed class AgentSessionWatcher : IDisposable
 
         if (data.ContainsKey("error") && data["error"] != null)
         {
-            string eStr = data["error"].ToString().Trim();
+            object errObj = data["error"];
+            string eStr = null;
+            if (errObj is Dictionary<string, object>)
+            {
+                Dictionary<string, object> errDict = (Dictionary<string, object>)errObj;
+                if (errDict.ContainsKey("formatted") && errDict["formatted"] != null)
+                    eStr = errDict["formatted"].ToString().Trim();
+                else if (errDict.ContainsKey("message") && errDict["message"] != null)
+                    eStr = errDict["message"].ToString().Trim();
+                else if (errDict.ContainsKey("status") && errDict["status"] != null)
+                    eStr = "Status " + errDict["status"].ToString();
+            }
+            else
+            {
+                eStr = errObj.ToString().Trim();
+            }
             if (!string.IsNullOrEmpty(eStr))
             {
                 isErr = true;

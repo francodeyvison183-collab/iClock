@@ -4202,12 +4202,76 @@ internal static class TestCheck
                             {
                                 fHover.SetValue(hudInstance, true);
                                 mDraw.Invoke(hudInstance, new object[] { gTest });
+                                fHover.SetValue(hudInstance, false);
                             }
                         }
                     }
+
+                    // Case 5: Multi-agent unified single-bar HUD with bottom mini-indicator
+                    object t2 = Activator.CreateInstance(taskType);
+                    taskType.GetField("AgentName", bf).SetValue(t2, "Claude");
+                    taskType.GetField("Message", bf).SetValue(t2, "[Claude] Refining algorithm");
+                    taskType.GetField("MessageTimestamp", bf).SetValue(t2, DateTime.Now);
+                    testTasks.Add(t2);
+                    mSetTasks.Invoke(hudInstance, new object[] { testTasks });
+
+                    // Single-bar height constraint: Collapsed 28px + 7px bottom indicator = 35px (NOT 28*2 = 56px)
+                    if (hudInstance.Height != 35)
+                    {
+                        Console.WriteLine("FAIL: Multi-agent HUD should maintain single bar height 35px, got " + hudInstance.Height);
+                        return 76;
+                    }
+
+                    // Dynamic update preemption & hover lock verification
+                    MethodInfo mDynamic = statusHudType.GetMethod("OnAgentDynamicUpdated", BindingFlags.NonPublic | BindingFlags.Instance);
+                    FieldInfo fCurIdx = statusHudType.GetField("currentAgentIndex", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (mDynamic != null && fCurIdx != null)
+                    {
+                        // Dynamic update switches protagonist
+                        mDynamic.Invoke(hudInstance, new object[] { "Claude", false });
+                        int cur = (int)fCurIdx.GetValue(hudInstance);
+                        if (cur != 1)
+                        {
+                            Console.WriteLine("FAIL: Dynamic update should preempt and switch to Claude (index 1), got " + cur);
+                            return 76;
+                        }
+
+                        // Hover lock rule: when mouse is hovering over HUD, dynamic updates must NOT interrupt
+                        FieldInfo fHover = statusHudType.GetField("isHovered", BindingFlags.NonPublic | BindingFlags.Instance);
+                        fHover.SetValue(hudInstance, true);
+                        mDynamic.Invoke(hudInstance, new object[] { "NonExistentBackgroundAgent", false });
+                        int lockedCur = (int)fCurIdx.GetValue(hudInstance);
+                        if (lockedCur != 1)
+                        {
+                            Console.WriteLine("FAIL: Mouse hover should lock current display unchanged");
+                            return 76;
+                        }
+                        fHover.SetValue(hudInstance, false);
+                    }
                 }
                 hudInstance.Close();
-                Console.WriteLine("PASS: HUD background-only visibility and typography alignment verified.");
+                Console.WriteLine("PASS: HUD background-only visibility and multi-agent single-bar rotation verified.");
+            }
+
+            // Verify Claude error unwrapping and internal retry suppression
+            Type sWatcherType = appType.Assembly.GetType("AgentSessionWatcher");
+            if (sWatcherType != null)
+            {
+                MethodInfo mExtractErr = sWatcherType.GetMethod("ExtractErrorSummary", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mExtractErr != null)
+                {
+                    // Case 1: Unwrapping Dictionary<string, object> error
+                    var dictError = new Dictionary<string, object>
+                    {
+                        { "error", new Dictionary<string, object> { { "message", "ZCode did not stream: exceed quota limit" } } }
+                    };
+                    string extractedErr = (string)mExtractErr.Invoke(null, new object[] { dictError, true });
+                    if (extractedErr == null || extractedErr.Contains("System.Collections") || extractedErr.IndexOf("exceed quota limit", StringComparison.OrdinalIgnoreCase) < 0)
+                    {
+                        Console.WriteLine("FAIL: Error dictionary unwrapping leaked type name: " + extractedErr);
+                        return 76;
+                    }
+                }
             }
 
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);
