@@ -335,7 +335,7 @@ internal sealed class AgentTaskStatusHud : Form
         if (currentAgentIndex >= active.Count) currentAgentIndex = Math.Max(0, active.Count - 1);
 
         int cardH = isHovered ? ExpandedHeight : CollapsedHeight;
-        int totalH = cardH + (active.Count > 1 ? 7 : 0);
+        int totalH = cardH + (active.Count > 1 ? 14 : 0);
 
         if (Height != totalH || Width != CurrentWidth)
         {
@@ -404,12 +404,12 @@ internal sealed class AgentTaskStatusHud : Form
     private int GetIndicatorDotIndex(Point pt, int cardH, int count)
     {
         if (pt.Y < cardH || count <= 1) return -1;
-        float curX = (Width - ((count - 1) * 10 + 14)) / 2f;
+        float curX = (Width - ((count - 1) * 14 + 24)) / 2f;
         for (int i = 0; i < count; i++)
         {
-            float w = (i == currentAgentIndex) ? 14f : 4f;
-            if (pt.X >= curX - 2 && pt.X <= curX + w + 2 && pt.Y >= cardH && pt.Y <= cardH + 7) return i;
-            curX += w + 6f;
+            float w = (i == currentAgentIndex) ? 24f : 6f;
+            if (pt.X >= curX - 4 && pt.X <= curX + w + 4 && pt.Y >= cardH) return i;
+            curX += w + 8f;
         }
         return -1;
     }
@@ -848,8 +848,8 @@ internal sealed class AgentTaskStatusHud : Form
         // 6. Centered Mini-Indicator Dots Below Card (Only when active.Count > 1)
         if (active.Count > 1)
         {
-            int indicatorY = unitH + 2;
-            float startX = (Width - ((active.Count - 1) * 10 + 14)) / 2f;
+            int indicatorY = unitH + 4;
+            float startX = (Width - ((active.Count - 1) * 14 + 24)) / 2f;
 
             for (int i = 0; i < active.Count; i++)
             {
@@ -859,13 +859,13 @@ internal sealed class AgentTaskStatusHud : Form
                 bool isWait = isErr || (!string.IsNullOrEmpty(t.Message) && (t.Message.Contains("等待") || t.Message.Contains("Waiting") || t.Message.Contains("决策") || t.Message.StartsWith("❓")));
 
                 Color dotColor = isCur ? Color.White : (isErr ? ColorError : (isWait ? ColorWaiting : Color.FromArgb(90, 255, 255, 255)));
-                float w = isCur ? 14f : 4f;
+                float w = isCur ? 24f : 6f;
                 using (SolidBrush dotBrush = new SolidBrush(dotColor))
-                using (GraphicsPath dotPath = AppContext.GetRoundedRectPath(new Rectangle((int)startX, indicatorY, (int)w, 3), 1))
+                using (GraphicsPath dotPath = AppContext.GetRoundedRectPath(new Rectangle((int)startX, indicatorY, (int)w, 6), 3))
                 {
                     g.FillPath(dotBrush, dotPath);
                 }
-                startX += w + 6f;
+                startX += w + 8f;
             }
         }
     }

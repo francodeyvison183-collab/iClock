@@ -4252,10 +4252,10 @@ internal static class TestCheck
                     testTasks.Add(t2);
                     mSetTasks.Invoke(hudInstance, new object[] { testTasks });
 
-                    // Single-bar height constraint: Collapsed 28px + 7px bottom indicator = 35px (NOT 28*2 = 56px)
-                    if (hudInstance.Height != 35)
+                    // Single-bar height constraint: Collapsed 28px + 14px bottom indicator = 42px (NOT 28*2 = 56px)
+                    if (hudInstance.Height != 42)
                     {
-                        Console.WriteLine("FAIL: Multi-agent HUD should maintain single bar height 35px, got " + hudInstance.Height);
+                        Console.WriteLine("FAIL: Multi-agent HUD should maintain single bar height 42px, got " + hudInstance.Height);
                         return 76;
                     }
 
