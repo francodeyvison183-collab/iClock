@@ -356,9 +356,6 @@ internal sealed class AppContext : ApplicationContext
         appIcon = CreateIcon();
         overlay = new Overlay(settings); overlay.PositionChanged += delegate(Point p) { settings.X = p.X; settings.Y = p.Y; settings.Save(); };
         taskStatusHud = new AgentTaskStatusHud(settings);
-        overlay.LocationChanged += delegate { UpdateTaskStatusHudPosition(); };
-        overlay.SizeChanged += delegate { UpdateTaskStatusHudPosition(); };
-        overlay.VisibleChanged += delegate { UpdateTaskStatusHudPosition(); };
         overlay.TimeAdjustRequested += delegate(int delta) { AdjustMinutes(delta); };
         IntPtr forceOverlayHandle = overlay.Handle;
         messageWindow = new MessageWindow(this);
@@ -1522,16 +1519,8 @@ internal sealed class AppContext : ApplicationContext
 
     internal void UpdateTaskStatusHudPosition()
     {
-        if (taskStatusHud == null || taskStatusHud.IsDisposed || overlay == null || agentTaskStatuses.Count == 0) return;
-        // If the user dragged the HUD somewhere, keep that spot instead of chasing the clock.
-        if (settings != null && (settings.TaskStatusX != -99999 || settings.TaskStatusY != -99999))
-        {
-            int x = settings.TaskStatusX != -99999 ? settings.TaskStatusX : taskStatusHud.Location.X;
-            int y = settings.TaskStatusY != -99999 ? settings.TaskStatusY : taskStatusHud.Location.Y;
-            taskStatusHud.Location = new Point(x, y);
-            return;
-        }
-        taskStatusHud.UpdatePosition(overlay.Bounds);
+        if (taskStatusHud == null || taskStatusHud.IsDisposed || agentTaskStatuses.Count == 0) return;
+        taskStatusHud.UpdatePosition();
     }
 
     internal void SetAgentProgress(float percent, string message, string agentName = null, string stepProgress = null, DateTime? msgTime = null)

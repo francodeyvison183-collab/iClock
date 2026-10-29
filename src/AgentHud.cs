@@ -39,9 +39,8 @@ internal sealed class AgentTaskStatus
 
 internal sealed class AgentTaskStatusHud : Form
 {
-    private const int DefaultHudWidth = 320;
     private const int MinHudWidth = 200;
-    private const int MaxHudWidth = 800;
+    private const int MaxHudWidth = 1400;
     private const int CollapsedHeight = 28;
     private const int ExpandedHeight = 48;
 
@@ -86,10 +85,18 @@ internal sealed class AgentTaskStatusHud : Form
 
     private DateTime lastHoverTime;
     private DateTime lastFgCheckTime = DateTime.MinValue;
+    private int fadeStartTick = 0;
+    private byte currentAlpha = 255;
 
     private int CurrentWidth
     {
-        get { return settings != null && settings.TaskStatusWidth > 0 ? settings.TaskStatusWidth : DefaultHudWidth; }
+        get
+        {
+            if (settings != null && settings.TaskStatusWidth > 0 && settings.TaskStatusWidth != 300)
+                return settings.TaskStatusWidth;
+            Screen screen = Screen.FromPoint(Location.X > -9000 ? Location : Cursor.Position);
+            return Math.Max(MinHudWidth, Math.Min(MaxHudWidth, screen.WorkingArea.Width / 3));
+        }
     }
 
     private List<AgentTaskStatus> GetActiveTasks()
@@ -166,7 +173,8 @@ internal sealed class AgentTaskStatusHud : Form
     protected override void OnVisibleChanged(EventArgs e)
     {
         base.OnVisibleChanged(e);
-        if (Visible) RenderLayeredWindow();
+        if (!Visible) { fadeStartTick = 0; currentAlpha = 255; }
+        else RenderLayeredWindow();
     }
 
     internal bool ShouldBeVisible()
@@ -228,15 +236,56 @@ internal sealed class AgentTaskStatusHud : Form
             }
         }
 
+        if (Visible && fadeStartTick > 0)
+        {
+            int elapsed = Environment.TickCount - fadeStartTick;
+            if (isHovered || moving || resizingWidth || ShouldBeVisible())
+            {
+                fadeStartTick = 0;
+                if (currentAlpha != 255) { currentAlpha = 255; RenderLayeredWindow(); }
+            }
+            else if (elapsed >= 5000)
+            {
+                fadeStartTick = 0;
+                currentAlpha = 255;
+                Visible = false;
+            }
+            else
+            {
+                byte targetAlpha = elapsed <= 3500 ? (byte)255 : (byte)Math.Max(0, (5000 - elapsed) * 255 / 1500);
+                if (currentAlpha != targetAlpha)
+                {
+                    currentAlpha = targetAlpha;
+                    RenderLayeredWindow();
+                }
+            }
+        }
+
         // Environmental awareness & auto-show/hide: only show status bar when agent is in background
         if (!moving && !resizingWidth && tasks != null && tasks.Count > 0 && (now - lastFgCheckTime).TotalMilliseconds >= 250)
         {
             lastFgCheckTime = now;
             bool shouldShow = ShouldBeVisible();
-            if (shouldShow != Visible)
+            if (shouldShow)
             {
-                if (shouldShow && AppContext.Current != null) AppContext.Current.UpdateTaskStatusHudPosition();
-                Visible = shouldShow;
+                if (fadeStartTick > 0)
+                {
+                    fadeStartTick = 0;
+                    if (currentAlpha != 255) { currentAlpha = 255; RenderLayeredWindow(); }
+                }
+                if (!Visible)
+                {
+                    if (AppContext.Current != null) AppContext.Current.UpdateTaskStatusHudPosition();
+                    currentAlpha = 255;
+                    Visible = true;
+                }
+            }
+            else
+            {
+                if (Visible && fadeStartTick == 0)
+                {
+                    fadeStartTick = Environment.TickCount;
+                }
             }
 
             // Auto-acknowledge completed tasks after user focuses the agent window for >= 5s
@@ -489,7 +538,7 @@ internal sealed class AgentTaskStatusHud : Form
                     {
                         AppContext.Current.ClearAgentProgress(clicked.AgentName);
                     }
-                    if (!ShouldBeVisible()) Hide();
+                    if (!ShouldBeVisible() && fadeStartTick == 0) fadeStartTick = Environment.TickCount;
                 }
             }
             return;
@@ -522,7 +571,7 @@ internal sealed class AgentTaskStatusHud : Form
         }
 
         AppContext.PremultiplyBitmap(renderBitmap, ref premulBuffer);
-        AppContext.UpdateLayered(Left, Top, Width, Height, Handle, renderBitmap, 255);
+        AppContext.UpdateLayered(Left, Top, Width, Height, Handle, renderBitmap, currentAlpha);
     }
 
     private void DrawTasks(Graphics g)
@@ -821,16 +870,14 @@ internal sealed class AgentTaskStatusHud : Form
         }
     }
 
-    internal void UpdatePosition(Rectangle clockBounds)
+    internal void UpdatePosition()
     {
-        Screen screen = Screen.FromRectangle(clockBounds);
+        Screen screen = Screen.FromPoint(Location.X > -9000 ? Location : Cursor.Position);
         Rectangle work = screen.WorkingArea;
-        int x = clockBounds.Left + (clockBounds.Width - Width) / 2;
-        int y = clockBounds.Bottom + 4;
-        if (y + Height > work.Bottom) y = clockBounds.Top - Height - 4;
-        x = Math.Max(work.Left, Math.Min(work.Right - Width, x));
-        y = Math.Max(work.Top, Math.Min(work.Bottom - Height, y));
-        Location = new Point(x, y);
+        int w = CurrentWidth;
+        int x = (settings != null && settings.TaskStatusX != -99999) ? settings.TaskStatusX : work.Left + (work.Width - w) / 2;
+        int y = (settings != null && settings.TaskStatusY != -99999) ? settings.TaskStatusY : work.Top + 12;
+        Location = new Point(Math.Max(work.Left, Math.Min(work.Right - w, x)), Math.Max(work.Top, Math.Min(work.Bottom - Height, y)));
     }
     private static readonly int[] AgentHues = new int[] { 0x38BDF8, 0x818CF8, 0xA855F7, 0xEC4899, 0xF43F5E, 0xFB923C, 0xFBBF24, 0x34D399, 0x2DD4BF };
     private static readonly int[] TailAlphas = new int[] { 35, 75, 140, 215 };
@@ -842,14 +889,16 @@ internal sealed class AgentTaskStatusHud : Form
     {
         string n = rawName ?? "";
         string ln = n.ToLowerInvariant();
-        if (ln.Contains("claude")) { color = Color.FromArgb(218, 119, 86); label = "Claude"; return; }
-        if (ln.Contains("antigravity") || ln.Contains("agy") || ln.Contains("gemini")) { color = Color.FromArgb(59, 130, 246); label = "AGY"; return; }
-        if (ln.Contains("codex")) { color = Color.FromArgb(14, 165, 233); label = "Codex"; return; }
-        if (ln.Contains("cursor")) { color = Color.FromArgb(16, 185, 129); label = "Cursor"; return; }
-        if (ln.Contains("windsurf")) { color = Color.FromArgb(6, 182, 212); label = "Windsurf"; return; }
-        if (ln.Contains("trae")) { color = Color.FromArgb(139, 92, 246); label = "Trae"; return; }
-        if (ln.Contains("aider")) { color = Color.FromArgb(249, 115, 22); label = "Aider"; return; }
-        if (ln.Contains("copilot")) { color = Color.FromArgb(99, 102, 241); label = "Copilot"; return; }
+        int rgb = 0; label = null;
+        if (ln.Contains("claude")) { rgb = 0xDA7756; label = "Claude"; }
+        else if (ln.Contains("antigravity") || ln.Contains("agy") || ln.Contains("gemini")) { rgb = 0x3B82F6; label = "AGY"; }
+        else if (ln.Contains("codex")) { rgb = 0x0EA5E9; label = "Codex"; }
+        else if (ln.Contains("cursor")) { rgb = 0x10B981; label = "Cursor"; }
+        else if (ln.Contains("windsurf")) { rgb = 0x06B6D4; label = "Windsurf"; }
+        else if (ln.Contains("trae")) { rgb = 0x8B5CF6; label = "Trae"; }
+        else if (ln.Contains("aider")) { rgb = 0xF97316; label = "Aider"; }
+        else if (ln.Contains("copilot")) { rgb = 0x6366F1; label = "Copilot"; }
+        if (label != null) { color = Color.FromArgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF); return; }
         color = GetDeterministicAgentColor(n);
         label = n.Length <= 6 ? (n.Length == 0 ? "AI" : n) : n.Substring(0, 5) + "…";
     }
@@ -857,8 +906,7 @@ internal sealed class AgentTaskStatusHud : Form
     internal static Color GetDeterministicAgentColor(string name)
     {
         if (string.IsNullOrEmpty(name)) return AppContext.Win11Accent;
-        int hash = Math.Abs(name.GetHashCode());
-        int rgb = AgentHues[hash % AgentHues.Length];
+        int rgb = AgentHues[Math.Abs(name.GetHashCode()) % AgentHues.Length];
         return Color.FromArgb((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
     }
     private void EnsureCachedGdiObjects(float fs)

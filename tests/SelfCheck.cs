@@ -1387,6 +1387,14 @@ internal static class TestCheck
                 System.IO.File.AppendAllText(testFile, "{\"step_index\":2,\"type\":\"PLANNER_RESPONSE\",\"status\":\"DONE\",\"content\":\"Build succeeded with 0 warnings.\"}\r\n", System.Text.Encoding.UTF8);
                 procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
                 System.Windows.Forms.Application.DoEvents();
+                for (int w = 0; w < 30; w++)
+                {
+                    System.Threading.Thread.Sleep(20);
+                    System.Windows.Forms.Application.DoEvents();
+                    task = findTask.Invoke(app, new object[] { "TestAgent" });
+                    string tm = task != null ? (task.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(task) as string) : "";
+                    if (!string.IsNullOrEmpty(tm) && tm.Contains("完成")) break;
+                }
 
                 task = findTask.Invoke(app, new object[] { "TestAgent" });
                 if (task == null || !(task.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(task) as string).Contains("完成"))
@@ -1466,6 +1474,14 @@ internal static class TestCheck
                 // Completion: transitions calmly to Completed with anchored target
                 System.IO.File.AppendAllText(testFile, "{\"step_index\":2,\"type\":\"PLANNER_RESPONSE\",\"status\":\"DONE\",\"content\":\"All done.\"}\r\n", System.Text.Encoding.UTF8);
                 procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                for (int w = 0; w < 30; w++)
+                {
+                    System.Threading.Thread.Sleep(20);
+                    System.Windows.Forms.Application.DoEvents();
+                    object t = findTask.Invoke(app, new object[] { "TestAgent" });
+                    string m = t != null ? (t.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(t) as string) : "";
+                    if (!string.IsNullOrEmpty(m) && m.Contains("本轮已完成")) break;
+                }
                 System.Windows.Forms.Application.DoEvents();
                 object sTask3 = findTask.Invoke(app, new object[] { "TestAgent" });
                 string sMsg3 = (string)sTask3.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTask3);
@@ -1503,6 +1519,14 @@ internal static class TestCheck
                 // Genuine completion with stop_reason: end_turn
                 System.IO.File.AppendAllText(claudeTestFile, "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"stop_reason\":\"end_turn\",\"content\":[{\"type\":\"text\",\"text\":\"Refactoring complete.\"}]}}\r\n", System.Text.Encoding.UTF8);
                 procMethod.Invoke(watcher, new object[] { claudeTestFile, "Claude Code" });
+                for (int w = 0; w < 30; w++)
+                {
+                    System.Threading.Thread.Sleep(20);
+                    System.Windows.Forms.Application.DoEvents();
+                    object t = findTask.Invoke(app, new object[] { "Claude Code" });
+                    string m = t != null ? (t.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(t) as string) : "";
+                    if (!string.IsNullOrEmpty(m) && m.Contains("本轮已完成")) break;
+                }
                 System.Windows.Forms.Application.DoEvents();
                 object cTask3 = findTask.Invoke(app, new object[] { "Claude Code" });
                 string cMsg3 = (string)cTask3.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cTask3);
@@ -4233,6 +4257,25 @@ internal static class TestCheck
                     {
                         Console.WriteLine("FAIL: Multi-agent HUD should maintain single bar height 35px, got " + hudInstance.Height);
                         return 76;
+                    }
+
+                    // Position & 1/3 width verification: Top 12px, centered
+                    MethodInfo mUpdatePos = statusHudType.GetMethod("UpdatePosition", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (mUpdatePos != null)
+                    {
+                        mUpdatePos.Invoke(hudInstance, null);
+                        Screen scr = Screen.FromPoint(hudInstance.Location);
+                        if (hudInstance.Location.Y != scr.WorkingArea.Top + 12)
+                        {
+                            Console.WriteLine("FAIL: HUD should be at Top + 12px, got " + hudInstance.Location.Y);
+                            return 76;
+                        }
+                        int expW = Math.Max(200, Math.Min(1400, scr.WorkingArea.Width / 3));
+                        if (hudInstance.Width != expW)
+                        {
+                            Console.WriteLine("FAIL: HUD width should be 1/3 screen (" + expW + "), got " + hudInstance.Width);
+                            return 76;
+                        }
                     }
 
                     // Dynamic update preemption & hover lock verification

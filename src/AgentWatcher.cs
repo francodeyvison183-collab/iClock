@@ -31,6 +31,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         internal string StepDescription = "";
         internal string LastToolAction = "";
         internal string ProjectHint = "";
+        internal string PendingCompletionSummary = "";
     }
 
     private readonly Dictionary<string, TurnSession> sessions = new Dictionary<string, TurnSession>(StringComparer.OrdinalIgnoreCase);
@@ -607,10 +608,8 @@ internal sealed class AgentSessionWatcher : IDisposable
                 session.ToolCount = 0;
                 session.WindowStart = DateTime.Now;
                 session.Version++;
-                session.ActiveStep = 0;
-                session.TotalSteps = 0;
-                session.StepDescription = "";
-                session.LastToolAction = "";
+                session.ActiveStep = session.TotalSteps = 0;
+                session.StepDescription = session.LastToolAction = "";
             }
         }
         else if ((string.IsNullOrEmpty(session.Target) || session.Target == "当前会话" || session.Target == "当前任务" || session.Target == "Session" || session.Target == "Task") && !string.IsNullOrEmpty(filePath))
@@ -798,10 +797,8 @@ internal sealed class AgentSessionWatcher : IDisposable
                 session.ToolCount = 0;
                 session.WindowStart = DateTime.Now;
                 session.Version++;
-                session.ActiveStep = 0;
-                session.TotalSteps = 0;
-                session.StepDescription = "";
-                session.LastToolAction = "";
+                session.ActiveStep = session.TotalSteps = 0;
+                session.StepDescription = session.LastToolAction = "";
             }
             string planDesc = isZh ? "💭 正在分析需求与规划方案..." : "💭 Analyzing request & planning...";
             string msg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
@@ -845,10 +842,8 @@ internal sealed class AgentSessionWatcher : IDisposable
             {
                 session.State = TurnState.Idle;
                 session.ToolCount = 0;
-                session.ActiveStep = 0;
-                session.TotalSteps = 0;
-                session.StepDescription = "";
-                session.LastToolAction = "";
+                session.ActiveStep = session.TotalSteps = 0;
+                session.StepDescription = session.LastToolAction = "";
                 if (string.IsNullOrEmpty(session.Target))
                 {
                     session.Target = isZh ? "当前会话" : "Session";
@@ -863,40 +858,19 @@ internal sealed class AgentSessionWatcher : IDisposable
             return;
         }
 
-        // 3. Check for Completion (Done / Final response)
+        // 3. Check for Completion (Done / Final response with 5-second silence debounce)
         string completionSummary = ExtractCompletionSummary(data);
         if (!string.IsNullOrEmpty(completionSummary))
         {
-            DateTime now = DateTime.Now;
-            int sec = 0;
-            string target;
             int currentVer;
             lock (syncLock)
             {
-                session.State = TurnState.Completed;
-                session.ToolCount = 0;
-                session.ActiveStep = 0;
-                session.TotalSteps = 0;
-                session.StepDescription = "";
-                session.LastToolAction = "";
-                if (string.IsNullOrEmpty(session.Target))
-                {
-                    session.Target = isZh ? "当前会话" : "Session";
-                }
-                target = session.Target;
-                if (session.StartTime > DateTime.MinValue)
-                {
-                    sec = (int)(now - session.StartTime).TotalSeconds;
-                }
+                if (string.IsNullOrEmpty(session.Target)) session.Target = isZh ? "当前会话" : "Session";
+                session.PendingCompletionSummary = CleanSummaryText(completionSummary);
                 currentVer = ++session.Version;
             }
-
-            string timeStr = (sec >= 3) ? (" (" + (sec >= 60 ? (sec / 60 + "m" + sec % 60 + "s") : (sec + "s")) + ")") : "";
-            string msg = "✅ [" + target + "] " + (isZh ? "本轮已完成" : "Completed") + timeStr;
-            string cleanCompletion = CleanSummaryText(completionSummary);
-            appContext.SetAgentTaskMessage(msg, agentName, false, cleanCompletion, null, -2f, session.ProjectHint, msgTime);
-            ScheduleClearProgress(agentName, currentVer, 600000); // Keep completed state visible for 10 minutes so user always sees the result
-            AppContext.TrimMemory();
+            int delay = AppContext.IsSelfCheckRunning ? 60 : 5000;
+            ScheduleCommitCompletion(agentName, currentVer, delay, session.ProjectHint, msgTime);
             return;
         }
 
@@ -1028,6 +1002,39 @@ internal sealed class AgentSessionWatcher : IDisposable
         int dot = s.IndexOfAny(SentenceDelims);
         if (dot > 0) s = s.Substring(0, dot).Trim();
         return s.Length > 2 ? s : null;
+    }
+
+    private void ScheduleCommitCompletion(string agentName, int expectedVer, int delayMs, string projectHint, DateTime? msgTime)
+    {
+        System.Threading.ThreadPool.QueueUserWorkItem(delegate
+        {
+            try
+            {
+                System.Threading.Thread.Sleep(delayMs);
+                string target, summary;
+                int sec = 0, ver;
+                lock (syncLock)
+                {
+                    TurnSession s;
+                    if (!sessions.TryGetValue(agentName, out s) || s.Version != expectedVer) return;
+                    s.State = TurnState.Completed;
+                    s.ToolCount = s.ActiveStep = s.TotalSteps = 0; s.StepDescription = s.LastToolAction = "";
+                    target = s.Target;
+                    summary = s.PendingCompletionSummary;
+                    if (s.StartTime > DateTime.MinValue) sec = (int)(DateTime.Now - s.StartTime).TotalSeconds;
+                    ver = ++s.Version;
+                }
+                if (!disposed && appContext != null)
+                {
+                    bool isZh = appContext.Settings.Language != "en";
+                    string timeStr = (sec >= 3) ? (" (" + (sec >= 60 ? (sec / 60 + "m" + sec % 60 + "s") : (sec + "s")) + ")") : "";
+                    appContext.SetAgentTaskMessage("✅ [" + target + "] " + (isZh ? "本轮已完成" : "Completed") + timeStr, agentName, false, summary, null, -2f, projectHint, msgTime);
+                    ScheduleClearProgress(agentName, ver, 600000);
+                    AppContext.TrimMemory();
+                }
+            }
+            catch { }
+        });
     }
 
     private void ScheduleClearProgress(string agentName, int expectedVersion, int delayMs)
