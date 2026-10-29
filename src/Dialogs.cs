@@ -40,6 +40,7 @@ internal sealed class NoticeDialog : Form
     // Kept alive for the lifetime of the popup: a tooltip held only by a
     // local can be collected and silently stop showing.
     private ToolTip restTip;
+    private ToolTip agentTip;
     // The preset menu, kept as a field so the arrow zone can be tested.
     private ContextMenuStrip restMenu;
 
@@ -87,8 +88,6 @@ internal sealed class NoticeDialog : Form
         MinimizeBox = false;
         ShowInTaskbar = true;
         TopMost = true;
-        ClientSize = new Size(350, isAgent ? 176 : 215);
-
         string titleText = isCli
             ? (en ? noticePrefix + " Notice" : noticePrefix + " 终端提醒")
             : isEyeCare
@@ -128,6 +127,19 @@ internal sealed class NoticeDialog : Form
             timeText = s.Format == "MM:SS" ? "00:00" :
                 (s.Format == "Chinese" ? (en ? "00h 00m 00s" : "00时00分00秒") : "00:00:00");
         }
+        bool agentMultiLine = false;
+        Font agentFont = null;
+        if (isAgent)
+        {
+            agentFont = AppContext.GetUiFont(s.Language, 11f, FontStyle.Bold);
+            Size measured = TextRenderer.MeasureText(timeText, agentFont, new Size(310, 0), TextFormatFlags.WordBreak | TextFormatFlags.TextBoxControl);
+            if (measured.Height > 42)
+            {
+                agentMultiLine = true;
+            }
+        }
+        ClientSize = new Size(350, isAgent ? (agentMultiLine ? 196 : 176) : 215);
+
         Label timeLabel = new Label();
         timeLabel.Text = timeText;
         if (isCli)
@@ -153,14 +165,25 @@ internal sealed class NoticeDialog : Form
         }
         else
         {
-            timeLabel.Font = isAgent
-                ? AppContext.GetUiFont(s.Language, 12f, FontStyle.Bold)
-                : AppContext.GetUiFont(s.Language, 22f, FontStyle.Bold);
-            timeLabel.ForeColor = isAgent ? AppContext.Win11TextPrimary : AppContext.Win11Accent;
+            if (isAgent)
+            {
+                timeLabel.Font = agentFont;
+                timeLabel.ForeColor = AppContext.Win11TextPrimary;
+                timeLabel.AutoEllipsis = true;
+                agentTip = new ToolTip();
+                agentTip.InitialDelay = 300;
+                agentTip.ReshowDelay = 100;
+                agentTip.SetToolTip(timeLabel, timeText);
+            }
+            else
+            {
+                timeLabel.Font = AppContext.GetUiFont(s.Language, 22f, FontStyle.Bold);
+                timeLabel.ForeColor = AppContext.Win11Accent;
+            }
         }
         timeLabel.TextAlign = ContentAlignment.MiddleCenter;
-        int timeY = isAgent ? 30 : 52;
-        int timeH = isAgent ? 40 : 42;
+        int timeY = isAgent ? (agentMultiLine ? 24 : 30) : 52;
+        int timeH = isAgent ? (agentMultiLine ? 58 : 40) : 42;
         timeLabel.SetBounds(20, timeY, 310, timeH);
         Controls.Add(timeLabel);
 
@@ -168,7 +191,7 @@ internal sealed class NoticeDialog : Form
         finishLabel.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
         finishLabel.ForeColor = AppContext.Win11TextSecondary;
         finishLabel.TextAlign = ContentAlignment.MiddleCenter;
-        int finishY = isAgent ? 76 : 102;
+        int finishY = isAgent ? (agentMultiLine ? 92 : 76) : 102;
         finishLabel.SetBounds(20, finishY, 310, 22);
         Controls.Add(finishLabel);
         if (isCli)
@@ -276,7 +299,8 @@ internal sealed class NoticeDialog : Form
             Button btn = new Button();
             btn.Text = isCli ? (en ? "Got it" : "我知道了") : isAgent ? (en ? "View" : "查看") : (en ? "OK" : "确定");
             btn.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-            btn.SetBounds(120, isAgent ? 120 : 150, 110, 36);
+            int btnY = isAgent ? (agentMultiLine ? 136 : 120) : 150;
+            btn.SetBounds(120, btnY, 110, 36);
             AppContext.StylePrimaryButton(btn);
             btn.Click += delegate
             {
@@ -366,6 +390,11 @@ internal sealed class NoticeDialog : Form
         {
             try { msgFont.Dispose(); } catch { }
             msgFont = null;
+        }
+        if (agentTip != null)
+        {
+            try { agentTip.Dispose(); } catch { }
+            agentTip = null;
         }
     }
 }

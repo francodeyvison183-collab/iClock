@@ -1299,11 +1299,26 @@ internal static class TestCheck
             {
                 if (c is Label && c.Text.Contains("Cursor")) foundAgentTaskText = true;
             }
+            int normalH = agentNoticeDlg.ClientSize.Height;
             agentNoticeDlg.Dispose();
-            if (!foundAgentTaskText)
+            if (!foundAgentTaskText || normalH != 176)
             {
-                Console.WriteLine("FAIL: NoticeDialog missing agent task text");
+                Console.WriteLine("FAIL: NoticeDialog missing agent task text or incorrect height: " + normalH);
                 return 32;
+            }
+
+            // Test Scheme B: Adaptive expansion on long text
+            ConstructorInfo agentNoticeLongCtor = noticeType.GetConstructor(new Type[] { settings.GetType(), typeof(DateTime), typeof(string), typeof(IntPtr), typeof(Action), typeof(string) });
+            if (agentNoticeLongCtor != null)
+            {
+                string longMsg = "重构了后台监控线程，修复了内存泄漏并清理临时文件，同步通过了全部49项自检测试，性能指标达成。";
+                Form longNoticeDlg = (Form)agentNoticeLongCtor.Invoke(new object[] { settings, DateTime.Now, "Antigravity", IntPtr.Zero, null, longMsg });
+                if (longNoticeDlg == null || longNoticeDlg.ClientSize.Height != 196)
+                {
+                    Console.WriteLine("FAIL: Long notice dialog should adaptively expand to height 196");
+                    return 32;
+                }
+                longNoticeDlg.Dispose();
             }
             Console.WriteLine("PASS: AI Agent task completion monitoring, detection scanning, and alert pattern verified.");
 
