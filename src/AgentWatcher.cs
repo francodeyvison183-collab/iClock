@@ -377,18 +377,21 @@ internal sealed class AgentSessionWatcher : IDisposable
     internal static string FastExtractUserRequest(string line)
     {
         if (string.IsNullOrEmpty(line)) return null;
-        string type = ExtractJsonString(line, "type");
-        if (string.IsNullOrEmpty(type)) return null;
+        string role = ExtractJsonString(line, "role");
         string raw = null;
-        if ("USER_INPUT".Equals(type, StringComparison.Ordinal)) raw = ExtractJsonString(line, "content");
-        else if ("last-prompt".Equals(type, StringComparison.Ordinal)) raw = ExtractJsonString(line, "lastPrompt");
-        else if ("custom-title".Equals(type, StringComparison.Ordinal)) raw = ExtractJsonString(line, "customTitle");
-        else if ("user".Equals(type, StringComparison.Ordinal)) raw = ExtractJsonString(line, "text") ?? ExtractJsonString(line, "content");
-        else if ("UserMessage".Equals(type, StringComparison.Ordinal)) raw = ExtractJsonString(line, "text");
-        else if ("response_item".Equals(type, StringComparison.Ordinal))
+        if ("user".Equals(role, StringComparison.OrdinalIgnoreCase) || "human".Equals(role, StringComparison.OrdinalIgnoreCase))
         {
-            if (line.IndexOf("\"role\":\"user\"", StringComparison.Ordinal) >= 0 || line.IndexOf("\"role\": \"user\"", StringComparison.Ordinal) >= 0)
-                raw = ExtractJsonString(line, "text");
+            raw = ExtractJsonString(line, "text") ?? ExtractJsonString(line, "content") ?? ExtractJsonString(line, "prompt") ?? ExtractJsonString(line, "query");
+        }
+        else
+        {
+            string type = ExtractJsonString(line, "type");
+            if (string.IsNullOrEmpty(type)) return null;
+            if (type == "USER_INPUT") raw = ExtractJsonString(line, "content");
+            else if (type == "last-prompt") raw = ExtractJsonString(line, "lastPrompt");
+            else if (type == "custom-title") raw = ExtractJsonString(line, "customTitle");
+            else if (type == "user") raw = ExtractJsonString(line, "text") ?? ExtractJsonString(line, "content");
+            else if (type == "UserMessage") raw = ExtractJsonString(line, "text");
         }
         if (string.IsNullOrEmpty(raw)) return null;
         string cl = CleanUserRequest(raw.Trim());
@@ -612,9 +615,26 @@ internal sealed class AgentSessionWatcher : IDisposable
                 session.StepDescription = session.LastToolAction = "";
             }
         }
-        else if ((string.IsNullOrEmpty(session.Target) || session.Target == "当前会话" || session.Target == "当前任务" || session.Target == "Session" || session.Target == "Task") && !string.IsNullOrEmpty(filePath))
+        else if (string.IsNullOrEmpty(session.Target) || session.Target == "当前会话" || session.Target == "当前任务" || session.Target == "Session" || session.Target == "Task")
         {
-            string found = FindLatestUserRequestInFile(filePath, jsonSerializer);
+            string found = !string.IsNullOrEmpty(filePath) ? FindLatestUserRequestInFile(filePath, jsonSerializer) : null;
+            if (string.IsNullOrEmpty(found))
+            {
+                for (int i = lines.Count - 1; i >= 0; i--)
+                {
+                    string l = lines[i];
+                    if (l.Contains("\"assistant\"") || l.Contains("\"thinking\""))
+                    {
+                        try
+                        {
+                            Dictionary<string, object> d = jsonSerializer.Deserialize<Dictionary<string, object>>(l);
+                            string slice = ExtractThoughtSlice(d);
+                            if (!string.IsNullOrEmpty(slice) && slice.Length >= 4) { found = slice; break; }
+                        }
+                        catch { }
+                    }
+                }
+            }
             if (!string.IsNullOrEmpty(found))
             {
                 lock (syncLock)
@@ -721,6 +741,18 @@ internal sealed class AgentSessionWatcher : IDisposable
     {
         if (data != null)
         {
+            string text = ExtractTextFromCommonKeys(data);
+            if (!string.IsNullOrEmpty(text))
+            {
+                Match tm = Regex.Match(text, @"<timestamp>(.*?)<\/timestamp>", RegexOptions.IgnoreCase);
+                if (tm.Success)
+                {
+                    string cleanTs = Regex.Replace(tm.Groups[1].Value, @"\s*\([^)]*\)", "").Trim();
+                    DateTime dt;
+                    if (DateTime.TryParse(cleanTs, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt))
+                        return dt;
+                }
+            }
             string[] timeKeys = new string[] { "created_at", "timestamp", "time", "date" };
             for (int k = 0; k < timeKeys.Length; k++)
             {
@@ -900,8 +932,7 @@ internal sealed class AgentSessionWatcher : IDisposable
             // Fallback session target anchor if user prompt arrived before watcher was attached
             if (string.IsNullOrEmpty(session.Target))
             {
-                string tAct = curTool ?? session.LastToolAction;
-                session.Target = !string.IsNullOrEmpty(tAct) ? (CleanUserRequest(tAct) ?? tAct) : (isZh ? "当前任务" : "Task");
+                string tAct = curTool ?? session.LastToolAction; session.Target = !string.IsNullOrEmpty(tAct) ? (CleanUserRequest(tAct) ?? tAct) : (!string.IsNullOrEmpty(session.ProjectHint) ? session.ProjectHint : (isZh ? "当前任务" : "Task"));
                 session.StartTime = nowDate;
             }
         }
@@ -993,6 +1024,10 @@ internal sealed class AgentSessionWatcher : IDisposable
                 if (pl.ContainsKey("thinking")) raw = pl["thinking"];
                 else if (pl.ContainsKey("content")) raw = pl["content"];
             }
+            if (raw == null && d.ContainsKey("message") && d["message"] is Dictionary<string, object>)
+            {
+                raw = ExtractTextFromCommonKeys((Dictionary<string, object>)d["message"]);
+            }
             if (raw == null) raw = d.ContainsKey("content") ? d["content"] : (d.ContainsKey("message") ? d["message"] : null);
         }
         if (raw == null) return null;
@@ -1064,118 +1099,41 @@ internal sealed class AgentSessionWatcher : IDisposable
     internal static string ExtractUserRequest(Dictionary<string, object> data)
     {
         if (data == null) return null;
-
-        // 1. Antigravity format: type == "USER_INPUT"
-        if (data.ContainsKey("type") && "USER_INPUT".Equals(data["type"]))
+        object tObj;
+        if (data.TryGetValue("type", out tObj) && tObj is string)
         {
-            if (data.ContainsKey("content") && data["content"] != null)
+            string type = (string)tObj;
+            if (type == "USER_INPUT" || type == "user")
             {
-                string cleaned = CleanUserRequest(data["content"].ToString());
-                if (!string.IsNullOrEmpty(cleaned) && !string.Equals(cleaned, "continue", StringComparison.OrdinalIgnoreCase))
+                string t = ExtractTextFromCommonKeys(data);
+                if (!string.IsNullOrEmpty(t)) return CleanUserRequest(t);
+            }
+            if (type == "last-prompt" && data.ContainsKey("lastPrompt") && data["lastPrompt"] != null)
+                return CleanUserRequest(data["lastPrompt"].ToString());
+            if (type == "custom-title" && data.ContainsKey("customTitle") && data["customTitle"] != null)
+                return CleanUserRequest(data["customTitle"].ToString());
+        }
+
+        if (data.ContainsKey("payload") && data["payload"] is Dictionary<string, object>)
+        {
+            Dictionary<string, object> payload = (Dictionary<string, object>)data["payload"];
+            string pType = payload.ContainsKey("type") ? payload["type"] as string : null;
+            if ("message".Equals(pType) && "user".Equals(payload.ContainsKey("role") ? payload["role"] : null))
+            {
+                string t = ExtractTextFromCommonKeys(payload);
+                if (!string.IsNullOrEmpty(t)) return CleanUserRequest(t);
+            }
+            else if ("item_completed".Equals(pType) && payload.ContainsKey("item") && payload["item"] is Dictionary<string, object>)
+            {
+                Dictionary<string, object> item = (Dictionary<string, object>)payload["item"];
+                if ("UserMessage".Equals(item.ContainsKey("type") ? item["type"] : null))
                 {
-                    return cleaned;
+                    string t = ExtractTextFromCommonKeys(item);
+                    if (!string.IsNullOrEmpty(t)) return CleanUserRequest(t);
                 }
             }
         }
 
-        // 2. Claude Code format: type == "last-prompt"
-        if (data.ContainsKey("type") && "last-prompt".Equals(data["type"]))
-        {
-            if (data.ContainsKey("lastPrompt") && data["lastPrompt"] != null)
-            {
-                string p = data["lastPrompt"].ToString().Trim();
-                if (!string.IsNullOrEmpty(p) && !string.Equals(p, "continue", StringComparison.OrdinalIgnoreCase))
-                {
-                    return CleanUserRequest(p);
-                }
-            }
-        }
-
-        // 3. Claude Code format: type == "user"
-        if (data.ContainsKey("type") && "user".Equals(data["type"]))
-        {
-            if (data.ContainsKey("message"))
-            {
-                Dictionary<string, object> msg = data["message"] as Dictionary<string, object>;
-                if (msg != null && msg.ContainsKey("content"))
-                {
-                    object rawContent = msg["content"];
-                    if (rawContent is string)
-                    {
-                        string str = rawContent.ToString().Trim();
-                        if (!string.IsNullOrEmpty(str) && !str.StartsWith("<local-command") && !string.Equals(str, "continue", StringComparison.OrdinalIgnoreCase))
-                        {
-                            return CleanUserRequest(str);
-                        }
-                    }
-                    IList content = rawContent as IList;
-                    if (content != null && content.Count > 0)
-                    {
-                        foreach (object item in content)
-                        {
-                            Dictionary<string, object> part = item as Dictionary<string, object>;
-                            if (part != null)
-                            {
-                                if (part.ContainsKey("type") && "tool_result".Equals(part["type"]))
-                                    continue;
-
-                                if (part.ContainsKey("text") && part["text"] != null)
-                                {
-                                    string text = part["text"].ToString().Trim();
-                                    if (!text.StartsWith("<local-command") && !string.Equals(text, "continue", StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        string t = CleanUserRequest(text);
-                                        if (!string.IsNullOrEmpty(t)) return t;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 4. Claude Code format: type == "custom-title"
-        if (data.ContainsKey("type") && "custom-title".Equals(data["type"]))
-        {
-            if (data.ContainsKey("customTitle") && data["customTitle"] != null)
-            {
-                string title = data["customTitle"].ToString().Trim();
-                if (!string.IsNullOrEmpty(title))
-                {
-                    return CleanUserRequest(title);
-                }
-            }
-        }
-
-        // 5. Codex format:
-        // A) response_item with payload.type == "message" && payload.role == "user"
-        // B) event_msg with payload.type == "item_completed" && payload.item.type == "UserMessage"
-        if (data.ContainsKey("payload"))
-        {
-            Dictionary<string, object> payload = data["payload"] as Dictionary<string, object>;
-            if (payload != null)
-            {
-                string pType = payload.ContainsKey("type") ? payload["type"] as string : null;
-                if ("message".Equals(pType) && "user".Equals(payload.ContainsKey("role") ? payload["role"] : null))
-                {
-                    string req = ExtractCodexContentText(payload.ContainsKey("content") ? payload["content"] : null);
-                    if (!string.IsNullOrEmpty(req)) return req;
-                }
-                else if ("item_completed".Equals(pType) && payload.ContainsKey("item"))
-                {
-                    Dictionary<string, object> item = payload["item"] as Dictionary<string, object>;
-                    if (item != null && "UserMessage".Equals(item.ContainsKey("type") ? item["type"] : null))
-                    {
-                        string req = ExtractCodexContentText(item.ContainsKey("content") ? item["content"] : null);
-                        if (!string.IsNullOrEmpty(req)) return req;
-                    }
-                }
-            }
-        }
-
-        // 6. Universal Schema-Agnostic Heuristics
-        // A) Any object with role == user / human
         if (data.ContainsKey("role"))
         {
             string r = data["role"] as string;
@@ -1185,27 +1143,12 @@ internal sealed class AgentSessionWatcher : IDisposable
                 if (!string.IsNullOrEmpty(text)) return CleanUserRequest(text);
             }
         }
-        // B) Direct prompt keys
-        string[] promptKeys = new string[] { "prompt", "user_prompt", "user_request", "userPrompt", "userRequest" };
-        for (int i = 0; i < promptKeys.Length; i++)
-        {
-            string pk = promptKeys[i];
-            if (data.ContainsKey(pk) && data[pk] is string)
-            {
-                string pStr = data[pk] as string;
-                if (!string.IsNullOrEmpty(pStr) && pStr.Length >= 2) return CleanUserRequest(pStr);
-            }
-        }
-        // C) Type suffix matching: e.g. "UserMessage", "user_message", "user_input"
-        if (data.ContainsKey("type") && data["type"] is string)
-        {
-            string t = (data["type"] as string).ToLowerInvariant();
-            if (t.Contains("usermessage") || t.Contains("user_message") || t.Contains("userinput") || t.Contains("user_input"))
-            {
-                string text = ExtractTextFromCommonKeys(data);
-                if (!string.IsNullOrEmpty(text)) return CleanUserRequest(text);
-            }
-        }
+
+        object pkVal;
+        foreach (string pk in new string[] { "prompt", "user_prompt", "user_request" })
+            if (data.TryGetValue(pk, out pkVal) && pkVal is string && ((string)pkVal).Length >= 2) return CleanUserRequest((string)pkVal);
+
+
 
         return null;
     }
@@ -1213,6 +1156,11 @@ internal sealed class AgentSessionWatcher : IDisposable
     private static string ExtractTextFromCommonKeys(Dictionary<string, object> d)
     {
         if (d == null) return null;
+        if (d.ContainsKey("message") && d["message"] is Dictionary<string, object>)
+        {
+            string fromMsg = ExtractTextFromCommonKeys((Dictionary<string, object>)d["message"]);
+            if (!string.IsNullOrEmpty(fromMsg)) return fromMsg;
+        }
         if (d.ContainsKey("content"))
         {
             if (d["content"] is string) return d["content"] as string;
@@ -1229,37 +1177,9 @@ internal sealed class AgentSessionWatcher : IDisposable
                 }
             }
         }
-        foreach (string k in new string[] { "text", "message", "summary" })
+        foreach (string k in new string[] { "text", "message", "summary", "prompt", "query" })
         {
             if (d.ContainsKey(k) && d[k] is string) return (string)d[k];
-        }
-        return null;
-    }
-
-    private static string ExtractCodexContentText(object contentObj)
-    {
-        if (contentObj == null) return null;
-        if (contentObj is string)
-        {
-            string s = CleanUserRequest((string)contentObj);
-            return (!string.IsNullOrEmpty(s) && !string.Equals(s, "continue", StringComparison.OrdinalIgnoreCase)) ? s : null;
-        }
-        IList list = contentObj as IList;
-        if (list == null || list.Count == 0) return null;
-        for (int i = 0; i < list.Count; i++)
-        {
-            Dictionary<string, object> item = list[i] as Dictionary<string, object>;
-            if (item != null && item.ContainsKey("text") && item["text"] != null)
-            {
-                string txt = item["text"].ToString().Trim();
-                if (txt.StartsWith("#") || txt.StartsWith("<environment") || txt.StartsWith("<app"))
-                    continue;
-                string cleaned = CleanUserRequest(txt);
-                if (!string.IsNullOrEmpty(cleaned) && !string.Equals(cleaned, "continue", StringComparison.OrdinalIgnoreCase))
-                {
-                    return cleaned;
-                }
-            }
         }
         return null;
     }
@@ -1269,25 +1189,26 @@ internal sealed class AgentSessionWatcher : IDisposable
     {
         if (string.IsNullOrEmpty(raw)) return null;
 
-        // Extract <USER_REQUEST> ... </USER_REQUEST> if present
-        Match m = Regex.Match(raw, @"<USER_REQUEST>\s*([\s\S]*?)\s*<\/USER_REQUEST>", RegexOptions.IgnoreCase);
+        // 1. Extract specifically targeted request/query tags if present
+        Match m = Regex.Match(raw, @"<(?:USER_REQUEST|user_query|prompt|query)>\s*([\s\S]*?)\s*<\/(?:USER_REQUEST|user_query|prompt|query)>", RegexOptions.IgnoreCase);
         string text = m.Success ? m.Groups[1].Value : raw;
 
-        // Strip xml/html-like metadata tags
-        text = Regex.Replace(text, @"<[^>]+>(?:[\s\S]*?<\/[^>]+>)?", " ");
+        // 2. Strip disruptive metadata blocks (like <timestamp>...</timestamp>, <context>...</context>)
+        text = Regex.Replace(text, @"<(?:timestamp|context|system_info|system_instructions)[^>]*>[\s\S]*?<\/(?:timestamp|context|system_info|system_instructions)>", " ", RegexOptions.IgnoreCase);
 
-        // Normalize whitespace
+        // 3. Strip remaining outer HTML/XML tags without destroying inner text
+        text = Regex.Replace(text, @"<\/?[a-zA-Z0-9_\-]+(?:\s+[^>]*)?>", " ");
+
+        // 4. Normalize whitespace
         text = Regex.Replace(text, @"\s+", " ").Trim();
 
         if (string.IsNullOrEmpty(text)) return null;
 
-        // Strip conversational courtesy openings
+        // 5. Strip conversational courtesy openings
         text = Regex.Replace(text, @"^(?:请帮我|帮我|麻烦|我想|请你|能不能|能否|能够|请问|请|Can you|Please|I want to|I would like to|Could you)\s*[,，:：]?\s*", "", RegexOptions.IgnoreCase).Trim();
 
         if (string.IsNullOrEmpty(text)) return null;
 
-        // Cap at a safe upper bound (200 chars) to prevent extreme memory/IPC bloat;
-        // visual truncation with ellipsis is handled dynamically by the UI based on interface width.
         if (text.Length > 200)
         {
             text = text.Substring(0, 200).Trim();

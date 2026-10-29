@@ -1445,7 +1445,48 @@ internal static class TestCheck
                         Console.WriteLine("FAIL: CleanUserRequest failed to parse USER_REQUEST: " + r2);
                         return 32;
                     }
+
+                    string rCursor = (string)cleanReqMethod.Invoke(null, new object[] { "<timestamp>Thursday, Oct 29, 2026, 10:33 AM (UTC+8)</timestamp>\n<user_query>\n请将admin密码重置为admin@123\n</user_query>" });
+                    if (string.IsNullOrEmpty(rCursor) || !rCursor.Contains("admin密码重置为admin@123"))
+                    {
+                        Console.WriteLine("FAIL: CleanUserRequest failed for Cursor query: " + rCursor);
+                        return 32;
+                    }
+
+                    MethodInfo fastReqMethod = watcherType.GetMethod("FastExtractUserRequest", BindingFlags.NonPublic | BindingFlags.Static);
+                    if (fastReqMethod != null)
+                    {
+                        string f1 = (string)fastReqMethod.Invoke(null, new object[] { "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>请将代码推送到GitHub</user_query>\"}]}}" });
+                        if (string.IsNullOrEmpty(f1) || !f1.Contains("代码推送到GitHub"))
+                        {
+                            Console.WriteLine("FAIL: FastExtractUserRequest failed for Cursor: " + f1);
+                            return 32;
+                        }
+                    }
                 }
+
+                // 5b. Test Cursor format: role: user with user_query and subsequent tool call
+                string cursorFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "test_cursor_transcript.jsonl");
+                System.IO.File.WriteAllText(cursorFile, "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<timestamp>Oct 29, 2026</timestamp>\\n<user_query>推送到GitHub仓库</user_query>\"}]}}\r\n{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Shell\",\"input\":{\"command\":\"git status -sb\"}}]}}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { cursorFile, "Cursor" });
+                System.Windows.Forms.Application.DoEvents();
+                object sTaskCursor = findTask.Invoke(app, new object[] { "Cursor" });
+                if (sTaskCursor != null)
+                {
+                    string curMsg = (string)sTaskCursor.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTaskCursor);
+                    string curSub = (string)sTaskCursor.GetType().GetField("SubDetail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTaskCursor);
+                    if (!curMsg.Contains("推送到GitHub仓库") || curMsg.Contains("git status"))
+                    {
+                        Console.WriteLine("FAIL: Cursor title must anchor on user_query and NOT tool: " + curMsg);
+                        return 32;
+                    }
+                    if (string.IsNullOrEmpty(curSub) || !curSub.Contains("git status"))
+                    {
+                        Console.WriteLine("FAIL: Cursor subdetail must reflect active tool: " + curSub);
+                        return 32;
+                    }
+                }
+                try { System.IO.File.Delete(cursorFile); } catch { }
 
                 // 5. Test that user request anchors the session target across subsequent tool calls
                 System.IO.File.WriteAllText(testFile, "{\"step_index\":0,\"source\":\"USER_EXPLICIT\",\"type\":\"USER_INPUT\",\"status\":\"DONE\",\"content\":\"<USER_REQUEST>优化HUD状态显示，不要用桌面金句</USER_REQUEST>\"}\r\n", System.Text.Encoding.UTF8);
