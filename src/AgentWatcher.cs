@@ -7,6 +7,7 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
+using System.Globalization;
 
 internal sealed class AgentSessionWatcher : IDisposable
 {
@@ -712,11 +713,52 @@ internal sealed class AgentSessionWatcher : IDisposable
 
         if (latestData != null)
         {
-            DispatchParsedEvent(latestData, agentName, isZh, session);
+            DateTime msgTime = ExtractMessageTimestamp(latestData, filePath);
+            DispatchParsedEvent(latestData, agentName, isZh, session, msgTime);
         }
     }
 
-    private void DispatchParsedEvent(Dictionary<string, object> data, string agentName, bool isZh, TurnSession session)
+    internal static DateTime ExtractMessageTimestamp(Dictionary<string, object> data, string filePath)
+    {
+        if (data != null)
+        {
+            string[] timeKeys = new string[] { "created_at", "timestamp", "time", "date" };
+            for (int k = 0; k < timeKeys.Length; k++)
+            {
+                if (data.ContainsKey(timeKeys[k]))
+                {
+                    object val = data[timeKeys[k]];
+                    if (val is string)
+                    {
+                        DateTime dt;
+                        if (DateTime.TryParse((string)val, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out dt))
+                        {
+                            return dt.ToLocalTime();
+                        }
+                    }
+                    else if (val is long || val is int || val is double)
+                    {
+                        try
+                        {
+                            double num = Convert.ToDouble(val);
+                            if (num > 1e11)
+                                return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(num).ToLocalTime();
+                            if (num > 1e8)
+                                return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(num).ToLocalTime();
+                        }
+                        catch { }
+                    }
+                }
+            }
+        }
+        if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+        {
+            try { return File.GetLastWriteTime(filePath); } catch { }
+        }
+        return DateTime.Now;
+    }
+
+    private void DispatchParsedEvent(Dictionary<string, object> data, string agentName, bool isZh, TurnSession session, DateTime msgTime)
     {
         if (appContext == null || disposed || session == null) return;
 
@@ -748,7 +790,7 @@ internal sealed class AgentSessionWatcher : IDisposable
             }
             string planDesc = isZh ? "💭 正在分析需求与规划方案..." : "💭 Analyzing request & planning...";
             string msg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
-            appContext.SetAgentTaskMessage(msg, agentName, true, planDesc, null, -1f, session.ProjectHint);
+            appContext.SetAgentTaskMessage(msg, agentName, true, planDesc, null, -1f, session.ProjectHint, msgTime);
             return;
         }
 
@@ -776,7 +818,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                 AppContext.PlayAiSound();
             }
             string msg = "❓ [" + session.Target + "] " + (isZh ? "等待决策" : "Waiting for input");
-            appContext.SetAgentTaskMessage(msg, agentName, false, question, null, -2f, session.ProjectHint);
+            appContext.SetAgentTaskMessage(msg, agentName, false, question, null, -2f, session.ProjectHint, msgTime);
             return;
         }
 
@@ -802,7 +844,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                 AppContext.PlayAiSound();
             }
             string msg = "⚠️ [" + session.Target + "] " + (isZh ? "执行异常" : "Error");
-            appContext.SetAgentTaskMessage(msg, agentName, false, errSummary, null, -2f, session.ProjectHint);
+            appContext.SetAgentTaskMessage(msg, agentName, false, errSummary, null, -2f, session.ProjectHint, msgTime);
             return;
         }
 
@@ -837,7 +879,7 @@ internal sealed class AgentSessionWatcher : IDisposable
             string timeStr = (sec >= 3) ? (" (" + (sec >= 60 ? (sec / 60 + "m" + sec % 60 + "s") : (sec + "s")) + ")") : "";
             string msg = "✅ [" + target + "] " + (isZh ? "本轮已完成" : "Completed") + timeStr;
             string cleanCompletion = CleanSummaryText(completionSummary);
-            appContext.SetAgentTaskMessage(msg, agentName, false, cleanCompletion, null, -2f, session.ProjectHint);
+            appContext.SetAgentTaskMessage(msg, agentName, false, cleanCompletion, null, -2f, session.ProjectHint, msgTime);
             ScheduleClearProgress(agentName, currentVer, 600000); // Keep completed state visible for 10 minutes so user always sees the result
             AppContext.TrimMemory();
             return;
@@ -878,7 +920,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         if (count >= 60)
         {
             string warn = "⚠️ [" + session.Target + "] " + (isZh ? ("疑似死循环 (" + count + "次)") : ("Runaway loop (" + count + " calls)"));
-            appContext.SetAgentTaskMessage(warn, agentName, false, isZh ? "90秒内工具调用频率过高，疑似陷入循环" : "Runaway loop detected (>200 calls in 90s)", null, -2f, session.ProjectHint);
+            appContext.SetAgentTaskMessage(warn, agentName, false, isZh ? "90秒内工具调用频率过高，疑似陷入循环" : "Runaway loop detected (>200 calls in 90s)", null, -2f, session.ProjectHint, msgTime);
             AppContext.PlayAiSound();
             return;
         }
@@ -915,7 +957,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         else subDetail = !string.IsNullOrEmpty(formattedLast) ? formattedLast : (isZh ? "💭 思考分析中..." : "💭 Thinking...");
 
         string procMsg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
-        appContext.SetAgentTaskMessage(procMsg, agentName, true, subDetail, stepProgressText, progress, session.ProjectHint);
+        appContext.SetAgentTaskMessage(procMsg, agentName, true, subDetail, stepProgressText, progress, session.ProjectHint, msgTime);
     }
 
     private static string FormatAuthenticAction(string act, string stepProg, string desc, int s, int t)

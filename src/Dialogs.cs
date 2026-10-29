@@ -87,22 +87,23 @@ internal sealed class NoticeDialog : Form
         MinimizeBox = false;
         ShowInTaskbar = true;
         TopMost = true;
-        ClientSize = new Size(350, 215);
+        ClientSize = new Size(350, isAgent ? 176 : 215);
 
         string titleText = isCli
             ? (en ? noticePrefix + " Notice" : noticePrefix + " 终端提醒")
             : isEyeCare
             ? (en ? "Time to rest your eyes" : "该让眼睛歇一歇了")
-            : isAgent
-            ? (en ? agentName + " Task Completed" : agentName + " 任务已完成")
             : (String.IsNullOrEmpty(s.EndMessage) ? (en ? "Countdown Finished" : "倒计时结束") : s.EndMessage);
-        Label titleLabel = new Label();
-        titleLabel.Text = titleText;
-        titleLabel.Font = AppContext.GetUiFont(s.Language, 13f, FontStyle.Bold);
-        titleLabel.ForeColor = AppContext.Win11TextPrimary;
-        titleLabel.TextAlign = ContentAlignment.MiddleCenter;
-        titleLabel.SetBounds(20, 18, 310, 28);
-        Controls.Add(titleLabel);
+        if (!isAgent)
+        {
+            Label titleLabel = new Label();
+            titleLabel.Text = titleText;
+            titleLabel.Font = AppContext.GetUiFont(s.Language, 13f, FontStyle.Bold);
+            titleLabel.ForeColor = AppContext.Win11TextPrimary;
+            titleLabel.TextAlign = ContentAlignment.MiddleCenter;
+            titleLabel.SetBounds(20, 18, 310, 28);
+            Controls.Add(titleLabel);
+        }
 
         string timeText;
         if (isCli)
@@ -117,7 +118,10 @@ internal sealed class NoticeDialog : Form
         }
         else if (isAgent)
         {
-            timeText = !string.IsNullOrEmpty(detailMessage) ? detailMessage : (en ? "Ready for review" : "可返回查看结果");
+            string msg = !string.IsNullOrEmpty(detailMessage) ? detailMessage : (en ? "Task completed!" : "任务已完成！");
+            timeText = (!string.IsNullOrEmpty(agentName) && !msg.Contains(agentName))
+                ? (agentName + " · " + msg)
+                : msg;
         }
         else
         {
@@ -150,19 +154,22 @@ internal sealed class NoticeDialog : Form
         else
         {
             timeLabel.Font = isAgent
-                ? (!string.IsNullOrEmpty(detailMessage) ? AppContext.GetUiFont(s.Language, 11f, FontStyle.Bold) : AppContext.GetUiFont(s.Language, 16f, FontStyle.Bold))
+                ? AppContext.GetUiFont(s.Language, 12f, FontStyle.Bold)
                 : AppContext.GetUiFont(s.Language, 22f, FontStyle.Bold);
-            timeLabel.ForeColor = AppContext.Win11Accent;
+            timeLabel.ForeColor = isAgent ? AppContext.Win11TextPrimary : AppContext.Win11Accent;
         }
         timeLabel.TextAlign = ContentAlignment.MiddleCenter;
-        timeLabel.SetBounds(20, 52, 310, 42);
+        int timeY = isAgent ? 30 : 52;
+        int timeH = isAgent ? 40 : 42;
+        timeLabel.SetBounds(20, timeY, 310, timeH);
         Controls.Add(timeLabel);
 
         finishLabel = new Label();
         finishLabel.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
         finishLabel.ForeColor = AppContext.Win11TextSecondary;
         finishLabel.TextAlign = ContentAlignment.MiddleCenter;
-        finishLabel.SetBounds(20, 102, 310, 22);
+        int finishY = isAgent ? 76 : 102;
+        finishLabel.SetBounds(20, finishY, 310, 22);
         Controls.Add(finishLabel);
         if (isCli)
         {
@@ -269,7 +276,7 @@ internal sealed class NoticeDialog : Form
             Button btn = new Button();
             btn.Text = isCli ? (en ? "Got it" : "我知道了") : isAgent ? (en ? "View" : "查看") : (en ? "OK" : "确定");
             btn.Font = AppContext.GetUiFont(s.Language, 9.5f, FontStyle.Regular);
-            btn.SetBounds(120, 150, 110, 36);
+            btn.SetBounds(120, isAgent ? 120 : 150, 110, 36);
             AppContext.StylePrimaryButton(btn);
             btn.Click += delegate
             {

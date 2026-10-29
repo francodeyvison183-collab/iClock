@@ -34,6 +34,7 @@ internal sealed class AgentTaskStatus
     internal DateTime TurnStartTime;
     internal DateTime StepStartTime;
     internal double ForegroundSeenSeconds;
+    internal DateTime MessageTimestamp;
 }
 
 internal sealed class AgentTaskStatusHud : Form
@@ -134,9 +135,12 @@ internal sealed class AgentTaskStatusHud : Form
         if (settings == null || !settings.DesktopCollaborationEnabled) return false;
         if (tasks == null || tasks.Count == 0) return false;
         if (isHovered || moving || resizingWidth) return true;
+        DateTime now = DateTime.Now;
         for (int i = 0; i < tasks.Count; i++)
         {
             AgentTaskStatus t = tasks[i];
+            // 5分钟内无新消息，不显示
+            if (t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
             if (!AppContext.IsAgentWindowInForeground(t.AgentName, t.ProjectHint))
             {
                 return true;
@@ -216,16 +220,21 @@ internal sealed class AgentTaskStatusHud : Form
             }
         }
 
-        // Static state throttling: When idle/completed with static graphics and no hover/drag, skip redundant 60ms redraws
+        // Animation self-driven: running comet ring & waiting pulse run continuously regardless of mouse hover
         bool hasActiveAnimation = moving || resizingWidth || isHovered || hoverChanged;
         if (!hasActiveAnimation && tasks != null && tasks.Count > 0)
         {
+            DateTime nowUtc = DateTime.Now;
             for (int i = 0; i < tasks.Count; i++)
             {
                 AgentTaskStatus t = tasks[i];
+                if (t.MessageTimestamp > DateTime.MinValue && (nowUtc - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
                 bool done = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("✅") || t.Message.Contains("完成") || t.Message.Contains("Completed"));
+                if (t.HasProgress && !string.IsNullOrEmpty(t.StepProgress)) done = false;
                 bool err = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("⚠️") || t.Message.Contains("异常") || t.Message.Contains("死循环"));
-                if (!done && !err)
+                bool waiting = err || (!string.IsNullOrEmpty(t.Message) && (t.Message.Contains("等待") || t.Message.Contains("Waiting") || t.Message.Contains("决策") || t.Message.StartsWith("❓")));
+                bool running = (t.IsThinking || t.HasProgress || (!done && !waiting)) && !err && !waiting;
+                if (running || waiting)
                 {
                     hasActiveAnimation = true;
                     break;

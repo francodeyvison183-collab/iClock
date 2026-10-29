@@ -1391,11 +1391,11 @@ internal sealed class AppContext : ApplicationContext
         taskStatusHud.UpdatePosition(overlay.Bounds);
     }
 
-    internal void SetAgentProgress(float percent, string message, string agentName = null, string stepProgress = null)
+    internal void SetAgentProgress(float percent, string message, string agentName = null, string stepProgress = null, DateTime? msgTime = null)
     {
         if (overlay != null && overlay.InvokeRequired)
         {
-            overlay.BeginInvoke(new Action<float, string, string, string>(SetAgentProgress), percent, message, agentName, stepProgress);
+            overlay.BeginInvoke(new Action<float, string, string, string, DateTime?>(SetAgentProgress), percent, message, agentName, stepProgress, msgTime);
             return;
         }
         string name = GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "智能体");
@@ -1405,8 +1405,10 @@ internal sealed class AppContext : ApplicationContext
             status = new AgentTaskStatus { AgentName = name };
             agentTaskStatuses.Add(status);
         }
+        status.MessageTimestamp = msgTime.HasValue && msgTime.Value > DateTime.MinValue ? msgTime.Value : DateTime.Now;
         status.HasProgress = true;
         status.IsThinking = false;
+        if (status.TurnStartTime == DateTime.MinValue) status.TurnStartTime = DateTime.Now;
         status.Progress = Math.Max(0f, Math.Min(1f, percent));
         if (!string.IsNullOrWhiteSpace(stepProgress))
         {
@@ -1425,13 +1427,13 @@ internal sealed class AppContext : ApplicationContext
         RefreshTaskStatusHud();
     }
 
-    internal void SetAgentTaskMessage(string message, string agentName, bool isThinking = false, string subDetail = null, string stepProgress = null, float progress = -1f, string projectHint = null)
+    internal void SetAgentTaskMessage(string message, string agentName, bool isThinking = false, string subDetail = null, string stepProgress = null, float progress = -1f, string projectHint = null, DateTime? msgTime = null)
     {
         if (overlay != null && overlay.InvokeRequired)
         {
             overlay.BeginInvoke((MethodInvoker)delegate
             {
-                SetAgentTaskMessage(message, agentName, isThinking, subDetail, stepProgress, progress, projectHint);
+                SetAgentTaskMessage(message, agentName, isThinking, subDetail, stepProgress, progress, projectHint, msgTime);
             });
             return;
         }
@@ -1442,11 +1444,16 @@ internal sealed class AppContext : ApplicationContext
             status = new AgentTaskStatus { AgentName = name };
             agentTaskStatuses.Add(status);
         }
+        status.MessageTimestamp = msgTime.HasValue && msgTime.Value > DateTime.MinValue ? msgTime.Value : DateTime.Now;
         if (status.Message == message && status.IsThinking == isThinking && status.SubDetail == subDetail && status.StepProgress == stepProgress && string.Equals(status.ProjectHint, projectHint, StringComparison.Ordinal) && taskStatusHud != null && taskStatusHud.Visible) return;
         DateTime now = DateTime.Now;
-        if (isThinking)
+        bool isCompleted = !string.IsNullOrEmpty(message) && (message.Contains("完成") || message.Contains("Completed") || message.StartsWith("✅"));
+        bool isError = !string.IsNullOrEmpty(message) && (message.StartsWith("⚠️") || message.Contains("异常") || message.Contains("死循环"));
+        bool isWaiting = isError || (!string.IsNullOrEmpty(message) && (message.Contains("等待") || message.Contains("Waiting") || message.Contains("决策") || message.StartsWith("❓")));
+        bool isRunning = (isThinking || progress >= 0f || (!isCompleted && !isWaiting)) && !isError && !isWaiting;
+        if (isRunning)
         {
-            if (!status.IsThinking || status.TurnStartTime == DateTime.MinValue)
+            if (status.TurnStartTime == DateTime.MinValue)
                 status.TurnStartTime = now;
             if (!string.Equals(status.SubDetail, subDetail, StringComparison.Ordinal) || status.StepStartTime == DateTime.MinValue)
                 status.StepStartTime = now;

@@ -4101,6 +4101,7 @@ internal static class TestCheck
                     object t1 = Activator.CreateInstance(taskType);
                     taskType.GetField("AgentName", bf).SetValue(t1, "NonExistentBackgroundAgent");
                     taskType.GetField("Message", bf).SetValue(t1, "[SelfCheck] Testing background HUD");
+                    taskType.GetField("MessageTimestamp", bf).SetValue(t1, DateTime.Now);
                     testTasks.Add(t1);
                     mSetTasks.Invoke(hudInstance, new object[] { testTasks });
 
@@ -4110,6 +4111,16 @@ internal static class TestCheck
                         Console.WriteLine("FAIL: HUD ShouldBeVisible should be true for background agent");
                         return 76;
                     }
+
+                    // Case 3b: Test 5-minute inactivity rule (>5min no new message -> ShouldBeVisible is false)
+                    taskType.GetField("MessageTimestamp", bf).SetValue(t1, DateTime.Now.AddMinutes(-6));
+                    bool vExpired = (bool)mShould.Invoke(hudInstance, null);
+                    if (vExpired)
+                    {
+                        Console.WriteLine("FAIL: HUD ShouldBeVisible should be false when last message is older than 5 minutes");
+                        return 76;
+                    }
+                    taskType.GetField("MessageTimestamp", bf).SetValue(t1, DateTime.Now);
 
                     // Case 4: Test rendering in both collapsed and expanded (isHovered) modes
                     using (Bitmap bTest = new Bitmap(320, 48))
