@@ -23,6 +23,10 @@ if (Test-Path $stage) {
 New-Item -ItemType Directory -Path $stage | Out-Null
 
 Copy-Item $exeSource (Join-Path $stage 'iClock.exe')
+$cmdSource = Join-Path $projectRoot 'dist\iclock.cmd'
+if (Test-Path $cmdSource) {
+    Copy-Item $cmdSource (Join-Path $stage 'iclock.cmd')
+}
 Copy-Item (Join-Path $projectRoot 'README.md') (Join-Path $stage 'README.md')
 Copy-Item (Join-Path $projectRoot 'LICENSE') (Join-Path $stage 'LICENSE')
 

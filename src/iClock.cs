@@ -5330,13 +5330,40 @@ internal static class Program
         if (attached)
         {
             IntPtr consoleHwnd = NativeMethods.GetConsoleWindow();
+            bool isTerminal = IsTerminalForeground(consoleHwnd);
             NativeMethods.FreeConsole();
-            if (consoleHwnd != IntPtr.Zero && NativeMethods.GetForegroundWindow() == consoleHwnd)
+            if (isTerminal)
             {
+                System.Threading.Thread.Sleep(25);
                 NativeMethods.keybd_event(0x0D, 0, 0, UIntPtr.Zero);
                 NativeMethods.keybd_event(0x0D, 0, 2, UIntPtr.Zero);
             }
         }
+    }
+
+    internal static bool IsTerminalForeground(IntPtr consoleHwnd)
+    {
+        IntPtr fg = NativeMethods.GetForegroundWindow();
+        if (fg == IntPtr.Zero) return false;
+        if (consoleHwnd != IntPtr.Zero && fg == consoleHwnd) return true;
+        uint pid = 0;
+        NativeMethods.GetWindowThreadProcessId(fg, out pid);
+        if (pid == 0) return false;
+        try
+        {
+            using (Process p = Process.GetProcessById((int)pid))
+            {
+                string name = p.ProcessName.ToLowerInvariant();
+                if (name.Contains("terminal") || name == "powershell" || name == "pwsh"
+                    || name == "cmd" || name == "conhost" || name == "openconsole"
+                    || name == "code" || name == "devenv")
+                {
+                    return true;
+                }
+            }
+        }
+        catch { }
+        return false;
     }
 
     private static void WriteCliJson(bool ok, string action, string agentName, object result, string error)
@@ -5395,6 +5422,15 @@ internal static class Program
     private static void InstallCli()
     {
         string dir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\', '/');
+        try
+        {
+            string cmdPath = Path.Combine(dir, "iclock.cmd");
+            if (!File.Exists(cmdPath))
+            {
+                File.WriteAllText(cmdPath, "@echo off\r\nif \"%~1\"==\"\" (\r\n    start \"\" \"%~dp0iClock.exe\"\r\n    exit /b 0\r\n) else (\r\n    \"%~dp0iClock.exe\" %*\r\n    exit /b %ERRORLEVEL%\r\n)\r\n");
+            }
+        }
+        catch { }
         string msg;
         if (ConfigureCliPath(out msg))
         {

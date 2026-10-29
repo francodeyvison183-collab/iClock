@@ -3180,6 +3180,25 @@ internal static class TestCheck
                 return 58;
             }
 
+            // Verify companion CLI script and terminal foreground probe
+            string distCmd = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "iclock.cmd");
+            if (System.IO.File.Exists(distCmd))
+            {
+                string cmdTxt = System.IO.File.ReadAllText(distCmd);
+                if (!cmdTxt.Contains("iClock.exe"))
+                {
+                    Console.WriteLine("FAIL: iclock.cmd missing invocation target");
+                    return 58;
+                }
+            }
+            Type progType = asm.GetType("Program");
+            MethodInfo mIsTerm = progType != null ? progType.GetMethod("IsTerminalForeground", BindingFlags.NonPublic | BindingFlags.Static) : null;
+            if (mIsTerm == null)
+            {
+                Console.WriteLine("FAIL: Program.IsTerminalForeground method missing");
+                return 58;
+            }
+
             // Verify AskHumanDialog type exists and instantiates with options
             Type askDlgType = asm.GetType("AskHumanDialog");
             if (askDlgType == null)

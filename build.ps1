@@ -44,6 +44,11 @@ if ($LASTEXITCODE -ne 0) { throw "Compilation failed with exit code $LASTEXITCOD
 $size = (Get-Item -LiteralPath $outputExe).Length
 Write-Host "Built $outputExe ($size bytes)."
 
+$cmdScript = Join-Path $outputDir 'iclock.cmd'
+$cmdContent = "@echo off`r`nif `"%~1`"==`"`" (`r`n    start `"`" `"%~dp0iClock.exe`"`r`n    exit /b 0`r`n) else (`r`n    `"%~dp0iClock.exe`" %*`r`n    exit /b %ERRORLEVEL%`r`n)"
+[System.IO.File]::WriteAllText($cmdScript, $cmdContent, [System.Text.Encoding]::ASCII)
+Write-Host "Generated $cmdScript."
+
 $testSource = Join-Path $projectRoot 'tests\SelfCheck.cs'
 if (Test-Path -LiteralPath $testSource) {
     $testExe = Join-Path $outputDir 'SelfCheck.exe'
