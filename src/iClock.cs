@@ -1080,12 +1080,11 @@ internal sealed class AppContext : ApplicationContext
         }
         cmd = cmd.Trim();
         string cliAgentName = null;
-        const string agentNameArg = " --agent-name ";
-        int agentNameIndex = cmd.LastIndexOf(agentNameArg, StringComparison.OrdinalIgnoreCase);
-        if (agentNameIndex >= 0)
+        Match agentMatch = Regex.Match(cmd, @"\s+--agent-name\s+(""[^""]+""|[^\s]+)", RegexOptions.IgnoreCase);
+        if (agentMatch.Success)
         {
-            cliAgentName = cmd.Substring(agentNameIndex + agentNameArg.Length).Trim().Trim('"');
-            cmd = cmd.Substring(0, agentNameIndex).Trim();
+            cliAgentName = agentMatch.Groups[1].Value.Trim().Trim('"');
+            cmd = cmd.Remove(agentMatch.Index, agentMatch.Length).Trim();
             if (cliAgentName.Length == 0) cliAgentName = null;
         }
         if (cmd.IndexOf("--once", StringComparison.OrdinalIgnoreCase) >= 0 || cmd.IndexOf("-once", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -1102,7 +1101,8 @@ internal sealed class AppContext : ApplicationContext
             bool collaborationCommand = action == "notice" || action == "-n" || action == "--notice"
                 || action.StartsWith("notice:") || action == "quote" || action == "-q" || action == "--quote"
                 || action.StartsWith("quote:") || action == "progress" || action == "-pr" || action == "--progress"
-                || action.StartsWith("progress:") || action == "ask_human" || action.StartsWith("ask_human:");
+                || action.StartsWith("progress:") || action == "status" || action == "-st" || action == "--status"
+                || action.StartsWith("status:") || action == "ask_human" || action.StartsWith("ask_human:");
             string payload = action.StartsWith("quote:") ? cmd.Substring("quote:".Length).Trim()
                 : action.StartsWith("progress:") ? cmd.Substring("progress:".Length).Trim() : (arg ?? "");
             bool cleanup = (action == "ask_human_cancel" || action.StartsWith("ask_human_cancel"))
@@ -1111,7 +1111,11 @@ internal sealed class AppContext : ApplicationContext
                         || payload.StartsWith("clear|", StringComparison.OrdinalIgnoreCase) || payload.StartsWith("hide|", StringComparison.OrdinalIgnoreCase)))
                 || (action == "progress" || action == "-pr" || action == "--progress" || action.StartsWith("progress:"))
                     && (payload.Equals("clear", StringComparison.OrdinalIgnoreCase) || payload.Equals("off", StringComparison.OrdinalIgnoreCase)
-                        || payload.Equals("reset", StringComparison.OrdinalIgnoreCase));
+                        || payload.Equals("reset", StringComparison.OrdinalIgnoreCase))
+                || ((action == "status" || action == "-st" || action == "--status" || action.StartsWith("status:"))
+                    && (payload.Equals("clear", StringComparison.OrdinalIgnoreCase) || payload.Equals("clear-all", StringComparison.OrdinalIgnoreCase)
+                        || payload.Equals("clear_all", StringComparison.OrdinalIgnoreCase) || payload.Equals("off", StringComparison.OrdinalIgnoreCase)
+                        || payload.Equals("reset", StringComparison.OrdinalIgnoreCase)));
             if (collaborationCommand && !cleanup) return false;
         }
 
@@ -1254,6 +1258,11 @@ internal sealed class AppContext : ApplicationContext
             string payload = action.StartsWith("progress:") ? cmd.Substring("progress:".Length).Trim() : (arg ?? "");
             HandleProgressCommand(payload, cliAgentName);
         }
+        else if (action == "status" || action == "-st" || action == "--status" || action.StartsWith("status:"))
+        {
+            string payload = action.StartsWith("status:") ? cmd.Substring("status:".Length).Trim() : (arg ?? "");
+            HandleStatusCommand(payload, cliAgentName);
+        }
         else if (action == "activate" || action == "settings" || action == "config" || action == "open" || action == "--settings" || action == "-c")
         {
             ShowSettings();
@@ -1339,6 +1348,143 @@ internal sealed class AppContext : ApplicationContext
 
         string finalMsg = !string.IsNullOrEmpty(stepStr) ? stepStr : msg;
         SetAgentProgress(pct, finalMsg, statusAgent, stepStr);
+    }
+
+    internal void HandleStatusCommand(string payload, string agentName = null)
+    {
+        if (string.IsNullOrWhiteSpace(payload)) return;
+        payload = payload.Trim();
+
+        if (payload.Equals("clear-all", StringComparison.OrdinalIgnoreCase) || payload.Equals("clear_all", StringComparison.OrdinalIgnoreCase))
+        {
+            ClearAgentProgress();
+            return;
+        }
+
+        string rawClean = payload.Trim('"');
+        if (rawClean.Equals("clear", StringComparison.OrdinalIgnoreCase) || rawClean.Equals("reset", StringComparison.OrdinalIgnoreCase) || rawClean.Equals("off", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!string.IsNullOrEmpty(agentName))
+            {
+                ClearAgentProgress(GetTaskAgentName(agentName, settings.Language == "en" ? "Terminal" : "终端"));
+            }
+            else
+            {
+                ClearAgentProgress();
+            }
+            return;
+        }
+
+        bool isThinking = false;
+        bool isWaiting = false;
+        bool isError = false;
+        bool isDone = false;
+        string detail = null;
+        string progStr = null;
+        string proj = null;
+        string explicitAgent = null;
+
+        MatchCollection matches = Regex.Matches(payload, @"[""].+?[""]|[^ 	""]+");
+        List<string> tokens = new List<string>();
+        foreach (Match m in matches)
+        {
+            string t = m.Value.Trim();
+            if (t.StartsWith("\"") && t.EndsWith("\"") && t.Length >= 2) t = t.Substring(1, t.Length - 2);
+            tokens.Add(t);
+        }
+
+        List<string> positional = new List<string>();
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            string t = tokens[i];
+            if (string.Equals(t, "--thinking", StringComparison.OrdinalIgnoreCase)) isThinking = true;
+            else if (string.Equals(t, "--waiting", StringComparison.OrdinalIgnoreCase)) isWaiting = true;
+            else if (string.Equals(t, "--error", StringComparison.OrdinalIgnoreCase)) isError = true;
+            else if (string.Equals(t, "--done", StringComparison.OrdinalIgnoreCase) || string.Equals(t, "--completed", StringComparison.OrdinalIgnoreCase)) isDone = true;
+            else if ((string.Equals(t, "--detail", StringComparison.OrdinalIgnoreCase) || string.Equals(t, "-d", StringComparison.OrdinalIgnoreCase)) && i + 1 < tokens.Count)
+            {
+                detail = tokens[++i];
+            }
+            else if ((string.Equals(t, "--progress", StringComparison.OrdinalIgnoreCase) || string.Equals(t, "-pr", StringComparison.OrdinalIgnoreCase)) && i + 1 < tokens.Count)
+            {
+                progStr = tokens[++i];
+            }
+            else if ((string.Equals(t, "--project", StringComparison.OrdinalIgnoreCase) || string.Equals(t, "-p", StringComparison.OrdinalIgnoreCase)) && i + 1 < tokens.Count)
+            {
+                proj = tokens[++i];
+            }
+            else if (string.Equals(t, "--agent-name", StringComparison.OrdinalIgnoreCase) && i + 1 < tokens.Count)
+            {
+                explicitAgent = tokens[++i];
+            }
+            else if (!t.StartsWith("--") && !t.StartsWith("-"))
+            {
+                positional.Add(t);
+            }
+        }
+
+        string message = positional.Count > 0 ? string.Join(" ", positional.ToArray()) : "";
+
+        string targetAgent = !string.IsNullOrEmpty(explicitAgent) ? explicitAgent : agentName;
+        string statusAgent = GetTaskAgentName(targetAgent, settings.Language == "en" ? "Terminal" : "终端");
+        RecordCliActivity(statusAgent);
+
+        string finalMsg = message;
+        if (isDone)
+        {
+            if (!finalMsg.StartsWith("✅")) finalMsg = "✅ " + finalMsg;
+        }
+        else if (isError)
+        {
+            if (!finalMsg.StartsWith("⚠️")) finalMsg = "⚠️ " + finalMsg;
+        }
+        else if (isWaiting)
+        {
+            if (!finalMsg.StartsWith("❓")) finalMsg = "❓ " + finalMsg;
+        }
+        else if (isThinking)
+        {
+            if (!finalMsg.StartsWith("💭") && !finalMsg.StartsWith("⏳")) finalMsg = "⏳ " + finalMsg;
+        }
+        else if (!string.IsNullOrEmpty(finalMsg) && !finalMsg.StartsWith("⏳") && !finalMsg.StartsWith("✅") && !finalMsg.StartsWith("⚠️") && !finalMsg.StartsWith("❓"))
+        {
+            finalMsg = "⏳ " + finalMsg;
+        }
+
+        float progressVal = -1f;
+        string stepProgress = null;
+        if (!string.IsNullOrEmpty(progStr))
+        {
+            if (progStr.Contains("/"))
+            {
+                string[] slashParts = progStr.Split('/');
+                float num, den;
+                if (slashParts.Length == 2 && float.TryParse(slashParts[0].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out num) && float.TryParse(slashParts[1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out den) && den > 0f)
+                {
+                    progressVal = num / den;
+                    stepProgress = progStr;
+                }
+            }
+            else
+            {
+                string cleanVal = progStr.Replace("%", "").Trim();
+                float raw;
+                if (float.TryParse(cleanVal, NumberStyles.Float, CultureInfo.InvariantCulture, out raw))
+                {
+                    if (progStr.Contains("%") || raw > 1.0f) progressVal = raw / 100.0f;
+                    else if (progStr.Contains(".")) progressVal = raw;
+                    else progressVal = raw / 100.0f;
+                    stepProgress = (int)(progressVal * 100) + "%";
+                }
+            }
+        }
+
+        if (isDone)
+        {
+            progressVal = -2f;
+        }
+
+        SetAgentTaskMessage(finalMsg, statusAgent, isThinking, detail, stepProgress, progressVal, proj, DateTime.Now);
     }
 
     private static string GetTaskAgentName(string agentName, string fallback)
@@ -5183,7 +5329,13 @@ internal static class Program
         }
         if (attached)
         {
+            IntPtr consoleHwnd = NativeMethods.GetConsoleWindow();
             NativeMethods.FreeConsole();
+            if (consoleHwnd != IntPtr.Zero && NativeMethods.GetForegroundWindow() == consoleHwnd)
+            {
+                NativeMethods.keybd_event(0x0D, 0, 0, UIntPtr.Zero);
+                NativeMethods.keybd_event(0x0D, 0, 2, UIntPtr.Zero);
+            }
         }
     }
 
@@ -5278,6 +5430,10 @@ Options:
   -a, --ask <question>            Flash Approval HUD: request human decision
                                    (options: --options ""A,B"", timeout: -t <sec>)
   --agent-name <name>             Name this agent's collaboration status row
+  -st, --status <text|clear>      Update AI assistance status bar on HUD
+                                   (options: --detail <text>, --progress <val>,
+                                             --thinking, --done, --waiting, --error,
+                                             --agent-name <name>, --project <hint>)
   -pr, --progress <val|clear>     Show hairline agent progress on HUD (e.g. 60, 3/5, clear)
   -q, --quote                     Show daily quote popup
   --once                          Single-run mode: exit automatically after completion
@@ -5456,8 +5612,10 @@ Examples:
         for (int i = 1; i + 1 < args.Length; i++)
             if (args[i] == "--agent-name") agentName = args[i + 1].Trim('"');
 
-        bool cleanup = action == "progress" && args.Length > 1
+        bool cleanup = (action == "progress" || action == "status") && args.Length > 1
             && (args[1].Equals("clear", StringComparison.OrdinalIgnoreCase)
+                || args[1].Equals("clear-all", StringComparison.OrdinalIgnoreCase)
+                || args[1].Equals("clear_all", StringComparison.OrdinalIgnoreCase)
                 || args[1].Equals("off", StringComparison.OrdinalIgnoreCase)
                 || args[1].Equals("reset", StringComparison.OrdinalIgnoreCase));
         if (!Settings.Load().DesktopCollaborationEnabled && !cleanup)
@@ -5468,7 +5626,9 @@ Examples:
             return 1;
         }
 
-        if (EnsureIpcWindow() == IntPtr.Zero || !SendIpcMessage(string.Join(" ", args)))
+        List<string> quoted = new List<string>();
+        for (int i = 0; i < args.Length; i++) { string a = args[i]; quoted.Add(a.Contains(" ") && !a.StartsWith("\"") ? ("\"" + a + "\"") : a); }
+        if (EnsureIpcWindow() == IntPtr.Zero || !SendIpcMessage(string.Join(" ", quoted.ToArray())))
         {
             string error = "Failed to connect to iClock desktop instance.";
             if (json) WriteCliJson(false, action, agentName, null, error);
@@ -5624,6 +5784,11 @@ Examples:
             if (json && (first == "-pr" || first == "--progress" || first == "progress" || first.StartsWith("progress:")))
             {
                 Environment.ExitCode = RunCliDesktopCommand(args, "progress", true);
+                return;
+            }
+            if (first == "-st" || first == "--status" || first == "status" || first.StartsWith("status:"))
+            {
+                Environment.ExitCode = RunCliDesktopCommand(args, "status", json);
                 return;
             }
             bool isProgressCommand = first == "-pr" || first == "--progress" || first == "progress" || first.StartsWith("progress:");

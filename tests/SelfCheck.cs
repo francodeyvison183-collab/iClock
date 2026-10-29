@@ -1383,6 +1383,8 @@ internal static class TestCheck
                 }
                 MethodInfo clearProg = appType.GetMethod("ClearAgentProgress", BindingFlags.NonPublic | BindingFlags.Instance);
                 clearProg.Invoke(app, new object[] { "TestAgent" });
+                System.Threading.Thread.Sleep(80);
+                System.Windows.Forms.Application.DoEvents();
 
                 // 3. Verify Semantic Distiller and Summary Purifier
                 MethodInfo cleanMethod = watcherType.GetMethod("CleanSummaryText", BindingFlags.NonPublic | BindingFlags.Static);
@@ -3151,6 +3153,32 @@ internal static class TestCheck
             // Test IPC progress command
             handleIpc.Invoke(app, new object[] { "progress:60|Compiling test" });
             handleIpc.Invoke(app, new object[] { "progress:clear" });
+
+            // Test IPC status command
+            handleIpc.Invoke(app, new object[] { "status:Building project --detail compiling... --progress 45% --agent-name CliTester --project iClock --thinking" });
+            MethodInfo findTaskGlobal = appType.GetMethod("FindTaskStatus", BindingFlags.NonPublic | BindingFlags.Instance);
+            object cliStatus = findTaskGlobal.Invoke(app, new object[] { "CliTester" });
+            if (cliStatus == null)
+            {
+                Console.WriteLine("FAIL: IPC status command did not create task status for CliTester");
+                return 58;
+            }
+            string cliMsg = (string)cliStatus.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cliStatus);
+            string cliSub = (string)cliStatus.GetType().GetField("SubDetail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cliStatus);
+            float cliProg = (float)cliStatus.GetType().GetField("Progress", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cliStatus);
+            bool cliThink = (bool)cliStatus.GetType().GetField("IsThinking", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cliStatus);
+            string cliProj = (string)cliStatus.GetType().GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cliStatus);
+            if (!cliMsg.Contains("Building project") || cliSub != "compiling..." || Math.Abs(cliProg - 0.45f) > 0.01f || !cliThink || cliProj != "iClock")
+            {
+                Console.WriteLine("FAIL: IPC status command fields mismatch: msg=" + cliMsg + ", sub=" + cliSub + ", prog=" + cliProg + ", think=" + cliThink + ", proj=" + cliProj);
+                return 58;
+            }
+            handleIpc.Invoke(app, new object[] { "status:clear --agent-name CliTester" });
+            if (findTaskGlobal.Invoke(app, new object[] { "CliTester" }) != null)
+            {
+                Console.WriteLine("FAIL: IPC status clear did not remove CliTester task");
+                return 58;
+            }
 
             // Verify AskHumanDialog type exists and instantiates with options
             Type askDlgType = asm.GetType("AskHumanDialog");
