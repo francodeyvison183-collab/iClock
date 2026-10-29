@@ -672,15 +672,23 @@ internal sealed class AgentTaskStatusHud : Form
         if (string.IsNullOrEmpty(liveAction))
         {
             if (!string.IsNullOrEmpty(task.StepProgress)) liveAction = "[" + task.StepProgress + "]";
-            else if (task.IsThinking) liveAction = isZh ? "💭 思考分析中..." : "💭 Thinking...";
-            else if (isCompleted) liveAction = isZh ? "✅ 任务已完成" : "✅ Task completed";
-            else if (isError) liveAction = isZh ? "⚠️ 遇到异常或已中断" : "⚠️ Task interrupted";
-            else if (isWaiting) liveAction = isZh ? "❓ 等待决策" : "❓ Waiting for decision";
             else
             {
-                string gFallback = ExtractGoal(task.Message);
-                liveAction = (!string.IsNullOrEmpty(gFallback) && gFallback != "当前会话" && gFallback != "当前任务") ? gFallback : (isZh ? "处理中..." : "Processing...");
+                string target = ExtractGoal(task.Message);
+                liveAction = !string.IsNullOrEmpty(target) ? target : "";
             }
+        }
+        if (isCompleted && !string.IsNullOrEmpty(liveAction) && !liveAction.StartsWith("✅"))
+        {
+            liveAction = "✅ " + liveAction;
+        }
+        else if (isWaiting && !string.IsNullOrEmpty(liveAction) && !liveAction.StartsWith("❓"))
+        {
+            liveAction = "❓ " + liveAction;
+        }
+        else if (isError && !string.IsNullOrEmpty(liveAction) && !liveAction.StartsWith("⚠️"))
+        {
+            liveAction = "⚠️ " + liveAction;
         }
 
         string timeBadge = "";
@@ -797,7 +805,7 @@ internal sealed class AgentTaskStatusHud : Form
             g.DrawLine(cachedBorderNormal, 10f, cardY + 26f, Width - 10f, cardY + 26f);
 
             string goal = ExtractGoal(task.Message);
-            string goalText = (isZh ? "🎯 目标: " : "🎯 Goal: ") + (!string.IsNullOrEmpty(goal) ? goal : (isZh ? "当前会话" : "Session"));
+            string goalText = !string.IsNullOrEmpty(goal) ? ("🎯 " + goal) : (!string.IsNullOrEmpty(task.ProjectHint) ? ("📁 " + task.ProjectHint) : "");
             float subW = Math.Max(40f, Width - 10f - textX);
             RectangleF subRect = new RectangleF(textX, cardY + 27f, subW, 17f);
             g.DrawString(goalText, subFont, subBrush, subRect, titleFormat);
@@ -880,7 +888,8 @@ internal sealed class AgentTaskStatusHud : Form
         if (string.IsNullOrEmpty(msg)) return "";
         int s = msg.IndexOf('['), e = msg.IndexOf(']');
         string g = (s >= 0 && e > s) ? msg.Substring(s + 1, e - s - 1) : Regex.Replace(msg, @"^[⏳✅❓⚠️]\s*", "");
-        return g.Replace("任务进行中", "").Replace("Task in progress", "").Replace("处理中", "").Trim(' ', '·', '-');
+        g = g.Replace("任务进行中", "").Replace("Task in progress", "").Replace("处理中...", "").Replace("Processing...", "").Replace("处理中", "").Trim(' ', '·', '-');
+        return (g == "当前会话" || g == "当前任务" || g == "Session" || g == "Task") ? "" : g;
     }
 
     private static void GetAgentBadge(string rawName, out Color color, out string label)

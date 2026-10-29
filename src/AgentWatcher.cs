@@ -832,9 +832,8 @@ internal sealed class AgentSessionWatcher : IDisposable
                 session.ActiveStep = session.TotalSteps = 0;
                 session.StepDescription = session.LastToolAction = "";
             }
-            string planDesc = isZh ? "💭 正在分析需求与规划方案..." : "💭 Analyzing request & planning...";
             string msg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
-            appContext.SetAgentTaskMessage(msg, agentName, true, planDesc, null, -1f, session.ProjectHint, msgTime);
+            appContext.SetAgentTaskMessage(msg, agentName, true, null, null, -1f, session.ProjectHint, msgTime);
             return;
         }
 
@@ -854,7 +853,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                 session.ToolCount = 0;
                 if (string.IsNullOrEmpty(session.Target))
                 {
-                    session.Target = isZh ? "当前会话" : "Session";
+                    session.Target = !string.IsNullOrEmpty(session.ProjectHint) ? session.ProjectHint : "";
                 }
             }
             if (!AppContext.IsAgentWindowInForeground(agentName, session.ProjectHint))
@@ -878,7 +877,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                 session.StepDescription = session.LastToolAction = "";
                 if (string.IsNullOrEmpty(session.Target))
                 {
-                    session.Target = isZh ? "当前会话" : "Session";
+                    session.Target = !string.IsNullOrEmpty(session.ProjectHint) ? session.ProjectHint : "";
                 }
             }
             if (!AppContext.IsAgentWindowInForeground(agentName, session.ProjectHint))
@@ -897,7 +896,7 @@ internal sealed class AgentSessionWatcher : IDisposable
             int currentVer;
             lock (syncLock)
             {
-                if (string.IsNullOrEmpty(session.Target)) session.Target = isZh ? "当前会话" : "Session";
+                if (string.IsNullOrEmpty(session.Target)) session.Target = !string.IsNullOrEmpty(session.ProjectHint) ? session.ProjectHint : "";
                 session.PendingCompletionSummary = CleanSummaryText(completionSummary);
                 currentVer = ++session.Version;
             }
@@ -971,10 +970,10 @@ internal sealed class AgentSessionWatcher : IDisposable
 
         string subDetail;
         if (!string.IsNullOrEmpty(authenticAction)) subDetail = authenticAction;
-        else if (isGenericOutput) subDetail = !string.IsNullOrEmpty(formattedLast) ? ("✓ " + formattedLast) : (isZh ? "💭 分析中..." : "💭 Analyzing...");
         else if (!string.IsNullOrEmpty(thought)) subDetail = "💭 " + thought;
+        else if (isGenericOutput) subDetail = !string.IsNullOrEmpty(formattedLast) ? ("✓ " + formattedLast) : null;
         else if (!string.IsNullOrEmpty(stepProgressText)) subDetail = "[" + session.ActiveStep + "/" + session.TotalSteps + "]" + (!string.IsNullOrEmpty(activeDesc) ? (" " + activeDesc) : "");
-        else subDetail = !string.IsNullOrEmpty(formattedLast) ? formattedLast : (isZh ? "💭 思考分析中..." : "💭 Thinking...");
+        else subDetail = formattedLast;
 
         string procMsg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
         appContext.SetAgentTaskMessage(procMsg, agentName, true, subDetail, stepProgressText, progress, session.ProjectHint, msgTime);
@@ -1032,6 +1031,10 @@ internal sealed class AgentSessionWatcher : IDisposable
         }
         if (raw == null) return null;
         string s = raw.ToString().Trim();
+        if (s.StartsWith("<thought", StringComparison.OrdinalIgnoreCase) || s.StartsWith("<thinking", StringComparison.OrdinalIgnoreCase))
+        {
+            s = Regex.Replace(s, @"^<[^>]+>\s*", "").Trim();
+        }
         if (string.IsNullOrEmpty(s) || s[0] == '<' || s[0] == '{' || s[0] == '[') return null;
         if (s.StartsWith("- ") || s.StartsWith("* ")) s = s.Substring(2).Trim();
         int dot = s.IndexOfAny(SentenceDelims);
@@ -1808,7 +1811,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                 string r = data["result"].ToString().Trim();
                 if (!string.IsNullOrEmpty(r)) return r;
             }
-            return "Task completed.";
+            return null;
         }
 
         // 2. Claude Code format (assistant + end_turn)
@@ -1834,7 +1837,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                     }
                     if (!string.IsNullOrEmpty(text)) return text;
                 }
-                return "Task completed.";
+                return null;
             }
         }
 
@@ -1857,7 +1860,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                         string msg = payload["message"].ToString().Trim();
                         if (!string.IsNullOrEmpty(msg)) return msg;
                     }
-                    return "Task completed.";
+                    return null;
                 }
             }
         }
