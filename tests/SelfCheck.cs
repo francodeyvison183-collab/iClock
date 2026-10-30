@@ -4357,6 +4357,152 @@ internal static class TestCheck
                                 return 76;
                             }
                         }
+
+                        // Desktop Sticky Pin Mode (Always on screen & prevent fade-out) test
+                        FieldInfo fPinned = statusHudType.GetField("pinnedAgent", BindingFlags.NonPublic | BindingFlags.Instance);
+                        FieldInfo fTasks = statusHudType.GetField("tasks", BindingFlags.NonPublic | BindingFlags.Instance);
+                        MethodInfo mMouseDown = statusHudType.GetMethod("OnHudMouseDown", BindingFlags.NonPublic | BindingFlags.Instance);
+                        MethodInfo mShouldVisible = statusHudType.GetMethod("ShouldBeVisible", BindingFlags.NonPublic | BindingFlags.Instance);
+                        if (fPinned != null && fTasks != null && mMouseDown != null && mShouldVisible != null)
+                        {
+                            var originalTasks = (System.Collections.IList)fTasks.GetValue(hudInstance);
+                            Type taskListType = typeof(List<>).MakeGenericType(fTasks.FieldType.GetGenericArguments()[0]);
+                            var singleList = (System.Collections.IList)Activator.CreateInstance(taskListType);
+                            singleList.Add(originalTasks[0]);
+
+                            // 1. Single agent case: click pin to engage desktop sticky mode
+                            fTasks.SetValue(hudInstance, singleList);
+                            fPinned.SetValue(hudInstance, null);
+                            fHover.SetValue(hudInstance, true);
+                            mMouseDown.Invoke(hudInstance, new object[] { hudInstance, new MouseEventArgs(MouseButtons.Left, 1, hudInstance.Width - 40, 10, 0) });
+                            string p1 = (string)fPinned.GetValue(hudInstance);
+                            if (p1 == null)
+                            {
+                                Console.WriteLine("FAIL: Desktop Sticky Pin should engage for single agent on click");
+                                return 76;
+                            }
+
+                            // 2. Sticky mode must enforce ShouldBeVisible = true even when mouse leaves
+                            fHover.SetValue(hudInstance, false);
+                            bool stickyVisible = (bool)mShouldVisible.Invoke(hudInstance, null);
+                            if (!stickyVisible)
+                            {
+                                Console.WriteLine("FAIL: Pinned HUD should always be visible (Sticky Mode)");
+                                return 76;
+                            }
+
+                            // 3. Unpin to release sticky mode
+                            fHover.SetValue(hudInstance, true);
+                            mMouseDown.Invoke(hudInstance, new object[] { hudInstance, new MouseEventArgs(MouseButtons.Left, 1, hudInstance.Width - 40, 10, 0) });
+                            string pUnpin = (string)fPinned.GetValue(hudInstance);
+                            fHover.SetValue(hudInstance, false);
+                            if (pUnpin != null)
+                            {
+                                Console.WriteLine("FAIL: Re-clicking pin should unpin and release sticky mode");
+                                return 76;
+                            }
+
+                            // 4. Multiple agents case: pin locks rotation to clicked agent
+                            fHover.SetValue(hudInstance, true);
+                            fTasks.SetValue(hudInstance, originalTasks);
+                            mMouseDown.Invoke(hudInstance, new object[] { hudInstance, new MouseEventArgs(MouseButtons.Left, 1, hudInstance.Width - 40, 10, 0) });
+                            string pMulti = (string)fPinned.GetValue(hudInstance);
+                            fHover.SetValue(hudInstance, false);
+                            if (pMulti == null)
+                            {
+                                Console.WriteLine("FAIL: Pin button should lock rotation when multiple agents exist");
+                                return 76;
+                            }
+
+                            // 5. Hover-only immunity: when not hovered, pin area click must not trigger
+                            fPinned.SetValue(hudInstance, null);
+                            fHover.SetValue(hudInstance, false);
+                            mMouseDown.Invoke(hudInstance, new object[] { hudInstance, new MouseEventArgs(MouseButtons.Left, 1, hudInstance.Width - 40, 10, 0) });
+                            string pNotHovered = (string)fPinned.GetValue(hudInstance);
+                            if (pNotHovered != null)
+                            {
+                                Console.WriteLine("FAIL: Pin must not be clickable when mouse is not hovered");
+                                return 76;
+                            }
+
+                            // 6. Project-Centric Disambiguation Pill Label Rules Verification
+                            Type taskStatusType = fTasks.FieldType.GetGenericArguments()[0];
+                            MethodInfo mGetPillText = statusHudType.GetMethod("GetPillText", BindingFlags.NonPublic | BindingFlags.Static);
+                            if (mGetPillText != null)
+                            {
+                                object cProj1 = Activator.CreateInstance(taskStatusType);
+                                taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(cProj1, "Claude Code@iClock");
+                                taskStatusType.GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(cProj1, "iClock");
+
+                                object cProj2 = Activator.CreateInstance(taskStatusType);
+                                taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(cProj2, "Claude Code@WebUI");
+                                taskStatusType.GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(cProj2, "WebUI");
+
+                                object aProj = Activator.CreateInstance(taskStatusType);
+                                taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(aProj, "Antigravity@App");
+                                taskStatusType.GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(aProj, "App");
+
+                                object fallbackNoProj = Activator.CreateInstance(taskStatusType);
+                                taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(fallbackNoProj, "Claude Code");
+
+                                // 验证优先以项目根目录区分切换
+                                string resP1 = (string)mGetPillText.Invoke(null, new object[] { cProj1 });
+                                string resP2 = (string)mGetPillText.Invoke(null, new object[] { cProj2 });
+                                string resA = (string)mGetPillText.Invoke(null, new object[] { aProj });
+                                string resFallback = (string)mGetPillText.Invoke(null, new object[] { fallbackNoProj });
+
+                                if (resP1 != "iClock" || resP2 != "WebUI" || resA != "App")
+                                {
+                                    Console.WriteLine("FAIL: Project-Centric pill must use root dir: got " + resP1 + ", " + resP2 + ", " + resA);
+                                    return 76;
+                                }
+                                if (resFallback != "Claude")
+                                {
+                                    Console.WriteLine("FAIL: Fallback without project should use agent name: got " + resFallback);
+                                    return 76;
+                                }
+
+                                // 7. Strict Same-Project Deduplication and Status Fusion in GetActiveTasks
+                                MethodInfo mGetActive = statusHudType.GetMethod("GetActiveTasks", BindingFlags.NonPublic | BindingFlags.Instance);
+                                if (mGetActive != null)
+                                {
+                                    Type listType = typeof(List<>).MakeGenericType(taskStatusType);
+                                    IList dupList = (IList)Activator.CreateInstance(listType);
+
+                                    // Session 1 of iClock: Running
+                                    object s1 = Activator.CreateInstance(taskStatusType);
+                                    taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s1, "Claude Code@iClock");
+                                    taskStatusType.GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s1, "iClock");
+                                    taskStatusType.GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s1, "[iClock] Processing...");
+                                    taskStatusType.GetField("MessageTimestamp", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s1, DateTime.Now);
+
+                                    // Session 2 of iClock: Waiting for input (higher priority)
+                                    object s2 = Activator.CreateInstance(taskStatusType);
+                                    taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s2, "Antigravity@iClock");
+                                    taskStatusType.GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s2, "iClock");
+                                    taskStatusType.GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s2, "❓ [iClock] Waiting for user input");
+                                    taskStatusType.GetField("MessageTimestamp", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s2, DateTime.Now);
+
+                                    dupList.Add(s1);
+                                    dupList.Add(s2);
+                                    fTasks.SetValue(hudInstance, dupList);
+
+                                    IList activeDedupped = (IList)mGetActive.Invoke(hudInstance, null);
+                                    if (activeDedupped.Count != 1)
+                                    {
+                                        Console.WriteLine("FAIL: Multiple sessions of iClock must deduplicate to exactly 1 active task, got " + activeDedupped.Count);
+                                        return 76;
+                                    }
+                                    object winner = activeDedupped[0];
+                                    string winMsg = (string)taskStatusType.GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(winner);
+                                    if (!winMsg.Contains("Waiting for user input"))
+                                    {
+                                        Console.WriteLine("FAIL: Active task fusion must prioritize Waiting/Error state, got " + winMsg);
+                                        return 76;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 hudInstance.Close();
@@ -4382,6 +4528,266 @@ internal static class TestCheck
                         return 76;
                     }
                 }
+
+                // Verify LLM Protocol Thinking / Reasoning Content extraction
+                MethodInfo mExtractThought = sWatcherType.GetMethod("ExtractThoughtSlice", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mExtractThought != null)
+                {
+                    // 1. DeepSeek / OpenAI reasoning_content
+                    var deepseekData = new Dictionary<string, object> { { "reasoning_content", "正在分析LLM协议规范与状态机映射" } };
+                    string thought1 = (string)mExtractThought.Invoke(null, new object[] { deepseekData });
+                    if (thought1 == null || !thought1.Contains("正在分析LLM协议规范"))
+                    {
+                        Console.WriteLine("FAIL: DeepSeek reasoning_content extraction failed: " + thought1);
+                        return 77;
+                    }
+
+                    // 2. Gemini parts thought: true
+                    var geminiData = new Dictionary<string, object>
+                    {
+                        {
+                            "content", new List<object>
+                            {
+                                new Dictionary<string, object> { { "thought", true }, { "text", "规划下一步的桌面状态呈现" } }
+                            }
+                        }
+                    };
+                    string thought2 = (string)mExtractThought.Invoke(null, new object[] { geminiData });
+                    if (thought2 == null || !thought2.Contains("规划下一步的桌面状态呈现"))
+                    {
+                        Console.WriteLine("FAIL: Gemini parts thought extraction failed: " + thought2);
+                        return 77;
+                    }
+                }
+
+                // Verify Desktop Agent (Computer-Use) and Standard Function Calling
+                MethodInfo mExtractTool = sWatcherType.GetMethod("ExtractToolSummary", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mExtractTool != null)
+                {
+                    // 1. Screen Perception (Anthropic Computer-Use action: screenshot)
+                    var screenData = new Dictionary<string, object>
+                    {
+                        {
+                            "tool_calls", new List<object>
+                            {
+                                new Dictionary<string, object>
+                                {
+                                    { "name", "computer" },
+                                    { "args", new Dictionary<string, object> { { "action", "screenshot" } } }
+                                }
+                            }
+                        }
+                    };
+                    string screenTool = (string)mExtractTool.Invoke(null, new object[] { screenData, true });
+                    if (screenTool == null || !screenTool.Contains("观察桌面"))
+                    {
+                        Console.WriteLine("FAIL: Desktop agent screen perception mapping failed: " + screenTool);
+                        return 78;
+                    }
+
+                    // 2. Desktop Mouse Click with Coordinates
+                    var clickData = new Dictionary<string, object>
+                    {
+                        {
+                            "tool_calls", new List<object>
+                            {
+                                new Dictionary<string, object>
+                                {
+                                    { "name", "mouse_click" },
+                                    { "args", new Dictionary<string, object> { { "x", 640 }, { "y", 480 } } }
+                                }
+                            }
+                        }
+                    };
+                    string clickTool = (string)mExtractTool.Invoke(null, new object[] { clickData, true });
+                    if (clickTool == null || !clickTool.Contains("640, 480"))
+                    {
+                        Console.WriteLine("FAIL: Desktop agent mouse click coordinate mapping failed: " + clickTool);
+                        return 78;
+                    }
+
+                    // 3. Desktop Keyboard Input
+                    var typeData = new Dictionary<string, object>
+                    {
+                        {
+                            "tool_calls", new List<object>
+                            {
+                                new Dictionary<string, object>
+                                {
+                                    { "name", "keyboard_type" },
+                                    { "args", new Dictionary<string, object> { { "text", "git status" } } }
+                                }
+                            }
+                        }
+                    };
+                    string typeTool = (string)mExtractTool.Invoke(null, new object[] { typeData, true });
+                    if (typeTool == null || !typeTool.Contains("git status"))
+                    {
+                        Console.WriteLine("FAIL: Desktop agent keyboard typing mapping failed: " + typeTool);
+                        return 78;
+                    }
+
+                    // 4. Standard OpenAI Function Calling format (function.name + json arguments)
+                    var oaiFuncData = new Dictionary<string, object>
+                    {
+                        {
+                            "tool_calls", new List<object>
+                            {
+                                new Dictionary<string, object>
+                                {
+                                    { "type", "function" },
+                                    {
+                                        "function", new Dictionary<string, object>
+                                        {
+                                            { "name", "edit_file" },
+                                            { "arguments", "{\"path\":\"src/AgentWatcher.cs\"}" }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    };
+                    string oaiTool = (string)mExtractTool.Invoke(null, new object[] { oaiFuncData, true });
+                    if (oaiTool == null || !oaiTool.Contains("AgentWatcher.cs"))
+                    {
+                        Console.WriteLine("FAIL: Standard OpenAI function calling unwrapping failed: " + oaiTool);
+                        return 78;
+                    }
+                }
+
+                // Verify MCP (Model Context Protocol) Native Progress Parsing
+                MethodInfo mExtractProgress = sWatcherType.GetMethod("ExtractStepProgress", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mExtractProgress != null)
+                {
+                    var mcpData = new Dictionary<string, object>
+                    {
+                        { "method", "notifications/progress" },
+                        {
+                            "params", new Dictionary<string, object>
+                            {
+                                { "progress", 15 },
+                                { "total", 30 },
+                                { "message", "Executing integration tests" }
+                            }
+                        }
+                    };
+                    object[] progArgs = new object[] { mcpData, "", 0, 0, "" };
+                    bool hasProg = (bool)mExtractProgress.Invoke(null, progArgs);
+                    int step = (int)progArgs[2];
+                    int total = (int)progArgs[3];
+                    string desc = (string)progArgs[4];
+                    if (!hasProg || step != 15 || total != 30 || !desc.Contains("Executing integration tests"))
+                    {
+                        Console.WriteLine("FAIL: MCP native progress parsing failed: hasProg=" + hasProg + ", step=" + step + ", total=" + total + ", desc=" + desc);
+                        return 79;
+                    }
+                }
+
+                // Verify Explicit Terminal Fast-path (300ms vs 1200ms)
+                MethodInfo mExtractCompDetails = sWatcherType.GetMethod("ExtractCompletionDetails", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mExtractCompDetails != null)
+                {
+                    // 1. Claude end_turn explicit terminal
+                    var claudeTerm = new Dictionary<string, object>
+                    {
+                        { "type", "assistant" },
+                        {
+                            "message", new Dictionary<string, object>
+                            {
+                                { "stop_reason", "end_turn" },
+                                { "content", new List<object> { new Dictionary<string, object> { { "type", "text" }, { "text", "代码修改与优化已完成" } } } }
+                            }
+                        }
+                    };
+                    object[] termArgs1 = new object[] { claudeTerm, false };
+                    string cText1 = (string)mExtractCompDetails.Invoke(null, termArgs1);
+                    bool isExp1 = (bool)termArgs1[1];
+                    if (cText1 == null || !isExp1)
+                    {
+                        Console.WriteLine("FAIL: Claude end_turn should be marked explicit terminal: isExp=" + isExp1);
+                        return 80;
+                    }
+
+                    // 2. Heuristic fallback completion
+                    var heurTerm = new Dictionary<string, object>
+                    {
+                        { "status", "DONE" },
+                        { "text", "Heuristic finish text" }
+                    };
+                    object[] termArgs2 = new object[] { heurTerm, false };
+                    string cText2 = (string)mExtractCompDetails.Invoke(null, termArgs2);
+                    bool isExp2 = (bool)termArgs2[1];
+                    if (cText2 == null || isExp2)
+                    {
+                        Console.WriteLine("FAIL: Heuristic status should NOT be marked explicit terminal: isExp=" + isExp2);
+                        return 80;
+                    }
+                }
+
+                Console.WriteLine("PASS: LLM protocol wire schema, Desktop Agent alignment & MCP progress verified.");
+                Console.WriteLine("PASS: Explicit terminal 300ms fast-path & single-agent Pin immunity verified.");
+
+                // 81. Verify Universal Desktop Agent Auto-Detection, Browser Immunity & Multi-tier Cache
+                MethodInfo mScanLlm = agentWatcherType.GetMethod("ScanLlmActivePids", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mScanLlm != null)
+                {
+                    object pidsObj = mScanLlm.Invoke(null, null);
+                    if (pidsObj == null)
+                    {
+                        Console.WriteLine("FAIL: ScanLlmActivePids returned null");
+                        return 81;
+                    }
+                }
+
+                // Verify Browser & Non-Agent Filtering Immunity
+                MethodInfo mIsNonAgent = agentWatcherType.GetMethod("IsNonAgentApplication", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mIsNonAgent != null)
+                {
+                    bool chromeImmune = (bool)mIsNonAgent.Invoke(null, new object[] { "chrome" });
+                    bool edgeImmune = (bool)mIsNonAgent.Invoke(null, new object[] { "msedge.exe" });
+                    bool wechatImmune = (bool)mIsNonAgent.Invoke(null, new object[] { "wechat" });
+                    bool pythonNotImmune = (bool)mIsNonAgent.Invoke(null, new object[] { "python" });
+                    bool aiderNotImmune = (bool)mIsNonAgent.Invoke(null, new object[] { "aider" });
+                    if (!chromeImmune || !edgeImmune || !wechatImmune || pythonNotImmune || aiderNotImmune)
+                    {
+                        Console.WriteLine("FAIL: IsNonAgentApplication filtering failed: chrome=" + chromeImmune + ", edge=" + edgeImmune + ", python=" + pythonNotImmune);
+                        return 81;
+                    }
+                }
+
+                // Verify Universal LLM Protocol Fingerprinting
+                MethodInfo mMatchFingerprint = agentWatcherType.GetMethod("MatchLlmProtocolFingerprint", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mMatchFingerprint != null)
+                {
+                    string agentJson = "{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"name\":\"edit_file\",\"path\":\"D:/AIStudio/iClock/src/iClock.cs\"}]}";
+                    string normalJson = "{\"status\":\"ok\",\"user\":\"alice\",\"message\":\"hello world\"}";
+                    object[] matchArgs = new object[] { agentJson, null, null };
+                    bool isAgent = (bool)mMatchFingerprint.Invoke(null, matchArgs);
+                    object[] normalArgs = new object[] { normalJson, null, null };
+                    bool isNormal = (bool)mMatchFingerprint.Invoke(null, normalArgs);
+                    if (!isAgent || isNormal)
+                    {
+                        Console.WriteLine("FAIL: MatchLlmProtocolFingerprint failed: isAgent=" + isAgent + ", isNormal=" + isNormal);
+                        return 81;
+                    }
+                }
+
+                // Verify Multi-tier Window Binding Cache
+                MethodInfo mCacheWindow = agentWatcherType.GetMethod("CacheWindowBinding", BindingFlags.NonPublic | BindingFlags.Static);
+                MethodInfo mGetCached = agentWatcherType.GetMethod("GetCachedWindow", BindingFlags.NonPublic | BindingFlags.Static);
+                if (mCacheWindow != null && mGetCached != null)
+                {
+                    IntPtr dummyHwnd = Process.GetCurrentProcess().MainWindowHandle;
+                    mCacheWindow.Invoke(null, new object[] { "TestProject", dummyHwnd, Process.GetCurrentProcess().Id });
+                    IntPtr fetched = (IntPtr)mGetCached.Invoke(null, new object[] { "TestProject" });
+                    if (dummyHwnd != IntPtr.Zero && fetched != dummyHwnd)
+                    {
+                        Console.WriteLine("FAIL: WindowBinding cache failed: fetched=" + fetched + " expected=" + dummyHwnd);
+                        return 81;
+                    }
+                }
+
+                Console.WriteLine("PASS: Universal Local Desktop Agent auto-detection, Browser immunity & Multi-tier cache verified.");
             }
 
             FieldInfo sActiveField = appType.GetField("sessionActive", bf);

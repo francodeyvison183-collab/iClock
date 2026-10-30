@@ -1490,8 +1490,31 @@ internal sealed class AppContext : ApplicationContext
     {
         for (int i = 0; i < agentTaskStatuses.Count; i++)
         {
-            if (string.Equals(agentTaskStatuses[i].AgentName, agentName, StringComparison.OrdinalIgnoreCase))
-                return agentTaskStatuses[i];
+            var st = agentTaskStatuses[i];
+
+            if (string.Equals(st.AgentName, agentName, StringComparison.OrdinalIgnoreCase) ||
+                (st.AgentName != null && st.AgentName.StartsWith(agentName + "@", StringComparison.OrdinalIgnoreCase)))
+                return st;
+
+
+        }
+        return null;
+    }
+
+    private AgentTaskStatus FindTaskStatusByProject(string agentName, string projectHint)
+    {
+        for (int i = 0; i < agentTaskStatuses.Count; i++)
+        {
+            var st = agentTaskStatuses[i];
+
+            if (!string.Equals(st.AgentName, agentName, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!string.IsNullOrEmpty(projectHint) && !string.IsNullOrEmpty(st.ProjectHint))
+            {
+                if (string.Equals(st.ProjectHint, projectHint, StringComparison.OrdinalIgnoreCase))
+                    return st;
+            }
+            else
+                return st;
         }
         return null;
     }
@@ -1530,7 +1553,7 @@ internal sealed class AppContext : ApplicationContext
             overlay.BeginInvoke(new Action<float, string, string, string, DateTime?>(SetAgentProgress), percent, message, agentName, stepProgress, msgTime);
             return;
         }
-        string name = GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "智能体");
+        string name = GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "\u667a\u80fd\u4f53");
         AgentTaskStatus status = FindTaskStatus(name);
         if (status == null)
         {
@@ -1573,12 +1596,16 @@ internal sealed class AppContext : ApplicationContext
             });
             return;
         }
-        string name = GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "智能体");
-        AgentTaskStatus status = FindTaskStatus(name);
+        string name = GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "\u667a\u80fd\u4f53");
+        AgentTaskStatus status = FindTaskStatusByProject(name, projectHint);
         if (status == null)
         {
-            status = new AgentTaskStatus { AgentName = name };
+            status = new AgentTaskStatus { AgentName = name, ProjectHint = projectHint };
             agentTaskStatuses.Add(status);
+        }
+        else if (string.IsNullOrEmpty(status.ProjectHint) && !string.IsNullOrEmpty(projectHint))
+        {
+            status.ProjectHint = projectHint;
         }
         status.MessageTimestamp = msgTime.HasValue && msgTime.Value > DateTime.MinValue ? msgTime.Value : DateTime.Now;
         if (status.Message == message && status.IsThinking == isThinking && status.SubDetail == subDetail && status.StepProgress == stepProgress && string.Equals(status.ProjectHint, projectHint, StringComparison.Ordinal) && taskStatusHud != null && taskStatusHud.Visible) return;
@@ -2538,6 +2565,12 @@ internal sealed class AppContext : ApplicationContext
     {
         try
         {
+            if (!string.IsNullOrEmpty(agentName) && agentName.IndexOf('@') > 0)
+            {
+                int at = agentName.IndexOf('@');
+                if (string.IsNullOrEmpty(projectHint)) projectHint = agentName.Substring(at + 1);
+                agentName = agentName.Substring(0, at);
+            }
             IntPtr fg = NativeMethods.GetForegroundWindow();
             if (fg == IntPtr.Zero) return false;
             uint pid = 0;
@@ -2664,7 +2697,15 @@ internal sealed class AppContext : ApplicationContext
     internal static IntPtr FindAgentWindow(string agentName, string projectHint)
     {
         if (string.IsNullOrEmpty(agentName) && string.IsNullOrEmpty(projectHint)) return IntPtr.Zero;
+        // 1. Fast Cache Probe (0ms latency)
+        if (!string.IsNullOrEmpty(projectHint))
+        {
+            IntPtr cached = AgentSessionWatcher.GetCachedWindow(projectHint);
+            if (cached != IntPtr.Zero) return cached;
+        }
+
         IntPtr bestHwnd = IntPtr.Zero;
+        int bestPid = 0;
         int bestScore = 0;
         try
         {
@@ -2686,7 +2727,8 @@ internal sealed class AppContext : ApplicationContext
                         (!string.IsNullOrEmpty(title) && title.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) ||
                         (isAgy && ((proc != null && (proc.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0 || proc.IndexOf("gemini", StringComparison.OrdinalIgnoreCase) >= 0)) ||
                                    (!string.IsNullOrEmpty(title) && (title.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0 || title.IndexOf("gemini", StringComparison.OrdinalIgnoreCase) >= 0 || title.IndexOf("agy", StringComparison.OrdinalIgnoreCase) >= 0)))) ||
-                        (MatchAgent(proc ?? "") != null && string.Equals(MatchAgent(proc ?? ""), agentName, StringComparison.OrdinalIgnoreCase)))
+                        (MatchAgent(proc ?? "") != null && string.Equals(MatchAgent(proc ?? ""), agentName, StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrEmpty(proc) && (agentName.IndexOf(proc, StringComparison.OrdinalIgnoreCase) >= 0 || proc.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0)))
                     {
                         matchAgent = true;
                     }
@@ -2703,17 +2745,28 @@ internal sealed class AppContext : ApplicationContext
                 {
                     bestScore = score;
                     bestHwnd = hWnd;
+                    bestPid = (int)pid;
                     if (bestScore >= 100) return false;
                 }
                 return true;
             }, IntPtr.Zero);
         }
         catch { }
+        if (bestHwnd != IntPtr.Zero && !string.IsNullOrEmpty(projectHint))
+        {
+            AgentSessionWatcher.CacheWindowBinding(projectHint, bestHwnd, bestPid);
+        }
         return bestHwnd;
     }
 
     internal void WarpToAgentWindow(string agentName, string projectHint = null)
     {
+        if (!string.IsNullOrEmpty(agentName) && agentName.IndexOf('@') > 0)
+        {
+            int at = agentName.IndexOf('@');
+            if (string.IsNullOrEmpty(projectHint)) projectHint = agentName.Substring(at + 1);
+            agentName = agentName.Substring(0, at);
+        }
         IntPtr hwnd = FindAgentWindow(agentName, projectHint);
         if (hwnd == IntPtr.Zero && !string.IsNullOrEmpty(projectHint))
         {

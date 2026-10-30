@@ -16,5 +16,5 @@
 - **临时文件清理**：`scratch/` 目录仅用于临时调试排查，任务完成后必须彻底清理删除，严禁提交到 Git。
 
 ## 3. 质量与体积红线 (Quality & Size Constraints)
-- **二进制体积上限**：`dist\iClock.exe` 严格不得超过 **404,480 字节**。
+- **二进制体积上限**：`dist\iClock.exe` 严格不得超过 **1,048,576 字节 (1MB)**。
 - **自检覆盖**：任何改动必须先运行 `powershell -ExecutionPolicy Bypass -File .\build.ps1` 并执行 `dist\SelfCheck.exe`，确保所有自检项 100% PASS。

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Text;
@@ -180,7 +180,7 @@ internal sealed class AgentTaskStatusHud : Form
         if (settings == null || !settings.DesktopCollaborationEnabled) return false;
         var active = GetActiveTasks();
         if (active.Count == 0) return false;
-        if (isHovered || moving || resizingWidth) return true;
+        if (!string.IsNullOrEmpty(pinnedAgent) || isHovered || moving || resizingWidth) return true;
         for (int i = 0; i < active.Count; i++)
         {
             AgentTaskStatus t = active[i];
@@ -225,9 +225,12 @@ internal sealed class AgentTaskStatusHud : Form
         var active = GetActiveTasks();
         if (!string.IsNullOrEmpty(pinnedAgent))
         {
-            int pIdx = active.FindIndex(t => string.Equals(t.AgentName, pinnedAgent, StringComparison.OrdinalIgnoreCase));
-            if (pIdx >= 0) { if (currentAgentIndex != pIdx) { currentAgentIndex = pIdx; RenderLayeredWindow(); } }
-            else { pinnedAgent = null; }
+            if (active.Count > 0 && currentAgentIndex >= active.Count)
+            {
+                currentAgentIndex = Math.Max(0, active.Count - 1);
+                pinnedAgent = active[currentAgentIndex].AgentName;
+                RenderLayeredWindow();
+            }
         }
 
         // Fixed-cadence rotation when idle: if not pinned, not hovered and not manually locked, advance every 5s
@@ -447,7 +450,7 @@ internal sealed class AgentTaskStatusHud : Form
             currentAgentIndex = dotIdx;
             if (!string.IsNullOrEmpty(pinnedAgent)) pinnedAgent = active[dotIdx].AgentName;
             lastRotationTick = Environment.TickCount;
-            manualLockUntilTick = Environment.TickCount + 5000;
+            manualLockUntilTick = Environment.TickCount + 60000;
             RenderLayeredWindow();
             return;
         }
@@ -467,7 +470,7 @@ internal sealed class AgentTaskStatusHud : Form
 
         // Pin button [📌] (Left of status icon)
         Rectangle pinRect = new Rectangle(Width - 45, 5, 18, 18);
-        if ((isHovered || !string.IsNullOrEmpty(pinnedAgent)) && pinRect.Contains(e.Location))
+        if (isHovered && pinRect.Contains(e.Location))
         {
             pinnedAgent = string.IsNullOrEmpty(pinnedAgent) ? active[currentAgentIndex].AgentName : null;
             RenderLayeredWindow();
@@ -509,7 +512,7 @@ internal sealed class AgentTaskStatusHud : Form
             }
             else
             {
-                bool showPin = isHovered || !string.IsNullOrEmpty(pinnedAgent);
+                bool showPin = isHovered;
                 bool hand = new Rectangle(Width - 27, 5, 18, 18).Contains(e.Location) || (showPin && new Rectangle(Width - 45, 5, 18, 18).Contains(e.Location)) || GetIndicatorDotIndex(e.Location, cardH) >= 0;
                 Cursor.Current = hand ? Cursors.Hand : Cursors.Default;
             }
@@ -666,16 +669,13 @@ internal sealed class AgentTaskStatusHud : Form
         bool isWaiting = statusColor == ColorWaiting || isError;
         bool isRunning = statusColor == ColorRunning;
 
-        // 2. Agent Brand Badge (Single-agent only) & Project Hint Chip
-        float textX = 10f;
-        if (!isMulti)
-        {
-            Color badgeColor; string badgeLabel;
-            GetAgentBadge(task.AgentName, out badgeColor, out badgeLabel);
-            textX = DrawChip(g, 8f, cardY + 5f, badgeLabel, badgeFont, badgeColor, centerFormat);
-        }
+        // 2. Agent Brand Badge & Project Hint Chip
+        float textX = 8f;
+        Color badgeColor; string badgeLabel;
+        GetAgentBadge(task.AgentName, out badgeColor, out badgeLabel);
+        textX = DrawChip(g, textX, cardY + 5f, badgeLabel, badgeFont, badgeColor, centerFormat);
 
-        if (!string.IsNullOrEmpty(task.ProjectHint))
+        if (!isMulti && !string.IsNullOrEmpty(task.ProjectHint))
         {
             textX = DrawChip(g, textX, cardY + 5f, task.ProjectHint, badgeFont, Color.FromArgb(56, 189, 248), centerFormat);
         }
@@ -708,7 +708,7 @@ internal sealed class AgentTaskStatusHud : Form
         }
 
         string textToDraw = (!string.IsNullOrEmpty(mainText) ? mainText : "") + timeBadge;
-        bool showPin = isHovered || !string.IsNullOrEmpty(pinnedAgent);
+        bool showPin = isHovered;
         float rightLimit = showPin ? (ringCenterX - 28f) : (ringCenterX - 10f);
         float textW = Math.Max(40f, rightLimit - textX);
         RectangleF titleRect = new RectangleF(textX, cardY + 4f, textW, 20f);
