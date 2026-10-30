@@ -1357,7 +1357,7 @@ internal static class TestCheck
                 procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
                 System.Windows.Forms.Application.DoEvents();
 
-                MethodInfo findTask = appType.GetMethod("FindTaskStatus", BindingFlags.NonPublic | BindingFlags.Instance);
+                MethodInfo findTask = appType.GetMethod("FindTaskStatus", BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(string) }, null);
                 object task = findTask.Invoke(app, new object[] { "TestAgent" });
                 if (task == null)
                 {
@@ -1402,7 +1402,7 @@ internal static class TestCheck
                     Console.WriteLine("FAIL: AgentSessionWatcher did not set completed status on completion");
                     return 32;
                 }
-                MethodInfo clearProg = appType.GetMethod("ClearAgentProgress", BindingFlags.NonPublic | BindingFlags.Instance);
+                MethodInfo clearProg = appType.GetMethod("ClearAgentProgress", BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(string) }, null);
                 clearProg.Invoke(app, new object[] { "TestAgent" });
                 System.Threading.Thread.Sleep(80);
                 System.Windows.Forms.Application.DoEvents();
@@ -3234,7 +3234,7 @@ internal static class TestCheck
 
             // Test IPC status command
             handleIpc.Invoke(app, new object[] { "status:Building project --detail compiling... --progress 45% --agent-name CliTester --project iClock --thinking" });
-            MethodInfo findTaskGlobal = appType.GetMethod("FindTaskStatus", BindingFlags.NonPublic | BindingFlags.Instance);
+            MethodInfo findTaskGlobal = appType.GetMethod("FindTaskStatus", BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(string) }, null);
             object cliStatus = findTaskGlobal.Invoke(app, new object[] { "CliTester" });
             if (cliStatus == null)
             {
@@ -3245,10 +3245,9 @@ internal static class TestCheck
             string cliSub = (string)cliStatus.GetType().GetField("SubDetail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cliStatus);
             float cliProg = (float)cliStatus.GetType().GetField("Progress", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cliStatus);
             bool cliThink = (bool)cliStatus.GetType().GetField("IsThinking", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cliStatus);
-            string cliProj = (string)cliStatus.GetType().GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cliStatus);
-            if (!cliMsg.Contains("Building project") || cliSub != "compiling..." || Math.Abs(cliProg - 0.45f) > 0.01f || !cliThink || cliProj != "iClock")
+            if (!cliMsg.Contains("Building project") || cliSub != "compiling..." || Math.Abs(cliProg - 0.45f) > 0.01f || !cliThink)
             {
-                Console.WriteLine("FAIL: IPC status command fields mismatch: msg=" + cliMsg + ", sub=" + cliSub + ", prog=" + cliProg + ", think=" + cliThink + ", proj=" + cliProj);
+                Console.WriteLine("FAIL: IPC status command fields mismatch: msg=" + cliMsg + ", sub=" + cliSub + ", prog=" + cliProg + ", think=" + cliThink);
                 return 58;
             }
             handleIpc.Invoke(app, new object[] { "status:clear --agent-name CliTester" });
@@ -3858,13 +3857,12 @@ internal static class TestCheck
             try { System.IO.Directory.Delete(goalRoot, true); } catch { }
             Console.WriteLine("PASS: the daily focus goal, day totals and the streak calculation are correct.");
 
-            // 45. Verify AI Collaboration 5-in-1 Upgrades: HITL question/feedback detection, Error distinction, ProjectHint extraction
+            // 45. Verify AI Collaboration 5-in-1 Upgrades: HITL question/feedback detection, Error distinction
             Type agentWatcherType = asm.GetType("AgentSessionWatcher");
             if (agentWatcherType != null)
             {
                 MethodInfo mExtractQ = agentWatcherType.GetMethod("ExtractQuestion", BindingFlags.NonPublic | BindingFlags.Static);
                 MethodInfo mExtractErr = agentWatcherType.GetMethod("ExtractErrorSummary", BindingFlags.NonPublic | BindingFlags.Static);
-                MethodInfo mExtractProj = agentWatcherType.GetMethod("ExtractProjectHint", BindingFlags.NonPublic | BindingFlags.Static);
 
                 if (mExtractQ != null)
                 {
@@ -3899,17 +3897,6 @@ internal static class TestCheck
                     if (string.IsNullOrEmpty(err) || !err.Contains("Compilation failed"))
                     {
                         Console.WriteLine("FAIL: ExtractErrorSummary did not detect status: ERROR");
-                        return 66;
-                    }
-                }
-
-                if (mExtractProj != null)
-                {
-                    var dataProj = new Dictionary<string, object> { { "cwd", @"d:\AIStudio\iClock" } };
-                    string proj = (string)mExtractProj.Invoke(null, new object[] { dataProj, @"C:\Users\User\.gemini\antigravity\brain\test\transcript.jsonl" });
-                    if (proj != "iClock")
-                    {
-                        Console.WriteLine("FAIL: ExtractProjectHint did not extract project folder name: " + proj);
                         return 66;
                     }
                 }
@@ -4059,21 +4046,7 @@ internal static class TestCheck
                     }
                 }
 
-                if (mExtractProj != null)
-                {
-                    var codexProjData = new Dictionary<string, object> {
-                        { "type", "session_meta" },
-                        { "payload", new Dictionary<string, object> { { "cwd", @"d:\AIStudio\iClock" } } }
-                    };
-                    string projHint = (string)mExtractProj.Invoke(null, new object[] { codexProjData, @"C:\Users\17902\.codex\sessions\test\rollout.jsonl" });
-                    if (projHint != "iClock")
-                    {
-                        Console.WriteLine("FAIL: ExtractProjectHint failed for Codex session_meta: " + projHint);
-                        return 69;
-                    }
-                }
-
-                Console.WriteLine("PASS: AI collaboration 5-in-1 upgrades (HITL feedback perception, error state distinction, project hint routing, trivial confirmation immunity & cognitive flow) verified.");
+                Console.WriteLine("PASS: AI collaboration 5-in-1 upgrades (HITL feedback perception, error state distinction, trivial confirmation immunity & cognitive flow) verified.");
 
                 // 48. Verify Process-guided dynamic watcher & Universal schema-agnostic parsing
                 MethodInfo mResolveDirs = agentWatcherType.GetMethod("ResolveCandidateDirectories", BindingFlags.NonPublic | BindingFlags.Static);
@@ -4170,20 +4143,6 @@ internal static class TestCheck
                     }
                 }
 
-                // Universal project hint
-                if (mExtractProj != null)
-                {
-                    var uProj = new Dictionary<string, object> {
-                        { "workspace", @"d:\AIStudio\iClock" }
-                    };
-                    string pHint = (string)mExtractProj.Invoke(null, new object[] { uProj, null });
-                    if (pHint != "iClock")
-                    {
-                        Console.WriteLine("FAIL: Universal project hint extraction failed: " + pHint);
-                        return 74;
-                    }
-                }
-
                 // AgentHud deterministic color & label
                 Type hudType = appType.Assembly.GetType("AgentHud");
                 if (hudType != null)
@@ -4205,6 +4164,38 @@ internal static class TestCheck
                             Console.WriteLine("FAIL: GetShortAgentBadgeLabel failed: " + l1);
                             return 75;
                         }
+                    }
+                }
+
+                // HUD card height: adjustable in [28, 60] and font scales with it
+                {
+                    object st = Activator.CreateInstance(settingsType);
+                    FieldInfo fH = settingsType.GetField("TaskStatusHeight");
+                    if (fH == null)
+                    {
+                        Console.WriteLine("FAIL: Settings.TaskStatusHeight missing");
+                        return 75;
+                    }
+                    if ((int)fH.GetValue(st) != 28)
+                    {
+                        Console.WriteLine("FAIL: TaskStatusHeight should default to the 28px minimum, got " + fH.GetValue(st));
+                        return 75;
+                    }
+                    // CopyFrom must clamp out-of-range values into [28, 60]
+                    object probe = Activator.CreateInstance(settingsType);
+                    fH.SetValue(probe, 999);
+                    st.GetType().GetMethod("CopyFrom").Invoke(st, new object[] { probe });
+                    if ((int)fH.GetValue(st) != 60)
+                    {
+                        Console.WriteLine("FAIL: TaskStatusHeight must clamp to 60px max, got " + fH.GetValue(st));
+                        return 75;
+                    }
+                    fH.SetValue(probe, 5);
+                    st.GetType().GetMethod("CopyFrom").Invoke(st, new object[] { probe });
+                    if ((int)fH.GetValue(st) != 28)
+                    {
+                        Console.WriteLine("FAIL: TaskStatusHeight must clamp to 28px min, got " + fH.GetValue(st));
+                        return 75;
                     }
                 }
 
@@ -4327,9 +4318,12 @@ internal static class TestCheck
                         // Dynamic update switches protagonist
                         mDynamic.Invoke(hudInstance, new object[] { "Claude", false });
                         int cur = (int)fCurIdx.GetValue(hudInstance);
-                        if (cur != 1)
+                        // After agent-aware grouping sort, Claude's index may shift; resolve via GetActiveTasks.
+                        var activeNow = (System.Collections.IList)statusHudType.GetMethod("GetActiveTasks", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(hudInstance, null);
+                        string curName = (string)taskType.GetField("AgentName", bf).GetValue(activeNow[cur]);
+                        if (curName != "Claude")
                         {
-                            Console.WriteLine("FAIL: Dynamic update should preempt and switch to Claude (index 1), got " + cur);
+                            Console.WriteLine("FAIL: Dynamic update should preempt and switch to Claude, got " + curName + " at index " + cur);
                             return 76;
                         }
 
@@ -4338,9 +4332,11 @@ internal static class TestCheck
                         fHover.SetValue(hudInstance, true);
                         mDynamic.Invoke(hudInstance, new object[] { "NonExistentBackgroundAgent", false });
                         int lockedCur = (int)fCurIdx.GetValue(hudInstance);
-                        if (lockedCur != 1)
+                        var activeLock = (System.Collections.IList)statusHudType.GetMethod("GetActiveTasks", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(hudInstance, null);
+                        string lockedName = (string)taskType.GetField("AgentName", bf).GetValue(activeLock[lockedCur]);
+                        if (lockedName != "Claude")
                         {
-                            Console.WriteLine("FAIL: Mouse hover should lock current display unchanged");
+                            Console.WriteLine("FAIL: Mouse hover should lock current display unchanged, got " + lockedName);
                             return 76;
                         }
                         fHover.SetValue(hudInstance, false);
@@ -4425,62 +4421,75 @@ internal static class TestCheck
                                 return 76;
                             }
 
-                            // 6. Project-Centric Disambiguation Pill Label Rules Verification
+                            // 5b. Pinned HUD must allow manual pill click to switch protagonist
+                            // (pin = sticky visible + no auto-rotation, NOT a protagonist lock).
+                            if (originalTasks.Count >= 2)
+                            {
+                                fTasks.SetValue(hudInstance, originalTasks);
+                                Type tStatusType = fTasks.FieldType.GetGenericArguments()[0];
+                                string firstAgentName = (string)tStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(originalTasks[0]);
+                                fPinned.SetValue(hudInstance, firstAgentName);
+                                FieldInfo fCurIdx2 = statusHudType.GetField("currentAgentIndex", BindingFlags.NonPublic | BindingFlags.Instance);
+                                fCurIdx2.SetValue(hudInstance, 0);
+                                // Simulate heartbeat: must NOT force currentAgentIndex back to pinned.
+                                MethodInfo mHeartbeat = statusHudType.GetMethod("OnHeartbeatTick", BindingFlags.NonPublic | BindingFlags.Instance);
+                                if (mHeartbeat != null)
+                                {
+                                    mHeartbeat.Invoke(hudInstance, new object[] { hudInstance, EventArgs.Empty });
+                                    int afterHb = (int)fCurIdx2.GetValue(hudInstance);
+                                    // Set index to a different agent manually; heartbeat should respect it.
+                                    fCurIdx2.SetValue(hudInstance, 1);
+                                    mHeartbeat.Invoke(hudInstance, new object[] { hudInstance, EventArgs.Empty });
+                                    int afterSwitch = (int)fCurIdx2.GetValue(hudInstance);
+                                    if (afterSwitch != 1)
+                                    {
+                                        Console.WriteLine("FAIL: Pinned HUD must not lock protagonist; heartbeat forced index back to " + afterSwitch);
+                                        return 76;
+                                    }
+                                }
+                                fPinned.SetValue(hudInstance, null);
+                            }
+
+                            // 6. Agent-Centric Pill Label Rules Verification (project badge removed)
                             Type taskStatusType = fTasks.FieldType.GetGenericArguments()[0];
                             MethodInfo mGetPillText = statusHudType.GetMethod("GetPillText", BindingFlags.NonPublic | BindingFlags.Static);
                             if (mGetPillText != null)
                             {
-                                object cProj1 = Activator.CreateInstance(taskStatusType);
-                                taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(cProj1, "Claude Code@iClock");
-                                taskStatusType.GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(cProj1, "iClock");
+                                object c1 = Activator.CreateInstance(taskStatusType);
+                                taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(c1, "Claude Code");
 
-                                object cProj2 = Activator.CreateInstance(taskStatusType);
-                                taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(cProj2, "Claude Code@WebUI");
-                                taskStatusType.GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(cProj2, "WebUI");
+                                object c2 = Activator.CreateInstance(taskStatusType);
+                                taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(c2, "Codex");
 
-                                object aProj = Activator.CreateInstance(taskStatusType);
-                                taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(aProj, "Antigravity@App");
-                                taskStatusType.GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(aProj, "App");
+                                object c3 = Activator.CreateInstance(taskStatusType);
+                                taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(c3, "Antigravity");
 
-                                object fallbackNoProj = Activator.CreateInstance(taskStatusType);
-                                taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(fallbackNoProj, "Claude Code");
-
-                                // 验证优先以项目根目录区分切换
-                                string resP1 = (string)mGetPillText.Invoke(null, new object[] { cProj1 });
-                                string resP2 = (string)mGetPillText.Invoke(null, new object[] { cProj2 });
-                                string resA = (string)mGetPillText.Invoke(null, new object[] { aProj });
-                                string resFallback = (string)mGetPillText.Invoke(null, new object[] { fallbackNoProj });
-
-                                if (resP1 != "iClock" || resP2 != "WebUI" || resA != "App")
+                                string r1 = (string)mGetPillText.Invoke(null, new object[] { c1 });
+                                string r2 = (string)mGetPillText.Invoke(null, new object[] { c2 });
+                                string r3 = (string)mGetPillText.Invoke(null, new object[] { c3 });
+                                if (string.IsNullOrEmpty(r1) || string.IsNullOrEmpty(r2) || string.IsNullOrEmpty(r3))
                                 {
-                                    Console.WriteLine("FAIL: Project-Centric pill must use root dir: got " + resP1 + ", " + resP2 + ", " + resA);
-                                    return 76;
-                                }
-                                if (resFallback != "Claude")
-                                {
-                                    Console.WriteLine("FAIL: Fallback without project should use agent name: got " + resFallback);
+                                    Console.WriteLine("FAIL: Agent-Centric pill must use agent brand: got " + r1 + ", " + r2 + ", " + r3);
                                     return 76;
                                 }
 
-                                // 7. Strict Same-Project Deduplication and Status Fusion in GetActiveTasks
+                                // 7. Same-Agent Deduplication and Status Fusion in GetActiveTasks
                                 MethodInfo mGetActive = statusHudType.GetMethod("GetActiveTasks", BindingFlags.NonPublic | BindingFlags.Instance);
                                 if (mGetActive != null)
                                 {
                                     Type listType = typeof(List<>).MakeGenericType(taskStatusType);
                                     IList dupList = (IList)Activator.CreateInstance(listType);
 
-                                    // Session 1 of iClock: Running
+                                    // Session 1 of Claude Code (no SessionKey): Running
                                     object s1 = Activator.CreateInstance(taskStatusType);
-                                    taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s1, "Claude Code@iClock");
-                                    taskStatusType.GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s1, "iClock");
-                                    taskStatusType.GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s1, "[iClock] Processing...");
+                                    taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s1, "Claude Code");
+                                    taskStatusType.GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s1, "[Claude Code] Processing...");
                                     taskStatusType.GetField("MessageTimestamp", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s1, DateTime.Now);
 
-                                    // Session 2 of iClock: Waiting for input (higher priority)
+                                    // Session 2 of Claude Code (no SessionKey): Waiting (higher priority) -> fuse to 1
                                     object s2 = Activator.CreateInstance(taskStatusType);
-                                    taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s2, "Antigravity@iClock");
-                                    taskStatusType.GetField("ProjectHint", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s2, "iClock");
-                                    taskStatusType.GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s2, "❓ [iClock] Waiting for user input");
+                                    taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s2, "Claude Code");
+                                    taskStatusType.GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s2, "❓ [Claude Code] Waiting for user input");
                                     taskStatusType.GetField("MessageTimestamp", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(s2, DateTime.Now);
 
                                     dupList.Add(s1);
@@ -4490,7 +4499,7 @@ internal static class TestCheck
                                     IList activeDedupped = (IList)mGetActive.Invoke(hudInstance, null);
                                     if (activeDedupped.Count != 1)
                                     {
-                                        Console.WriteLine("FAIL: Multiple sessions of iClock must deduplicate to exactly 1 active task, got " + activeDedupped.Count);
+                                        Console.WriteLine("FAIL: Same agent without SessionKey must fuse to exactly 1 active task, got " + activeDedupped.Count);
                                         return 76;
                                     }
                                     object winner = activeDedupped[0];
@@ -4499,6 +4508,55 @@ internal static class TestCheck
                                     {
                                         Console.WriteLine("FAIL: Active task fusion must prioritize Waiting/Error state, got " + winMsg);
                                         return 76;
+                                    }
+
+                                    // 8. Same agent but distinct SessionKey -> split into separate pills
+                                    IList splitList = (IList)Activator.CreateInstance(listType);
+                                    object x1 = Activator.CreateInstance(taskStatusType);
+                                    taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(x1, "Claude Code");
+                                    taskStatusType.GetField("SessionKey", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(x1, "sess_alpha");
+                                    taskStatusType.GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(x1, "[Claude Code] Task A");
+                                    taskStatusType.GetField("MessageTimestamp", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(x1, DateTime.Now);
+
+                                    object x2 = Activator.CreateInstance(taskStatusType);
+                                    taskStatusType.GetField("AgentName", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(x2, "Claude Code");
+                                    taskStatusType.GetField("SessionKey", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(x2, "sess_beta");
+                                    taskStatusType.GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(x2, "[Claude Code] Task B");
+                                    taskStatusType.GetField("MessageTimestamp", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(x2, DateTime.Now);
+
+                                    splitList.Add(x1);
+                                    splitList.Add(x2);
+                                    fTasks.SetValue(hudInstance, splitList);
+
+                                    IList activeSplit = (IList)mGetActive.Invoke(hudInstance, null);
+                                    if (activeSplit.Count != 2)
+                                    {
+                                        Console.WriteLine("FAIL: Same agent with distinct SessionKey must split into 2 pills, got " + activeSplit.Count);
+                                        return 76;
+                                    }
+
+                                    // Pill labels must carry stable 1-based indices derived from SessionKey order
+                                    MethodInfo mGetPillTextForTask = statusHudType.GetMethod("GetPillTextForTask", BindingFlags.NonPublic | BindingFlags.Static);
+                                    if (mGetPillTextForTask != null)
+                                    {
+                                        var activeList = new List<object>();
+                                        foreach (var it in activeSplit) activeList.Add(it);
+                                        // Re-invoke with the actual runtime list type
+                                        object lbl1 = null, lbl2 = null;
+                                        try
+                                        {
+                                            lbl1 = mGetPillTextForTask.Invoke(null, new object[] { activeSplit[0], activeSplit });
+                                            lbl2 = mGetPillTextForTask.Invoke(null, new object[] { activeSplit[1], activeSplit });
+                                        }
+                                        catch { }
+                                        // We don't know which is #1 vs #2 (depends on SessionKey sort), but both must carry a " #n" suffix
+                                        string s1Lbl = lbl1 as string ?? "";
+                                        string s2Lbl = lbl2 as string ?? "";
+                                        if (!s1Lbl.Contains("#") || !s2Lbl.Contains("#") || s1Lbl == s2Lbl)
+                                        {
+                                            Console.WriteLine("FAIL: Multi-session pill labels must carry distinct #n suffixes, got " + s1Lbl + " / " + s2Lbl);
+                                            return 76;
+                                        }
                                     }
                                 }
                             }

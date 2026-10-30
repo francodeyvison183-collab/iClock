@@ -71,6 +71,7 @@ internal sealed class Settings
     public string TaskStatusTextColor = "";
     public string TaskStatusBarColor = "";
     public int TaskStatusWidth = 300;
+    public int TaskStatusHeight = 28;
     public string AiQuoteKeywords = "";
     public int AiQuoteCount = 30;
     // 每日专注目标（分钟）。0 = 关闭：不画进度条、托盘不显示打卡文案。
@@ -104,6 +105,7 @@ internal sealed class Settings
         TaskStatusFontSize = src.TaskStatusFontSize > 0 ? src.TaskStatusFontSize : 9.5f;
         TaskStatusTextColor = src.TaskStatusTextColor; TaskStatusBarColor = src.TaskStatusBarColor;
         TaskStatusWidth = src.TaskStatusWidth > 0 ? Math.Max(160, Math.Min(800, src.TaskStatusWidth)) : 300;
+        TaskStatusHeight = src.TaskStatusHeight > 0 ? Math.Max(28, Math.Min(60, src.TaskStatusHeight)) : 28;
         AiQuoteKeywords = src.AiQuoteKeywords;
         AiQuoteCount = src.AiQuoteCount > 0 ? src.AiQuoteCount : 30;
         DailyGoalMinutes = src.DailyGoalMinutes;
@@ -196,6 +198,7 @@ internal sealed class Settings
                 else if (k == "TaskStatusTextColor") s.TaskStatusTextColor = v;
                 else if (k == "TaskStatusBarColor") s.TaskStatusBarColor = v;
                 else if (k == "TaskStatusWidth" && int.TryParse(v, out n)) s.TaskStatusWidth = n > 0 ? Math.Max(160, Math.Min(800, n)) : 300;
+                else if (k == "TaskStatusHeight" && int.TryParse(v, out n)) s.TaskStatusHeight = n > 0 ? Math.Max(28, Math.Min(60, n)) : 28;
                 else if (k == "AiQuoteKeywords") s.AiQuoteKeywords = v;
                 else if (k == "AiQuoteCount" && int.TryParse(v, out n)) s.AiQuoteCount = n > 0 ? n : 30;
                 else if (k == "DailyGoalMinutes" && int.TryParse(v, out n)) s.DailyGoalMinutes = Math.Max(0, Math.Min(1440, n));
@@ -229,6 +232,7 @@ internal sealed class Settings
             "TaskStatusFontSize=" + (TaskStatusFontSize > 0 ? TaskStatusFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "9.5"),
             "TaskStatusTextColor=" + TaskStatusTextColor, "TaskStatusBarColor=" + TaskStatusBarColor,
             "TaskStatusWidth=" + TaskStatusWidth,
+            "TaskStatusHeight=" + TaskStatusHeight,
             "AiQuoteKeywords=" + AiQuoteKeywords
             , "AiQuoteCount=" + AiQuoteCount
             , "DailyGoalMinutes=" + DailyGoalMinutes
@@ -370,6 +374,28 @@ internal static class NativeMethods
     public static extern bool QueryFullProcessImageName(IntPtr hProcess, int flags, StringBuilder text, ref int size);
     [DllImport("kernel32.dll")]
     public static extern ulong GetTickCount64();
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetCurrentProcess();
+
+    // PEB-based current directory resolution (ProcessProjectRootResolver)
+    [DllImport("ntdll.dll")]
+    public static extern int NtQueryInformationProcess(IntPtr processHandle, int processInformationClass,
+        out PROCESS_BASIC_INFORMATION processInformation, int processInformationLength, out int returnLength);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool ReadProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress,
+        byte[] lpBuffer, int dwSize, out int lpNumberOfBytesRead);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PROCESS_BASIC_INFORMATION
+    {
+        public IntPtr Reserved1;
+        public IntPtr PebBaseAddress;
+        public IntPtr Reserved2_0;
+        public IntPtr Reserved2_1;
+        public IntPtr UniqueProcessId;
+        public IntPtr Reserved3;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct LASTINPUTINFO

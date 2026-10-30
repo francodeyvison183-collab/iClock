@@ -1369,6 +1369,32 @@ internal sealed class AppContext : ApplicationContext
             return;
         }
 
+        // "clear --agent-name X --session Y": precise single-session cleanup.
+        if (rawClean.StartsWith("clear ", StringComparison.OrdinalIgnoreCase))
+        {
+            string clearAgent = null;
+            string clearSession = null;
+            MatchCollection clearTokens = Regex.Matches(rawClean, @"[""].+?[""]|[^ \t""]+");
+            List<string> ct = new List<string>();
+            foreach (Match m in clearTokens)
+            {
+                string tok = m.Value.Trim();
+                if (tok.StartsWith("\"") && tok.EndsWith("\"") && tok.Length >= 2) tok = tok.Substring(1, tok.Length - 2);
+                ct.Add(tok);
+            }
+            for (int i = 0; i < ct.Count; i++)
+            {
+                if (string.Equals(ct[i], "--agent-name", StringComparison.OrdinalIgnoreCase) && i + 1 < ct.Count) clearAgent = ct[++i];
+                else if (string.Equals(ct[i], "--session", StringComparison.OrdinalIgnoreCase) && i + 1 < ct.Count) clearSession = ct[++i];
+            }
+            if (!string.IsNullOrEmpty(clearAgent) || !string.IsNullOrEmpty(clearSession))
+            {
+                string resolved = GetTaskAgentName(clearAgent ?? agentName, settings.Language == "en" ? "Terminal" : "终端");
+                ClearAgentProgress(resolved, clearSession);
+                return;
+            }
+        }
+
         bool isThinking = false;
         bool isWaiting = false;
         bool isError = false;
@@ -1377,6 +1403,7 @@ internal sealed class AppContext : ApplicationContext
         string progStr = null;
         string proj = null;
         string explicitAgent = null;
+        string sessionKey = null;
 
         MatchCollection matches = Regex.Matches(payload, @"[""].+?[""]|[^ 	""]+");
         List<string> tokens = new List<string>();
@@ -1406,6 +1433,10 @@ internal sealed class AppContext : ApplicationContext
             else if ((string.Equals(t, "--project", StringComparison.OrdinalIgnoreCase) || string.Equals(t, "-p", StringComparison.OrdinalIgnoreCase)) && i + 1 < tokens.Count)
             {
                 proj = tokens[++i];
+            }
+            else if (string.Equals(t, "--session", StringComparison.OrdinalIgnoreCase) && i + 1 < tokens.Count)
+            {
+                sessionKey = tokens[++i];
             }
             else if (string.Equals(t, "--agent-name", StringComparison.OrdinalIgnoreCase) && i + 1 < tokens.Count)
             {
@@ -1478,7 +1509,7 @@ internal sealed class AppContext : ApplicationContext
             progressVal = -2f;
         }
 
-        SetAgentTaskMessage(finalMsg, statusAgent, isThinking, detail, stepProgress, progressVal, proj, DateTime.Now);
+        SetAgentTaskMessage(finalMsg, statusAgent, isThinking, detail, stepProgress, progressVal, DateTime.Now, sessionKey);
     }
 
     private static string GetTaskAgentName(string agentName, string fallback)
@@ -1490,30 +1521,20 @@ internal sealed class AppContext : ApplicationContext
     {
         for (int i = 0; i < agentTaskStatuses.Count; i++)
         {
-            var st = agentTaskStatuses[i];
-
-            if (string.Equals(st.AgentName, agentName, StringComparison.OrdinalIgnoreCase) ||
-                (st.AgentName != null && st.AgentName.StartsWith(agentName + "@", StringComparison.OrdinalIgnoreCase)))
-                return st;
-
-
+            if (string.Equals(agentTaskStatuses[i].AgentName, agentName, StringComparison.OrdinalIgnoreCase))
+                return agentTaskStatuses[i];
         }
         return null;
     }
 
-    private AgentTaskStatus FindTaskStatusByProject(string agentName, string projectHint)
+    private AgentTaskStatus FindTaskStatus(string agentName, string sessionKey)
     {
+        if (string.IsNullOrEmpty(sessionKey)) return FindTaskStatus(agentName);
         for (int i = 0; i < agentTaskStatuses.Count; i++)
         {
             var st = agentTaskStatuses[i];
-
-            if (!string.Equals(st.AgentName, agentName, StringComparison.OrdinalIgnoreCase)) continue;
-            if (!string.IsNullOrEmpty(projectHint) && !string.IsNullOrEmpty(st.ProjectHint))
-            {
-                if (string.Equals(st.ProjectHint, projectHint, StringComparison.OrdinalIgnoreCase))
-                    return st;
-            }
-            else
+            if (string.Equals(st.AgentName, agentName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(st.SessionKey, sessionKey, StringComparison.OrdinalIgnoreCase))
                 return st;
         }
         return null;
@@ -1586,29 +1607,26 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
-    internal void SetAgentTaskMessage(string message, string agentName, bool isThinking = false, string subDetail = null, string stepProgress = null, float progress = -1f, string projectHint = null, DateTime? msgTime = null)
+    internal void SetAgentTaskMessage(string message, string agentName, bool isThinking = false, string subDetail = null, string stepProgress = null, float progress = -1f, DateTime? msgTime = null, string sessionKey = null)
     {
         if (overlay != null && overlay.InvokeRequired)
         {
             overlay.BeginInvoke((MethodInvoker)delegate
             {
-                SetAgentTaskMessage(message, agentName, isThinking, subDetail, stepProgress, progress, projectHint, msgTime);
+                SetAgentTaskMessage(message, agentName, isThinking, subDetail, stepProgress, progress, msgTime, sessionKey);
             });
             return;
         }
         string name = GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "\u667a\u80fd\u4f53");
-        AgentTaskStatus status = FindTaskStatusByProject(name, projectHint);
+        AgentTaskStatus status = FindTaskStatus(name, sessionKey);
         if (status == null)
         {
-            status = new AgentTaskStatus { AgentName = name, ProjectHint = projectHint };
+            status = new AgentTaskStatus { AgentName = name, SessionKey = sessionKey };
             agentTaskStatuses.Add(status);
         }
-        else if (string.IsNullOrEmpty(status.ProjectHint) && !string.IsNullOrEmpty(projectHint))
-        {
-            status.ProjectHint = projectHint;
-        }
+        
         status.MessageTimestamp = msgTime.HasValue && msgTime.Value > DateTime.MinValue ? msgTime.Value : DateTime.Now;
-        if (status.Message == message && status.IsThinking == isThinking && status.SubDetail == subDetail && status.StepProgress == stepProgress && string.Equals(status.ProjectHint, projectHint, StringComparison.Ordinal) && taskStatusHud != null && taskStatusHud.Visible) return;
+        if (status.Message == message && status.IsThinking == isThinking && status.SubDetail == subDetail && status.StepProgress == stepProgress && taskStatusHud != null && taskStatusHud.Visible) return;
         DateTime now = DateTime.Now;
         bool isCompleted = !string.IsNullOrEmpty(message) && (message.Contains("完成") || message.Contains("Completed") || message.StartsWith("✅"));
         bool isError = !string.IsNullOrEmpty(message) && (message.StartsWith("⚠️") || message.Contains("异常") || message.Contains("死循环"));
@@ -1627,7 +1645,6 @@ internal sealed class AppContext : ApplicationContext
             status.StepStartTime = DateTime.MinValue;
             status.ForegroundSeenSeconds = 0;
         }
-        if (!string.IsNullOrEmpty(projectHint)) status.ProjectHint = projectHint;
         status.Message = message;
         status.IsThinking = isThinking;
         status.SubDetail = subDetail;
@@ -1650,9 +1667,14 @@ internal sealed class AppContext : ApplicationContext
 
     internal void ClearAgentProgress(string agentName = null)
     {
+        ClearAgentProgress(agentName, null);
+    }
+
+    internal void ClearAgentProgress(string agentName, string sessionKey)
+    {
         if (overlay != null && overlay.InvokeRequired)
         {
-            overlay.BeginInvoke(new Action<string>(ClearAgentProgress), agentName);
+            overlay.BeginInvoke(new Action<string, string>(ClearAgentProgress), agentName, sessionKey);
             return;
         }
 
@@ -1664,7 +1686,8 @@ internal sealed class AppContext : ApplicationContext
         {
             for (int i = agentTaskStatuses.Count - 1; i >= 0; i--)
             {
-                if (string.Equals(agentTaskStatuses[i].AgentName, agentName.Trim(), StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(agentTaskStatuses[i].AgentName, agentName.Trim(), StringComparison.OrdinalIgnoreCase)) continue;
+                if (!string.IsNullOrEmpty(sessionKey) && !string.Equals(agentTaskStatuses[i].SessionKey, sessionKey, StringComparison.OrdinalIgnoreCase)) continue;
                     agentTaskStatuses.RemoveAt(i);
             }
         }
@@ -2524,7 +2547,25 @@ internal sealed class AppContext : ApplicationContext
         if (lower.Contains("supermaven")) return "Supermaven";
         if (lower.Contains("devin") || lower.Contains("opendevin") || lower.Contains("all-hands")) return "Devin";
         if (lower.Contains("grokbot") || lower.Contains("grok")) return "Grok";
+        if (lower.Contains("deepseek") || lower.Contains("deep-seek") || lower.Contains("deep_seek")) return "DeepSeek";
         if (lower == "pi" || lower.StartsWith("pi ") || lower.StartsWith("pi-") || lower.StartsWith("pi.")) return "Pi";
+        if (lower == "zed" || lower.StartsWith("zed ") || lower.StartsWith("zed-") || lower.StartsWith("zed.") || lower.Contains("zed.exe") || lower.Contains("zed editor")) return "Zed";
+        if (lower.Contains("augment")) return "Augment Code";
+        if (lower.Contains("junie")) return "Junie";
+        if (lower.Contains("openhands") || lower.Contains("open-hands")) return "OpenHands";
+        if (lower.Contains("replit") || lower.Contains("ghostwriter")) return "Replit Agent";
+        if (lower.Contains("phind")) return "Phind";
+        if (lower.Contains("blackbox")) return "Blackbox AI";
+        if (lower.StartsWith("sweep") || lower.Contains("sweep-ai") || lower.Contains("sweepai")) return "Sweep";
+        if (lower.Contains("mentat")) return "Mentat";
+        if (lower.Contains("gpt-engineer") || lower.Contains("gptengineer")) return "GPT Engineer";
+        if (lower.Contains("smol-ai") || lower.Contains("smolai")) return "smol-ai";
+        if (lower == "v0" || lower.StartsWith("v0 ") || lower.StartsWith("v0-") || lower.StartsWith("v0.") || lower.Contains("v0.dev")) return "v0";
+        if (lower.Contains("bolt.new") || lower.Contains("boltnew")) return "Bolt.new";
+        if (lower.Contains("lovable")) return "Lovable";
+        if (lower.Contains("qoder")) return "Qoder";
+        if (lower == "kiro" || lower.StartsWith("kiro ") || lower.StartsWith("kiro-") || lower.StartsWith("kiro.") || lower.Contains("kiro.exe")) return "Kiro";
+        if (lower.Contains("opencode-ai")) return "OpenCode";
         return null;
     }
 
@@ -2551,7 +2592,7 @@ internal sealed class AppContext : ApplicationContext
 
     internal static bool IsAgentInForeground()
     {
-        return IsAgentWindowInForeground(null, null);
+        return IsAgentWindowInForeground(null);
     }
 
     private static bool IsTerminalOrIdeHost(string procName)
@@ -2561,16 +2602,11 @@ internal sealed class AppContext : ApplicationContext
         return p.Contains("windowsterminal") || p == "pwsh" || p == "powershell" || p == "cmd" || p == "code" || p.Contains("cursor") || p.Contains("wezterm") || p.Contains("alacritty") || p.Contains("mintty");
     }
 
-    internal static bool IsAgentWindowInForeground(string agentName, string projectHint = null)
+    internal static bool IsAgentWindowInForeground(string agentName)
     {
         try
         {
-            if (!string.IsNullOrEmpty(agentName) && agentName.IndexOf('@') > 0)
-            {
-                int at = agentName.IndexOf('@');
-                if (string.IsNullOrEmpty(projectHint)) projectHint = agentName.Substring(at + 1);
-                agentName = agentName.Substring(0, at);
-            }
+            
             IntPtr fg = NativeMethods.GetForegroundWindow();
             if (fg == IntPtr.Zero) return false;
             uint pid = 0;
@@ -2578,12 +2614,6 @@ internal sealed class AppContext : ApplicationContext
             if (pid == 0) return false;
             string procName = GetProcessNameByPid((int)pid);
             string title = GetAgentWindowTitle(fg);
-
-            if (!string.IsNullOrEmpty(projectHint) && !string.IsNullOrEmpty(title) && title.IndexOf(projectHint, StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                if (procName != null && (MatchAgent(procName) != null || IsTerminalOrIdeHost(procName))) return true;
-                if (!string.IsNullOrEmpty(title) && MatchAgent(title) != null) return true;
-            }
 
             if (!string.IsNullOrEmpty(agentName))
             {
@@ -2691,21 +2721,8 @@ internal sealed class AppContext : ApplicationContext
 
     internal static IntPtr FindAgentWindow(string agentName)
     {
-        return FindAgentWindow(agentName, null);
-    }
-
-    internal static IntPtr FindAgentWindow(string agentName, string projectHint)
-    {
-        if (string.IsNullOrEmpty(agentName) && string.IsNullOrEmpty(projectHint)) return IntPtr.Zero;
-        // 1. Fast Cache Probe (0ms latency)
-        if (!string.IsNullOrEmpty(projectHint))
-        {
-            IntPtr cached = AgentSessionWatcher.GetCachedWindow(projectHint);
-            if (cached != IntPtr.Zero) return cached;
-        }
-
+        if (string.IsNullOrEmpty(agentName)) return IntPtr.Zero;
         IntPtr bestHwnd = IntPtr.Zero;
-        int bestPid = 0;
         int bestScore = 0;
         try
         {
@@ -2727,57 +2744,36 @@ internal sealed class AppContext : ApplicationContext
                         (!string.IsNullOrEmpty(title) && title.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) ||
                         (isAgy && ((proc != null && (proc.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0 || proc.IndexOf("gemini", StringComparison.OrdinalIgnoreCase) >= 0)) ||
                                    (!string.IsNullOrEmpty(title) && (title.IndexOf("antigravity", StringComparison.OrdinalIgnoreCase) >= 0 || title.IndexOf("gemini", StringComparison.OrdinalIgnoreCase) >= 0 || title.IndexOf("agy", StringComparison.OrdinalIgnoreCase) >= 0)))) ||
-                        (MatchAgent(proc ?? "") != null && string.Equals(MatchAgent(proc ?? ""), agentName, StringComparison.OrdinalIgnoreCase)) ||
-                        (!string.IsNullOrEmpty(proc) && (agentName.IndexOf(proc, StringComparison.OrdinalIgnoreCase) >= 0 || proc.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0)))
+                        (MatchAgent(proc ?? "") != null && string.Equals(MatchAgent(proc ?? ""), agentName, StringComparison.OrdinalIgnoreCase)))
                     {
                         matchAgent = true;
                     }
                 }
 
-                bool matchProject = !string.IsNullOrEmpty(projectHint) && !string.IsNullOrEmpty(title) && title.IndexOf(projectHint, StringComparison.OrdinalIgnoreCase) >= 0;
-
-                if (matchAgent && matchProject) score = 100;
-                else if (matchAgent) score = 80;
-                else if (matchProject && proc != null && (MatchAgent(proc) != null || IsTerminalOrIdeHost(proc))) score = 75;
+                if (matchAgent) score = 80;
                 else if (proc != null && IsTerminalOrIdeHost(proc) && !string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(agentName) && title.IndexOf(agentName, StringComparison.OrdinalIgnoreCase) >= 0) score = 70;
 
                 if (score > bestScore)
                 {
                     bestScore = score;
                     bestHwnd = hWnd;
-                    bestPid = (int)pid;
-                    if (bestScore >= 100) return false;
                 }
                 return true;
             }, IntPtr.Zero);
         }
         catch { }
-        if (bestHwnd != IntPtr.Zero && !string.IsNullOrEmpty(projectHint))
-        {
-            AgentSessionWatcher.CacheWindowBinding(projectHint, bestHwnd, bestPid);
-        }
         return bestHwnd;
     }
 
-    internal void WarpToAgentWindow(string agentName, string projectHint = null)
+    internal void WarpToAgentWindow(string agentName)
     {
-        if (!string.IsNullOrEmpty(agentName) && agentName.IndexOf('@') > 0)
-        {
-            int at = agentName.IndexOf('@');
-            if (string.IsNullOrEmpty(projectHint)) projectHint = agentName.Substring(at + 1);
-            agentName = agentName.Substring(0, at);
-        }
-        IntPtr hwnd = FindAgentWindow(agentName, projectHint);
-        if (hwnd == IntPtr.Zero && !string.IsNullOrEmpty(projectHint))
-        {
-            hwnd = FindAgentWindow(null, projectHint);
-        }
+        IntPtr hwnd = FindAgentWindow(agentName);
         if (hwnd == IntPtr.Zero && !string.IsNullOrEmpty(agentName))
         {
             List<string> agents = DetectAgents();
             if (agents != null && agents.Count > 0)
             {
-                hwnd = FindAgentWindow(agents[0], projectHint);
+                hwnd = FindAgentWindow(agents[0]);
             }
         }
         if (hwnd != IntPtr.Zero)

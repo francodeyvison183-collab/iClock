@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Text;
@@ -24,13 +24,13 @@ using System.Web.Script.Serialization;
 internal sealed class AgentTaskStatus
 {
     internal string AgentName;
+    internal string SessionKey;
     internal bool HasProgress;
     internal float Progress;
     internal string Message;
     internal bool IsThinking;
     internal string SubDetail;
     internal string StepProgress;
-    internal string ProjectHint;
     internal DateTime TurnStartTime;
     internal DateTime StepStartTime;
     internal double ForegroundSeenSeconds;
@@ -41,7 +41,16 @@ internal sealed class AgentTaskStatusHud : Form
 {
     private const int MinHudWidth = 200;
     private const int MaxHudWidth = 1400;
-    private const int CollapsedHeight = 28;
+    private const int CollapsedHeight = 28;   // minimum card height (and the default)
+    private const int MaxCardHeight = 60;
+    private int CardHeight
+    {
+        get
+        {
+            int h = settings != null ? settings.TaskStatusHeight : CollapsedHeight;
+            return Math.Max(CollapsedHeight, Math.Min(MaxCardHeight, h));
+        }
+    }
 
     // Standardized typography & state color palette (Option A)
     private static readonly Color ColorBg = Color.FromArgb(235, 18, 20, 24);              // Deep acrylic glass #121418
@@ -57,15 +66,20 @@ internal sealed class AgentTaskStatusHud : Form
     private List<AgentTaskStatus> tasks = new List<AgentTaskStatus>();
     private bool moving;
     private bool resizingWidth;
+    private bool resizingHeight;
     private Form snapGuideForm;
     private bool snapGuideV;
     private string pinnedAgent;
     private Point dragStart;
     private Point formStart;
     private int dragStartWidth;
+    private int dragStartHeight;
     private Bitmap renderBitmap;
     private byte[] premulBuffer;
     private Font cachedBadgeFont;
+    private Font cachedPillFont;
+    private float cachedBadgeSize = -1f;
+    private float cachedPillSize = -1f;
     private Font cachedTitleFont;
     private float cachedTitleFontSize = -1f;
     private SolidBrush cachedTitleBrush;
@@ -77,8 +91,10 @@ internal sealed class AgentTaskStatusHud : Form
     private Timer heartbeatTimer;
     private bool isHovered;
     private int currentAgentIndex = 0;
+    private AgentTaskStatus lastDisplayedTask;
     private int lastRotationTick = Environment.TickCount;
     private int manualLockUntilTick = 0;
+    private int lastHoverPillIndex = -1;
     private const int AutoRotationCadenceMs = 5000;
 
     private DateTime lastHoverTime;
@@ -102,13 +118,116 @@ internal sealed class AgentTaskStatusHud : Form
         List<AgentTaskStatus> active = new List<AgentTaskStatus>();
         if (tasks == null) return active;
         DateTime now = DateTime.Now;
+        Dictionary<string, AgentTaskStatus> projectMap = new Dictionary<string, AgentTaskStatus>(StringComparer.OrdinalIgnoreCase);
+
         for (int i = 0; i < tasks.Count; i++)
         {
             AgentTaskStatus t = tasks[i];
             if (t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
-            active.Add(t);
+
+            string key = GetProjectKey(t);
+            AgentTaskStatus existing;
+            if (projectMap.TryGetValue(key, out existing))
+            {
+                // 同项目多会话协同合流：等待/错误 (3) > 运行中 (2) > 完成 (1)
+                int pCurrent = GetTaskPriority(t);
+                int pExisting = GetTaskPriority(existing);
+                if (pCurrent > pExisting || (pCurrent == pExisting && t.MessageTimestamp > existing.MessageTimestamp))
+                {
+                    projectMap[key] = t;
+                }
+            }
+            else
+            {
+                projectMap[key] = t;
+            }
+        }
+
+        foreach (var v in projectMap.Values)
+        {
+            active.Add(v);
+        }
+        // Group same-agent sessions adjacently so multi-session pills are never
+        // split by other agents. SessionCompareTask keeps the pill order and
+        // the "#n" labels in sync.
+        active.Sort(CompareTasksForDisplay);
+
+        // After re-sorting, the previously displayed task may sit at a new
+        // index. Track it by reference so the HUD doesn't visually "jump" to
+        // a different agent when the order shifts.
+        if (lastDisplayedTask != null)
+        {
+            int idx = -1;
+            for (int i = 0; i < active.Count; i++)
+            {
+                if (object.ReferenceEquals(active[i], lastDisplayedTask)) { idx = i; break; }
+            }
+            if (idx >= 0)
+            {
+                // Same task still visible: pin the index to it so a sort shift
+                // doesn't change which pill is currently selected.
+                currentAgentIndex = idx;
+            }
+            else
+            {
+                // Task vanished (expired / cleared): drop the anchor so the
+                // next frame picks a fresh one.
+                lastDisplayedTask = null;
+            }
+        }
+        if (lastDisplayedTask == null && active.Count > 0)
+        {
+            if (currentAgentIndex >= active.Count) currentAgentIndex = active.Count - 1;
+            if (currentAgentIndex < 0) currentAgentIndex = 0;
+            lastDisplayedTask = active[currentAgentIndex];
         }
         return active;
+    }
+
+    private static string BaseAgentName(AgentTaskStatus t)
+    {
+        if (t == null) return "";
+        string n = t.AgentName ?? "";
+        int at = n.IndexOf('@');
+        if (at > 0) n = n.Substring(0, at).Trim();
+        return n;
+    }
+
+    // Shared ordering for the pill row: agent name alphabetically, then keyed
+    // sessions by key, with the legacy keyless session last. Using the same
+    // comparer here and in GetPillTextForTask keeps "#1" left of "#2".
+    private static int CompareTasksForDisplay(AgentTaskStatus a, AgentTaskStatus b)
+    {
+        int c = string.Compare(BaseAgentName(a), BaseAgentName(b), StringComparison.OrdinalIgnoreCase);
+        if (c != 0) return c;
+        bool ak = string.IsNullOrEmpty(a != null ? a.SessionKey : null);
+        bool bk = string.IsNullOrEmpty(b != null ? b.SessionKey : null);
+        if (ak != bk) return ak ? 1 : -1;
+        return string.Compare(a != null ? (a.SessionKey ?? "") : "", b != null ? (b.SessionKey ?? "") : "", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string GetProjectKey(AgentTaskStatus t)
+    {
+        if (t == null) return "unknown";
+        string name = t.AgentName ?? "";
+        int at = name.IndexOf('@');
+        if (at > 0)
+        {
+            name = name.Substring(0, at).Trim();
+        }
+        string key = "agent:" + name.ToLowerInvariant();
+        if (!string.IsNullOrEmpty(t.SessionKey)) key += "|sess:" + t.SessionKey.ToLowerInvariant();
+        return key;
+    }
+
+    private static int GetTaskPriority(AgentTaskStatus t)
+    {
+        if (t == null) return 0;
+        string m = t.Message ?? "";
+        if (m.StartsWith("\u26a0") || m.Contains("\u5f02\u5e38") || m.StartsWith("\u2753") || m.Contains("\u7b49\u5f85") || m.Contains("\u51b3\u7b56")) return 3;
+        bool isDone = m.StartsWith("\u2705") || m.Contains("\u5b8c\u6210") || m.Contains("Completed");
+        if (t.IsThinking || t.HasProgress || !isDone) return 2;
+        return 1;
     }
 
     internal void OnAgentDynamicUpdated(string agentName, bool isHighPriority = false)
@@ -129,6 +248,7 @@ internal sealed class AgentTaskStatusHud : Form
                 if (currentAgentIndex != i)
                 {
                     currentAgentIndex = i;
+                    lastDisplayedTask = active[i];
                     lastRotationTick = Environment.TickCount;
                     RenderLayeredWindow();
                 }
@@ -144,7 +264,7 @@ internal sealed class AgentTaskStatusHud : Form
         ShowInTaskbar = false;
         StartPosition = FormStartPosition.Manual;
         TopMost = true;
-        Size = new Size(CurrentWidth, CollapsedHeight);
+        Size = new Size(CurrentWidth, CardHeight);
         IntPtr forceHandle = Handle;
 
         MouseDown += OnHudMouseDown;
@@ -180,11 +300,13 @@ internal sealed class AgentTaskStatusHud : Form
         if (settings == null || !settings.DesktopCollaborationEnabled) return false;
         var active = GetActiveTasks();
         if (active.Count == 0) return false;
-        if (!string.IsNullOrEmpty(pinnedAgent) || isHovered || moving || resizingWidth) return true;
+        // Pinned HUD is a deliberate "keep it on screen" anchor; never auto-hide.
+        if (!string.IsNullOrEmpty(pinnedAgent)) return true;
+        if (isHovered || moving || resizingWidth) return true;
         for (int i = 0; i < active.Count; i++)
         {
             AgentTaskStatus t = active[i];
-            if (!AppContext.IsAgentWindowInForeground(t.AgentName, t.ProjectHint))
+            if (!AppContext.IsAgentWindowInForeground(t.AgentName))
             {
                 return true;
             }
@@ -217,6 +339,7 @@ internal sealed class AgentTaskStatusHud : Form
             if (isHovered && (now - lastHoverTime).TotalMilliseconds > 160 && !moving && !resizingWidth)
             {
                 isHovered = false;
+                lastHoverPillIndex = -1;
                 hoverChanged = true;
                 RenderLayeredWindow();
             }
@@ -225,12 +348,11 @@ internal sealed class AgentTaskStatusHud : Form
         var active = GetActiveTasks();
         if (!string.IsNullOrEmpty(pinnedAgent))
         {
-            if (active.Count > 0 && currentAgentIndex >= active.Count)
-            {
-                currentAgentIndex = Math.Max(0, active.Count - 1);
-                pinnedAgent = active[currentAgentIndex].AgentName;
-                RenderLayeredWindow();
-            }
+            int pIdx = active.FindIndex(t => string.Equals(t.AgentName, pinnedAgent, StringComparison.OrdinalIgnoreCase));
+            // Pin prevents auto-rotation / auto-hide, but does NOT lock the
+            // protagonist: the user can still click any pill to switch. Only
+            // drop the pin when the pinned agent's session has expired.
+            if (pIdx < 0) pinnedAgent = null;
         }
 
         // Fixed-cadence rotation when idle: if not pinned, not hovered and not manually locked, advance every 5s
@@ -239,6 +361,7 @@ internal sealed class AgentTaskStatusHud : Form
             if (Environment.TickCount - lastRotationTick >= AutoRotationCadenceMs)
             {
                 currentAgentIndex = (currentAgentIndex + 1) % active.Count;
+                lastDisplayedTask = active[currentAgentIndex];
                 lastRotationTick = Environment.TickCount;
                 RenderLayeredWindow();
             }
@@ -303,7 +426,7 @@ internal sealed class AgentTaskStatusHud : Form
                 bool done = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("✅") || t.Message.Contains("完成") || t.Message.Contains("Completed"));
                 if (done && (!t.HasProgress || string.IsNullOrEmpty(t.StepProgress)))
                 {
-                    if (AppContext.IsAgentWindowInForeground(t.AgentName, t.ProjectHint))
+                    if (AppContext.IsAgentWindowInForeground(t.AgentName))
                     {
                         t.ForegroundSeenSeconds += 0.25;
                         if (t.ForegroundSeenSeconds >= 5.0 && AppContext.Current != null)
@@ -344,7 +467,7 @@ internal sealed class AgentTaskStatusHud : Form
         if (active.Count == 0) return;
         if (currentAgentIndex >= active.Count) currentAgentIndex = Math.Max(0, active.Count - 1);
 
-        int totalH = CollapsedHeight + (active.Count > 1 ? 20 : 0);
+        int totalH = CardHeight + (active.Count > 1 ? (int)Math.Round(CardHeight * 0.7) : 0);
 
         if (Height != totalH || Width != CurrentWidth)
         {
@@ -379,6 +502,7 @@ internal sealed class AgentTaskStatusHud : Form
         {
             int step = e.Delta > 0 ? -1 : 1;
             currentAgentIndex = (currentAgentIndex + step + active.Count) % active.Count;
+            lastDisplayedTask = active[currentAgentIndex];
             lastRotationTick = Environment.TickCount;
             manualLockUntilTick = Environment.TickCount + 5000;
             RenderLayeredWindow();
@@ -410,6 +534,57 @@ internal sealed class AgentTaskStatusHud : Form
         base.WndProc(ref m);
     }
 
+    internal static string GetPillText(AgentTaskStatus t)
+    {
+        if (t == null) return "AI";
+        Color c; string l;
+        GetAgentBadge(t.AgentName, out c, out l);
+        return l ?? "AI";
+    }
+
+    // Multi-session disambiguation: when the same agent has >= 2 live sessions,
+    // append a stable 1-based index derived from SessionKey lexicographic order
+    // so "Claude #1" always refers to the same session across repaints.
+    private static string GetPillTextForTask(AgentTaskStatus t, List<AgentTaskStatus> active)
+    {
+        if (t == null) return "AI";
+        Color c; string baseLabel;
+        GetAgentBadge(t.AgentName, out c, out baseLabel);
+        if (string.IsNullOrEmpty(baseLabel)) baseLabel = "AI";
+        if (active == null) return baseLabel;
+
+        string targetName = BaseAgentName(t);
+        // Collect every live session of this agent (with or without a
+        // SessionKey) so "Codex" + "Codex" both get numbered instead of one
+        // silently collapsing into the other.
+        List<AgentTaskStatus> siblings = new List<AgentTaskStatus>();
+        for (int i = 0; i < active.Count; i++)
+        {
+            var s = active[i];
+            if (s == null) continue;
+            if (!string.Equals(BaseAgentName(s), targetName, StringComparison.OrdinalIgnoreCase)) continue;
+            siblings.Add(s);
+        }
+        if (siblings.Count < 2) return baseLabel;
+
+        siblings.Sort(CompareTasksForDisplay);
+        for (int i = 0; i < siblings.Count; i++)
+        {
+            if (object.ReferenceEquals(siblings[i], t)) return baseLabel + " #" + (i + 1);
+        }
+        return baseLabel;
+    }
+
+    private float GetTaskPillWidth(AgentTaskStatus t)
+    {
+        var active = GetActiveTasks();
+        string label = GetPillTextForTask(t, active);
+        // Scale the glyph-width estimate with the height-derived pill font
+        // (10.5px per char at the 10pt / 28px default).
+        float scale = CardHeight / 28f;
+        return Math.Max(52f * scale, Math.Min(132f * scale, (label != null ? label.Length : 2) * 10.5f * scale + 22f * scale));
+    }
+
     private static float GetPillWidth(string name)
     {
         Color c; string label;
@@ -419,18 +594,20 @@ internal sealed class AgentTaskStatusHud : Form
 
     private int GetIndicatorDotIndex(Point pt, int cardH)
     {
-        if (pt.Y < cardH) return -1;
+        if (pt.Y < cardH - 3) return -1;
         var active = GetActiveTasks();
         int count = active.Count;
         if (count <= 1) return -1;
         float totalW = 0f;
-        for (int i = 0; i < count; i++) totalW += GetPillWidth(active[i].AgentName);
+        for (int i = 0; i < count; i++) totalW += GetTaskPillWidth(active[i]);
         totalW += (count - 1) * 8f;
         float curX = (Width - totalW) / 2f;
         for (int i = 0; i < count; i++)
         {
-            float pillW = GetPillWidth(active[i].AgentName);
-            if (pt.X >= curX - 2 && pt.X <= curX + pillW + 2 && pt.Y >= cardH && pt.Y <= cardH + 20) return i;
+            float pillW = GetTaskPillWidth(active[i]);
+            // 外扩点击与悬停热区：左右各 4px，上下扩充至整个药丸及外围
+            int pillZoneH = Math.Max(24, (int)Math.Round(cardH * 0.8));
+            if (pt.X >= curX - 4 && pt.X <= curX + pillW + 4 && pt.Y >= cardH - 3 && pt.Y <= cardH + pillZoneH) return i;
             curX += pillW + 8f;
         }
         return -1;
@@ -441,16 +618,18 @@ internal sealed class AgentTaskStatusHud : Form
         var active = GetActiveTasks();
         if (active.Count == 0) return;
         if (currentAgentIndex >= active.Count) currentAgentIndex = 0;
-        int cardH = CollapsedHeight;
+        int cardH = CardHeight;
 
         // Bottom indicator click
         int dotIdx = GetIndicatorDotIndex(e.Location, cardH);
         if (dotIdx >= 0)
         {
             currentAgentIndex = dotIdx;
-            if (!string.IsNullOrEmpty(pinnedAgent)) pinnedAgent = active[dotIdx].AgentName;
+            lastDisplayedTask = active[dotIdx];
+            // Clicking a pill manually switches the protagonist but does NOT
+            // move the pin; the pin is only set/cleared by the pin icon.
             lastRotationTick = Environment.TickCount;
-            manualLockUntilTick = Environment.TickCount + 60000;
+            manualLockUntilTick = Environment.TickCount + 5000;
             RenderLayeredWindow();
             return;
         }
@@ -488,6 +667,17 @@ internal sealed class AgentTaskStatusHud : Form
             return;
         }
 
+        // Bottom edge of the card row (excluding the 8px right-resize corner)
+        // resizes card height; font scales proportionally via CardHeight.
+        int cardH2 = CardHeight;
+        if (e.Y >= cardH2 - 5 && e.Y < cardH2 && e.X < Width - 8)
+        {
+            resizingHeight = true;
+            dragStart = Cursor.Position;
+            dragStartHeight = CardHeight;
+            return;
+        }
+
         // Right edge (last 8px) resizes width; elsewhere starts move / click
         if (e.X >= Width - 8)
         {
@@ -505,16 +695,27 @@ internal sealed class AgentTaskStatusHud : Form
     {
         if (!moving && !resizingWidth)
         {
-            int cardH = CollapsedHeight;
-            if (e.X >= Width - 8 && e.Y < cardH)
+            int cardH = CardHeight;
+            // Bottom edge resize (excluding the right-resize corner)
+            if (e.Y >= cardH - 5 && e.Y < cardH && e.X < Width - 8)
+            {
+                if (Cursor.Current != Cursors.SizeNS) Cursor.Current = Cursors.SizeNS;
+            }
+            else if (e.X >= Width - 8 && e.Y < cardH)
             {
                 if (Cursor.Current != Cursors.SizeWE) Cursor.Current = Cursors.SizeWE;
             }
             else
             {
                 bool showPin = isHovered;
-                bool hand = new Rectangle(Width - 27, 5, 18, 18).Contains(e.Location) || (showPin && new Rectangle(Width - 45, 5, 18, 18).Contains(e.Location)) || GetIndicatorDotIndex(e.Location, cardH) >= 0;
+                int curHoverPill = GetIndicatorDotIndex(e.Location, cardH);
+                bool hand = new Rectangle(Width - 27, 5, 18, 18).Contains(e.Location) || (showPin && new Rectangle(Width - 45, 5, 18, 18).Contains(e.Location)) || curHoverPill >= 0;
                 Cursor.Current = hand ? Cursors.Hand : Cursors.Default;
+                if (curHoverPill != lastHoverPillIndex)
+                {
+                    lastHoverPillIndex = curHoverPill;
+                    RenderLayeredWindow();
+                }
             }
         }
 
@@ -525,6 +726,17 @@ internal sealed class AgentTaskStatusHud : Form
             {
                 Width = newWidth;
                 RenderLayeredWindow();
+            }
+            return;
+        }
+
+        if (resizingHeight)
+        {
+            int newHeight = Math.Max(CollapsedHeight, Math.Min(MaxCardHeight, dragStartHeight + Cursor.Position.Y - dragStart.Y));
+            if (newHeight != CardHeight)
+            {
+                settings.TaskStatusHeight = newHeight;
+                UpdateLayoutAndSize();
             }
             return;
         }
@@ -566,6 +778,13 @@ internal sealed class AgentTaskStatusHud : Form
             settings.Save();
             return;
         }
+        if (resizingHeight)
+        {
+            resizingHeight = false;
+            settings.TaskStatusHeight = CardHeight;
+            settings.Save();
+            return;
+        }
         if (!moving) return;
         moving = false;
         HideSnapGuide();
@@ -574,14 +793,14 @@ internal sealed class AgentTaskStatusHud : Form
         if (Math.Abs(Cursor.Position.X - dragStart.X) < 4 && Math.Abs(Cursor.Position.Y - dragStart.Y) < 4)
         {
             var active = GetActiveTasks();
-            int cardH = CollapsedHeight;
+            int cardH = CardHeight;
             if (e.Y < cardH && active.Count > 0)
             {
                 if (currentAgentIndex >= active.Count) currentAgentIndex = 0;
                 AgentTaskStatus clicked = active[currentAgentIndex];
                 if (AppContext.Current != null)
                 {
-                    AppContext.Current.WarpToAgentWindow(clicked.AgentName, clicked.ProjectHint);
+                    AppContext.Current.WarpToAgentWindow(clicked.AgentName);
                     bool done = !string.IsNullOrEmpty(clicked.Message) && (clicked.Message.StartsWith("✅") || clicked.Message.Contains("完成") || clicked.Message.Contains("Completed"));
                     if (done && (!clicked.HasProgress || string.IsNullOrEmpty(clicked.StepProgress)))
                     {
@@ -629,8 +848,11 @@ internal sealed class AgentTaskStatusHud : Form
         if (active.Count == 0) return;
         if (currentAgentIndex >= active.Count) currentAgentIndex = 0;
 
-        float fs = settings != null && settings.TaskStatusFontSize > 0 ? settings.TaskStatusFontSize : 9.5f;
-        int unitH = CollapsedHeight;
+        // Font scales linearly with card height: 9.5pt at the 28px default,
+        // clamped to a sane 7pt..22pt band so the 60px max still fits.
+        float baseFs = settings != null && settings.TaskStatusFontSize > 0 ? settings.TaskStatusFontSize : 9.5f;
+        float fs = Math.Max(7.0f, Math.Min(22.0f, baseFs * CardHeight / 28f));
+        int unitH = CardHeight;
         Point clientCursor = PointToClient(Cursor.Position);
 
         EnsureCachedGdiObjects(fs);
@@ -660,7 +882,7 @@ internal sealed class AgentTaskStatusHud : Form
         bool isMulti = active.Count > 1;
 
         float ringCenterX = Width - 18f;
-        float ringCenterY = cardY + 14f;
+        float ringCenterY = cardY + CardHeight / 2f;
         float ringRadius = 6.0f;
 
         Color statusColor = GetTaskStatusColor(task);
@@ -669,15 +891,14 @@ internal sealed class AgentTaskStatusHud : Form
         bool isWaiting = statusColor == ColorWaiting || isError;
         bool isRunning = statusColor == ColorRunning;
 
-        // 2. Agent Brand Badge & Project Hint Chip
-        float textX = 8f;
-        Color badgeColor; string badgeLabel;
-        GetAgentBadge(task.AgentName, out badgeColor, out badgeLabel);
-        textX = DrawChip(g, textX, cardY + 5f, badgeLabel, badgeFont, badgeColor, centerFormat);
-
-        if (!isMulti && !string.IsNullOrEmpty(task.ProjectHint))
+        // 2. Agent Brand Badge (Single-agent only) & Project Hint Chip
+        float textX = 10f;
+        if (!isMulti)
         {
-            textX = DrawChip(g, textX, cardY + 5f, task.ProjectHint, badgeFont, Color.FromArgb(56, 189, 248), centerFormat);
+            Color badgeColor; string badgeLabel;
+            GetAgentBadge(task.AgentName, out badgeColor, out badgeLabel);
+            int chipH = Math.Max(16, (int)Math.Round(CardHeight * 0.64));
+            textX = DrawChip(g, 8f, cardY + (CardHeight - chipH) / 2f, badgeLabel, badgeFont, badgeColor, centerFormat, chipH);
         }
 
         // 4. Main Line Content: Three-State Dispatch (Live Action default, Title on Hover & Done)
@@ -704,15 +925,42 @@ internal sealed class AgentTaskStatusHud : Form
         if (isRunning && task.TurnStartTime > DateTime.MinValue)
         {
             int elapsedSec = Math.Max(0, (int)(DateTime.Now - task.TurnStartTime).TotalSeconds);
-            if (elapsedSec >= 1) timeBadge = " (" + FormatElapsed(elapsedSec) + ")";
+            if (elapsedSec >= 1) timeBadge = FormatElapsed(elapsedSec);
         }
 
-        string textToDraw = (!string.IsNullOrEmpty(mainText) ? mainText : "") + timeBadge;
+        // Pin icon only appears on hover, even when pinned (the pin state is
+        // already conveyed by the HUD staying locked to this agent).
         bool showPin = isHovered;
-        float rightLimit = showPin ? (ringCenterX - 28f) : (ringCenterX - 10f);
+        bool showTime = !string.IsNullOrEmpty(timeBadge);
+
+        // Measure the fixed time badge so the main text never overlaps it.
+        float timeW = 0f;
+        if (showTime)
+        {
+            SizeF ts = g.MeasureString(timeBadge, badgeFont);
+            timeW = ts.Width + 4f;
+        }
+
+        float rightLimit = ringCenterX - 10f;
+        if (showPin) rightLimit -= 18f;
+        if (showTime) rightLimit -= timeW;
+
+        string textToDraw = !string.IsNullOrEmpty(mainText) ? mainText : "";
         float textW = Math.Max(40f, rightLimit - textX);
-        RectangleF titleRect = new RectangleF(textX, cardY + 4f, textW, 20f);
+        RectangleF titleRect = new RectangleF(textX, cardY, textW, CardHeight);
         g.DrawString(textToDraw, titleFont, titleBrush, titleRect, titleFormat);
+
+        // 4b. Fixed Elapsed Time Badge (just left of the status ring, distinct color)
+        if (showTime)
+        {
+            float timeRight = ringCenterX - 10f - (showPin ? 18f : 0f);
+            RectangleF timeRect = new RectangleF(timeRight - timeW, cardY, timeW, CardHeight);
+            using (SolidBrush timeBrush = new SolidBrush(Color.FromArgb(180, 148, 163, 184))) // slate-400, muted but distinct from main text
+            using (StringFormat rightFmt = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap })
+            {
+                g.DrawString(timeBadge, badgeFont, timeBrush, timeRect, rightFmt);
+            }
+        }
 
         // 4a. Pin Icon Slot (Directly left of status ring: ringCenterX - 20f)
         if (showPin)
@@ -834,16 +1082,18 @@ internal sealed class AgentTaskStatusHud : Form
             }
         }
 
-        // 5. Centered Multi-Agent Status Pills Below Card (17px height, 9pt font, 8px radius Stadium Pill; current agent only gets capsule background)
+        // 5. Centered Multi-Agent Status Pills Below Card (Multi-Project disambiguation by root dir)
         if (isMulti)
         {
             float totalW = 0f;
-            for (int i = 0; i < active.Count; i++) totalW += GetPillWidth(active[i].AgentName);
+            for (int i = 0; i < active.Count; i++) totalW += GetTaskPillWidth(active[i]);
             totalW += (active.Count - 1) * 8f;
 
             float curX = (Width - totalW) / 2f;
-            int pillY = 29;
-            int pillH = 17;
+            // Pill row sits directly under the card; scale its offset and
+            // height proportionally so a 60px card still has room for pills.
+            int pillY = CardHeight + 1;
+            int pillH = Math.Max(14, (int)Math.Round(CardHeight * 0.6));
 
             for (int i = 0; i < active.Count; i++)
             {
@@ -851,26 +1101,39 @@ internal sealed class AgentTaskStatusHud : Form
                 bool isCur = (i == currentAgentIndex);
                 Color bColor; string bLabel;
                 GetAgentBadge(t.AgentName, out bColor, out bLabel);
-                float pillW = GetPillWidth(t.AgentName);
+                string pillLabel = GetPillTextForTask(t, active);
+                float pillW = GetTaskPillWidth(t);
                 Rectangle pillRect = new Rectangle((int)curX, pillY, (int)pillW, pillH);
 
                 Color dotColor = GetTaskStatusColor(t);
                 bool isErr = dotColor == ColorError;
                 bool isWait = dotColor == ColorWaiting || isErr;
 
-                if (isCur)
+                bool isPillHover = (lastHoverPillIndex == i);
+
+                using (GraphicsPath pPath = AppContext.GetRoundedRectPath(pillRect, 8))
                 {
-                    using (GraphicsPath pPath = AppContext.GetRoundedRectPath(pillRect, 8))
-                    using (SolidBrush pBg = new SolidBrush(Color.FromArgb(36, bColor)))
+                    // 彻底根治 DWM Alpha=0 穿透：非当前胶囊必须填充微透明底色 (Alpha >= 18)，Hover 时明显微光
+                    Color pillBgColor = isCur
+                        ? Color.FromArgb(48, bColor)
+                        : (isPillHover ? Color.FromArgb(32, bColor) : Color.FromArgb(18, 255, 255, 255));
+                    using (SolidBrush pBg = new SolidBrush(pillBgColor))
                     {
                         g.FillPath(pBg, pPath);
                     }
+                    if (isCur || isPillHover)
+                    {
+                        using (Pen pBorder = new Pen(Color.FromArgb(isCur ? 60 : 35, bColor), 1f))
+                        {
+                            g.DrawPath(pBorder, pPath);
+                        }
+                    }
                 }
 
-                using (SolidBrush textBrush = new SolidBrush(isCur ? Color.White : Color.FromArgb(190, 203, 213, 225)))
+                using (SolidBrush textBrush = new SolidBrush((isCur || isPillHover) ? Color.White : Color.FromArgb(190, 203, 213, 225)))
                 {
                     RectangleF labelRect = new RectangleF(pillRect.X + 6f, pillRect.Y, pillRect.Width - 18f, pillRect.Height);
-                    g.DrawString(bLabel, badgeFont, textBrush, labelRect, cachedCenterFormat);
+                    g.DrawString(pillLabel, cachedPillFont, textBrush, labelRect, cachedCenterFormat);
 
                     float dotX = pillRect.Right - 8f;
                     float dotY = pillRect.Y + 8.5f;
@@ -907,10 +1170,10 @@ internal sealed class AgentTaskStatusHud : Form
 
 
 
-    private static float DrawChip(Graphics g, float x, float y, string text, Font font, Color color, StringFormat sf)
+    private static float DrawChip(Graphics g, float x, float y, string text, Font font, Color color, StringFormat sf, int chipHeight = 18)
     {
         float w = Math.Max(28f, g.MeasureString(text, font).Width + 10f);
-        Rectangle r = new Rectangle((int)x, (int)y, (int)w, 18);
+        Rectangle r = new Rectangle((int)x, (int)y, (int)w, chipHeight);
         using (GraphicsPath path = AppContext.GetRoundedRectPath(r, 4))
         using (SolidBrush bg = new SolidBrush(Color.FromArgb(40, color)))
         using (Pen border = new Pen(Color.FromArgb(120, color), 1f))
@@ -945,7 +1208,9 @@ internal sealed class AgentTaskStatusHud : Form
     private static void GetAgentBadge(string rawName, out Color color, out string label)
     {
         string n = rawName ?? "";
-        string ln = n.ToLowerInvariant();
+        int atIdx = n.IndexOf('@');
+        string baseAgent = atIdx > 0 ? n.Substring(0, atIdx).Trim() : n;
+        string ln = baseAgent.ToLowerInvariant();
         int rgb = 0; label = null;
         if (ln.Contains("claude")) { rgb = 0xDA7756; label = "Claude"; }
         else if (ln.Contains("antigravity") || ln.Contains("agy") || ln.Contains("gemini")) { rgb = 0x3B82F6; label = "AGY"; }
@@ -955,9 +1220,26 @@ internal sealed class AgentTaskStatusHud : Form
         else if (ln.Contains("trae")) { rgb = 0x8B5CF6; label = "Trae"; }
         else if (ln.Contains("aider")) { rgb = 0xF97316; label = "Aider"; }
         else if (ln.Contains("copilot")) { rgb = 0x6366F1; label = "Copilot"; }
+        else if (ln.Contains("zed")) { rgb = 0x084CCF; label = "Zed"; }
+        else if (ln.Contains("augment")) { rgb = 0xA855F7; label = "Augment"; }
+        else if (ln.Contains("junie")) { rgb = 0xFE2857; label = "Junie"; }
+        else if (ln.Contains("openhands")) { rgb = 0xF59E0B; label = "OpenHands"; }
+        else if (ln.Contains("replit")) { rgb = 0xF26207; label = "Replit"; }
+        else if (ln.Contains("phind")) { rgb = 0x7C3AED; label = "Phind"; }
+        else if (ln.Contains("blackbox")) { rgb = 0x111827; label = "Blackbox"; }
+        else if (ln.Contains("sweep")) { rgb = 0x0EA5E9; label = "Sweep"; }
+        else if (ln.Contains("mentat")) { rgb = 0x84CC16; label = "Mentat"; }
+        else if (ln.Contains("gpt engineer") || ln.Contains("gptengineer") || ln.Contains("gpt-engineer")) { rgb = 0x10A37F; label = "GPTE"; }
+        else if (ln.Contains("smol")) { rgb = 0xEC4899; label = "smol"; }
+        else if (ln == "v0" || ln.StartsWith("v0 ")) { rgb = 0x000000; label = "v0"; }
+        else if (ln.Contains("bolt")) { rgb = 0xFACC15; label = "Bolt"; }
+        else if (ln.Contains("lovable")) { rgb = 0xFB7185; label = "Lovable"; }
+        else if (ln.Contains("qoder")) { rgb = 0x06B6D4; label = "Qoder"; }
+        else if (ln.Contains("kiro")) { rgb = 0x8B5CF6; label = "Kiro"; }
+        else if (ln.Contains("deepseek")) { rgb = 0x4D6BFE; label = "DeepSeek"; }
         if (label != null) { color = Color.FromArgb(rgb | unchecked((int)0xFF000000)); return; }
-        color = GetDeterministicAgentColor(n);
-        label = n.Length <= 6 ? (n.Length == 0 ? "AI" : n) : n.Substring(0, 5) + "…";
+        color = GetDeterministicAgentColor(baseAgent);
+        label = baseAgent.Length <= 6 ? (baseAgent.Length == 0 ? "AI" : baseAgent) : baseAgent.Substring(0, 5) + "…";
     }
 
     internal static Color GetDeterministicAgentColor(string name)
@@ -967,7 +1249,23 @@ internal sealed class AgentTaskStatusHud : Form
     }
     private void EnsureCachedGdiObjects(float fs)
     {
-        if (cachedBadgeFont == null) cachedBadgeFont = new Font("Microsoft YaHei UI", 9.0f, FontStyle.Regular, GraphicsUnit.Point);
+        // Badge & pill fonts derive from the (height-scaled) title size so every
+        // glyph in the HUD grows together. At the 28px default these land on
+        // 9.0pt / 10.0pt, matching the original look.
+        float badgeSize = Math.Max(7.0f, Math.Min(22.0f, fs * 0.95f));
+        if (cachedBadgeFont == null || Math.Abs(cachedBadgeSize - badgeSize) > 0.01f)
+        {
+            if (cachedBadgeFont != null) cachedBadgeFont.Dispose();
+            cachedBadgeFont = new Font("Microsoft YaHei UI", badgeSize, FontStyle.Regular, GraphicsUnit.Point);
+            cachedBadgeSize = badgeSize;
+        }
+        float pillSize = Math.Max(7.5f, Math.Min(23.0f, fs * 1.05f));
+        if (cachedPillFont == null || Math.Abs(cachedPillSize - pillSize) > 0.01f)
+        {
+            if (cachedPillFont != null) cachedPillFont.Dispose();
+            cachedPillFont = new Font("Microsoft YaHei UI", pillSize, FontStyle.Regular, GraphicsUnit.Point);
+            cachedPillSize = pillSize;
+        }
         if (cachedTitleFont == null || Math.Abs(cachedTitleFontSize - fs) > 0.01f)
         {
             if (cachedTitleFont != null) cachedTitleFont.Dispose();
@@ -1003,7 +1301,7 @@ internal sealed class AgentTaskStatusHud : Form
     {
         HideSnapGuide();
         if (snapGuideForm != null) { try { snapGuideForm.Dispose(); } catch { } snapGuideForm = null; }
-        IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedTitleFont, cachedTitleBrush, cachedBorderNormal, cachedBorderHover, cachedTitleFormat, cachedCenterFormat };
+        IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedPillFont, cachedTitleFont, cachedTitleBrush, cachedBorderNormal, cachedBorderHover, cachedTitleFormat, cachedCenterFormat };
         for (int i = 0; i < d.Length; i++) if (d[i] != null) try { d[i].Dispose(); } catch { }
     }
 }

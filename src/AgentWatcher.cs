@@ -8,8 +8,6 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 using System.Globalization;
-using System.Net;
-using System.Runtime.InteropServices;
 
 internal sealed class AgentSessionWatcher : IDisposable
 {
@@ -30,19 +28,10 @@ internal sealed class AgentSessionWatcher : IDisposable
         internal int TotalSteps = 0;
         internal string StepDescription = "";
         internal string LastToolAction = "";
-        internal string ProjectHint = "";
-        internal string PendingCompletionSummary = "";
+                internal string PendingCompletionSummary = "";
     }
 
     private readonly Dictionary<string, TurnSession> sessions = new Dictionary<string, TurnSession>(StringComparer.OrdinalIgnoreCase);
-
-    private sealed class WorkspaceWriteRecord
-    {
-        internal string AgentName;
-        internal DateTime LastWriteTime;
-    }
-
-    private static readonly Dictionary<string, WorkspaceWriteRecord> activeWorkspaceWrites = new Dictionary<string, WorkspaceWriteRecord>(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> watchedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private System.Threading.Timer processSyncTimer;
     private bool disposed;
@@ -57,6 +46,11 @@ internal sealed class AgentSessionWatcher : IDisposable
     {
         try
         {
+            // SelfCheck drives ProcessLogFile directly against temp transcripts;
+            // mounting the real user-session watchers would let ambient Claude /
+            // Codex transcripts pollute the assertions.
+            if (AppContext.IsSelfCheckRunning) return;
+
             // Initial mount for active agents + common known agent locations
             SyncActiveAgentWatchers();
 
@@ -102,6 +96,17 @@ internal sealed class AgentSessionWatcher : IDisposable
         }
         else if (n.Contains("trae")) AddDirIfExists(dirs, Path.Combine(home, ".trae"));
         else if (n.Contains("aider")) AddDirIfExists(dirs, Path.Combine(home, ".aider"));
+        else if (n.Contains("openhands") || n.Contains("open-hands"))
+        {
+            AddDirIfExists(dirs, Path.Combine(home, ".openhands"));
+            AddDirIfExists(dirs, Path.Combine(home, ".opendevin"));
+        }
+        else if (n.Contains("augment")) AddDirIfExists(dirs, Path.Combine(home, ".augment"));
+        else if (n.Contains("cline")) AddDirIfExists(dirs, Path.Combine(home, ".cline"));
+        else if (n.Contains("roo")) AddDirIfExists(dirs, Path.Combine(home, ".roo-code"));
+        else if (n.Contains("kiro")) AddDirIfExists(dirs, Path.Combine(home, ".kiro"));
+        else if (n.Contains("continue")) AddDirIfExists(dirs, Path.Combine(home, ".continue"));
+        else if (n.Contains("deepseek")) AddDirIfExists(dirs, Path.Combine(home, ".deepseek"));
 
         string slug = Regex.Replace(agentName.ToLowerInvariant(), @"[^a-z0-9]+", "");
         if (!string.IsNullOrEmpty(slug))
@@ -137,22 +142,6 @@ internal sealed class AgentSessionWatcher : IDisposable
             agentsToCheck.Add("Antigravity");
             agentsToCheck.Add("Claude Code");
             agentsToCheck.Add("Codex");
-            // 3. Universal dynamic session discovery
-            List<AgentSourceEntry> genericSources = DiscoverGenericAgentSessionDirectories();
-            for (int i = 0; i < genericSources.Count; i++)
-            {
-                AgentSourceEntry entry = genericSources[i];
-                if (!string.IsNullOrEmpty(entry.AgentName)) agentsToCheck.Add(entry.AgentName);
-                lock (syncLock)
-                {
-                    if (watchedDirs.Contains(entry.DirectoryPath)) continue;
-                    watchedDirs.Add(entry.DirectoryPath);
-                }
-                WatchDirectory(entry.DirectoryPath, "*.json*", entry.AgentName);
-                ScanRecentSessionInDir(entry.DirectoryPath, entry.AgentName);
-            }
-
-            SyncGenericDesktopAgents();
 
             foreach (string agent in agentsToCheck)
             {
@@ -172,338 +161,6 @@ internal sealed class AgentSessionWatcher : IDisposable
         }
         catch { }
     }
-
-    #region Universal Local Session Discovery & Multi-tier Cache
-
-    internal sealed class AgentSourceEntry
-    {
-        internal string DirectoryPath;
-        internal string AgentName;
-        internal string FormatType;
-        internal DateTime FirstDiscovered;
-        internal DateTime LastActiveTime;
-    }
-
-    internal sealed class WindowBinding
-    {
-        internal string ProjectPath;
-        internal IntPtr WindowHandle;
-        internal int ProcessId;
-        internal DateTime LastVerifiedTime;
-    }
-
-    private static readonly Dictionary<string, AgentSourceEntry> agentSourceCache = new Dictionary<string, AgentSourceEntry>(StringComparer.OrdinalIgnoreCase);
-    private static readonly Dictionary<string, WindowBinding> projectWindowCache = new Dictionary<string, WindowBinding>(StringComparer.OrdinalIgnoreCase);
-
-    internal static IntPtr GetCachedWindow(string projectHint)
-    {
-        if (string.IsNullOrEmpty(projectHint)) return IntPtr.Zero;
-        lock (projectWindowCache)
-        {
-            WindowBinding wb;
-            if (projectWindowCache.TryGetValue(projectHint, out wb))
-            {
-                if (wb.WindowHandle != IntPtr.Zero && NativeMethods.IsWindow(wb.WindowHandle))
-                {
-                    wb.LastVerifiedTime = DateTime.Now;
-                    return wb.WindowHandle;
-                }
-                projectWindowCache.Remove(projectHint);
-            }
-        }
-        return IntPtr.Zero;
-    }
-
-    internal static void CacheWindowBinding(string projectHint, IntPtr hWnd, int pid)
-    {
-        if (string.IsNullOrEmpty(projectHint) || hWnd == IntPtr.Zero) return;
-        lock (projectWindowCache)
-        {
-            projectWindowCache[projectHint] = new WindowBinding
-            {
-                ProjectPath = projectHint,
-                WindowHandle = hWnd,
-                ProcessId = pid,
-                LastVerifiedTime = DateTime.Now
-            };
-        }
-    }
-
-    internal static bool IsNonAgentApplication(string procName)
-    {
-        if (string.IsNullOrEmpty(procName)) return true;
-        string lower = procName.ToLowerInvariant();
-        if (lower.EndsWith(".exe")) lower = lower.Substring(0, lower.Length - 4);
-
-        // 1. Browsers
-        if (lower == "chrome" || lower == "msedge" || lower == "firefox" || lower == "brave" ||
-            lower == "opera" || lower == "vivaldi" || lower == "arc" || lower == "tor" ||
-            lower == "safari" || lower == "waterfox" || lower == "chromium" || lower == "qqbrowser" ||
-            lower == "sogouexplorer" || lower == "360se" || lower == "360chrome")
-            return true;
-
-        // 2. Chat / Office / Media / Utilities
-        if (lower == "wechat" || lower == "dingtalk" || lower == "feishu" || lower == "wps" ||
-            lower == "wpscloudsvr" || lower == "winword" || lower == "excel" || lower == "powerpnt" ||
-            lower == "outlook" || lower == "thunderbird" || lower == "teams" || lower == "slack" ||
-            lower == "discord" || lower == "telegram" || lower == "qq" || lower == "tim" ||
-            lower == "spotify" || lower == "cloudmusic" || lower == "qqmusic" || lower == "potplayer" ||
-            lower == "vlc" || lower == "baidunetdisk" || lower == "thunder" || lower == "steam")
-            return true;
-
-        // 3. System core / infrastructure
-        if (lower == "iclock" || lower == "selfcheck" || lower == "svchost" || lower == "system" ||
-            lower == "explorer" || lower == "taskhostw" || lower == "runtimebroker" ||
-            lower == "searchhost" || lower == "shellexperiencehost" || lower == "startmenuexperiencehost" ||
-            lower == "widgets" || lower == "ctfmon" || lower == "conhost" || lower == "dwm" || lower == "sihost")
-            return true;
-
-        return false;
-    }
-
-    private const int AF_INET = 2;
-    private const int TCP_TABLE_OWNER_PID_ALL = 5;
-    private const uint MIB_TCP_STATE_ESTAB = 5;
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MIB_TCPROW_OWNER_PID
-    {
-        public uint state;
-        public uint localAddr;
-        public byte localPort1;
-        public byte localPort2;
-        public byte localPort3;
-        public byte localPort4;
-        public uint remoteAddr;
-        public byte remotePort1;
-        public byte remotePort2;
-        public byte remotePort3;
-        public byte remotePort4;
-        public int owningPid;
-
-        public ushort RemotePort { get { return (ushort)((remotePort1 << 8) + remotePort2); } }
-        public uint RemoteAddressRaw { get { return remoteAddr; } }
-    }
-
-    [DllImport("iphlpapi.dll", SetLastError = true)]
-    private static extern uint GetExtendedTcpTable(
-        IntPtr pTcpTable,
-        ref int pdwSize,
-        bool bOrder,
-        int ulAf,
-        int tableClass,
-        uint reserved
-    );
-
-    private static readonly ushort[] LocalLlmPorts = new ushort[] { 11434, 1234, 8080, 5000, 8000, 8001, 11435, 9997 };
-
-    internal static HashSet<int> ScanLlmActivePids()
-    {
-        HashSet<int> activePids = new HashSet<int>();
-        int bufferSize = 0;
-        uint ret = GetExtendedTcpTable(IntPtr.Zero, ref bufferSize, false, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0);
-        if (bufferSize <= 0) return activePids;
-
-        IntPtr pTable = Marshal.AllocHGlobal(bufferSize);
-        try
-        {
-            ret = GetExtendedTcpTable(pTable, ref bufferSize, false, AF_INET, TCP_TABLE_OWNER_PID_ALL, 0);
-            if (ret == 0)
-            {
-                int numEntries = Marshal.ReadInt32(pTable);
-                IntPtr rowPtr = new IntPtr(pTable.ToInt64() + 4);
-                int rowSize = Marshal.SizeOf(typeof(MIB_TCPROW_OWNER_PID));
-                int myPid = 0;
-                try { myPid = Process.GetCurrentProcess().Id; } catch { }
-
-                for (int i = 0; i < numEntries; i++)
-                {
-                    MIB_TCPROW_OWNER_PID row = (MIB_TCPROW_OWNER_PID)Marshal.PtrToStructure(rowPtr, typeof(MIB_TCPROW_OWNER_PID));
-                    rowPtr = new IntPtr(rowPtr.ToInt64() + rowSize);
-
-                    if (row.state == MIB_TCP_STATE_ESTAB || row.state == 3 || row.state == 4)
-                    {
-                        ushort port = row.RemotePort;
-                        bool isLocalLlm = false;
-                        for (int k = 0; k < LocalLlmPorts.Length; k++)
-                        {
-                            if (port == LocalLlmPorts[k]) { isLocalLlm = true; break; }
-                        }
-
-                        if (isLocalLlm && row.owningPid > 4 && row.owningPid != myPid)
-                        {
-                            string proc = AppContext.GetProcessNameByPid(row.owningPid);
-                            if (!IsNonAgentApplication(proc))
-                            {
-                                activePids.Add(row.owningPid);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        catch { }
-        finally
-        {
-            Marshal.FreeHGlobal(pTable);
-        }
-        return activePids;
-    }
-
-    private static readonly HashSet<string> IgnoredHomeDotDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        ".git", ".ssh", ".vscode", ".cache", ".npm", ".nuget", ".cargo", ".rustup", ".gradle",
-        ".m2", ".conda", ".docker", ".aws", ".azure", ".config", ".local", ".android", ".dotnet",
-        ".gemini", ".claude", ".codex"
-    };
-
-    internal static List<AgentSourceEntry> DiscoverGenericAgentSessionDirectories()
-    {
-        List<AgentSourceEntry> discovered = new List<AgentSourceEntry>();
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (!Directory.Exists(home)) return discovered;
-
-        try
-        {
-            string[] subDirs = Directory.GetDirectories(home, ".*");
-            for (int i = 0; i < subDirs.Length; i++)
-            {
-                string dir = subDirs[i];
-                string name = Path.GetFileName(dir);
-                if (string.IsNullOrEmpty(name) || IgnoredHomeDotDirs.Contains(name)) continue;
-
-                AgentSourceEntry entry;
-                lock (agentSourceCache)
-                {
-                    if (agentSourceCache.TryGetValue(dir, out entry))
-                    {
-                        discovered.Add(entry);
-                        continue;
-                    }
-                }
-
-                string matchedSessionDir = null;
-                string[] sessionSubDirs = new string[] { "sessions", "projects", "logs", "transcripts", "history" };
-                for (int s = 0; s < sessionSubDirs.Length; s++)
-                {
-                    string p = Path.Combine(dir, sessionSubDirs[s]);
-                    if (Directory.Exists(p))
-                    {
-                        matchedSessionDir = p;
-                        break;
-                    }
-                }
-
-                if (matchedSessionDir == null)
-                {
-                    try
-                    {
-                        string[] files = Directory.GetFiles(dir, "*.json*", SearchOption.TopDirectoryOnly);
-                        if (files != null && files.Length > 0) matchedSessionDir = dir;
-                    }
-                    catch { }
-                }
-
-                if (!string.IsNullOrEmpty(matchedSessionDir))
-                {
-                    string slug = name.TrimStart('.');
-                    string friendlyName = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(slug.Replace('_', ' ').Replace('-', ' '));
-                    if (!friendlyName.EndsWith("Agent", StringComparison.OrdinalIgnoreCase))
-                    {
-                        friendlyName += " Agent";
-                    }
-
-                    entry = new AgentSourceEntry
-                    {
-                        DirectoryPath = matchedSessionDir,
-                        AgentName = friendlyName,
-                        FormatType = "jsonl",
-                        FirstDiscovered = DateTime.Now,
-                        LastActiveTime = DateTime.Now
-                    };
-
-                    lock (agentSourceCache)
-                    {
-                        agentSourceCache[dir] = entry;
-                        agentSourceCache[matchedSessionDir] = entry;
-                    }
-                    discovered.Add(entry);
-                }
-            }
-        }
-        catch { }
-
-        return discovered;
-    }
-
-    internal static bool MatchLlmProtocolFingerprint(string content, out string suspectedAction, out string suspectedPath)
-    {
-        suspectedAction = null;
-        suspectedPath = null;
-        if (string.IsNullOrEmpty(content)) return false;
-
-        bool hasRole = content.Contains("\"role\"") && (content.Contains("\"assistant\"") || content.Contains("\"tool\"") || content.Contains("\"system\""));
-        bool hasTool = content.Contains("\"tool_calls\"") || content.Contains("\"function_call\"") || content.Contains("\"tool\"") || content.Contains("\"functions\"");
-        bool hasThought = content.Contains("\"thought\"") || content.Contains("\"reasoning_content\"") || content.Contains("\"thinking\"");
-        bool hasFinish = content.Contains("\"finish_reason\"") || content.Contains("\"stop_reason\"") || content.Contains("\"end_turn\"");
-        bool hasMcp = content.Contains("\"notifications/progress\"") || content.Contains("\"tools/call\"");
-
-        if (!hasRole && !hasTool && !hasThought && !hasMcp && !hasFinish) return false;
-
-        Match m = Regex.Match(content.Replace('/', '\\'), @"[A-Za-z]:\\[^""*?<>|\r\n\t\\/]+(?:\\[^""*?<>|\r\n\t\\/]+)+");
-        if (m.Success)
-        {
-            suspectedPath = ResolveUniversalProjectRoot(m.Value);
-        }
-        return true;
-    }
-
-    private void SyncGenericDesktopAgents()
-    {
-        if (disposed || appContext == null) return;
-        try
-        {
-            DateTime now = DateTime.Now;
-
-            // 1. Maintain temporal continuity & clean stale sessions (>180s idle)
-            lock (syncLock)
-            {
-                List<string> staleKeys = new List<string>();
-                foreach (KeyValuePair<string, TurnSession> kvp in sessions)
-                {
-                    TurnSession s = kvp.Value;
-                    if (s.State == TurnState.Processing && s.StartTime != DateTime.MinValue && (now - s.StartTime).TotalSeconds > 180)
-                    {
-                        staleKeys.Add(kvp.Key);
-                    }
-                }
-                for (int i = 0; i < staleKeys.Count; i++)
-                {
-                    sessions.Remove(staleKeys[i]);
-                }
-            }
-
-            // 2. Clean dead windows in projectWindowCache
-            lock (projectWindowCache)
-            {
-                List<string> deadProjects = new List<string>();
-                foreach (KeyValuePair<string, WindowBinding> kvp in projectWindowCache)
-                {
-                    if (kvp.Value.WindowHandle == IntPtr.Zero || !NativeMethods.IsWindow(kvp.Value.WindowHandle))
-                    {
-                        deadProjects.Add(kvp.Key);
-                    }
-                }
-                for (int i = 0; i < deadProjects.Count; i++)
-                {
-                    projectWindowCache.Remove(deadProjects[i]);
-                }
-            }
-        }
-        catch { }
-    }
-
-    #endregion
 
     private void ScanRecentSessionInDir(string dir, string agentName)
     {
@@ -569,29 +226,6 @@ internal sealed class AgentSessionWatcher : IDisposable
     private void OnFileChanged(string fullPath, string agentName)
     {
         if (disposed || string.IsNullOrEmpty(fullPath)) return;
-        try
-        {
-            string proj = ExtractProjectHint(null, fullPath);
-            if (!string.IsNullOrEmpty(proj) && !string.IsNullOrEmpty(agentName))
-            {
-                DateTime now = DateTime.Now;
-                lock (activeWorkspaceWrites)
-                {
-                    WorkspaceWriteRecord rec;
-                    if (activeWorkspaceWrites.TryGetValue(proj, out rec))
-                    {
-                        if (!string.Equals(rec.AgentName, agentName, StringComparison.OrdinalIgnoreCase) &&
-                            (now - rec.LastWriteTime).TotalSeconds < 3.0)
-                        {
-                            bool isZh = appContext.Settings == null || appContext.Settings.Language != "en";
-                            appContext.SetAgentTaskMessage("\u26A0\uFE0F [" + proj + "] " + (isZh ? "\u5de5\u4f5c\u533a\u5e76\u53d1\u5199\u5165" : "Conflict"), agentName, false, (isZh ? "\u4e0e " : "Concurrent with ") + rec.AgentName, null, -2f, proj, now);
-                        }
-                    }
-                    activeWorkspaceWrites[proj] = new WorkspaceWriteRecord { AgentName = agentName, LastWriteTime = now };
-                }
-            }
-        }
-        catch { }
         if (!fullPath.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase) &&
             !fullPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) return;
 
@@ -804,262 +438,24 @@ internal sealed class AgentSessionWatcher : IDisposable
         return null;
     }
 
-    private static bool IsSystemOrUserRootBoundary(string dir)
-    {
-        if (string.IsNullOrEmpty(dir)) return true;
-        string clean = dir.TrimEnd('\\', '/').ToLowerInvariant();
-
-        if (clean.Length <= 3 && clean.Contains(":")) return true;
-
-        try
-        {
-            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile).ToLowerInvariant();
-            if (clean == userProfile || clean == Path.GetDirectoryName(userProfile).ToLowerInvariant()) return true;
-        }
-        catch { }
-
-        try
-        {
-            string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData).ToLowerInvariant();
-            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData).ToLowerInvariant();
-            string temp = Path.GetTempPath().TrimEnd('\\', '/').ToLowerInvariant();
-
-            if (clean.StartsWith(temp) || clean == appData || clean == localAppData) return true;
-        }
-        catch { }
-
-        if (clean.EndsWith("\\appdata") || clean.EndsWith("\\temp") || clean.EndsWith("\\windows") ||
-            clean.EndsWith("\\program files") || clean.EndsWith("\\program files (x86)") || clean.EndsWith("\\system32"))
-            return true;
-
-        return false;
-    }
-
-    private static bool HasProjectRootMarker(string dir)
-    {
-        try
-        {
-            if (Directory.Exists(Path.Combine(dir, ".git")) || File.Exists(Path.Combine(dir, ".git")) ||
-                Directory.Exists(Path.Combine(dir, ".svn")) || Directory.Exists(Path.Combine(dir, ".hg")))
-                return true;
-
-            if (File.Exists(Path.Combine(dir, "package.json")) ||
-                File.Exists(Path.Combine(dir, "Cargo.toml")) ||
-                File.Exists(Path.Combine(dir, "go.mod")) ||
-                File.Exists(Path.Combine(dir, "pyproject.toml")) ||
-                File.Exists(Path.Combine(dir, "requirements.txt")) ||
-                File.Exists(Path.Combine(dir, "setup.py")) ||
-                File.Exists(Path.Combine(dir, "pom.xml")) ||
-                File.Exists(Path.Combine(dir, "build.gradle")) ||
-                File.Exists(Path.Combine(dir, "CMakeLists.txt")) ||
-                File.Exists(Path.Combine(dir, "Makefile")) ||
-                File.Exists(Path.Combine(dir, "AGENTS.md")) ||
-                File.Exists(Path.Combine(dir, "CLAUDE.md")) ||
-                File.Exists(Path.Combine(dir, "README.md")))
-                return true;
-
-            if (Directory.GetFiles(dir, "*.sln").Length > 0 || Directory.GetFiles(dir, "*.csproj").Length > 0)
-                return true;
-        }
-        catch { }
-        return false;
-    }
-
-    internal static string ResolveUniversalProjectRoot(string rawPath)
-    {
-        if (string.IsNullOrEmpty(rawPath)) return null;
-        string path = rawPath.Trim().Replace('/', '\\');
-
-        Match absMatch = Regex.Match(path, @"[A-Za-z]:\\[^""*?<>|\r\n\t]+");
-        if (absMatch.Success)
-        {
-            path = absMatch.Value.TrimEnd('\\');
-        }
-        else if (path.Contains("--") && !path.Contains(":\\"))
-        {
-            path = Regex.Replace(path, @"^([A-Za-z])--", "$1:\\");
-            path = path.Replace("--", "\\");
-        }
-
-        try
-        {
-            string cur = null;
-            if (Directory.Exists(path)) cur = path;
-            else if (File.Exists(path)) cur = Path.GetDirectoryName(path);
-            else
-            {
-                string pDir = Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(pDir) && Directory.Exists(pDir)) cur = pDir;
-            }
-
-            int depth = 0;
-            string bestCandidate = null;
-
-            while (!string.IsNullOrEmpty(cur) && depth < 6)
-            {
-                if (IsSystemOrUserRootBoundary(cur))
-                {
-                    break;
-                }
-
-                if (HasProjectRootMarker(cur))
-                {
-                    string rootName = Path.GetFileName(cur.TrimEnd('\\', '/'));
-                    if (!string.IsNullOrEmpty(rootName)) return rootName;
-                }
-
-                if (bestCandidate == null)
-                {
-                    string candName = Path.GetFileName(cur.TrimEnd('\\', '/'));
-                    if (!string.IsNullOrEmpty(candName) && !candName.StartsWith(".") && candName != "src" && candName != "bin" && candName != "obj")
-                    {
-                        bestCandidate = candName;
-                    }
-                }
-
-                DirectoryInfo parent = Directory.GetParent(cur);
-                if (parent == null || parent.FullName == cur) break;
-                cur = parent.FullName;
-                depth++;
-            }
-
-            if (!string.IsNullOrEmpty(bestCandidate)) return bestCandidate;
-        }
-        catch { }
-
-        try
-        {
-            string clean = path.TrimEnd('\\', '/');
-            if (!IsSystemOrUserRootBoundary(clean))
-            {
-                string name = Path.GetFileName(clean);
-                if (!string.IsNullOrEmpty(name)) return name;
-            }
-        }
-        catch { }
-
-        return null;
-    }
-
-    internal static string BuildSessionKey(string agentName, string projectHint)
-    {
-        if (string.IsNullOrEmpty(agentName)) agentName = "AI Agent";
-        if (!string.IsNullOrEmpty(projectHint))
-        {
-            return agentName + "@" + projectHint;
-        }
-        return agentName;
-    }
-
-    internal static string ExtractProjectHint(Dictionary<string, object> data, string filePath)
-    {
-        if (data != null)
-        {
-            object cwdObj = null;
-            if (data.ContainsKey("cwd") && data["cwd"] != null) cwdObj = data["cwd"];
-            else if (data.ContainsKey("workspace") && data["workspace"] != null) cwdObj = data["workspace"];
-            else if (data.ContainsKey("workdir") && data["workdir"] != null) cwdObj = data["workdir"];
-            else if (data.ContainsKey("project_path") && data["project_path"] != null) cwdObj = data["project_path"];
-            else if (data.ContainsKey("root_path") && data["root_path"] != null) cwdObj = data["root_path"];
-            else if (data.ContainsKey("payload"))
-            {
-                Dictionary<string, object> payload = data["payload"] as Dictionary<string, object>;
-                if (payload != null)
-                {
-                    if (payload.ContainsKey("cwd") && payload["cwd"] != null) cwdObj = payload["cwd"];
-                    else if (payload.ContainsKey("thread_settings"))
-                    {
-                        Dictionary<string, object> ts = payload["thread_settings"] as Dictionary<string, object>;
-                        if (ts != null && ts.ContainsKey("cwd") && ts["cwd"] != null) cwdObj = ts["cwd"];
-                    }
-                }
-            }
-            if (cwdObj != null)
-            {
-                string r = ResolveUniversalProjectRoot(cwdObj.ToString());
-                if (!string.IsNullOrEmpty(r)) return r;
-            }
-
-            if (data.ContainsKey("tool_calls"))
-            {
-                IList calls = data["tool_calls"] as IList;
-                if (calls != null && calls.Count > 0)
-                {
-                    for (int i = 0; i < calls.Count; i++)
-                    {
-                        Dictionary<string, object> c = calls[i] as Dictionary<string, object>;
-                        if (c != null && c.ContainsKey("args") && c["args"] is Dictionary<string, object>)
-                        {
-                            Dictionary<string, object> args = (Dictionary<string, object>)c["args"];
-                            foreach (KeyValuePair<string, object> kvp in args)
-                            {
-                                if (kvp.Value != null)
-                                {
-                                    string r = ResolveUniversalProjectRoot(kvp.Value.ToString());
-                                    if (!string.IsNullOrEmpty(r)) return r;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            string text = ExtractTextFromCommonKeys(data);
-            if (!string.IsNullOrEmpty(text))
-            {
-                Match m = Regex.Match(text, @"[A-Za-z]:\\[^""*?<>|\r\n\t]+");
-                if (m.Success)
-                {
-                    string r = ResolveUniversalProjectRoot(m.Value);
-                    if (!string.IsNullOrEmpty(r)) return r;
-                }
-            }
-        }
-
-        if (!string.IsNullOrEmpty(filePath))
-        {
-            try
-            {
-                if (File.Exists(filePath))
-                {
-                    using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-                    using (StreamReader sr = new StreamReader(fs, Encoding.UTF8))
-                    {
-                        int linesRead = 0;
-                        string line;
-                        while ((line = sr.ReadLine()) != null && linesRead < 20)
-                        {
-                            linesRead++;
-                            Match m = Regex.Match(line, @"[A-Za-z]:\\[^""*?<>|\r\n\t\\/]+(?:\\[^""*?<>|\r\n\t\\/]+)+");
-                            if (m.Success)
-                            {
-                                string r = ResolveUniversalProjectRoot(m.Value);
-                                if (!string.IsNullOrEmpty(r)) return r;
-                            }
-                        }
-                    }
-                }
-                string fromPath = ResolveUniversalProjectRoot(Path.GetDirectoryName(filePath));
-                if (!string.IsNullOrEmpty(fromPath)) return fromPath;
-            }
-            catch { }
-        }
-        return null;
-    }
+        
     private void DispatchParsedEvents(List<string> lines, string filePath, string agentName)
     {
         if (appContext == null || disposed || lines == null || lines.Count == 0) return;
         bool isZh = appContext.Settings == null || appContext.Settings.Language != "en";
 
+        string agentKey = string.IsNullOrEmpty(agentName) ? "AI Agent" : agentName;
+        string sessionKey = agentKey + "|" + (filePath ?? "");
+
         TurnSession session;
         lock (syncLock)
         {
-            if (!sessions.TryGetValue(agentName, out session))
+            if (!sessions.TryGetValue(sessionKey, out session))
             {
                 session = new TurnSession();
-                sessions[agentName] = session;
+                sessions[sessionKey] = session;
             }
-        }
+                    }
 
         // 1. Always anchor on the CURRENT TURN user request (scan backwards for latest user prompt)
         string latestReq = null;
@@ -1168,15 +564,6 @@ internal sealed class AgentSessionWatcher : IDisposable
 
             if (FastExtractUserRequest(l) != null) break;
 
-            if (string.IsNullOrEmpty(session.ProjectHint))
-            {
-                string p = ExtractJsonString(l, "cwd") ?? ExtractJsonString(l, "workspace") ?? ExtractJsonString(l, "workdir") ?? ExtractJsonString(l, "project_path") ?? ExtractJsonString(l, "root_path");
-                if (!string.IsNullOrEmpty(p))
-                {
-                    try { string name = Path.GetFileName(p.Trim().TrimEnd('\\', '/')); if (!string.IsNullOrEmpty(name)) session.ProjectHint = name; } catch { }
-                }
-            }
-
             bool needTool = string.IsNullOrEmpty(turnToolAction) && (l.Contains("tool") || l.Contains("call") || l.Contains("action"));
             bool needStep = session.TotalSteps == 0 && (l.Contains("step") || l.Contains("total") || l.Contains("progress") || l.Contains("todo"));
             if (!needTool && !needStep) continue;
@@ -1188,12 +575,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                 {
                     if (ExtractUserRequest(d) != null) break;
 
-                    if (string.IsNullOrEmpty(session.ProjectHint))
-                    {
-                        string ph = ExtractProjectHint(d, filePath);
-                        if (!string.IsNullOrEmpty(ph)) session.ProjectHint = ph;
-                    }
-
+                    
                     if (needTool)
                     {
                         string tSum = ExtractToolSummary(d, isZh);
@@ -1244,7 +626,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         if (latestData != null)
         {
             DateTime msgTime = ExtractMessageTimestamp(latestData, filePath);
-            DispatchParsedEvent(latestData, agentName, isZh, session, msgTime);
+            DispatchParsedEvent(latestData, agentKey, filePath, isZh, session, msgTime);
         }
     }
 
@@ -1300,7 +682,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         return DateTime.Now;
     }
 
-    private void DispatchParsedEvent(Dictionary<string, object> data, string agentName, bool isZh, TurnSession session, DateTime msgTime)
+    private void DispatchParsedEvent(Dictionary<string, object> data, string agentName, string filePath, bool isZh, TurnSession session, DateTime msgTime)
     {
         if (appContext == null || disposed || session == null) return;
 
@@ -1342,7 +724,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                 session.StepDescription = session.LastToolAction = "";
             }
             string msg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
-            appContext.SetAgentTaskMessage(msg, agentName, true, null, null, -1f, session.ProjectHint, msgTime);
+            appContext.SetAgentTaskMessage(msg, agentName, true, null, null, -1f, msgTime, filePath);
             return;
         }
 
@@ -1361,15 +743,15 @@ internal sealed class AgentSessionWatcher : IDisposable
                 session.State = TurnState.Waiting;
                 if (string.IsNullOrEmpty(session.Target))
                 {
-                    session.Target = !string.IsNullOrEmpty(session.ProjectHint) ? session.ProjectHint : "";
+                    session.Target = "";
                 }
             }
-            if (!AppContext.IsAgentWindowInForeground(agentName, session.ProjectHint))
+            if (!AppContext.IsAgentWindowInForeground(agentName))
             {
                 AppContext.PlayAiSound();
             }
             string msg = "❓ [" + session.Target + "] " + (isZh ? "等待决策" : "Waiting for input");
-            appContext.SetAgentTaskMessage(msg, agentName, false, question, null, -2f, session.ProjectHint, msgTime);
+            appContext.SetAgentTaskMessage(msg, agentName, false, question, null, -2f, msgTime, filePath);
             return;
         }
 
@@ -1384,31 +766,34 @@ internal sealed class AgentSessionWatcher : IDisposable
                 session.StepDescription = session.LastToolAction = "";
                 if (string.IsNullOrEmpty(session.Target))
                 {
-                    session.Target = !string.IsNullOrEmpty(session.ProjectHint) ? session.ProjectHint : "";
+                    session.Target = "";
                 }
             }
-            if (!AppContext.IsAgentWindowInForeground(agentName, session.ProjectHint))
+            if (!AppContext.IsAgentWindowInForeground(agentName))
             {
                 AppContext.PlayAiSound();
             }
             string msg = "⚠️ [" + session.Target + "] " + (isZh ? "执行异常" : "Error");
-            appContext.SetAgentTaskMessage(msg, agentName, false, errSummary, null, -2f, session.ProjectHint, msgTime);
+            appContext.SetAgentTaskMessage(msg, agentName, false, errSummary, null, -2f, msgTime, filePath);
             return;
         }
 
-        // 3. Check for Completion (Done / Final response with 5-second silence debounce)
-        string completionSummary = ExtractCompletionSummary(data);
+        // 3. Check for Completion (Done / Final response: 300ms fast-path for explicit terminal wire protocols, 1200ms fallback)
+        bool isExplicitTerminal;
+        string completionSummary = ExtractCompletionDetails(data, out isExplicitTerminal);
         if (!string.IsNullOrEmpty(completionSummary))
         {
             int currentVer;
             lock (syncLock)
             {
-                if (string.IsNullOrEmpty(session.Target)) session.Target = !string.IsNullOrEmpty(session.ProjectHint) ? session.ProjectHint : "";
+                if (string.IsNullOrEmpty(session.Target)) session.Target = "";
                 session.PendingCompletionSummary = CleanSummaryText(completionSummary);
                 currentVer = ++session.Version;
             }
-            int delay = AppContext.IsSelfCheckRunning ? 60 : 5000;
-            ScheduleCommitCompletion(agentName, currentVer, delay, session.ProjectHint, msgTime);
+            int delay = AppContext.IsSelfCheckRunning
+                ? (isExplicitTerminal ? 30 : 60)
+                : (isExplicitTerminal ? 300 : 1200);
+            ScheduleCommitCompletion(agentName, filePath, currentVer, delay, msgTime);
             return;
         }
 
@@ -1426,7 +811,7 @@ internal sealed class AgentSessionWatcher : IDisposable
             // Fallback session target anchor if user prompt arrived before watcher was attached
             if (string.IsNullOrEmpty(session.Target))
             {
-                string tAct = curTool ?? session.LastToolAction; session.Target = !string.IsNullOrEmpty(tAct) ? (CleanUserRequest(tAct) ?? tAct) : (!string.IsNullOrEmpty(session.ProjectHint) ? session.ProjectHint : (isZh ? "当前任务" : "Task"));
+                string tAct = curTool ?? session.LastToolAction; session.Target = !string.IsNullOrEmpty(tAct) ? (CleanUserRequest(tAct) ?? tAct) : (isZh ? "当前任务" : "Task");
                 session.StartTime = nowDate;
             }
         }
@@ -1463,7 +848,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         else subDetail = formattedLast;
 
         string procMsg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
-        appContext.SetAgentTaskMessage(procMsg, agentName, true, subDetail, stepProgressText, progress, session.ProjectHint, msgTime);
+        appContext.SetAgentTaskMessage(procMsg, agentName, true, subDetail, stepProgressText, progress, msgTime, filePath);
     }
 
     private static string FormatAuthenticAction(string act, string stepProg, string desc, int s, int t)
@@ -1498,35 +883,70 @@ internal sealed class AgentSessionWatcher : IDisposable
     {
         if (d == null) return null;
         object raw = null;
-        if (d.ContainsKey("reasoning_content")) raw = d["reasoning_content"];
-        else if (d.ContainsKey("thinking")) raw = d["thinking"];
+        // 1. Direct LLM wire protocol fields: thinking, reasoning_content (DeepSeek/OpenAI), thought (Gemini)
+        if (d.ContainsKey("thinking")) raw = d["thinking"];
+        else if (d.ContainsKey("reasoning_content")) raw = d["reasoning_content"];
         else if (d.ContainsKey("thought")) raw = d["thought"];
-        else if (d.ContainsKey("content") && d["content"] is IList)
-        {
-            IList parts = (IList)d["content"];
-            for (int i = 0; i < parts.Count; i++)
-            {
-                Dictionary<string, object> p = parts[i] as Dictionary<string, object>;
-                if (p != null && p.ContainsKey("thought") && Convert.ToBoolean(p["thought"]))
-                {
-                    if (p.ContainsKey("text")) { raw = p["text"]; break; }
-                }
-            }
-        }
         else
         {
             string type = d.ContainsKey("type") ? d["type"] as string : null;
             if (type == "GENERIC" || type == "tool_output" || type == "tool_response") return null;
-            if (d.ContainsKey("payload") && d["payload"] is Dictionary<string, object>)
+
+            // Delta streaming chunk (OpenAI / DeepSeek SSE)
+            if (d.ContainsKey("delta") && d["delta"] is Dictionary<string, object>)
+            {
+                Dictionary<string, object> delta = (Dictionary<string, object>)d["delta"];
+                if (delta.ContainsKey("reasoning_content")) raw = delta["reasoning_content"];
+                else if (delta.ContainsKey("thinking")) raw = delta["thinking"];
+                else if (delta.ContainsKey("thought")) raw = delta["thought"];
+            }
+
+            // Payload / Response wrapper (Codex / Antigravity)
+            if (raw == null && d.ContainsKey("payload") && d["payload"] is Dictionary<string, object>)
             {
                 Dictionary<string, object> pl = (Dictionary<string, object>)d["payload"];
                 if ("function_call_output".Equals(pl.ContainsKey("type") ? pl["type"] : null)) return null;
                 if (pl.ContainsKey("thinking")) raw = pl["thinking"];
+                else if (pl.ContainsKey("reasoning_content")) raw = pl["reasoning_content"];
+                else if (pl.ContainsKey("thought")) raw = pl["thought"];
                 else if (pl.ContainsKey("content")) raw = pl["content"];
             }
+
+            // Anthropic content blocks or Gemini parts
+            if (raw == null && d.ContainsKey("content") && d["content"] is IList)
+            {
+                foreach (object item in (IList)d["content"])
+                {
+                    if (item is Dictionary<string, object>)
+                    {
+                        Dictionary<string, object> part = (Dictionary<string, object>)item;
+                        string pType = part.ContainsKey("type") ? part["type"] as string : null;
+                        if ("thinking".Equals(pType) || part.ContainsKey("thinking"))
+                        {
+                            raw = part.ContainsKey("thinking") ? part["thinking"] : (part.ContainsKey("text") ? part["text"] : null);
+                            if (raw != null) break;
+                        }
+                        if (part.ContainsKey("reasoning_content"))
+                        {
+                            raw = part["reasoning_content"];
+                            break;
+                        }
+                        if (part.ContainsKey("thought") && Equals(part["thought"], true) && part.ContainsKey("text"))
+                        {
+                            raw = part["text"];
+                            break;
+                        }
+                    }
+                }
+            }
+
             if (raw == null && d.ContainsKey("message") && d["message"] is Dictionary<string, object>)
             {
-                raw = ExtractTextFromCommonKeys((Dictionary<string, object>)d["message"]);
+                Dictionary<string, object> msg = (Dictionary<string, object>)d["message"];
+                if (msg.ContainsKey("thinking")) raw = msg["thinking"];
+                else if (msg.ContainsKey("reasoning_content")) raw = msg["reasoning_content"];
+                else if (msg.ContainsKey("thought")) raw = msg["thought"];
+                else raw = ExtractTextFromCommonKeys(msg);
             }
             if (raw == null) raw = d.ContainsKey("content") ? d["content"] : (d.ContainsKey("message") ? d["message"] : null);
         }
@@ -1543,7 +963,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         return s.Length > 2 ? s : null;
     }
 
-    private void ScheduleCommitCompletion(string agentName, int expectedVer, int delayMs, string projectHint, DateTime? msgTime)
+    private void ScheduleCommitCompletion(string agentName, string filePath, int expectedVer, int delayMs, DateTime? msgTime)
     {
         System.Threading.ThreadPool.QueueUserWorkItem(delegate
         {
@@ -1555,8 +975,8 @@ internal sealed class AgentSessionWatcher : IDisposable
                 lock (syncLock)
                 {
                     TurnSession s;
-                    string sk = BuildSessionKey(agentName, projectHint);
-                    if ((!sessions.TryGetValue(sk, out s) && !sessions.TryGetValue(agentName, out s)) || s.Version != expectedVer) return;
+                    string sessionLookupKey = agentName + "|" + (filePath ?? "");
+                    if (!sessions.TryGetValue(sessionLookupKey, out s) || s.Version != expectedVer) return;
                     s.State = TurnState.Completed;
                     s.ActiveStep = s.TotalSteps = 0; s.StepDescription = s.LastToolAction = "";
                     target = s.Target;
@@ -1568,8 +988,8 @@ internal sealed class AgentSessionWatcher : IDisposable
                 {
                     bool isZh = appContext.Settings.Language != "en";
                     string timeStr = (sec >= 3) ? (" (" + (sec >= 60 ? (sec / 60 + "m" + sec % 60 + "s") : (sec + "s")) + ")") : "";
-                    appContext.SetAgentTaskMessage("✅ [" + target + "] " + (isZh ? "本轮已完成" : "Completed") + timeStr, agentName, false, summary, null, -2f, projectHint, msgTime);
-                    ScheduleClearProgress(agentName, ver, 600000);
+                    appContext.SetAgentTaskMessage("✅ [" + target + "] " + (isZh ? "本轮已完成" : "Completed") + timeStr, agentName, false, summary, null, -2f, msgTime, filePath);
+                    ScheduleClearProgress(agentName, filePath, ver, 600000);
                     AppContext.TrimMemory();
                 }
             }
@@ -1577,7 +997,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         });
     }
 
-    private void ScheduleClearProgress(string agentName, int expectedVersion, int delayMs)
+    private void ScheduleClearProgress(string agentName, string filePath, int expectedVersion, int delayMs)
     {
         System.Threading.ThreadPool.QueueUserWorkItem(delegate
         {
@@ -1587,14 +1007,15 @@ internal sealed class AgentSessionWatcher : IDisposable
                 lock (syncLock)
                 {
                     TurnSession session;
-                    if (!sessions.TryGetValue(agentName, out session) || session.Version != expectedVersion)
+                    string sessionLookupKey = agentName + "|" + (filePath ?? "");
+                    if (!sessions.TryGetValue(sessionLookupKey, out session) || session.Version != expectedVersion)
                     {
                         return;
                     }
                 }
                 if (!disposed && appContext != null)
                 {
-                    appContext.ClearAgentProgress(agentName);
+                    appContext.ClearAgentProgress(agentName, filePath);
                 }
             }
             catch { }
@@ -1740,37 +1161,91 @@ internal sealed class AgentSessionWatcher : IDisposable
 
         string lower = toolName.ToLowerInvariant();
 
-        if (lower == "computer" || lower == "screen_perception" || lower == "screenshot" || lower == "view_image")
+        // 1. Desktop Agent: Screen perception (Anthropic Computer-Use, OSWorld, UI-TARS)
+        if (lower.Contains("screenshot") || lower.Contains("screen_perception") || lower.Contains("read_screen") ||
+            lower.Contains("view_screen") || lower.Contains("capture_screen") || lower.Contains("inspect_screen") ||
+            (lower.Contains("computer") && args != null && args.ContainsKey("action") && "screenshot".Equals(CleanToolParam(args["action"]))))
         {
-            string act = args != null && args.ContainsKey("action") ? CleanToolParam(args["action"]) : null;
-            if (act == "screenshot" || lower == "screenshot" || lower == "screen_perception" || lower == "view_image")
-            {
-                return isZh ? "\uD83D\uDC41\uFE0F \u89c2\u5bdf\u684c\u9762" : "\uD83D\uDC41\uFE0F Observing screen";
-            }
-            if (act == "mouse_move" || act == "left_click" || act == "right_click" || act == "middle_click" || act == "double_click" || act == "triple_click")
-            {
-                string coords = (args.ContainsKey("coordinate") ? CleanToolParam(args["coordinate"]) : (args.ContainsKey("x") && args.ContainsKey("y") ? (args["x"] + ", " + args["y"]) : ""));
-                return isZh ? ("\uD83D\uDDB1\uFE0F \u684c\u9762\u70b9\u51fb " + coords).Trim() : ("\uD83D\uDDB1\uFE0F Desktop click " + coords).Trim();
-            }
-            if (act == "key" || act == "type")
-            {
-                string txt = args.ContainsKey("text") ? CleanToolParam(args["text"]) : "";
-                return isZh ? ("\u2328\uFE0F \u952e\u76d8\u8f93\u5165 " + txt).Trim() : ("\u2328\uFE0F Typing " + txt).Trim();
-            }
-            return isZh ? "\uD83D\uDC41\uFE0F \u89c2\u5bdf\u684c\u9762" : "\uD83D\uDC41\uFE0F Observing screen";
+            return isZh ? "👁️ 观察桌面" : "👁️ Perceiving desktop";
         }
 
-        if (lower.Contains("mouse_click") || lower == "click" || lower.Contains("cursor"))
+        // 2. Desktop Agent: Mouse / Coordinate actions
+        string compAction = (args != null && args.ContainsKey("action")) ? CleanToolParam(args["action"]) : null;
+        bool isMouse = lower.Contains("mouse") || lower.Contains("click") || lower.Contains("cursor") || lower.Contains("drag") ||
+                       (lower.Contains("computer") && compAction != null && (compAction.Contains("click") || compAction.Contains("mouse") || compAction.Contains("drag") || compAction.Contains("scroll")));
+
+        if (isMouse)
         {
-            string coords = args != null ? (args.ContainsKey("coordinate") ? CleanToolParam(args["coordinate"]) : (args.ContainsKey("x") && args.ContainsKey("y") ? (args["x"] + ", " + args["y"]) : "")) : "";
-            return isZh ? ("\uD83D\uDDB1\uFE0F \u684c\u9762\u70b9\u51fb " + coords).Trim() : ("\uD83D\uDDB1\uFE0F Desktop click " + coords).Trim();
+            string coord = null;
+            if (args != null)
+            {
+                if (args.ContainsKey("coordinate"))
+                {
+                    object cObj = args["coordinate"];
+                    if (cObj is IList && ((IList)cObj).Count >= 2)
+                    {
+                        IList cList = (IList)cObj;
+                        coord = CleanToolParam(cList[0]) + ", " + CleanToolParam(cList[1]);
+                    }
+                    else coord = CleanToolParam(cObj);
+                }
+                else if (args.ContainsKey("x") && args.ContainsKey("y"))
+                {
+                    coord = CleanToolParam(args["x"]) + ", " + CleanToolParam(args["y"]);
+                }
+            }
+            if (!string.IsNullOrEmpty(coord))
+            {
+                return isZh ? ("🖱️ 桌面点击 (" + coord + ")") : ("🖱️ Click (" + coord + ")");
+            }
+            return isZh ? "🖱️ 桌面交互" : "🖱️ Desktop interacting";
         }
 
-        if (lower.Contains("keyboard") || lower == "type" || lower.Contains("press_key") || lower == "key")
+        // 3. Desktop Agent: Keyboard action
+        bool isKeyboard = lower.Contains("type") || lower.Contains("keyboard") || lower.Contains("press_key") || lower.Contains("send_keys") || lower.Contains("hotkey") ||
+                          (lower.Contains("computer") && compAction != null && (compAction == "type" || compAction == "key"));
+        if (isKeyboard)
         {
-            string txt = args != null && args.ContainsKey("text") ? CleanToolParam(args["text"]) : "";
-            return isZh ? ("\u2328\uFE0F \u952e\u76d8\u8f93\u5165 " + txt).Trim() : ("\u2328\uFE0F Typing " + txt).Trim();
+            string txt = null;
+            if (args != null)
+            {
+                foreach (string k in new string[] { "text", "key", "keys", "input" })
+                    if (args.ContainsKey(k)) { txt = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(txt)) break; }
+            }
+            if (!string.IsNullOrEmpty(txt))
+            {
+                if (txt.Length > 20) txt = txt.Substring(0, 20) + "...";
+                return isZh ? ("⌨️ 键入: " + txt) : ("⌨️ Type: " + txt);
+            }
+            return isZh ? "⌨️ 键盘键入" : "⌨️ Typing";
         }
+
+        // 4. Desktop Agent: Window management
+        if (lower.Contains("launch_app") || lower.Contains("focus_window") || lower.Contains("switch_window") || lower.Contains("open_application"))
+        {
+            string appName = null;
+            if (args != null)
+            {
+                foreach (string k in new string[] { "app", "name", "title", "process_name" })
+                    if (args.ContainsKey(k)) { appName = CleanToolParam(args[k]); if (!string.IsNullOrEmpty(appName)) break; }
+            }
+            if (!string.IsNullOrEmpty(appName)) return isZh ? ("🪟 调度窗口: " + appName) : ("🪟 Window: " + appName);
+            return isZh ? "🪟 窗口调度" : "🪟 Window action";
+        }
+
+        // 5. Desktop Agent: Browser Use
+        if (lower.Contains("navigate_page") || lower.Contains("browser_action") || lower.Contains("new_page"))
+        {
+            string url = null;
+            if (args != null && args.ContainsKey("url")) url = CleanToolParam(args["url"]);
+            if (!string.IsNullOrEmpty(url))
+            {
+                if (url.Length > 30) url = url.Substring(0, 30) + "...";
+                return isZh ? ("🌐 访问: " + url) : ("🌐 Browse: " + url);
+            }
+            return isZh ? "🌐 网页操作" : "🌐 Browser action";
+        }
+
         string path = null;
         if (args != null)
         {
@@ -1852,25 +1327,33 @@ internal sealed class AgentSessionWatcher : IDisposable
                         if (!string.IsNullOrEmpty(s)) return s;
                     }
 
-                    string name = call.ContainsKey("name") ? CleanToolParam(call["name"]) : null;
+                    string name = null;
                     Dictionary<string, object> args = null;
 
+                    // Standard OpenAI / DeepSeek function format: { function: { name: "...", arguments: "{...}" } }
                     if (call.ContainsKey("function") && call["function"] is Dictionary<string, object>)
                     {
                         Dictionary<string, object> fn = (Dictionary<string, object>)call["function"];
                         if (fn.ContainsKey("name")) name = CleanToolParam(fn["name"]);
-                        if (fn.ContainsKey("arguments"))
+                        object rawArgs = fn.ContainsKey("arguments") ? fn["arguments"] : null;
+                        if (rawArgs is Dictionary<string, object>) args = (Dictionary<string, object>)rawArgs;
+                        else if (rawArgs is string)
                         {
-                            object a = fn["arguments"];
-                            if (a is string) { try { args = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>((string)a); } catch { } }
-                            else if (a is Dictionary<string, object>) args = (Dictionary<string, object>)a;
+                            string sArgs = ((string)rawArgs).Trim();
+                            if (sArgs.StartsWith("{") && sArgs.EndsWith("}"))
+                            {
+                                try { args = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(sArgs); } catch { }
+                            }
                         }
                     }
-                    if (args == null)
 
-                    if (call.ContainsKey("args")) args = call["args"] as Dictionary<string, object>;
-                    else if (call.ContainsKey("parameters")) args = call["parameters"] as Dictionary<string, object>;
-                    else if (call.ContainsKey("input")) args = call["input"] as Dictionary<string, object>;
+                    if (string.IsNullOrEmpty(name) && call.ContainsKey("name")) name = CleanToolParam(call["name"]);
+                    if (args == null)
+                    {
+                        if (call.ContainsKey("args")) args = call["args"] as Dictionary<string, object>;
+                        else if (call.ContainsKey("parameters")) args = call["parameters"] as Dictionary<string, object>;
+                        else if (call.ContainsKey("input")) args = call["input"] as Dictionary<string, object>;
+                    }
 
                     string action = ExtractFriendlyAction(name, args, isZh);
                     if (!string.IsNullOrEmpty(action)) return action;
@@ -1878,7 +1361,7 @@ internal sealed class AgentSessionWatcher : IDisposable
             }
         }
 
-        // 2. Claude Code content structure
+        // 2. Claude Code / Anthropic content structure
         if (data.ContainsKey("message"))
         {
             Dictionary<string, object> msg = data["message"] as Dictionary<string, object>;
@@ -1901,6 +1384,20 @@ internal sealed class AgentSessionWatcher : IDisposable
                 }
             }
         }
+        else if (data.ContainsKey("content") && data["content"] is IList)
+        {
+            foreach (object item in (IList)data["content"])
+            {
+                Dictionary<string, object> part = item as Dictionary<string, object>;
+                if (part != null && part.ContainsKey("type") && "tool_use".Equals(part["type"]))
+                {
+                    string name = part.ContainsKey("name") ? CleanToolParam(part["name"]) : null;
+                    Dictionary<string, object> input = part.ContainsKey("input") ? part["input"] as Dictionary<string, object> : null;
+                    string action = ExtractFriendlyAction(name, input, isZh);
+                    if (!string.IsNullOrEmpty(action)) return action;
+                }
+            }
+        }
 
         // 3. Codex function_call in response_item
         if (data.ContainsKey("type") && "response_item".Equals(data["type"]) && data.ContainsKey("payload"))
@@ -1913,7 +1410,6 @@ internal sealed class AgentSessionWatcher : IDisposable
                 {
                     string name = payload.ContainsKey("name") ? CleanToolParam(payload["name"]) : null;
                     Dictionary<string, object> args = null;
-
                     object rawArgs = payload.ContainsKey("arguments") ? payload["arguments"] : null;
                     if (rawArgs is Dictionary<string, object>)
                     {
@@ -2023,6 +1519,61 @@ internal sealed class AgentSessionWatcher : IDisposable
         total = 0;
         desc = "";
 
+        // 0. MCP (Model Context Protocol) Native Progress Notification
+        // e.g. method: "notifications/progress", params: { progress: 5, total: 20, message: "..." }
+        if (data != null)
+        {
+            Dictionary<string, object> mcpParams = null;
+            if (data.ContainsKey("method") && "notifications/progress".Equals(data["method"] as string) && data.ContainsKey("params") && data["params"] is Dictionary<string, object>)
+            {
+                mcpParams = (Dictionary<string, object>)data["params"];
+            }
+            else if (data.ContainsKey("progress") || data.ContainsKey("total_steps") || data.ContainsKey("totalSteps"))
+            {
+                mcpParams = data;
+            }
+
+            if (mcpParams != null)
+            {
+                object pVal = mcpParams.ContainsKey("progress") ? mcpParams["progress"] : (mcpParams.ContainsKey("step") ? mcpParams["step"] : null);
+                object tVal = mcpParams.ContainsKey("total") ? mcpParams["total"] : (mcpParams.ContainsKey("total_steps") ? mcpParams["total_steps"] : (mcpParams.ContainsKey("totalSteps") ? mcpParams["totalSteps"] : null));
+                if (pVal != null && tVal != null)
+                {
+                    try
+                    {
+                        double pNum = Convert.ToDouble(pVal);
+                        double tNum = Convert.ToDouble(tVal);
+                        if (tNum > 0 && pNum >= 0 && pNum <= tNum)
+                        {
+                            step = (int)pNum;
+                            total = (int)tNum;
+                            object dVal = mcpParams.ContainsKey("message") ? mcpParams["message"] : (mcpParams.ContainsKey("description") ? mcpParams["description"] : null);
+                            if (dVal != null) desc = CleanSummaryText(dVal.ToString());
+                            if (string.IsNullOrEmpty(desc) && !string.IsNullOrEmpty(toolSummary)) desc = toolSummary;
+                            return true;
+                        }
+                    }
+                    catch { }
+                }
+                else if (pVal != null && tVal == null)
+                {
+                    try
+                    {
+                        double pNum = Convert.ToDouble(pVal);
+                        if (pNum > 0.0 && pNum <= 1.0)
+                        {
+                            step = (int)(pNum * 100);
+                            total = 100;
+                            object dVal = mcpParams.ContainsKey("message") ? mcpParams["message"] : (mcpParams.ContainsKey("description") ? mcpParams["description"] : null);
+                            if (dVal != null) desc = CleanSummaryText(dVal.ToString());
+                            return true;
+                        }
+                    }
+                    catch { }
+                }
+            }
+        }
+
         // 1. Tool summary step pattern: e.g. "1/3 正在执行算法优化", "[1/3] 正在执行算法优化", "Step 1/3: 正在执行算法优化"
         if (!string.IsNullOrEmpty(toolSummary))
         {
@@ -2043,26 +1594,6 @@ internal sealed class AgentSessionWatcher : IDisposable
 
         if (data == null) return false;
 
-        // MCP (Model Context Protocol) notifications/progress
-        if (data.ContainsKey("method") && "notifications/progress".Equals(data["method"]))
-        {
-            Dictionary<string, object> p = data.ContainsKey("params") ? data["params"] as Dictionary<string, object> : null;
-            if (p != null)
-            {
-                int pStep = 0, pTot = 0;
-                if (p.ContainsKey("progress")) int.TryParse(p["progress"].ToString(), out pStep);
-                if (p.ContainsKey("total")) int.TryParse(p["total"].ToString(), out pTot);
-                string msg = p.ContainsKey("message") ? p["message"] as string : null;
-                if (pStep > 0 && pTot > 0)
-                {
-                    step = pStep;
-                    total = pTot;
-                    desc = CleanSummaryText(msg) ?? (msg ?? "").Trim();
-                    return true;
-                }
-            }
-        }
-
         // 2. Claude Code TodoWrite / todo tool call
         if (data.ContainsKey("tool_calls"))
         {
@@ -2076,7 +1607,6 @@ internal sealed class AgentSessionWatcher : IDisposable
                     string name = call.ContainsKey("name") ? call["name"] as string : null;
                     if (string.Equals(name, "TodoWrite", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "todo", StringComparison.OrdinalIgnoreCase))
                     {
-    
                         Dictionary<string, object> args = null;
                         if (call.ContainsKey("parameters")) args = call["parameters"] as Dictionary<string, object>;
                         if (args == null && call.ContainsKey("input")) args = call["input"] as Dictionary<string, object>;
@@ -2362,8 +1892,9 @@ internal sealed class AgentSessionWatcher : IDisposable
     }
 
 
-    private static string ExtractCompletionSummary(Dictionary<string, object> data)
+    internal static string ExtractCompletionDetails(Dictionary<string, object> data, out bool isExplicitTerminal)
     {
+        isExplicitTerminal = false;
         if (data == null || (data.ContainsKey("type") && "GENERIC".Equals(data["type"]))) return null;
         if (data.ContainsKey("tool_calls") && data["tool_calls"] is IList && ((IList)data["tool_calls"]).Count > 0) return null;
 
@@ -2371,6 +1902,7 @@ internal sealed class AgentSessionWatcher : IDisposable
         if (data.ContainsKey("type") && "PLANNER_RESPONSE".Equals(data["type"]) &&
             data.ContainsKey("status") && "DONE".Equals(data["status"]))
         {
+            isExplicitTerminal = true;
             if (data.ContainsKey("content") && data["content"] != null)
             {
                 string c = data["content"].ToString().Trim();
@@ -2405,7 +1937,11 @@ internal sealed class AgentSessionWatcher : IDisposable
                             if ("text".Equals(part["type"]) && part.ContainsKey("text")) text = part["text"] as string;
                         }
                     }
-                    if (!string.IsNullOrEmpty(text)) return text;
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        isExplicitTerminal = true;
+                        return text;
+                    }
                 }
                 return null;
             }
@@ -2420,6 +1956,7 @@ internal sealed class AgentSessionWatcher : IDisposable
                 string pType = payload.ContainsKey("type") ? payload["type"] as string : null;
                 if ("task_complete".Equals(pType) || "task_completed".Equals(pType))
                 {
+                    isExplicitTerminal = true;
                     if (payload.ContainsKey("last_agent_message") && payload["last_agent_message"] != null)
                     {
                         string msg = payload["last_agent_message"].ToString().Trim();
@@ -2458,6 +1995,12 @@ internal sealed class AgentSessionWatcher : IDisposable
         }
 
         return null;
+    }
+
+    private static string ExtractCompletionSummary(Dictionary<string, object> data)
+    {
+        bool ignored;
+        return ExtractCompletionDetails(data, out ignored);
     }
 
     internal static string CleanSummaryText(string text)

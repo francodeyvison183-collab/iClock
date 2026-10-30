@@ -21,7 +21,7 @@ $logoPng = Join-Path $projectRoot 'docs\icon-32.png'
 
 Get-Process | Where-Object { $_.ProcessName -like "iClock*" -or $_.ProcessName -eq "SelfCheck" } | Stop-Process -Force
 
-$compilerArgs = @('/nologo', '/target:winexe', '/optimize+', '/debug-', '/codepage:65001', "/out:$outputExe", '/r:System.Core.dll', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Runtime.WindowsRuntime.dll', '/r:System.Web.Extensions.dll')
+$compilerArgs = @('/nologo', '/target:winexe', '/optimize+', '/debug-', '/codepage:65001', "/out:$outputExe", '/r:System.Core.dll', '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Runtime.WindowsRuntime.dll', '/r:System.Web.Extensions.dll', '/r:System.Management.dll')
 if (Test-Path -LiteralPath $zan) {
     $compilerArgs += "/resource:$zan,zan.jpg"
 }
