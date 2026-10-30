@@ -332,6 +332,8 @@ internal sealed class AgentTaskStatusHud : Form
 
     private DateTime lastHoverTime;
     private DateTime lastFgCheckTime = DateTime.MinValue;
+    private NativeMethods.WinEventDelegate foregroundHookProc;
+    private IntPtr foregroundHook = IntPtr.Zero;
     private int fadeStartTick = 0;
     private byte currentAlpha = 255;
 
@@ -518,14 +520,73 @@ internal sealed class AgentTaskStatusHud : Form
         heartbeatTimer.Interval = 60;
         heartbeatTimer.Tick += OnHeartbeatTick;
         heartbeatTimer.Start();
+        InstallForegroundHook();
+    }
+
+    private void InstallForegroundHook()
+    {
+        if (AppContext.IsSelfCheckRunning || foregroundHook != IntPtr.Zero) return;
+        foregroundHookProc = OnForegroundWinEvent;
+        try
+        {
+            foregroundHook = NativeMethods.SetWinEventHook(
+                NativeMethods.EVENT_SYSTEM_FOREGROUND, NativeMethods.EVENT_SYSTEM_FOREGROUND,
+                IntPtr.Zero, foregroundHookProc, 0, 0,
+                NativeMethods.WINEVENT_OUTOFCONTEXT | NativeMethods.WINEVENT_SKIPOWNPROCESS);
+        }
+        catch { foregroundHook = IntPtr.Zero; }
+    }
+
+    private void OnForegroundWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+    {
+        if (!IsHandleCreated || IsDisposed) return;
+        try
+        {
+            if (InvokeRequired) BeginInvoke(new Action(SyncVisibilityToForeground));
+            else SyncVisibilityToForeground();
+        }
+        catch { }
+    }
+
+    // Foreground loss shows the bar on this call. The heartbeat only backstops a missed event.
+    internal void SyncVisibilityToForeground()
+    {
+        if (moving || resizingWidth || tasks == null || tasks.Count == 0) return;
+        if (settings == null || !settings.AgentStatusPinEnabled) return;
+        lastFgCheckTime = DateTime.Now;
+        bool shouldShow = ShouldBeVisible();
+        if (shouldShow)
+        {
+            if (fadeStartTick > 0)
+            {
+                fadeStartTick = 0;
+                if (currentAlpha != 255) { currentAlpha = 255; RenderLayeredWindow(); }
+            }
+            if (!Visible)
+            {
+                if (AppContext.Current != null) AppContext.Current.UpdateTaskStatusHudPosition();
+                currentAlpha = 255;
+                Visible = true;
+            }
+        }
+        else if (Visible && fadeStartTick == 0)
+        {
+            fadeStartTick = Environment.TickCount;
+        }
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
-        base.OnFormClosed(e);
+        if (foregroundHook != IntPtr.Zero)
+        {
+            try { NativeMethods.UnhookWinEvent(foregroundHook); } catch { }
+            foregroundHook = IntPtr.Zero;
+            foregroundHookProc = null;
+        }
         if (heartbeatTimer != null) { heartbeatTimer.Stop(); heartbeatTimer.Dispose(); heartbeatTimer = null; }
         if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
         CleanupCachedGdiObjects();
+        base.OnFormClosed(e);
     }
 
     protected override void OnVisibleChanged(EventArgs e)
@@ -542,7 +603,7 @@ internal sealed class AgentTaskStatusHud : Form
 
     internal bool ShouldBeVisible()
     {
-        if (settings == null || !settings.DesktopCollaborationEnabled) return false;
+        if (settings == null || !settings.AgentStatusPinEnabled) return false;
         // Pinned HUD stays on the desktop until the user unpins or closes it.
         if (!string.IsNullOrEmpty(pinnedAgent)) return true;
         var active = GetActiveTasks();
@@ -643,32 +704,11 @@ internal sealed class AgentTaskStatusHud : Form
             }
         }
 
-        // Environmental awareness & auto-show/hide: only show status bar when agent is in background
+        // Foreground changes show the bar from the win-event hook. This poll only
+        // backstops a missed event, and still times the completed-task acknowledge.
         if (!moving && !resizingWidth && tasks != null && tasks.Count > 0 && (now - lastFgCheckTime).TotalMilliseconds >= 250)
         {
-            lastFgCheckTime = now;
-            bool shouldShow = ShouldBeVisible();
-            if (shouldShow)
-            {
-                if (fadeStartTick > 0)
-                {
-                    fadeStartTick = 0;
-                    if (currentAlpha != 255) { currentAlpha = 255; RenderLayeredWindow(); }
-                }
-                if (!Visible)
-                {
-                    if (AppContext.Current != null) AppContext.Current.UpdateTaskStatusHudPosition();
-                    currentAlpha = 255;
-                    Visible = true;
-                }
-            }
-            else
-            {
-                if (Visible && fadeStartTick == 0)
-                {
-                    fadeStartTick = Environment.TickCount;
-                }
-            }
+            SyncVisibilityToForeground();
 
             // Auto-acknowledge completed tasks after user focuses the agent window for >= 5s.
             // A pinned bar is resident: do not silently clear/hide it.

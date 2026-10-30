@@ -418,13 +418,13 @@ internal static class CliPromptHelper
                 + "PowerShell: " + invoke + "\r\n"
                 + "Initial tool-call verification: " + invoke + " --progress \"1/1\" \"Verify\" --agent-name \"Codex\" --json\r\n"
                 + "Clear check: " + invoke + " --progress clear --agent-name \"Codex\" --json\r\n"
-                + "Rules: Use --ask for critical decisions, --progress for milestones, --notice on completion with --json.";
+                + "Rules: Use --ask before a critical action and --notice when the task finishes, with --json. --progress only updates the desktop status line and does not open a popup.";
         }
         return "本次会话桌面协作说明（仅在后台继续工作时调用）：\r\n"
             + "PowerShell: " + invoke + "\r\n"
             + "首次工具调用验证: " + invoke + " --progress \"1/1\" \"验证\" --agent-name \"Codex\" --json\r\n"
             + "清除验证: " + invoke + " --progress clear --agent-name \"Codex\" --json\r\n"
-            + "规则: 使用 --ask 决策，--progress 汇报进度，--notice 结束提醒，配合 --json。";
+            + "规则: 用 --ask 在关键操作前请示，用 --notice 在任务完成后提醒，配合 --json。--progress 只更新桌面状态条，不另弹窗。";
     }
 
     public static string GenerateSkillFixPrompt(bool en, string agentName, bool conflict, string error)
@@ -502,7 +502,7 @@ internal static class CliSkillInstaller
             + "## When to use\r\n"
             + "- Use desktop collaboration only for background work or when the user is not actively watching; avoid interruptions during a live session unless the user explicitly asks. Short, immediate tasks do not need status updates.\r\n"
             + "- Use `--ask` only for a consequential decision that blocks progress or a risky action needing approval. Wait for the answer; if declined or cancelled, do not proceed with that action.\r\n"
-            + "- Use `--progress` only at meaningful milestones of multi-step or long-running work. Keep the same agent name and always clear your row on success, failure, or cancellation.\r\n"
+            + "- Use `--progress` only at meaningful milestones of multi-step or long-running work. It updates the desktop status line only and does not open a popup. Keep the same agent name and always clear your row on success, failure, or cancellation.\r\n"
             + "- Use `--notice` only when a background task finishes and the user is not already attending to the result; state clearly whether it succeeded or failed.\r\n\r\n"
             + "## Verification\r\n"
             + "When the user asks to set up or verify iClock CLI collaboration, make a real, non-blocking tool call: send `--progress \"1/1\" \"Verify iClock CLI\" --agent-name \"Codex\" --json`, parse the JSON, then call `--progress clear` with the same name. Pass only if both return `ok: true`; report failures honestly. This checks command acceptance, not whether the user saw the UI. Never use `--ask` or `--notice` for a test without explicit user approval because they can interrupt. Do not run synthetic verification on every ordinary task.\r\n\r\n"

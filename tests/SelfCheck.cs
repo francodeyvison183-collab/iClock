@@ -61,6 +61,8 @@ internal static class TestCheck
             Type settingsType = asm.GetType("Settings");
             object defaultSettings = Activator.CreateInstance(settingsType);
             bool defaultCollaborationEnabled = (bool)settingsType.GetField("DesktopCollaborationEnabled").GetValue(defaultSettings);
+            bool defaultStatusPin = (bool)settingsType.GetField("AgentStatusPinEnabled").GetValue(defaultSettings);
+            bool defaultDeepCollab = (bool)settingsType.GetField("AgentDeepCollabEnabled").GetValue(defaultSettings);
             bool defaultUsageTrack = (bool)settingsType.GetField("UsageTrackEnabled").GetValue(defaultSettings);
             bool defaultEyeCare = (bool)settingsType.GetField("EyeCareEnabled").GetValue(defaultSettings);
             int defaultEyeCareInterval = (int)settingsType.GetField("EyeCareIntervalMinutes").GetValue(defaultSettings);
@@ -70,7 +72,7 @@ internal static class TestCheck
             int defX = (int)settingsType.GetField("X").GetValue(defaultSettings);
             int defY = (int)settingsType.GetField("Y").GetValue(defaultSettings);
             string defFormat = (string)settingsType.GetField("Format").GetValue(defaultSettings);
-            if (!defaultCollaborationEnabled || !defaultUsageTrack || defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 60 || defFormat != "MM:SS")
+            if (!defaultCollaborationEnabled || !defaultStatusPin || !defaultDeepCollab || !defaultUsageTrack || defSize != 20 || defColor != "#FF0000" || defFont != "Segoe UI" || defX != -1 || defY != 60 || defFormat != "MM:SS")
             {
                 Console.WriteLine("FAIL: Default collaboration, usage-track, or timer appearance settings are incorrect");
                 return 18;
@@ -2330,7 +2332,8 @@ internal static class TestCheck
             Button btnProgDemo = (Button)settingsDialogType.GetField("btnProgressDemo", bf).GetValue(tabDlg);
             Panel capCard = (Panel)settingsDialogType.GetField("panelCapCard", bf).GetValue(tabDlg);
             Panel skillCard = (Panel)settingsDialogType.GetField("panelSkillCard", bf).GetValue(tabDlg);
-            Label skillGuidance = (Label)settingsDialogType.GetField("lblSkillGuidance", bf).GetValue(tabDlg);
+            Panel statusCard = (Panel)settingsDialogType.GetField("panelStatusCard", bf).GetValue(tabDlg);
+            Panel agentScroll = (Panel)settingsDialogType.GetField("panelAgentScroll", bf).GetValue(tabDlg);
             Panel agentRows = (Panel)settingsDialogType.GetField("panelAgentRows", bf).GetValue(tabDlg);
             Label agentEmpty = (Label)settingsDialogType.GetField("lblAgentEmpty", bf).GetValue(tabDlg);
             Panel installFail = (Panel)settingsDialogType.GetField("panelInstallFail", bf).GetValue(tabDlg);
@@ -2340,23 +2343,16 @@ internal static class TestCheck
             Button copyGuide = (Button)settingsDialogType.GetField("btnCopyCliGuide", bf).GetValue(tabDlg);
             FieldInfo startupField = settingsDialogType.GetField("startup", bf);
             Control goalCtrl = (Control)settingsDialogType.GetField("dailyGoal", bf).GetValue(tabDlg);
-            Label tool1 = (Label)settingsDialogType.GetField("lblTool1Name", bf).GetValue(tabDlg);
-            Label tool2 = (Label)settingsDialogType.GetField("lblTool2Name", bf).GetValue(tabDlg);
-            Label tool3 = (Label)settingsDialogType.GetField("lblTool3Name", bf).GetValue(tabDlg);
-            Label capabilityTitle = null;
-            foreach (Control control in tabDlg.Controls)
-            {
-                if (control != null && control.Name == "lblCapabilityTitle")
-                {
-                    capabilityTitle = (Label)control;
-                    break;
-                }
-            }
+            Label statusTitle = (Label)settingsDialogType.GetField("lblStatusTitle", bf).GetValue(tabDlg);
+            Label statusDesc = (Label)settingsDialogType.GetField("lblStatusDesc", bf).GetValue(tabDlg);
+            Label deepTitle = (Label)settingsDialogType.GetField("lblDeepTitle", bf).GetValue(tabDlg);
+            Label askLine = (Label)settingsDialogType.GetField("lblAskLine", bf).GetValue(tabDlg);
+            Label noticeLine = (Label)settingsDialogType.GetField("lblNoticeLine", bf).GetValue(tabDlg);
 
-            if (btnTabTimer == null || btnTabAgent == null || capCard == null || skillCard == null || skillGuidance == null ||
-                agentRows == null || agentEmpty == null || installFail == null ||
+            if (btnTabTimer == null || btnTabAgent == null || capCard == null || statusCard == null || skillCard == null ||
+                agentRows == null || agentScroll == null || agentEmpty == null || installFail == null ||
                 method1 == null || method2 == null || guideHint == null || copyGuide == null ||
-                btnProgDemo == null || capabilityTitle == null || tool1 == null || tool2 == null || tool3 == null)
+                btnProgDemo == null || statusTitle == null || statusDesc == null || deepTitle == null || askLine == null || noticeLine == null)
             {
                 Console.WriteLine("FAIL: SettingsDialog missing dual-tab navigation or Agent tab controls");
                 return 33;
@@ -2405,22 +2401,31 @@ internal static class TestCheck
             // Agent rows list only running agents; method 2 guide copy is always available.
             int runningCount = 0;
             foreach (Control rowCtrl in agentRows.Controls) if (rowCtrl is Button) runningCount++;
-            if (!capCard.Visible || !skillCard.Visible || skillGuidance.Text != "安装技能让智能体学会这些能力：" ||
+            if (!capCard.Visible || !statusCard.Visible || !skillCard.Visible ||
                 (runningCount > 0 && agentEmpty.Visible) || (runningCount == 0 && !agentEmpty.Visible) ||
                 !copyGuide.Visible || !guideHint.Visible ||
-                method1.Text != "方式一 · 安装技能（持久有效）" || method2.Text != "方式二 · 临时启用（本次会话）" ||
+                method1.Text != "安装技能 · 一直有效" || method2.Text != "发提示词 * 会话内有效" ||
+                guideHint.Text != "贴一段提示词即可。" || copyGuide.Text != "复制提示词" ||
                 installFail.Visible)
             {
                 Console.WriteLine("FAIL: Agent tab should list running agents or show the empty-state fallback");
                 return 33;
             }
 
-            if (capabilityTitle.Text != "开启 AI 协作 给智能体赋能" ||
-                tool1.Text != "决策请示" || tool2.Text != "任务状态" || tool3.Text != "完成提醒" ||
+            if (tabDlg.ClientSize != new Size(380, 470) ||
+                statusTitle.Text != "智能体状态自动感知" || statusTitle.Top != 56 ||
+                statusDesc.Text != "桌面置顶显示后台运行的智能体状态" ||
+                statusCard.Bounds != new Rectangle(18, 86, 344, 48) ||
+                deepTitle.Text != "智能体运行深度协作" || deepTitle.Top != 150 ||
+                askLine.Text != "智能体运行决策弹窗向你请示。" ||
+                noticeLine.Text != "任务完成后弹窗+声音提示" ||
                 btnProgDemo.Text != "预览" ||
-                skillCard.Top <= capCard.Top || !skillCard.AutoScroll || skillCard.HorizontalScroll.Visible)
+                capCard.Bounds != new Rectangle(18, 180, 344, 84) ||
+                skillCard.Bounds != new Rectangle(18, 272, 344, 174) ||
+                skillCard.Bottom != 446 ||
+                !agentScroll.AutoScroll || agentScroll.HorizontalScroll.Visible)
             {
-                Console.WriteLine("FAIL: Agent tab layout/text mismatch: capability=" + capabilityTitle.Text + ", tools=" + tool1.Text + "/" + tool2.Text + "/" + tool3.Text + ", preview=" + btnProgDemo.Text + ", skillTop=" + skillCard.Top + ", capabilityTop=" + capCard.Top);
+                Console.WriteLine("FAIL: Agent tab layout/text mismatch: status=" + statusTitle.Text + ", ask=" + askLine.Text + ", notice=" + noticeLine.Text + ", skill=" + skillCard.Bounds + ", cap=" + capCard.Bounds);
                 return 33;
             }
 
@@ -2755,7 +2760,7 @@ internal static class TestCheck
             setDlgTab2.Show();
             setActiveTabMethod.Invoke(setDlgTab2, new object[] { 2 });
             Label cliTipCtrl = (Label)cliTipField.GetValue(setDlgTab2);
-            if (cliTipCtrl == null || !cliTipCtrl.Visible || !cliTipCtrl.Text.Contains("iClock"))
+            if (cliTipCtrl == null || !cliTipCtrl.Visible || cliTipCtrl.Text != "贴一段提示词即可。")
             {
                 Console.WriteLine("FAIL: Tab 2 lblCliGuideHint invalid or not visible: " + (cliTipCtrl == null ? "null" : cliTipCtrl.Text));
                 setDlgTab2.Close();
@@ -3512,7 +3517,7 @@ internal static class TestCheck
             Form dlgZh = (Form)Activator.CreateInstance(settingsDlgType, new object[] { settings, true });
             setActiveTabMethod.Invoke(dlgZh, new object[] { 2 });
             Label tipZh = (Label)settingsDlgType.GetField("lblCliGuideHint", bf).GetValue(dlgZh);
-            if (tipZh == null || !tipZh.Text.Contains("iClock"))
+            if (tipZh == null || tipZh.Text != "贴一段提示词即可。")
             {
                 Console.WriteLine("FAIL: Tab 2 guide hint missing expected Chinese instructions");
                 dlgZh.Close();
@@ -3525,7 +3530,7 @@ internal static class TestCheck
             Form dlgEn = (Form)Activator.CreateInstance(settingsDlgType, new object[] { enSettings, true });
             setActiveTabMethod.Invoke(dlgEn, new object[] { 2 });
             Label tipEn = (Label)settingsDlgType.GetField("lblCliGuideHint", bf).GetValue(dlgEn);
-            if (tipEn == null || !tipEn.Text.Contains("iClock"))
+            if (tipEn == null || tipEn.Text != "Paste a prompt to enable it.")
             {
                 Console.WriteLine("FAIL: Tab 2 guide hint missing expected English instructions");
                 dlgEn.Close();
@@ -4728,8 +4733,8 @@ internal static class TestCheck
                 ConstructorInfo hudCtor = statusHudType.GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public, null, new Type[] { settingsType }, null);
                 Form hudInstance = hudCtor != null ? (Form)hudCtor.Invoke(new object[] { settings }) : null;
                 MethodInfo mShould = statusHudType.GetMethod("ShouldBeVisible", BindingFlags.NonPublic | BindingFlags.Instance);
-                FieldInfo fCollab = settingsType.GetField("DesktopCollaborationEnabled");
-                if (mShould != null && fCollab != null)
+                FieldInfo fPin = settingsType.GetField("AgentStatusPinEnabled");
+                if (mShould != null && fPin != null)
                 {
                     // Case 1: No tasks -> ShouldBeVisible is false
                     bool vNoTask = (bool)mShould.Invoke(hudInstance, null);
@@ -4739,15 +4744,15 @@ internal static class TestCheck
                         return 76;
                     }
 
-                    // Case 2: Collaboration disabled -> ShouldBeVisible is false
-                    fCollab.SetValue(settings, false);
+                    // Case 2: Status pin disabled -> ShouldBeVisible is false
+                    fPin.SetValue(settings, false);
                     bool vDisabled = (bool)mShould.Invoke(hudInstance, null);
                     if (vDisabled)
                     {
-                        Console.WriteLine("FAIL: HUD ShouldBeVisible should be false when DesktopCollaborationEnabled is false");
+                        Console.WriteLine("FAIL: HUD ShouldBeVisible should be false when AgentStatusPinEnabled is false");
                         return 76;
                     }
-                    fCollab.SetValue(settings, true);
+                    fPin.SetValue(settings, true);
 
                     // Case 3: Task running for background agent -> ShouldBeVisible is true
                     MethodInfo mSetTasks = statusHudType.GetMethod("SetTasks", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -4766,6 +4771,20 @@ internal static class TestCheck
                         Console.WriteLine("FAIL: HUD ShouldBeVisible should be true for background agent");
                         return 76;
                     }
+
+                    MethodInfo mSyncFg = statusHudType.GetMethod("SyncVisibilityToForeground", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (mSyncFg == null)
+                    {
+                        Console.WriteLine("FAIL: HUD missing immediate foreground-loss show");
+                        return 76;
+                    }
+                    mSyncFg.Invoke(hudInstance, null);
+                    if (!hudInstance.Visible)
+                    {
+                        Console.WriteLine("FAIL: HUD should show as soon as the running agent leaves the foreground");
+                        return 76;
+                    }
+                    hudInstance.Hide();
 
                     // Case 3b: Test 5-minute inactivity rule (>5min no new message -> ShouldBeVisible is false)
                     taskType.GetField("MessageTimestamp", bf).SetValue(t1, DateTime.Now.AddMinutes(-6));

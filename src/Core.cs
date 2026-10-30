@@ -43,7 +43,12 @@ internal sealed class Settings
     public string NoticeStyle = "Popup";
     public bool FullscreenDnd = true;
     public bool AgentProgress;
+    // 旧总开关。只在设置文件还没有下面两个键时，用来一次性迁到两边。
     public bool DesktopCollaborationEnabled = true;
+    // 自动感知智能体，并把状态置顶到桌面。
+    public bool AgentStatusPinEnabled = true;
+    // 本机是否接收决策请示和完成提醒。智能体会不会来叫，仍由技能或提示词决定。
+    public bool AgentDeepCollabEnabled = true;
     public bool DailyQuote = true;
     public int QuoteX = -99999;
     public int QuoteY = -99999;
@@ -93,7 +98,8 @@ internal sealed class Settings
         EndMessage = src.EndMessage; Language = src.Language; AutoStart = src.AutoStart;
         EndSound = src.EndSound; RestMinutes = src.RestMinutes; EndSoundStyle = src.EndSoundStyle; EndNotice = src.EndNotice;
         FirstRun = src.FirstRun; NoticeStyle = src.NoticeStyle; FullscreenDnd = src.FullscreenDnd;
-        AgentProgress = src.AgentProgress; DesktopCollaborationEnabled = src.DesktopCollaborationEnabled; DailyQuote = src.DailyQuote;
+        AgentProgress = src.AgentProgress; DesktopCollaborationEnabled = src.DesktopCollaborationEnabled;
+        AgentStatusPinEnabled = src.AgentStatusPinEnabled; AgentDeepCollabEnabled = src.AgentDeepCollabEnabled; DailyQuote = src.DailyQuote;
         QuoteX = src.QuoteX; QuoteY = src.QuoteY; QuoteWidth = src.QuoteWidth;
         QuoteFontSize = src.QuoteFontSize; QuoteColor = src.QuoteColor; QuoteFont = src.QuoteFont;
         QuotePinTopMost = src.QuotePinTopMost;
@@ -145,6 +151,8 @@ internal sealed class Settings
     public static Settings Load()
     {
         Settings s = new Settings();
+        bool sawStatusPin = false;
+        bool sawDeepCollab = false;
         try
         {
             if (!File.Exists(FilePath)) { s.FirstRun = true; return s; }
@@ -178,6 +186,8 @@ internal sealed class Settings
                 else if (k == "FullscreenDnd" && bool.TryParse(v, out b)) s.FullscreenDnd = b;
                 else if (k == "AgentProgress" && bool.TryParse(v, out b)) s.AgentProgress = b;
                 else if (k == "DesktopCollaborationEnabled" && bool.TryParse(v, out b)) s.DesktopCollaborationEnabled = b;
+                else if (k == "AgentStatusPinEnabled" && bool.TryParse(v, out b)) { s.AgentStatusPinEnabled = b; sawStatusPin = true; }
+                else if (k == "AgentDeepCollabEnabled" && bool.TryParse(v, out b)) { s.AgentDeepCollabEnabled = b; sawDeepCollab = true; }
                 else if (k == "DailyQuote" && bool.TryParse(v, out b)) s.DailyQuote = b;
                 else if (k == "QuoteX" && int.TryParse(v, out n)) s.QuoteX = n;
                 else if (k == "QuoteY" && int.TryParse(v, out n)) s.QuoteY = n;
@@ -205,6 +215,8 @@ internal sealed class Settings
                 else if (k == "EyeCareEnabled" && bool.TryParse(v, out b)) s.EyeCareEnabled = b;
                 else if (k == "EyeCareIntervalMinutes" && int.TryParse(v, out n)) s.EyeCareIntervalMinutes = (n >= 5 && n <= 180) ? n : 45;
             }
+            if (!sawStatusPin) s.AgentStatusPinEnabled = s.DesktopCollaborationEnabled;
+            if (!sawDeepCollab) s.AgentDeepCollabEnabled = s.DesktopCollaborationEnabled;
             if ((s.X == 80 && s.Y == 80) || (s.X == -1 && s.Y == 90)) { s.X = -1; s.Y = 60; }
         }
         catch { }
@@ -223,6 +235,8 @@ internal sealed class Settings
             "RestMinutes=" + RestMinutes,
             "AgentProgress=" + AgentProgress,
             "DesktopCollaborationEnabled=" + DesktopCollaborationEnabled,
+            "AgentStatusPinEnabled=" + AgentStatusPinEnabled,
+            "AgentDeepCollabEnabled=" + AgentDeepCollabEnabled,
             "DailyQuote=" + DailyQuote, "QuoteX=" + QuoteX, "QuoteY=" + QuoteY, "QuoteWidth=" + QuoteWidth, "QuoteFontSize=" + (QuoteFontSize > 0 ? QuoteFontSize.ToString("0.0", CultureInfo.InvariantCulture) : "18.0"),
             "QuoteColor=" + QuoteColor, "QuoteFont=" + QuoteFont, "QuotePinTopMost=" + QuotePinTopMost,
             "QuoteIndex=" + QuoteIndex, "QuoteDate=" + QuoteDate, "QuoteSaverEnabled=" + QuoteSaverEnabled,

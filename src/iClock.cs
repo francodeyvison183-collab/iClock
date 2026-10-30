@@ -1090,27 +1090,17 @@ internal sealed class AppContext : ApplicationContext
         string action = parts[0].ToLowerInvariant();
         string arg = parts.Length > 1 ? parts[1].Trim() : null;
 
-        if (!settings.DesktopCollaborationEnabled)
+        if (settings == null || !settings.AgentDeepCollabEnabled)
         {
-            bool collaborationCommand = action == "notice" || action == "-n" || action == "--notice"
+            bool deepCommand = action == "notice" || action == "-n" || action == "--notice"
                 || action.StartsWith("notice:") || action == "quote" || action == "-q" || action == "--quote"
-                || action.StartsWith("quote:") || action == "progress" || action == "-pr" || action == "--progress"
-                || action.StartsWith("progress:") || action == "status" || action == "-st" || action == "--status"
-                || action.StartsWith("status:") || action == "ask_human" || action.StartsWith("ask_human:");
-            string payload = action.StartsWith("quote:") ? cmd.Substring("quote:".Length).Trim()
-                : action.StartsWith("progress:") ? cmd.Substring("progress:".Length).Trim() : (arg ?? "");
+                || action.StartsWith("quote:") || action == "ask_human" || action.StartsWith("ask_human:");
+            string payload = action.StartsWith("quote:") ? cmd.Substring("quote:".Length).Trim() : (arg ?? "");
             bool cleanup = (action == "ask_human_cancel" || action.StartsWith("ask_human_cancel"))
                 || ((action == "quote" || action == "-q" || action == "--quote" || action.StartsWith("quote:"))
                     && (payload.Equals("clear", StringComparison.OrdinalIgnoreCase) || payload.Equals("hide", StringComparison.OrdinalIgnoreCase)
-                        || payload.StartsWith("clear|", StringComparison.OrdinalIgnoreCase) || payload.StartsWith("hide|", StringComparison.OrdinalIgnoreCase)))
-                || (action == "progress" || action == "-pr" || action == "--progress" || action.StartsWith("progress:"))
-                    && (payload.Equals("clear", StringComparison.OrdinalIgnoreCase) || payload.Equals("off", StringComparison.OrdinalIgnoreCase)
-                        || payload.Equals("reset", StringComparison.OrdinalIgnoreCase))
-                || ((action == "status" || action == "-st" || action == "--status" || action.StartsWith("status:"))
-                    && (payload.Equals("clear", StringComparison.OrdinalIgnoreCase) || payload.Equals("clear-all", StringComparison.OrdinalIgnoreCase)
-                        || payload.Equals("clear_all", StringComparison.OrdinalIgnoreCase) || payload.Equals("off", StringComparison.OrdinalIgnoreCase)
-                        || payload.Equals("reset", StringComparison.OrdinalIgnoreCase)));
-            if (collaborationCommand && !cleanup) return false;
+                        || payload.StartsWith("clear|", StringComparison.OrdinalIgnoreCase) || payload.StartsWith("hide|", StringComparison.OrdinalIgnoreCase)));
+            if (deepCommand && !cleanup) return false;
         }
 
         if (action == "start" || action == "-s" || action == "--start")
@@ -1271,6 +1261,31 @@ internal sealed class AppContext : ApplicationContext
     internal bool HasActiveDesktopCollaboration
     {
         get { return (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed) || agentTaskStatuses.Count > 0; }
+    }
+
+    internal bool HasAgentStatus
+    {
+        get { return agentTaskStatuses.Count > 0; }
+    }
+
+    internal bool HasActiveAsk
+    {
+        get { return activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed; }
+    }
+
+    internal void CancelActiveAsk()
+    {
+        if (activeAskHumanDialog != null && !activeAskHumanDialog.IsDisposed)
+        {
+            try { activeAskHumanDialog.Close(); } catch { }
+            activeAskHumanDialog = null;
+        }
+    }
+
+    internal void ApplyAgentCollabSettings()
+    {
+        RestartSessionWatcher();
+        RefreshTaskStatusHud();
     }
 
     internal void CancelDesktopCollaboration()
@@ -1544,7 +1559,7 @@ internal sealed class AppContext : ApplicationContext
     {
         if (taskStatusHud == null || taskStatusHud.IsDisposed) return;
         taskStatusHud.SetTasks(agentTaskStatuses);
-        if (settings == null || !settings.DesktopCollaborationEnabled)
+        if (settings == null || !settings.AgentStatusPinEnabled)
         {
             if (taskStatusHud.Visible) taskStatusHud.Hide();
             return;
@@ -2523,7 +2538,8 @@ internal sealed class AppContext : ApplicationContext
         if (lower.Contains("trae")) return "Trae";
         if (lower.Contains("marscode")) return "MarsCode";
         if (lower.Contains("lingma") || lower.Contains("tongyi")) return "通义灵码 (Lingma)";
-        if (lower.Contains("codegeex") || lower.Contains("zcode")) return "CodeGeeX";
+        if (lower.Contains("codegeex")) return "CodeGeeX";
+        if (lower.Contains("zcode")) return "ZCode";
         if (lower.Contains("comate")) return "文心快码 (Comate)";
         if (lower.Contains("minimax")) return "MiniMax Code";
         if (lower.Contains("codebuddy") || lower.Contains("tencentcloud") || lower.Contains("tce-code")) return "CodeBuddy";
@@ -3058,7 +3074,7 @@ internal sealed class AppContext : ApplicationContext
             try { sessionWatcher.Dispose(); } catch { }
             sessionWatcher = null;
         }
-        if (settings != null && settings.DesktopCollaborationEnabled && !isOneShot && !IsSelfCheckRunning)
+        if (settings != null && settings.AgentStatusPinEnabled && !isOneShot && !IsSelfCheckRunning)
         {
             try { sessionWatcher = new AgentSessionWatcher(this); } catch { }
         }
@@ -5537,9 +5553,9 @@ Examples:
             return 1;
         }
 
-        if (!Settings.Load().DesktopCollaborationEnabled)
+        if (!Settings.Load().AgentDeepCollabEnabled)
         {
-            string error = "Desktop collaboration is disabled in iClock settings.";
+            string error = "Agent deep collaboration is turned off in iClock settings.";
             if (json) WriteCliJson(false, "ask", agentName, null, error);
             else Console.Error.WriteLine("[iClock] " + error);
             return 1;
@@ -5611,9 +5627,9 @@ Examples:
                 || args[1].Equals("clear_all", StringComparison.OrdinalIgnoreCase)
                 || args[1].Equals("off", StringComparison.OrdinalIgnoreCase)
                 || args[1].Equals("reset", StringComparison.OrdinalIgnoreCase));
-        if (!Settings.Load().DesktopCollaborationEnabled && !cleanup)
+        if (action == "notice" && !Settings.Load().AgentDeepCollabEnabled && !cleanup)
         {
-            string error = "Desktop collaboration is disabled in iClock settings.";
+            string error = "Agent deep collaboration is turned off in iClock settings.";
             if (json) WriteCliJson(false, action, agentName, null, error);
             else Console.Error.WriteLine("[iClock] " + error);
             return 1;
@@ -5784,15 +5800,10 @@ Examples:
                 Environment.ExitCode = RunCliDesktopCommand(args, "status", json);
                 return;
             }
-            bool isProgressCommand = first == "-pr" || first == "--progress" || first == "progress" || first.StartsWith("progress:");
-            string progressArg = first.StartsWith("progress:") ? first.Substring("progress:".Length)
-                : (args.Length > 1 ? args[1] : "");
-            bool isProgressCleanup = isProgressCommand && (progressArg.Equals("clear", StringComparison.OrdinalIgnoreCase)
-                || progressArg.Equals("off", StringComparison.OrdinalIgnoreCase) || progressArg.Equals("reset", StringComparison.OrdinalIgnoreCase));
-            if ((first == "-n" || first == "--notice" || first == "notice" || first.StartsWith("notice:")
-                || (isProgressCommand && !isProgressCleanup)) && !Settings.Load().DesktopCollaborationEnabled)
+            if ((first == "-n" || first == "--notice" || first == "notice" || first.StartsWith("notice:"))
+                && !Settings.Load().AgentDeepCollabEnabled)
             {
-                Console.Error.WriteLine("[iClock] Desktop collaboration is disabled in iClock settings.");
+                Console.Error.WriteLine("[iClock] Agent deep collaboration is turned off in iClock settings.");
                 Environment.ExitCode = 1;
                 return;
             }

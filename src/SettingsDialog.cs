@@ -54,16 +54,22 @@ internal sealed class SettingsDialog : Form
     private int hoveredTab = -1;
     private Button btnTabTimer, btnTabQuote, btnTabAgent;
     private Button btnAskDemo, btnProgressDemo, btnNotifyDemo;
-    private Panel panelCapabilityCard;
-    private ToggleSwitch chkDesktopCollaboration;
-    private Label lblTool1Name, lblTool2Name, lblTool3Name;
-    private Label lblTool1Desc, lblTool2Desc, lblTool3Desc;
-    // Two-section layout: collaboration readiness first, capability previews second.
-    private Panel panelSkillCard, panelSessionCard, panelCapCard;
-    private Label lblSkillGuidance, lblSkillFeedback;
+    private ToggleSwitch chkAgentStatusPin;
+    private ToggleSwitch chkAgentDeep;
+    private Label lblStatusTitle, lblStatusDesc, lblDeepTitle;
+    private Label lblAskLine, lblNoticeLine;
+    private Panel panelSkillCard, panelSessionCard, panelStatusCard, panelCapCard, panelAgentScroll;
+    private Label lblSkillFeedback;
     private string agentRowsFingerprint;
     private System.Windows.Forms.Timer cliCopyFeedbackTimer;
     private System.Windows.Forms.Timer agentListTimer;
+    // Preview buttons sit at x=274, width 58 inside the 344px card, so their right edge is 332.
+    // Install and copy-prompt buttons share that right edge; copy-prompt uses the install width.
+    private const int AgentCardWidth = 344;
+    private const int PreviewBtnX = 274;
+    private const int PreviewBtnWidth = 58;
+    private const int AgentActionBtnWidth = 82;
+    private const int AgentActionBtnX = PreviewBtnX + PreviewBtnWidth - AgentActionBtnWidth;
     // Dynamic per-agent rows (running agents only), rebuilt by RefreshSkillInstallUi.
     private Panel panelAgentRows;
     private Label lblAgentEmpty;
@@ -557,121 +563,110 @@ internal sealed class SettingsDialog : Form
         Controls.Add(lblQuoteTip);
 
 
-        // Main title row: title + master switch.
-        Label lblCapabilityTitle = new Label();
-        lblCapabilityTitle.Name = "lblCapabilityTitle";
-        lblCapabilityTitle.Text = en ? "Enable AI collaboration" : "开启 AI 协作 给智能体赋能";
-        lblCapabilityTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
-        lblCapabilityTitle.ForeColor = AppContext.Win11TextPrimary;
-        lblCapabilityTitle.TextAlign = ContentAlignment.MiddleLeft;
-        lblCapabilityTitle.SetBounds(18, 56, 280, 22);
-        Controls.Add(lblCapabilityTitle);
+        // AI collaboration: status pin, then deep collaboration. Window stays 380x470.
+        lblStatusTitle = new Label();
+        lblStatusTitle.Name = "lblStatusTitle";
+        lblStatusTitle.Text = en ? "Agent status sensing" : "智能体状态自动感知";
+        lblStatusTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
+        lblStatusTitle.ForeColor = AppContext.Win11TextPrimary;
+        lblStatusTitle.TextAlign = ContentAlignment.MiddleLeft;
+        lblStatusTitle.AutoEllipsis = true;
+        lblStatusTitle.SetBounds(18, 56, 296, 22);
+        Controls.Add(lblStatusTitle);
 
-        chkDesktopCollaboration = new ToggleSwitch();
-        chkDesktopCollaboration.SetBounds(322, 56, 40, 22);
-        chkDesktopCollaboration.AccessibleName = en ? "AI collaboration" : "AI 协作开关";
-        chkDesktopCollaboration.Checked = Value.DesktopCollaborationEnabled;
-        chkDesktopCollaboration.CheckedChanged += OnDesktopCollaborationChanged;
-        Controls.Add(chkDesktopCollaboration);
+        chkAgentStatusPin = new ToggleSwitch();
+        chkAgentStatusPin.SetBounds(322, 56, 40, 22);
+        chkAgentStatusPin.AccessibleName = en ? "Agent status sensing" : "智能体状态自动感知";
+        chkAgentStatusPin.Checked = Value.AgentStatusPinEnabled;
+        chkAgentStatusPin.CheckedChanged += OnAgentStatusPinChanged;
+        Controls.Add(chkAgentStatusPin);
         if (toolTip == null) toolTip = new ToolTip();
-        toolTip.SetToolTip(chkDesktopCollaboration, en
-            ? "Enable or disable iClock desktop collaboration."
-            : "启用或停用 iClock 桌面协作。");
+        toolTip.SetToolTip(chkAgentStatusPin, en
+            ? "Show what a background agent is doing, pinned on the desktop."
+            : "感知后台智能体，并把状态置顶到桌面。");
 
-        // Subtitle: scenario description.
-        Label lblCapabilitySub = new Label();
-        lblCapabilitySub.Name = "lblCapabilitySub";
-        lblCapabilitySub.Text = en
-            ? "iClock brings you back with pinned alerts while agents run in background."
-            : "智能体后台运行时，通过 iClock 置顶提醒重要进展。";
-        lblCapabilitySub.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblCapabilitySub.ForeColor = AppContext.Win11TextSecondary;
-        lblCapabilitySub.TextAlign = ContentAlignment.MiddleLeft;
-        lblCapabilitySub.SetBounds(18, 78, 344, 28);
-        lblCapabilitySub.AutoEllipsis = true;
-        Controls.Add(lblCapabilitySub);
+        panelStatusCard = new Panel();
+        panelStatusCard.SetBounds(18, 86, 344, 48);
+        panelStatusCard.BackColor = Color.White;
+        panelStatusCard.Paint += OnCardPaint;
+        Controls.Add(panelStatusCard);
+
+        lblStatusDesc = AddFeatureLine(panelStatusCard, en
+            ? "Pin background agent status on the desktop"
+            : "桌面置顶显示后台运行的智能体状态", 6, out btnProgressDemo, OnProgressDemoClick);
+
+        lblDeepTitle = new Label();
+        lblDeepTitle.Name = "lblDeepTitle";
+        lblDeepTitle.Text = en ? "Deep collaboration while running" : "智能体运行深度协作";
+        lblDeepTitle.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Bold);
+        lblDeepTitle.ForeColor = AppContext.Win11TextPrimary;
+        lblDeepTitle.TextAlign = ContentAlignment.MiddleLeft;
+        lblDeepTitle.AutoEllipsis = true;
+        lblDeepTitle.SetBounds(18, 150, 296, 22);
+        Controls.Add(lblDeepTitle);
+
+        chkAgentDeep = new ToggleSwitch();
+        chkAgentDeep.SetBounds(322, 150, 40, 22);
+        chkAgentDeep.AccessibleName = en ? "Deep collaboration while running" : "智能体运行深度协作";
+        chkAgentDeep.Checked = Value.AgentDeepCollabEnabled;
+        chkAgentDeep.CheckedChanged += OnAgentDeepChanged;
+        Controls.Add(chkAgentDeep);
+        toolTip.SetToolTip(chkAgentDeep, en
+            ? "Accept decision popups and completion alerts from the agent."
+            : "接收智能体的决策请示和完成提醒。");
 
         panelCapCard = new Panel();
-        panelCapCard.SetBounds(18, 110, 344, 132);
+        panelCapCard.SetBounds(18, 180, 344, 84);
         panelCapCard.BackColor = Color.White;
-        panelCapCard.Paint += OnCapabilityCardPaint;
+        panelCapCard.Paint += OnFeatureCardPaint;
         Controls.Add(panelCapCard);
-        panelCapabilityCard = panelCapCard; // Keep legacy reference for compatibility
 
-        // Section title: teach agents the capabilities.
-        lblSkillGuidance = new Label();
-        lblSkillGuidance.Name = "lblSkillGuidance";
-        lblSkillGuidance.Text = en
-            ? "Install the skill to teach your agent:"
-            : "安装技能让智能体学会这些能力：";
-        lblSkillGuidance.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblSkillGuidance.ForeColor = AppContext.Win11TextSecondary;
-        lblSkillGuidance.SetBounds(18, 248, 344, 18);
-        Controls.Add(lblSkillGuidance);
+        lblAskLine = AddFeatureLine(panelCapCard, en
+            ? "Decision popup asks you before a critical step."
+            : "智能体运行决策弹窗向你请示。", 6, out btnAskDemo, OnAskDemoClick);
+        lblNoticeLine = AddFeatureLine(panelCapCard, en
+            ? "Popup and sound when the task finishes"
+            : "任务完成后弹窗+声音提示", 43, out btnNotifyDemo, OnNotifyDemoClick);
 
-        // Skill card: dynamic per-agent rows + empty-state fallback + install-failure closure.
         panelSkillCard = new Panel();
-        panelSkillCard.SetBounds(18, 270, 344, 84);
+        panelSkillCard.SetBounds(18, 272, 344, 174);
         panelSkillCard.BackColor = Color.White;
-        panelSkillCard.AutoScroll = true;
-        panelSkillCard.HorizontalScroll.Enabled = false;
         panelSkillCard.Paint += OnCardPaint;
         Controls.Add(panelSkillCard);
-
-        panelSessionCard = new Panel();
-        panelSessionCard.SetBounds(18, 362, 344, 84);
-        panelSessionCard.BackColor = Color.White;
-        panelSessionCard.Paint += OnCardPaint;
-        Controls.Add(panelSessionCard);
-
-        panelAgentRows = new Panel();
-        // Wide enough for the row dividers to reach the card's right edge, but not
-        // past the client area AutoScroll leaves once a vertical scrollbar appears:
-        // at the card's full 344px the panel overflowed by the bar's 17px and
-        // WinForms answered with a horizontal scrollbar.
-        panelAgentRows.SetBounds(0, 0, panelSkillCard.Width - SystemInformation.VerticalScrollBarWidth, 10);
-        panelAgentRows.BackColor = Color.Transparent;
-        panelSkillCard.Controls.Add(panelAgentRows);
 
         lblSkillMethod1 = new Label();
         lblSkillMethod1.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Bold);
         lblSkillMethod1.ForeColor = AppContext.Win11TextPrimary;
-        lblSkillMethod1.SetBounds(14, 6, 300, 16);
+        lblSkillMethod1.AutoEllipsis = true;
+        lblSkillMethod1.SetBounds(14, 6, 316, 16);
         panelSkillCard.Controls.Add(lblSkillMethod1);
 
-        lblSkillMethod2 = new Label();
-        lblSkillMethod2.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Bold);
-        lblSkillMethod2.ForeColor = AppContext.Win11TextPrimary;
-        lblSkillMethod2.SetBounds(14, 6, 316, 18);
-        panelSessionCard.Controls.Add(lblSkillMethod2);
+        panelAgentScroll = new Panel();
+        // Inset by 1px so these full-width children do not paint over the card border.
+        panelAgentScroll.SetBounds(1, 26, 342, 100);
+        panelAgentScroll.BackColor = Color.White;
+        panelAgentScroll.AutoScroll = true;
+        panelAgentScroll.HorizontalScroll.Enabled = false;
+        panelSkillCard.Controls.Add(panelAgentScroll);
 
-        lblCliGuideHint = new Label();
-        lblCliGuideHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblCliGuideHint.ForeColor = AppContext.Win11TextSecondary;
-        lblCliGuideHint.SetBounds(14, 30, 208, 36);
-        panelSessionCard.Controls.Add(lblCliGuideHint);
-
-        btnCopyCliGuide = new Button();
-        btnCopyCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        btnCopyCliGuide.SetBounds(232, 36, 98, 24);
-        AppContext.StyleSecondaryButton(btnCopyCliGuide);
-        btnCopyCliGuide.Click += OnCopyCliGuideClick;
-        panelSessionCard.Controls.Add(btnCopyCliGuide);
+        panelAgentRows = new Panel();
+        panelAgentRows.SetBounds(0, 0, panelAgentScroll.Width, 10);
+        panelAgentRows.BackColor = Color.Transparent;
+        panelAgentScroll.Controls.Add(panelAgentRows);
 
         lblAgentEmpty = new Label();
         lblAgentEmpty.Name = "lblAgentEmpty";
         lblAgentEmpty.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblAgentEmpty.ForeColor = AppContext.Win11TextSecondary;
-        lblAgentEmpty.SetBounds(14, 12, 300, 40);
+        lblAgentEmpty.SetBounds(14, 8, 300, 36);
         lblAgentEmpty.Visible = false;
-        panelSkillCard.Controls.Add(lblAgentEmpty);
+        panelAgentScroll.Controls.Add(lblAgentEmpty);
 
-        // Install-failure closure panel (hidden until an install fails).
         panelInstallFail = new Panel();
-        panelInstallFail.SetBounds(10, 76, 310, 76);
+        panelInstallFail.SetBounds(10, 8, 310, 76);
         panelInstallFail.BackColor = Color.FromArgb(255, 250, 243);
         panelInstallFail.Visible = false;
-        panelSkillCard.Controls.Add(panelInstallFail);
+        panelAgentScroll.Controls.Add(panelInstallFail);
 
         lblFailReason = new Label();
         lblFailReason.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
@@ -714,97 +709,50 @@ internal sealed class SettingsDialog : Form
         lblSkillFeedback.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
         lblSkillFeedback.ForeColor = AppContext.Win11TextSecondary;
         lblSkillFeedback.AutoSize = false;
-        lblSkillFeedback.SetBounds(14, 156, 300, 18);
+        lblSkillFeedback.SetBounds(14, 8, 300, 18);
         lblSkillFeedback.Visible = false;
-        panelSkillCard.Controls.Add(lblSkillFeedback);
+        panelAgentScroll.Controls.Add(lblSkillFeedback);
 
-        // Rebuild agent rows so the new language's button text applies (fingerprint includes language,
-        // but force it anyway in case the cache still holds the old DetectAgents list).
+        panelSessionCard = new Panel();
+        panelSessionCard.SetBounds(1, 126, 342, 47);
+        panelSessionCard.BackColor = Color.White;
+        panelSessionCard.Paint += OnSkillFooterPaint;
+        panelSkillCard.Controls.Add(panelSessionCard);
+
+        lblSkillMethod2 = new Label();
+        lblSkillMethod2.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Bold);
+        lblSkillMethod2.ForeColor = AppContext.Win11TextPrimary;
+        lblSkillMethod2.AutoEllipsis = true;
+        lblSkillMethod2.SetBounds(14, 4, 200, 16);
+        panelSessionCard.Controls.Add(lblSkillMethod2);
+
+        lblCliGuideHint = new Label();
+        lblCliGuideHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        lblCliGuideHint.ForeColor = AppContext.Win11TextSecondary;
+        lblCliGuideHint.AutoEllipsis = true;
+        lblCliGuideHint.SetBounds(14, 22, 200, 20);
+        panelSessionCard.Controls.Add(lblCliGuideHint);
+
+        btnCopyCliGuide = new Button();
+        btnCopyCliGuide.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+        btnCopyCliGuide.SetBounds(AgentActionBtnX - panelSessionCard.Left, 12, AgentActionBtnWidth, 24);
+        AppContext.StyleSecondaryButton(btnCopyCliGuide);
+        btnCopyCliGuide.Click += OnCopyCliGuideClick;
+        panelSessionCard.Controls.Add(btnCopyCliGuide);
+
         agentRowsFingerprint = null;
         RefreshSkillInstallUi();
+        ApplyCollabSwitchState();
 
-        // Row 1: decision approval
-        lblTool1Name = new Label();
-        lblTool1Name.Text = en ? "Decision Gate" : "决策请示";
-        lblTool1Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
-        lblTool1Name.ForeColor = AppContext.Win11TextPrimary;
-        lblTool1Name.TextAlign = ContentAlignment.MiddleLeft;
-        lblTool1Name.SetBounds(14, 3, 252, 18);
-        panelCapabilityCard.Controls.Add(lblTool1Name);
-
-        lblTool1Desc = new Label();
-        lblTool1Desc.Text = en ? "Pause for your approval before critical actions" : "关键操作前暂停，等待你确认";
-        lblTool1Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblTool1Desc.ForeColor = AppContext.Win11TextSecondary;
-        lblTool1Desc.SetBounds(14, 19, 252, 16);
-        panelCapabilityCard.Controls.Add(lblTool1Desc);
-
-        btnAskDemo = new Button();
-        btnAskDemo.Text = en ? "Preview" : "预览";
-        btnAskDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnAskDemo.SetBounds(274, 9, 58, 26);
-        AppContext.StyleSecondaryButton(btnAskDemo);
-        btnAskDemo.Click += OnAskDemoClick;
-        panelCapabilityCard.Controls.Add(btnAskDemo);
-
-        // Row 2: task status
-        lblTool2Name = new Label();
-        lblTool2Name.Text = en ? "Task Status" : "任务状态";
-        lblTool2Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
-        lblTool2Name.ForeColor = AppContext.Win11TextPrimary;
-        lblTool2Name.TextAlign = ContentAlignment.MiddleLeft;
-        lblTool2Name.SetBounds(14, 47, 252, 18);
-        panelCapabilityCard.Controls.Add(lblTool2Name);
-
-        lblTool2Desc = new Label();
-        lblTool2Desc.Text = en ? "Show task progress and current status together" : "同时显示任务进度与当前状态";
-        lblTool2Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblTool2Desc.ForeColor = AppContext.Win11TextSecondary;
-        lblTool2Desc.SetBounds(14, 63, 252, 16);
-        panelCapabilityCard.Controls.Add(lblTool2Desc);
-
-        btnProgressDemo = new Button();
-        btnProgressDemo.Text = en ? "Preview" : "预览";
-        btnProgressDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnProgressDemo.SetBounds(274, 53, 58, 26);
-        AppContext.StyleSecondaryButton(btnProgressDemo);
-        btnProgressDemo.Click += OnProgressDemoClick;
-        panelCapabilityCard.Controls.Add(btnProgressDemo);
-
-        // Row 3: completion reminder
-        lblTool3Name = new Label();
-        lblTool3Name.Text = en ? "Completion Notice" : "完成提醒";
-        lblTool3Name.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f, FontStyle.Regular);
-        lblTool3Name.ForeColor = AppContext.Win11TextPrimary;
-        lblTool3Name.TextAlign = ContentAlignment.MiddleLeft;
-        lblTool3Name.SetBounds(14, 91, 252, 18);
-        panelCapabilityCard.Controls.Add(lblTool3Name);
-
-        lblTool3Desc = new Label();
-        lblTool3Desc.Text = en ? "Popup and sound when the agent reports completion" : "智能体报告完成后弹窗并提示音";
-        lblTool3Desc.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblTool3Desc.ForeColor = AppContext.Win11TextSecondary;
-        lblTool3Desc.SetBounds(14, 107, 252, 16);
-        panelCapabilityCard.Controls.Add(lblTool3Desc);
-
-        btnNotifyDemo = new Button();
-        btnNotifyDemo.Text = en ? "Preview" : "预览";
-        btnNotifyDemo.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-        btnNotifyDemo.SetBounds(274, 97, 58, 26);
-        AppContext.StyleSecondaryButton(btnNotifyDemo);
-        btnNotifyDemo.Click += OnNotifyDemoClick;
-        panelCapabilityCard.Controls.Add(btnNotifyDemo);
-
-        string capabilityTip1 = en ? "Human-in-the-loop decision gate for critical operations (supports 1/2/Enter shortcuts)" : "关键高危操作置顶人工决策卡片，支持 1/2/Enter 快捷选择";
-        string capabilityTip2 = en ? "Progress and status share a task card below the countdown" : "任务进度与状态显示在倒计时下方的任务卡片中";
-        string capabilityTip3 = en ? "Modal alert and sound chime when background tasks finish" : "后台耗时任务完成时弹窗与声音提醒";
-        toolTip.SetToolTip(lblTool1Name, capabilityTip1);
-        toolTip.SetToolTip(btnAskDemo, capabilityTip1);
-        toolTip.SetToolTip(lblTool2Name, capabilityTip2);
-        toolTip.SetToolTip(btnProgressDemo, capabilityTip2);
-        toolTip.SetToolTip(lblTool3Name, capabilityTip3);
-        toolTip.SetToolTip(btnNotifyDemo, capabilityTip3);
-
+        string askTip = en ? "Pauses for your choice before a critical action" : "关键操作前弹出决策卡，等你选择";
+        string statusTip = en ? "Pins the agent's current step on the desktop" : "把智能体当前步骤置顶显示在桌面";
+        string noticeTip = en ? "Popup and chime when a background task finishes" : "任务完成后弹窗，并响一声";
+        toolTip.SetToolTip(lblStatusDesc, statusTip);
+        toolTip.SetToolTip(btnProgressDemo, statusTip);
+        toolTip.SetToolTip(lblAskLine, askTip);
+        toolTip.SetToolTip(btnAskDemo, askTip);
+        toolTip.SetToolTip(lblNoticeLine, noticeTip);
+        toolTip.SetToolTip(btnNotifyDemo, noticeTip);
         AppContext.CenterFormOnScreen(this);
         SetActiveTab(lastActiveTab);
     }
@@ -863,28 +811,21 @@ internal sealed class SettingsDialog : Form
 
         if (panelSkillCard != null) panelSkillCard.Visible = isAgent;
         if (panelSessionCard != null) panelSessionCard.Visible = isAgent;
+        if (panelStatusCard != null) panelStatusCard.Visible = isAgent;
         if (panelCapCard != null) panelCapCard.Visible = isAgent;
         if (lblSkillMethod2 != null) lblSkillMethod2.Visible = isAgent;
         if (lblCliGuideHint != null) lblCliGuideHint.Visible = isAgent;
         if (btnCopyCliGuide != null) btnCopyCliGuide.Visible = isAgent;
-        if (chkDesktopCollaboration != null) chkDesktopCollaboration.Visible = isAgent;
-        if (lblSkillGuidance != null) lblSkillGuidance.Visible = isAgent;
-        foreach (Control control in Controls)
-        {
-            if (control != null && (control.Name == "lblCapabilityTitle" || control.Name == "lblCapabilitySub")) control.Visible = isAgent;
-        }
+        if (chkAgentStatusPin != null) chkAgentStatusPin.Visible = isAgent;
+        if (chkAgentDeep != null) chkAgentDeep.Visible = isAgent;
+        if (lblStatusTitle != null) lblStatusTitle.Visible = isAgent;
+        if (lblDeepTitle != null) lblDeepTitle.Visible = isAgent;
 
         UpdateTabButtons();
         TriggerQuotePreview();
         if (isAgent)
         {
-            bool collabEnabled = chkDesktopCollaboration != null && chkDesktopCollaboration.Checked;
-            if (panelCapCard != null) panelCapCard.Enabled = collabEnabled;
-            if (panelSkillCard != null) panelSkillCard.Enabled = collabEnabled;
-            if (panelSessionCard != null) panelSessionCard.Enabled = collabEnabled;
-            if (btnCopyCliGuide != null) btnCopyCliGuide.Enabled = collabEnabled;
-            if (lblSkillGuidance != null) lblSkillGuidance.Enabled = collabEnabled;
-            RefreshSkillInstallUi();
+            ApplyCollabSwitchState();
             if (agentListTimer == null)
             {
                 agentListTimer = new System.Windows.Forms.Timer();
@@ -1495,7 +1436,7 @@ internal sealed class SettingsDialog : Form
         }
         panelInstallFail.Visible = true;
         RefreshSkillInstallUi();
-        panelSkillCard.ScrollControlIntoView(panelInstallFail);
+        if (panelAgentScroll != null) panelAgentScroll.ScrollControlIntoView(panelInstallFail);
     }
 
     private void HideInstallFailure()
@@ -1533,7 +1474,7 @@ internal sealed class SettingsDialog : Form
         lblSkillFeedback.ForeColor = Color.FromArgb(180, 83, 9);
         lblSkillFeedback.Visible = true;
         RefreshSkillInstallUi();
-        panelSkillCard.ScrollControlIntoView(lblSkillFeedback);
+        if (panelAgentScroll != null) panelAgentScroll.ScrollControlIntoView(lblSkillFeedback);
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -1547,60 +1488,102 @@ internal sealed class SettingsDialog : Form
         base.OnFormClosed(e);
     }
 
+    private Label AddFeatureLine(Panel card, string text, int y, out Button preview, EventHandler onClick)
+    {
+        bool en = Value != null && Value.Language == "en";
+        Label lbl = new Label();
+        lbl.Text = text;
+        lbl.Font = AppContext.GetUiFont(en ? "en" : "zh", 9f);
+        lbl.ForeColor = AppContext.Win11TextPrimary;
+        lbl.TextAlign = ContentAlignment.MiddleLeft;
+        lbl.AutoEllipsis = true;
+        lbl.UseMnemonic = false;
+        lbl.SetBounds(14, y, 252, 36);
+        card.Controls.Add(lbl);
+        preview = new Button();
+        preview.Text = en ? "Preview" : "预览";
+        preview.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
+        preview.SetBounds(PreviewBtnX, y + 5, PreviewBtnWidth, 26);
+        AppContext.StyleSecondaryButton(preview);
+        preview.Click += onClick;
+        card.Controls.Add(preview);
+        return lbl;
+    }
+
+    private void ApplyCollabSwitchState()
+    {
+        bool pin = Value == null || Value.AgentStatusPinEnabled;
+        bool deep = Value == null || Value.AgentDeepCollabEnabled;
+        Color on = AppContext.Win11TextPrimary;
+        Color off = Color.FromArgb(156, 163, 175);
+        if (lblStatusDesc != null) lblStatusDesc.ForeColor = pin ? on : off;
+        if (lblAskLine != null) lblAskLine.ForeColor = deep ? on : off;
+        if (lblNoticeLine != null) lblNoticeLine.ForeColor = deep ? on : off;
+        RefreshSkillInstallUi();
+    }
+
     private void RefreshSkillInstallUi()
     {
-        if (lblSkillGuidance == null || panelSkillCard == null) return;
+        if (panelSkillCard == null || lblSkillMethod1 == null) return;
         bool en = Value != null && Value.Language == "en";
-        lblSkillGuidance.Text = en
-            ? "Install the skill to teach your agent:"
-            : "安装技能让智能体学会这些能力：";
-        lblSkillGuidance.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-
-        lblSkillMethod1.Text = en ? "Method 1 · Install Skill (persistent)" : "方式一 · 安装技能（持久有效）";
-        lblSkillMethod2.Text = en ? "Method 2 · Temporary enable (this session)" : "方式二 · 临时启用（本次会话）";
-        lblCliGuideHint.Text = en
-            ? "Copy the guide to your agent for\nimportant iClock alerts this session."
-            : "复制协作说明给智能体，\n本次会话通过 iClock 提醒重要进展。";
-        lblCliGuideHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        lblCliGuideHint.ForeColor = AppContext.Win11TextSecondary;
-        btnCopyCliGuide.Text = en ? "Copy guide" : "复制指引";
+        bool deep = Value == null || Value.AgentDeepCollabEnabled;
+        Color title = deep ? AppContext.Win11TextPrimary : Color.FromArgb(156, 163, 175);
+        Color sub = deep ? AppContext.Win11TextSecondary : Color.FromArgb(156, 163, 175);
+        lblSkillMethod1.Text = en ? "Install skill · stays on" : "安装技能 · 一直有效";
+        lblSkillMethod1.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Bold);
+        lblSkillMethod1.ForeColor = title;
+        if (lblSkillMethod2 != null)
+        {
+            lblSkillMethod2.Text = en ? "Send a prompt * this session" : "发提示词 * 会话内有效";
+            lblSkillMethod2.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Bold);
+            lblSkillMethod2.ForeColor = title;
+        }
+        if (lblCliGuideHint != null)
+        {
+            lblCliGuideHint.Text = en ? "Paste a prompt to enable it." : "贴一段提示词即可。";
+            lblCliGuideHint.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+            lblCliGuideHint.ForeColor = sub;
+        }
+        if (btnCopyCliGuide != null)
+        {
+            btnCopyCliGuide.Text = en ? "Copy prompt" : "复制提示词";
+            btnCopyCliGuide.Enabled = deep;
+        }
 
         BuildAgentRows(en, false);
 
         bool hasAgents = panelAgentRows.Controls.Count > 0;
-
-        // Method 1 block: title then agent rows (or the empty-state text).
-        lblSkillMethod1.SetBounds(14, 6, 300, 16);
-        int y = lblSkillMethod1.Bottom;
-        panelAgentRows.Top = y;
-        y = panelAgentRows.Bottom;
+        panelAgentRows.Top = 0;
+        int y = panelAgentRows.Height;
 
         lblAgentEmpty.Visible = !hasAgents;
         if (!hasAgents)
         {
             lblAgentEmpty.Text = en
-                ? "No running agent detected. Start one (e.g. Codex, Cursor) to install."
-                : "未检测到运行中的智能体。请先启动（如 Codex、Cursor）以安装技能。";
+                ? "Start an agent such as Cursor or Codex, then install."
+                : "先打开 Cursor、Codex 等，再点安装。";
             lblAgentEmpty.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-            lblAgentEmpty.SetBounds(14, y, 300, 20);
+            lblAgentEmpty.ForeColor = sub;
+            lblAgentEmpty.SetBounds(14, y + 8, 300, 32);
             y = lblAgentEmpty.Bottom;
         }
 
         bool showFail = panelInstallFail != null && panelInstallFail.Visible;
-        int contentBottom = y;
         if (showFail)
         {
-            panelInstallFail.Top = contentBottom + 6;
+            panelInstallFail.Top = y + 6;
             lblSkillFeedback.Visible = false;
+            y = panelInstallFail.Bottom;
         }
-        else
+        else if (lblSkillFeedback != null)
         {
-            lblSkillFeedback.Top = contentBottom + 6;
+            lblSkillFeedback.Top = y + 6;
             lblSkillFeedback.Visible = !string.IsNullOrEmpty(lblSkillFeedback.Text);
+            lblSkillFeedback.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
+            if (lblSkillFeedback.Visible) y = lblSkillFeedback.Bottom;
         }
-        lblSkillFeedback.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-        int minHeight = (showFail ? panelInstallFail.Bottom : (lblSkillFeedback.Visible ? lblSkillFeedback.Bottom : contentBottom)) + 4;
-        panelSkillCard.AutoScrollMinSize = new Size(0, minHeight);
+        if (panelAgentScroll != null)
+            panelAgentScroll.AutoScrollMinSize = new Size(0, y + 4);
     }
 
     private void BuildAgentRows(bool en, bool force)
@@ -1608,7 +1591,9 @@ internal sealed class SettingsDialog : Form
         // Fingerprint = agent names + per-agent install state + language.
         // Skip the rebuild entirely when nothing changed so the list doesn't flicker.
         List<string> running = AppContext.DetectAgents();
+        bool deepOn = Value == null || Value.AgentDeepCollabEnabled;
         StringBuilder fps = new StringBuilder(en ? "en|" : "zh|");
+        fps.Append(deepOn ? "deep|" : "off|");
         foreach (string a in running) { fps.Append(a); fps.Append('='); fps.Append(CliSkillInstaller.IsInstalled(a)); fps.Append(';'); }
         string fp = fps.ToString();
         // Rows contribute 3 controls each (dot, name, button); dividers contribute running.Count - 1.
@@ -1642,25 +1627,29 @@ internal sealed class SettingsDialog : Form
             Label name = new Label();
             name.Text = agent;
             name.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-            name.ForeColor = AppContext.Win11TextPrimary;
+            name.ForeColor = deepOn ? AppContext.Win11TextPrimary : Color.FromArgb(156, 163, 175);
             name.TextAlign = ContentAlignment.MiddleLeft;
-            // Button is right-aligned to the row (16px inner margin), so the
-            // agent name takes whatever space is left of it.
-            int btnX = panelAgentRows.Width - 82 - 16;
+            // Same right edge as the preview buttons. The copy-prompt button uses this width too.
+            int hostW = panelAgentScroll != null && panelAgentScroll.ClientSize.Width > 0
+                ? panelAgentScroll.ClientSize.Width : AgentCardWidth;
+            panelAgentRows.Width = hostW;
+            int btnRight = PreviewBtnX + PreviewBtnWidth - panelAgentScroll.Left;
+            if (btnRight > hostW - 4) btnRight = hostW - 4;
+            int btnX = btnRight - AgentActionBtnWidth;
             name.SetBounds(32, y, Math.Max(80, btnX - 32 - 8), rowHeight);
             panelAgentRows.Controls.Add(name);
 
             Button btn = new Button();
             btn.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
-            btn.SetBounds(btnX, y + (rowHeight - 24) / 2, 82, 24);
+            btn.SetBounds(btnX, y + (rowHeight - 24) / 2, AgentActionBtnWidth, 24);
             btn.Tag = agent;
             // Solid fill, no border: reduces line-noise against the row divider.
             btn.FlatStyle = FlatStyle.Flat;
             btn.FlatAppearance.BorderSize = 0;
-            btn.Cursor = rowInstalled ? Cursors.Default : Cursors.Hand;
-            if (rowInstalled)
+            btn.Cursor = (rowInstalled || !deepOn) ? Cursors.Default : Cursors.Hand;
+            if (rowInstalled || !deepOn)
             {
-                btn.Text = en ? "Installed ✓" : "已安装 ✓";
+                btn.Text = rowInstalled ? (en ? "Installed ✓" : "已安装 ✓") : (en ? "Install" : "安装技能");
                 btn.Enabled = false;
                 btn.BackColor = Color.FromArgb(229, 231, 235);
                 btn.ForeColor = Color.FromArgb(107, 114, 128);
@@ -1692,32 +1681,51 @@ internal sealed class SettingsDialog : Form
         panelAgentRows.ResumeLayout();
     }
 
-    private void OnDesktopCollaborationChanged(object sender, EventArgs e)
+    private void OnAgentStatusPinChanged(object sender, EventArgs e)
     {
-        bool enabled = chkDesktopCollaboration.Checked;
+        bool enabled = chkAgentStatusPin.Checked;
         bool en = Value.Language == "en";
-        if (!enabled && AppContext.Current != null && AppContext.Current.HasActiveDesktopCollaboration)
+        if (!enabled && AppContext.Current != null && AppContext.Current.HasAgentStatus)
         {
             DialogResult result = MessageBox.Show(this,
-                en ? "Disabling desktop collaboration will cancel the active approval and clear agent task status. Continue?"
-                   : "停用桌面协作会取消当前审批并清除智能体任务状态。是否继续？",
-                en ? "Disable Desktop Collaboration?" : "停用桌面协作？",
+                en ? "Turning this off hides the desktop status line. Continue?"
+                   : "关闭后会收起状态条。是否继续？",
+                en ? "Hide agent status?" : "收起状态条？",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
             if (result != DialogResult.Yes)
             {
-                chkDesktopCollaboration.Checked = true;
+                chkAgentStatusPin.Checked = true;
                 return;
             }
         }
-        Value.DesktopCollaborationEnabled = enabled;
+        Value.AgentStatusPinEnabled = enabled;
         Value.Save();
-        if (!enabled && AppContext.Current != null) AppContext.Current.CancelDesktopCollaboration();
-        if (panelCapCard != null) panelCapCard.Enabled = enabled;
-        if (panelSkillCard != null) panelSkillCard.Enabled = enabled;
-        if (panelSessionCard != null) panelSessionCard.Enabled = enabled;
-        if (btnCopyCliGuide != null) btnCopyCliGuide.Enabled = enabled;
-        if (lblSkillGuidance != null) lblSkillGuidance.Enabled = enabled;
-        RefreshSkillInstallUi();
+        if (!enabled && AppContext.Current != null) AppContext.Current.ClearAgentProgress();
+        if (AppContext.Current != null) AppContext.Current.ApplyAgentCollabSettings();
+        ApplyCollabSwitchState();
+    }
+
+    private void OnAgentDeepChanged(object sender, EventArgs e)
+    {
+        bool enabled = chkAgentDeep.Checked;
+        bool en = Value.Language == "en";
+        if (!enabled && AppContext.Current != null && AppContext.Current.HasActiveAsk)
+        {
+            DialogResult result = MessageBox.Show(this,
+                en ? "Turning this off cancels the current approval. Continue?"
+                   : "关闭后会取消当前审批。是否继续？",
+                en ? "Turn off deep collaboration?" : "关闭深度协作？",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (result != DialogResult.Yes)
+            {
+                chkAgentDeep.Checked = true;
+                return;
+            }
+        }
+        Value.AgentDeepCollabEnabled = enabled;
+        Value.Save();
+        if (!enabled && AppContext.Current != null) AppContext.Current.CancelActiveAsk();
+        ApplyCollabSwitchState();
     }
 
     private void OnAskDemoClick(object sender, EventArgs e)
@@ -1762,16 +1770,20 @@ internal sealed class SettingsDialog : Form
         );
         notifyDemo.Show();
     }
-    private static void OnCapabilityCardPaint(object sender, PaintEventArgs pe)
+    private static void OnFeatureCardPaint(object sender, PaintEventArgs pe)
     {
         Control pnl = (Control)sender;
         using (Pen p = new Pen(AppContext.Win11Border, 1f))
             pe.Graphics.DrawRectangle(p, 0, 0, pnl.Width - 1, pnl.Height - 1);
         using (Pen divPen = new Pen(Color.FromArgb(238, 240, 244), 1f))
-        {
-            pe.Graphics.DrawLine(divPen, 10, 44, pnl.Width - 10, 44);
-            pe.Graphics.DrawLine(divPen, 10, 88, pnl.Width - 10, 88);
-        }
+            pe.Graphics.DrawLine(divPen, 14, 42, pnl.Width - 14, 42);
+    }
+
+    private static void OnSkillFooterPaint(object sender, PaintEventArgs pe)
+    {
+        Control card = (Control)sender;
+        using (Pen p = new Pen(Color.FromArgb(229, 231, 235), 1f))
+            pe.Graphics.DrawLine(p, 12, 0, card.Width - 12, 0);
     }
 
     private bool DialogEnglish()
@@ -1877,42 +1889,49 @@ internal sealed class SettingsDialog : Form
             lblCardQuoteAuthor.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8.5f, FontStyle.Italic);
         }
 
-        RefreshSkillInstallUi();
-        foreach (Control control in Controls)
+        if (lblStatusTitle != null)
         {
-            if (control != null && control.Name == "lblCapabilityTitle")
-            {
-                control.Text = toEnglish ? "Enable AI collaboration" : "开启 AI 协作 给智能体赋能";
-                control.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Bold);
-            }
-            else if (control != null && control.Name == "lblCapabilitySub")
-            {
-                control.Text = toEnglish
-                    ? "iClock brings you back with pinned alerts while agents run in background."
-                    : "智能体后台运行时，通过 iClock 置顶提醒重要进展。";
-                control.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f);
-            }
+            lblStatusTitle.Text = toEnglish ? "Agent status sensing" : "智能体状态自动感知";
+            lblStatusTitle.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Bold);
+        }
+        if (lblDeepTitle != null)
+        {
+            lblDeepTitle.Text = toEnglish ? "Deep collaboration while running" : "智能体运行深度协作";
+            lblDeepTitle.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Bold);
+        }
+        if (lblStatusDesc != null)
+        {
+            lblStatusDesc.Text = toEnglish ? "Pin background agent status on the desktop" : "桌面置顶显示后台运行的智能体状态";
+            lblStatusDesc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f);
+        }
+        if (lblAskLine != null)
+        {
+            lblAskLine.Text = toEnglish ? "Decision popup asks you before a critical step." : "智能体运行决策弹窗向你请示。";
+            lblAskLine.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f);
+        }
+        if (lblNoticeLine != null)
+        {
+            lblNoticeLine.Text = toEnglish ? "Popup and sound when the task finishes" : "任务完成后弹窗+声音提示";
+            lblNoticeLine.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f);
         }
         if (btnAskDemo != null) btnAskDemo.Text = toEnglish ? "Preview" : "预览";
         if (btnProgressDemo != null) btnProgressDemo.Text = toEnglish ? "Preview" : "预览";
         if (btnNotifyDemo != null) btnNotifyDemo.Text = toEnglish ? "Preview" : "预览";
-        if (lblTool1Name != null) { lblTool1Name.Text = toEnglish ? "Decision Gate" : "决策请示"; lblTool1Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
-        if (lblTool1Desc != null) { lblTool1Desc.Text = toEnglish ? "Pause for your approval before critical actions" : "关键操作前暂停，等待你确认"; lblTool1Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
-        if (lblTool2Name != null) { lblTool2Name.Text = toEnglish ? "Task Status" : "任务状态"; lblTool2Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
-        if (lblTool2Desc != null) { lblTool2Desc.Text = toEnglish ? "Show task progress and current status together" : "同时显示任务进度与当前状态"; lblTool2Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
-        if (lblTool3Name != null) { lblTool3Name.Text = toEnglish ? "Completion Notice" : "完成提醒"; lblTool3Name.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 9f, FontStyle.Regular); }
-        if (lblTool3Desc != null) { lblTool3Desc.Text = toEnglish ? "Popup and sound when the agent reports completion" : "智能体报告完成后弹窗并提示音"; lblTool3Desc.Font = AppContext.GetUiFont(toEnglish ? "en" : "zh", 8f); }
+        RefreshSkillInstallUi();
+        ApplyCollabSwitchState();
         if (toolTip != null)
         {
-            string capabilityTip1 = toEnglish ? "Human-in-the-loop decision gate for critical operations (supports 1/2/Enter shortcuts)" : "关键高危操作置顶人工决策卡片，支持 1/2/Enter 快捷选择";
-            string capabilityTip2 = toEnglish ? "Progress and status share a task card below the countdown" : "任务进度与状态显示在倒计时下方的任务卡片中";
-            string capabilityTip3 = toEnglish ? "Modal alert and sound chime when background tasks finish" : "后台耗时任务完成时弹窗与声音提醒";
-            if (lblTool1Name != null) toolTip.SetToolTip(lblTool1Name, capabilityTip1);
-            if (btnAskDemo != null) toolTip.SetToolTip(btnAskDemo, capabilityTip1);
-            if (lblTool2Name != null) toolTip.SetToolTip(lblTool2Name, capabilityTip2);
-            if (btnProgressDemo != null) toolTip.SetToolTip(btnProgressDemo, capabilityTip2);
-            if (lblTool3Name != null) toolTip.SetToolTip(lblTool3Name, capabilityTip3);
-            if (btnNotifyDemo != null) toolTip.SetToolTip(btnNotifyDemo, capabilityTip3);
+            string statusTip = toEnglish ? "Pins the agent's current step on the desktop" : "把智能体当前步骤置顶显示在桌面";
+            string askTip = toEnglish ? "Pauses for your choice before a critical action" : "关键操作前弹出决策卡，等你选择";
+            string noticeTip = toEnglish ? "Popup and chime when a background task finishes" : "任务完成后弹窗，并响一声";
+            if (lblStatusDesc != null) toolTip.SetToolTip(lblStatusDesc, statusTip);
+            if (btnProgressDemo != null) toolTip.SetToolTip(btnProgressDemo, statusTip);
+            if (lblAskLine != null) toolTip.SetToolTip(lblAskLine, askTip);
+            if (btnAskDemo != null) toolTip.SetToolTip(btnAskDemo, askTip);
+            if (lblNoticeLine != null) toolTip.SetToolTip(lblNoticeLine, noticeTip);
+            if (btnNotifyDemo != null) toolTip.SetToolTip(btnNotifyDemo, noticeTip);
+            if (chkAgentStatusPin != null) toolTip.SetToolTip(chkAgentStatusPin, toEnglish ? "Show what a background agent is doing, pinned on the desktop." : "感知后台智能体，并把状态置顶到桌面。");
+            if (chkAgentDeep != null) toolTip.SetToolTip(chkAgentDeep, toEnglish ? "Accept decision popups and completion alerts from the agent." : "接收智能体的决策请示和完成提醒。");
         }
         if (panelQuoteCard != null) panelQuoteCard.Invalidate();
 
