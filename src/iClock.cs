@@ -2618,9 +2618,37 @@ internal sealed class AppContext : ApplicationContext
         return p.Contains("windowsterminal") || p == "pwsh" || p == "powershell" || p == "cmd" || p == "code" || p.Contains("cursor") || p.Contains("wezterm") || p.Contains("alacritty") || p.Contains("mintty");
     }
 
-    // Set while a top-level window is minimizing. Windows often leaves that
-    // window as the foreground window, so a foreground-only hook never fires.
+    // The window that just left the desktop. Cleared only after a restored
+    // window is actually in front — MINIMIZEEND still means "minimized".
     internal static IntPtr LeavingDesktopHwnd = IntPtr.Zero;
+    internal static int LeavingDesktopTick;
+
+    internal static IntPtr RootWindow(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return IntPtr.Zero;
+        IntPtr root = NativeMethods.GetAncestor(hwnd, NativeMethods.GA_ROOT);
+        return root == IntPtr.Zero ? hwnd : root;
+    }
+
+    internal static bool IsWindowMinimized(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd)) return false;
+        if (NativeMethods.IsIconic(hwnd)) return true;
+        try
+        {
+            WINDOWPLACEMENT wp = new WINDOWPLACEMENT();
+            wp.length = System.Runtime.InteropServices.Marshal.SizeOf(typeof(WINDOWPLACEMENT));
+            if (NativeMethods.GetWindowPlacement(hwnd, ref wp))
+            {
+                int cmd = wp.showCmd;
+                if (cmd == 2 || cmd == 6 || cmd == 7) return true;
+            }
+            RECT r;
+            if (NativeMethods.GetWindowRect(hwnd, out r) && (r.Left <= -32000 || r.Top <= -32000)) return true;
+        }
+        catch { }
+        return false;
+    }
 
     internal static bool IsAgentWindowInForeground(string agentName)
     {
@@ -2628,7 +2656,14 @@ internal sealed class AppContext : ApplicationContext
         {
             IntPtr fg = NativeMethods.GetForegroundWindow();
             if (fg == IntPtr.Zero) return false;
-            if (NativeMethods.IsIconic(fg) || fg == LeavingDesktopHwnd) return false;
+            IntPtr fgRoot = RootWindow(fg);
+            if (IsWindowMinimized(fg) || IsWindowMinimized(fgRoot)) return false;
+            IntPtr leave = LeavingDesktopHwnd;
+            if (leave != IntPtr.Zero)
+            {
+                IntPtr leaveRoot = RootWindow(leave);
+                if (fg == leave || fgRoot == leave || fg == leaveRoot || fgRoot == leaveRoot) return false;
+            }
             return WindowBelongsToAgent(fg, agentName);
         }
         catch { }

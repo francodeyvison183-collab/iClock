@@ -1735,6 +1735,24 @@ internal static class TestCheck
                         Console.WriteLine("FAIL: Cursor follow-up must replace Topic: " + curMsg);
                         return 82;
                     }
+                    string phaseSub = curTask != null ? (string)curTask.GetType().GetField("SubDetail", bf).GetValue(curTask) : "";
+                    if (phaseSub.IndexOf("计划下一步", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: model call with no step yet must show 计划下一步: " + phaseSub);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(cursorSem,
+                        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"thinking\",\"thinking\":\"先确认状态条该跟模型调用的阶段。\"}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { cursorSem, "CursorHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    curTask = findTask24d.Invoke(app, new object[] { "CursorHUD" });
+                    phaseSub = curTask != null ? (string)curTask.GetType().GetField("SubDetail", bf).GetValue(curTask) : "";
+                    if (phaseSub.IndexOf("正在思考", StringComparison.Ordinal) < 0 || phaseSub.IndexOf("模型调用", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: a thinking block during the model call must show 正在思考: " + phaseSub);
+                        return 82;
+                    }
 
                     System.IO.File.AppendAllText(cursorSem,
                         "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"先看倒计时设置页的通用配置项。\"},{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"path\":\"src/Countdown.cs\"}}]}}\r\n",
@@ -2196,6 +2214,58 @@ internal static class TestCheck
                     return 83;
                 }
                 if (clearProg24e != null) clearProg24e.Invoke(app, new object[] { "QueueHUD" });
+                setMsg24e.Invoke(app, new object[] { "⏳ [思考] 处理中...", "ThoughtHUD", true, "💭 先核对边框是被子控件盖住的", null, -1f, now24e, "thought-sem" });
+                setMsg24e.Invoke(app, new object[] { "⏳ [思考] 处理中...", "ThoughtHUD", true, "read_file: SettingsDialog.cs", null, -1f, now24e, "thought-sem" });
+                setMsg24e.Invoke(app, new object[] { "⏳ [思考] 处理中...", "ThoughtHUD", true, "search: OnCardPaint", null, -1f, now24e, "thought-sem" });
+                System.Windows.Forms.Application.DoEvents();
+                object thTask = findTask24e.Invoke(app, new object[] { "ThoughtHUD" });
+                string thSub = thTask != null ? (string)thTask.GetType().GetField("SubDetail", bf).GetValue(thTask) : "";
+                if (thSub.IndexOf("边框", StringComparison.Ordinal) < 0 || thSub.IndexOf("SettingsDialog", StringComparison.Ordinal) >= 0 || thSub.IndexOf("OnCardPaint", StringComparison.Ordinal) >= 0)
+                {
+                    Console.WriteLine("FAIL: read or search must not cover the current thought: " + thSub);
+                    return 83;
+                }
+                setMsg24e.Invoke(app, new object[] { "⏳ [思考] 处理中...", "ThoughtHUD", true, "edit_file: SettingsDialog.cs", null, -1f, now24e, "thought-sem" });
+                System.Windows.Forms.Application.DoEvents();
+                thTask = findTask24e.Invoke(app, new object[] { "ThoughtHUD" });
+                thSub = thTask != null ? (string)thTask.GetType().GetField("SubDetail", bf).GetValue(thTask) : "";
+                if (thSub.IndexOf("SettingsDialog", StringComparison.Ordinal) < 0)
+                {
+                    Console.WriteLine("FAIL: an edit must replace the thought: " + thSub);
+                    return 83;
+                }
+                setMsg24e.Invoke(app, new object[] { "⏳ [思考] 处理中...", "ThoughtHUD", true, "💭 改完后要留出边框那一像素", null, -1f, now24e, "thought-sem" });
+                setMsg24e.Invoke(app, new object[] { "⏳ [思考] 处理中...", "ThoughtHUD", true, "⚡ build.ps1", null, -1f, now24e, "thought-sem" });
+                System.Windows.Forms.Application.DoEvents();
+                thTask = findTask24e.Invoke(app, new object[] { "ThoughtHUD" });
+                thSub = thTask != null ? (string)thTask.GetType().GetField("SubDetail", bf).GetValue(thTask) : "";
+                if (thSub.IndexOf("build.ps1", StringComparison.Ordinal) < 0)
+                {
+                    Console.WriteLine("FAIL: a run must replace the thought: " + thSub);
+                    return 83;
+                }
+                setMsg24e.Invoke(app, new object[] { "⏳ [阶段] 处理中...", "PhaseHUD", true, "计划下一步", null, -1f, now24e, "phase-sem" });
+                setMsg24e.Invoke(app, new object[] { "⏳ [阶段] 处理中...", "PhaseHUD", true, "read_file: PhaseRead.cs", null, -1f, now24e, "phase-sem" });
+                System.Windows.Forms.Application.DoEvents();
+                object phaseTask = findTask24e.Invoke(app, new object[] { "PhaseHUD" });
+                string phaseHud = phaseTask != null ? (string)phaseTask.GetType().GetField("SubDetail", bf).GetValue(phaseTask) : "";
+                if (phaseHud.IndexOf("PhaseRead", StringComparison.Ordinal) < 0)
+                {
+                    Console.WriteLine("FAIL: a step must replace 计划下一步: " + phaseHud);
+                    return 83;
+                }
+                setMsg24e.Invoke(app, new object[] { "⏳ [阶段] 处理中...", "PhaseHUD", true, "正在思考 · 先看阶段", null, -1f, now24e, "phase-sem" });
+                setMsg24e.Invoke(app, new object[] { "⏳ [阶段] 处理中...", "PhaseHUD", true, "read_file: HiddenRead.cs", null, -1f, now24e, "phase-sem" });
+                System.Windows.Forms.Application.DoEvents();
+                phaseTask = findTask24e.Invoke(app, new object[] { "PhaseHUD" });
+                phaseHud = phaseTask != null ? (string)phaseTask.GetType().GetField("SubDetail", bf).GetValue(phaseTask) : "";
+                if (phaseHud.IndexOf("先看阶段", StringComparison.Ordinal) < 0 || phaseHud.IndexOf("HiddenRead", StringComparison.Ordinal) >= 0)
+                {
+                    Console.WriteLine("FAIL: a read must not cover 正在思考: " + phaseHud);
+                    return 83;
+                }
+                if (clearProg24e != null) clearProg24e.Invoke(app, new object[] { "ThoughtHUD" });
+                if (clearProg24e != null) clearProg24e.Invoke(app, new object[] { "PhaseHUD" });
                 Console.WriteLine("PASS: HUD shows the latest status immediately and waiting still interrupts.");
             }
 

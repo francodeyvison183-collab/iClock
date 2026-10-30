@@ -292,6 +292,7 @@ internal sealed partial class AgentSessionWatcher
         {
             s.CurrentTurn = text;
             s.Version++;
+            s.AwaitingModel = true;
             s.PendingQuestion = s.PendingError = "";
             s.LastWasGeneric = false;
             bool wasWaiting = s.State == TurnState.Waiting;
@@ -325,6 +326,7 @@ internal sealed partial class AgentSessionWatcher
                 s.LowReadCount = 0;
                 s.LastHighAction = "";
                 s.LastNodeIsThought = false;
+                s.AwaitingModel = true;
                 s.Node = "";
                 s.BatchNodes.Clear();
             }
@@ -336,11 +338,11 @@ internal sealed partial class AgentSessionWatcher
         if (s == null || string.IsNullOrEmpty(text)) return;
         if (s.BatchNodes.Count > 0 && string.Equals(s.BatchNodes[s.BatchNodes.Count - 1], text, StringComparison.Ordinal))
             return;
-        bool isThought = text.StartsWith("\ud83d\udcad") || text.StartsWith("\u2687");
+        bool isThought = IsThinkingBatchNode(text);
         if (isThought && s.BatchNodes.Count > 0)
         {
             string last = s.BatchNodes[s.BatchNodes.Count - 1];
-            if (last.StartsWith("\ud83d\udcad") || last.StartsWith("\u2687"))
+            if (IsThinkingBatchNode(last))
             {
                 s.BatchNodes[s.BatchNodes.Count - 1] = text;
                 return;
@@ -349,7 +351,24 @@ internal sealed partial class AgentSessionWatcher
         s.BatchNodes.Add(text);
     }
 
-    private void NoteThought(TurnSession s, string thought)
+    private static bool IsThinkingBatchNode(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        if (text.StartsWith("\ud83d\udcad") || text.StartsWith("\u2687")) return true;
+        if (text.StartsWith("\u6b63\u5728\u601d\u8003")) return true;
+        return text.StartsWith("Thinking");
+    }
+
+    private static string FormatAgentPhase(bool thinking, string sentence, bool isZh)
+    {
+        string label = thinking
+            ? (isZh ? "\u6b63\u5728\u601d\u8003" : "Thinking")
+            : (isZh ? "\u8ba1\u5212\u4e0b\u4e00\u6b65" : "Planning next moves");
+        if (string.IsNullOrEmpty(sentence)) return label;
+        return label + " \u00b7 " + sentence;
+    }
+
+    private void NoteThought(TurnSession s, string thought, bool isZh)
     {
         if (string.IsNullOrEmpty(thought)) return;
         lock (syncLock)
@@ -359,9 +378,25 @@ internal sealed partial class AgentSessionWatcher
             s.Version++;
             s.LastWasGeneric = false;
             s.LastNodeIsThought = true;
+            s.AwaitingModel = false;
             s.PendingQuestion = s.PendingError = "";
         }
-        OfferBatchNode(s, "\ud83d\udcad " + thought);
+        OfferBatchNode(s, FormatAgentPhase(true, thought, isZh));
+    }
+
+    private void NoteThinkingPhase(TurnSession s, bool isZh)
+    {
+        lock (syncLock)
+        {
+            if (!string.IsNullOrEmpty(s.Thought)) return;
+            s.State = TurnState.Processing;
+            s.Version++;
+            s.LastWasGeneric = false;
+            s.LastNodeIsThought = true;
+            s.AwaitingModel = false;
+            s.PendingQuestion = s.PendingError = "";
+        }
+        OfferBatchNode(s, FormatAgentPhase(true, null, isZh));
     }
 
     private void NoteTool(TurnSession s, Dictionary<string, object> data, string summary, bool isZh)
@@ -380,6 +415,7 @@ internal sealed partial class AgentSessionWatcher
             s.Version++;
             s.LastWasGeneric = false;
             s.LastNodeIsThought = false;
+            s.AwaitingModel = false;
             s.PendingQuestion = s.PendingError = "";
             s.Conclusion = "";
             if (rank <= 1)
@@ -469,6 +505,7 @@ internal sealed partial class AgentSessionWatcher
         int lowN;
         bool genericKeep;
         bool lastThought;
+        bool awaitingModel;
         lock (syncLock)
         {
             session.State = TurnState.Processing;
@@ -478,6 +515,7 @@ internal sealed partial class AgentSessionWatcher
             lowN = session.LowReadCount;
             genericKeep = outcome.GenericKeep || session.LastWasGeneric;
             lastThought = session.LastNodeIsThought;
+            awaitingModel = session.AwaitingModel;
             if (session.ActiveStep > 0 && session.TotalSteps > 0)
             {
                 progress = (float)session.ActiveStep / session.TotalSteps;
@@ -498,11 +536,13 @@ internal sealed partial class AgentSessionWatcher
 
         string subDetail;
         if (genericKeep) subDetail = !string.IsNullOrEmpty(formattedLast) ? ("✓ " + formattedLast) : authenticAction;
-        else if (lastThought && !string.IsNullOrEmpty(thought)) subDetail = "💭 " + thought;
+        else if (lastThought && !string.IsNullOrEmpty(thought)) subDetail = FormatAgentPhase(true, thought, isZh);
         else if (!string.IsNullOrEmpty(authenticAction)) subDetail = authenticAction;
-        else if (!string.IsNullOrEmpty(thought)) subDetail = "💭 " + thought;
+        else if (!string.IsNullOrEmpty(thought)) subDetail = FormatAgentPhase(true, thought, isZh);
         else if (!string.IsNullOrEmpty(stepProgressText)) subDetail = "[" + session.ActiveStep + "/" + session.TotalSteps + "]" + (!string.IsNullOrEmpty(activeDesc) ? (" " + activeDesc) : "");
         else subDetail = formattedLast;
+        if (string.IsNullOrEmpty(subDetail) && awaitingModel)
+            subDetail = FormatAgentPhase(false, null, isZh);
 
         session.Node = subDetail;
         string procMsg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
@@ -573,7 +613,8 @@ internal sealed partial class AgentSessionWatcher
         bool hasTool = PartsHaveTool(parts);
         string narr = ExtractAssistantNarration(parts, hasTool);
         string thought = ExtractThoughtFromParts(parts) ?? (hasTool ? narr : null);
-        if (!string.IsNullOrEmpty(thought)) NoteThought(session, thought);
+        if (!string.IsNullOrEmpty(thought)) NoteThought(session, thought, isZh);
+        else if (!hasTool && PartsHaveThinking(parts)) NoteThinkingPhase(session, isZh);
         if (hasTool)
         {
             NoteTool(session, data, ExtractToolSummary(data, isZh), isZh);
@@ -584,7 +625,7 @@ internal sealed partial class AgentSessionWatcher
         if (!string.IsNullOrEmpty(narr))
         {
             session.Conclusion = narr;
-            NoteThought(session, ExtractThoughtSlice(data) ?? FirstSentence(narr));
+            NoteThought(session, ExtractThoughtSlice(data) ?? FirstSentence(narr), isZh);
         }
     }
 
@@ -641,7 +682,7 @@ internal sealed partial class AgentSessionWatcher
         }
 
         string thought = ExtractThoughtFromParts(parts) ?? ExtractThoughtSlice(data);
-        if (!string.IsNullOrEmpty(thought)) NoteThought(session, thought);
+        if (!string.IsNullOrEmpty(thought)) NoteThought(session, thought, isZh);
 
         bool hasTool = PartsHaveTool(parts);
         if (hasTool)
@@ -712,7 +753,7 @@ internal sealed partial class AgentSessionWatcher
         }
 
         string thought = ExtractCodexThought(data, payload, item);
-        if (!string.IsNullOrEmpty(thought)) NoteThought(session, thought);
+        if (!string.IsNullOrEmpty(thought)) NoteThought(session, thought, isZh);
 
         string tool = ExtractToolSummary(data, isZh);
         if (!string.IsNullOrEmpty(tool))
@@ -775,7 +816,7 @@ internal sealed partial class AgentSessionWatcher
 
         bool hasTool = data.ContainsKey("tool_calls") && data["tool_calls"] is IList && ((IList)data["tool_calls"]).Count > 0;
         string thought = ExtractThoughtSlice(data);
-        if (!string.IsNullOrEmpty(thought)) NoteThought(session, thought);
+        if (!string.IsNullOrEmpty(thought)) NoteThought(session, thought, isZh);
 
         if (hasTool)
         {
@@ -858,7 +899,7 @@ internal sealed partial class AgentSessionWatcher
         }
 
         string thought = ExtractThoughtFromParts(parts) ?? ExtractThoughtSlice(body) ?? ExtractThoughtSlice(data);
-        if (!string.IsNullOrEmpty(thought)) NoteThought(session, thought);
+        if (!string.IsNullOrEmpty(thought)) NoteThought(session, thought, isZh);
 
         bool hasTool = PartsHaveTool(parts) ||
                        (data.ContainsKey("tool_calls") && data["tool_calls"] is IList && ((IList)data["tool_calls"]).Count > 0) ||
@@ -948,6 +989,21 @@ internal sealed partial class AgentSessionWatcher
         if (d == null) return null;
         if (d.ContainsKey("content") && d["content"] is IList) return (IList)d["content"];
         return null;
+    }
+
+    private static bool PartsHaveThinking(IList parts)
+    {
+        if (parts == null) return false;
+        foreach (object item in parts)
+        {
+            Dictionary<string, object> part = item as Dictionary<string, object>;
+            if (part == null) continue;
+            string pType = part.ContainsKey("type") ? part["type"] as string : null;
+            if ("thinking".Equals(pType) || "reasoning".Equals(pType) || part.ContainsKey("thinking") || part.ContainsKey("reasoning_content"))
+                return true;
+            if (part.ContainsKey("thought") && Equals(part["thought"], true)) return true;
+        }
+        return false;
     }
 
     private static bool PartsHaveTool(IList parts)

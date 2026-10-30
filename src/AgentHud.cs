@@ -61,7 +61,7 @@ internal sealed class AgentTaskStatus
         string s = (text ?? "").Trim();
         if (s.Length == 0) return 2;
         if (s.StartsWith("\u2713") || s.StartsWith("\u2714")) return -1;
-        if (s.Length >= 2 && s[0] == '\uD83D' && s[1] == '\uDCAD') return 5;
+        if (IsThoughtDetail(s)) return 5;
         if (s.StartsWith("\u2753") || s.StartsWith("\u8bf7\u786e\u8ba4") || s.StartsWith("Confirm:"))
         {
             interrupt = true;
@@ -120,9 +120,21 @@ internal sealed class AgentTaskStatus
             return;
         }
         if (string.IsNullOrEmpty(text)) return;
+        // A read or search is not a new decision. Keep the thought already on screen.
+        if ((level == 3 || level == 4) && IsThoughtDetail(SubDetail)) return;
         SubDetail = text;
         DetailLevel = level;
         DetailShownTick = Environment.TickCount;
+    }
+
+    private static bool IsThoughtDetail(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        if (text.StartsWith("\uD83D\uDCAD")) return true;
+        // Same words the agent shows once a model call has started reasoning.
+        if (text.StartsWith("\u6b63\u5728\u601d\u8003 \u00b7 ")) return true;
+        if (text.StartsWith("Thinking \u00b7 ")) return true;
+        return false;
     }
 }
 
@@ -403,13 +415,29 @@ internal sealed class AgentTaskStatusHud : Form
         try
         {
             if (eventType == NativeMethods.EVENT_SYSTEM_MINIMIZESTART)
-                AppContext.LeavingDesktopHwnd = hwnd;
-            else if (eventType == NativeMethods.EVENT_SYSTEM_MINIMIZEEND)
             {
-                if (AppContext.LeavingDesktopHwnd == hwnd) AppContext.LeavingDesktopHwnd = IntPtr.Zero;
+                IntPtr root = AppContext.RootWindow(hwnd);
+                IntPtr fgRoot = AppContext.RootWindow(NativeMethods.GetForegroundWindow());
+                if (root != IntPtr.Zero && root == fgRoot)
+                {
+                    AppContext.LeavingDesktopHwnd = fgRoot != IntPtr.Zero ? fgRoot : root;
+                    AppContext.LeavingDesktopTick = Environment.TickCount;
+                }
             }
-            else if (hwnd != AppContext.LeavingDesktopHwnd)
-                AppContext.LeavingDesktopHwnd = IntPtr.Zero;
+            else if (eventType != NativeMethods.EVENT_SYSTEM_MINIMIZEEND)
+            {
+                IntPtr leave = AppContext.LeavingDesktopHwnd;
+                if (leave != IntPtr.Zero)
+                {
+                    IntPtr fgRoot = AppContext.RootWindow(hwnd);
+                    IntPtr leaveRoot = AppContext.RootWindow(leave);
+                    bool same = hwnd == leave || fgRoot == leave || fgRoot == leaveRoot;
+                    bool minimized = AppContext.IsWindowMinimized(hwnd) || AppContext.IsWindowMinimized(fgRoot);
+                    int age = unchecked(Environment.TickCount - AppContext.LeavingDesktopTick);
+                    if (!same && !minimized) AppContext.LeavingDesktopHwnd = IntPtr.Zero;
+                    else if (same && !minimized && age > 400) AppContext.LeavingDesktopHwnd = IntPtr.Zero;
+                }
+            }
             if (InvokeRequired) BeginInvoke(new Action(SyncVisibilityToForeground));
             else SyncVisibilityToForeground();
         }
@@ -568,7 +596,8 @@ internal sealed class AgentTaskStatusHud : Form
 
         // Foreground changes show the bar from the win-event hook. This poll only
         // backstops a missed event, and still times the completed-task acknowledge.
-        if (!moving && !resizingWidth && tasks != null && tasks.Count > 0 && (now - lastFgCheckTime).TotalMilliseconds >= 250)
+        int fgWait = Visible ? 250 : 60;
+        if (!moving && !resizingWidth && tasks != null && tasks.Count > 0 && (now - lastFgCheckTime).TotalMilliseconds >= fgWait)
         {
             SyncVisibilityToForeground();
 

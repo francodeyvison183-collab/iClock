@@ -42,6 +42,7 @@ internal sealed partial class AgentSessionWatcher : IDisposable
         internal string PendingQuestion = "";
         internal string PendingError = "";
         internal bool LastNodeIsThought = false;
+        internal bool AwaitingModel = false;
         internal string WatchedPath = "";
         internal string WatchedAgent = "";
         internal readonly List<string> BatchNodes = new List<string>();
