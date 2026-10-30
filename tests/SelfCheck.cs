@@ -1696,6 +1696,337 @@ internal static class TestCheck
             }
             Console.WriteLine("PASS: AgentSessionWatcher zero-polling transcript parser and state dispatch verified.");
 
+            // 24d. Protocol-aware transcript semantics (Cursor / Claude / Codex / Antigravity / generic)
+            {
+                Type watcherType24d = asm.GetType("AgentSessionWatcher");
+                MethodInfo findTask24d = appType.GetMethod("FindTaskStatus", BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(string) }, null);
+                MethodInfo clearProg24d = appType.GetMethod("ClearAgentProgress", BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(string) }, null);
+                object watcher24d = Activator.CreateInstance(watcherType24d, BindingFlags.NonPublic | BindingFlags.Instance, null, new object[] { app }, null);
+                MethodInfo proc24d = watcherType24d.GetMethod("ProcessLogFile", BindingFlags.NonPublic | BindingFlags.Instance);
+                string semDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "iclock_sem_" + Guid.NewGuid().ToString("N"));
+                System.IO.Directory.CreateDirectory(semDir);
+                try
+                {
+                    // Cursor: follow-up must not replace Topic; text narration is thought; turn_ended uses prior text
+                    string cursorSem = System.IO.Path.Combine(semDir, "cursor-sem.jsonl");
+                    System.IO.File.WriteAllText(cursorSem,
+                        "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>优化倒计时页通用配置</user_query>\"}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { cursorSem, "CursorHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    System.IO.File.AppendAllText(cursorSem,
+                        "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>给个文字版设计简图</user_query>\"}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { cursorSem, "CursorHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    object curTask = findTask24d.Invoke(app, new object[] { "CursorHUD" });
+                    string curMsg = curTask != null ? (string)curTask.GetType().GetField("Message", bf).GetValue(curTask) : "";
+                    if (curMsg.IndexOf("优化倒计时页通用配置", StringComparison.Ordinal) < 0 || curMsg.IndexOf("文字版设计简图", StringComparison.Ordinal) >= 0)
+                    {
+                        Console.WriteLine("FAIL: Cursor follow-up must not replace Topic: " + curMsg);
+                        return 82;
+                    }
+
+                    System.IO.File.AppendAllText(cursorSem,
+                        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"先看倒计时设置页的通用配置项。\"},{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"path\":\"src/Countdown.cs\"}}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { cursorSem, "CursorHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    curTask = findTask24d.Invoke(app, new object[] { "CursorHUD" });
+                    string curSub = curTask != null ? (string)curTask.GetType().GetField("SubDetail", bf).GetValue(curTask) : "";
+                    bool thoughtOrRead = (!string.IsNullOrEmpty(curSub) && (curSub.IndexOf("先看倒计时", StringComparison.Ordinal) >= 0 || curSub.IndexOf("Countdown", StringComparison.Ordinal) >= 0 || curSub.IndexOf("阅读", StringComparison.Ordinal) >= 0));
+                    if (!thoughtOrRead)
+                    {
+                        Console.WriteLine("FAIL: Cursor text narration / read node missing: " + curSub);
+                        return 82;
+                    }
+
+                    System.IO.File.WriteAllText(cursorSem,
+                        "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>优化倒计时页通用配置</user_query>\"}]}}\r\n{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"倒计时通用配置已按方案改完。\"}]}}\r\n{\"type\":\"turn_ended\",\"status\":\"success\"}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { cursorSem, "CursorHUD" });
+                    string curDone = "";
+                    for (int w = 0; w < 30; w++)
+                    {
+                        System.Threading.Thread.Sleep(20);
+                        System.Windows.Forms.Application.DoEvents();
+                        curTask = findTask24d.Invoke(app, new object[] { "CursorHUD" });
+                        curDone = curTask != null ? (string)curTask.GetType().GetField("Message", bf).GetValue(curTask) : "";
+                        if (curDone.IndexOf("完成", StringComparison.Ordinal) >= 0) break;
+                    }
+                    string curDoneSub = curTask != null ? (string)curTask.GetType().GetField("SubDetail", bf).GetValue(curTask) : "";
+                    if (curDone.IndexOf("优化倒计时页通用配置", StringComparison.Ordinal) < 0 || curDone.IndexOf("完成", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Cursor turn_ended did not complete on Topic: " + curDone);
+                        return 82;
+                    }
+                    if (string.IsNullOrEmpty(curDoneSub) || curDoneSub.IndexOf("倒计时通用配置已按方案改完", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Cursor turn_ended conclusion must come from prior assistant text: " + curDoneSub);
+                        return 82;
+                    }
+                    if (clearProg24d != null) clearProg24d.Invoke(app, new object[] { "CursorHUD" });
+
+                    // Claude: last non-reminder text; tool_result user row ignored
+                    string claudeSem = System.IO.Path.Combine(semDir, "session.jsonl");
+                    System.IO.File.WriteAllText(claudeSem,
+                        "{\"type\":\"user\",\"origin\":{\"kind\":\"human\"},\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"<system-reminder>workspace is dirty</system-reminder>\"},{\"type\":\"text\",\"text\":\"给数据中心表单加校验\"}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { claudeSem, "ClaudeHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    object clTask = findTask24d.Invoke(app, new object[] { "ClaudeHUD" });
+                    string clMsg = clTask != null ? (string)clTask.GetType().GetField("Message", bf).GetValue(clTask) : "";
+                    if (clMsg.IndexOf("给数据中心表单加校验", StringComparison.Ordinal) < 0 || clMsg.IndexOf("workspace is dirty", StringComparison.Ordinal) >= 0)
+                    {
+                        Console.WriteLine("FAIL: Claude topic must take last non-reminder text: " + clMsg);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(claudeSem,
+                        "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"1\",\"content\":\"ok\"}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { claudeSem, "ClaudeHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    clTask = findTask24d.Invoke(app, new object[] { "ClaudeHUD" });
+                    string clMsg2 = clTask != null ? (string)clTask.GetType().GetField("Message", bf).GetValue(clTask) : "";
+                    if (clMsg2.IndexOf("给数据中心表单加校验", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Claude tool_result user row must not replace Topic: " + clMsg2);
+                        return 82;
+                    }
+                    if (clearProg24d != null) clearProg24d.Invoke(app, new object[] { "ClaudeHUD" });
+
+                    // Codex: skip AGENTS.md user; Reasoning.summary_text; task_complete
+                    string codexSem = System.IO.Path.Combine(semDir, "rollout-sem.jsonl");
+                    System.IO.File.WriteAllText(codexSem,
+                        "{\"type\":\"response_item\",\"payload\":{\"role\":\"user\",\"content_item_kinds\":[\"agents_md.instructions\"],\"content\":[{\"type\":\"text\",\"text\":\"# AGENTS.md rules dump\"}]}}\r\n" +
+                        "{\"type\":\"event_msg\",\"payload\":{\"type\":\"item_completed\",\"item\":{\"type\":\"UserMessage\",\"content\":[{\"type\":\"text\",\"text\":\"开箱体验增加Codex支持\"}]}}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { codexSem, "CodexHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    object cxTask = findTask24d.Invoke(app, new object[] { "CodexHUD" });
+                    string cxMsg = cxTask != null ? (string)cxTask.GetType().GetField("Message", bf).GetValue(cxTask) : "";
+                    if (cxMsg.IndexOf("开箱体验增加Codex支持", StringComparison.Ordinal) < 0 || cxMsg.IndexOf("AGENTS.md", StringComparison.Ordinal) >= 0)
+                    {
+                        Console.WriteLine("FAIL: Codex must skip AGENTS.md and take UserMessage: " + cxMsg);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(codexSem,
+                        "{\"type\":\"event_msg\",\"payload\":{\"type\":\"item_completed\",\"item\":{\"type\":\"Reasoning\",\"summary_text\":\"Plan the Codex HUD wiring first.\"}}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { codexSem, "CodexHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    cxTask = findTask24d.Invoke(app, new object[] { "CodexHUD" });
+                    string cxSub = cxTask != null ? (string)cxTask.GetType().GetField("SubDetail", bf).GetValue(cxTask) : "";
+                    if (string.IsNullOrEmpty(cxSub) || cxSub.IndexOf("Plan the Codex HUD", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Codex Reasoning.summary_text not shown: " + cxSub);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(codexSem,
+                        "{\"type\":\"event_msg\",\"payload\":{\"type\":\"task_complete\",\"last_agent_message\":\"Codex开箱支持已落地。\"}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { codexSem, "CodexHUD" });
+                    string cxDone = "";
+                    for (int w = 0; w < 30; w++)
+                    {
+                        System.Threading.Thread.Sleep(20);
+                        System.Windows.Forms.Application.DoEvents();
+                        cxTask = findTask24d.Invoke(app, new object[] { "CodexHUD" });
+                        cxDone = cxTask != null ? (string)cxTask.GetType().GetField("Message", bf).GetValue(cxTask) : "";
+                        if (cxDone.IndexOf("完成", StringComparison.Ordinal) >= 0) break;
+                    }
+                    string cxDoneSub = cxTask != null ? (string)cxTask.GetType().GetField("SubDetail", bf).GetValue(cxTask) : "";
+                    if (cxDone.IndexOf("开箱体验增加Codex支持", StringComparison.Ordinal) < 0 || cxDone.IndexOf("完成", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Codex task_complete did not finish on Topic: " + cxDone);
+                        return 82;
+                    }
+                    if (string.IsNullOrEmpty(cxDoneSub) || cxDoneSub.IndexOf("Codex开箱支持已落地", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Codex task_complete conclusion missing: " + cxDoneSub);
+                        return 82;
+                    }
+                    if (clearProg24d != null) clearProg24d.Invoke(app, new object[] { "CodexHUD" });
+
+                    // Antigravity: lock USER_REQUEST; DONE+tool_calls is not complete; noise/error/waiting/true end
+                    string agySem = System.IO.Path.Combine(semDir, "transcript.jsonl");
+                    System.IO.File.WriteAllText(agySem,
+                        "{\"step_index\":0,\"source\":\"USER_EXPLICIT\",\"type\":\"USER_INPUT\",\"content\":\"<USER_REQUEST>基于活跃进程扫描识别智能体</USER_REQUEST>\"}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { agySem, "AgyHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    System.IO.File.AppendAllText(agySem,
+                        "{\"step_index\":1,\"source\":\"USER_EXPLICIT\",\"type\":\"USER_INPUT\",\"content\":\"<USER_REQUEST>继续</USER_REQUEST>\"}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { agySem, "AgyHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    object agTask = findTask24d.Invoke(app, new object[] { "AgyHUD" });
+                    string agMsg = agTask != null ? (string)agTask.GetType().GetField("Message", bf).GetValue(agTask) : "";
+                    if (agMsg.IndexOf("基于活跃进程扫描识别智能体", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Antigravity Topic must stay on first USER_REQUEST: " + agMsg);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(agySem,
+                        "{\"step_index\":2,\"type\":\"PLANNER_RESPONSE\",\"status\":\"DONE\",\"tool_calls\":[{\"name\":\"run_command\",\"toolSummary\":\"Build Solution\"}]}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { agySem, "AgyHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    agTask = findTask24d.Invoke(app, new object[] { "AgyHUD" });
+                    string agMsg2 = agTask != null ? (string)agTask.GetType().GetField("Message", bf).GetValue(agTask) : "";
+                    if (agMsg2.IndexOf("完成", StringComparison.Ordinal) >= 0)
+                    {
+                        Console.WriteLine("FAIL: PLANNER_RESPONSE+DONE+tool_calls must not complete: " + agMsg2);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(agySem,
+                        "{\"step_index\":3,\"type\":\"SYSTEM_MESSAGE\",\"status\":\"DONE\",\"content\":\"Subagent stopped because of restart\"}\r\n" +
+                        "{\"step_index\":4,\"type\":\"CHECKPOINT\",\"status\":\"DONE\",\"content\":\"User Requests: old topic\"}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { agySem, "AgyHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    agTask = findTask24d.Invoke(app, new object[] { "AgyHUD" });
+                    string agMsg3 = agTask != null ? (string)agTask.GetType().GetField("Message", bf).GetValue(agTask) : "";
+                    string agSub3 = agTask != null ? (string)agTask.GetType().GetField("SubDetail", bf).GetValue(agTask) : "";
+                    if (agMsg3.IndexOf("完成", StringComparison.Ordinal) >= 0 || (agSub3 != null && agSub3.IndexOf("Subagent stopped", StringComparison.Ordinal) >= 0) ||
+                        (agMsg3.IndexOf("old topic", StringComparison.Ordinal) >= 0))
+                    {
+                        Console.WriteLine("FAIL: SYSTEM_MESSAGE/CHECKPOINT leaked into HUD: " + agMsg3 + " / " + agSub3);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(agySem,
+                        "{\"step_index\":5,\"type\":\"GENERIC\",\"status\":\"ERROR\",\"content\":\"patch did not apply\"}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { agySem, "AgyHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    agTask = findTask24d.Invoke(app, new object[] { "AgyHUD" });
+                    string agMsg4 = agTask != null ? (string)agTask.GetType().GetField("Message", bf).GetValue(agTask) : "";
+                    if (agMsg4.IndexOf("异常", StringComparison.Ordinal) >= 0)
+                    {
+                        Console.WriteLine("FAIL: GENERIC ERROR must not be session error: " + agMsg4);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(agySem,
+                        "{\"step_index\":6,\"type\":\"PLANNER_RESPONSE\",\"tool_calls\":[{\"name\":\"write_file\",\"args\":{\"ArtifactMetadata\":{\"RequestFeedback\":true,\"Summary\":\"Plan\"}}}]}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { agySem, "AgyHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    agTask = findTask24d.Invoke(app, new object[] { "AgyHUD" });
+                    string agMsg5 = agTask != null ? (string)agTask.GetType().GetField("Message", bf).GetValue(agTask) : "";
+                    if (agMsg5.IndexOf("等待", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: RequestFeedback must enter waiting: " + agMsg5);
+                        return 82;
+                    }
+                    System.IO.File.WriteAllText(agySem,
+                        "{\"step_index\":0,\"source\":\"USER_EXPLICIT\",\"type\":\"USER_INPUT\",\"content\":\"<USER_REQUEST>基于活跃进程扫描识别智能体</USER_REQUEST>\"}\r\n" +
+                        "{\"step_index\":7,\"type\":\"PLANNER_RESPONSE\",\"status\":\"DONE\",\"content\":\"识别逻辑已接到状态栏。\"}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { agySem, "AgyHUD" });
+                    string agDone = "";
+                    object agDoneTask = null;
+                    for (int w = 0; w < 30; w++)
+                    {
+                        System.Threading.Thread.Sleep(20);
+                        System.Windows.Forms.Application.DoEvents();
+                        agDoneTask = findTask24d.Invoke(app, new object[] { "AgyHUD" });
+                        agDone = agDoneTask != null ? (string)agDoneTask.GetType().GetField("Message", bf).GetValue(agDoneTask) : "";
+                        if (agDone.IndexOf("完成", StringComparison.Ordinal) >= 0) break;
+                    }
+                    string agDoneSub = agDoneTask != null ? (string)agDoneTask.GetType().GetField("SubDetail", bf).GetValue(agDoneTask) : "";
+                    if (agDone.IndexOf("基于活跃进程扫描识别智能体", StringComparison.Ordinal) < 0 || agDone.IndexOf("完成", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Antigravity true end did not complete: " + agDone);
+                        return 82;
+                    }
+                    if (string.IsNullOrEmpty(agDoneSub) || agDoneSub.IndexOf("识别逻辑已接到状态栏", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Antigravity conclusion missing: " + agDoneSub);
+                        return 82;
+                    }
+                    if (clearProg24d != null) clearProg24d.Invoke(app, new object[] { "AgyHUD" });
+
+                    // Generic protocol: skip tool_result; dual text; Gemini thought; status=DONE is not complete; finish_reason=stop is
+                    string genSem = System.IO.Path.Combine(semDir, "generic.jsonl");
+                    System.IO.File.WriteAllText(genSem,
+                        "{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"<system-reminder>ignore me</system-reminder>\"},{\"type\":\"text\",\"text\":\"实现通用智能体感知\"}]}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { genSem, "Windsurf" });
+                    System.Windows.Forms.Application.DoEvents();
+                    object gTask = findTask24d.Invoke(app, new object[] { "Windsurf" });
+                    string gMsg = gTask != null ? (string)gTask.GetType().GetField("Message", bf).GetValue(gTask) : "";
+                    if (gMsg.IndexOf("实现通用智能体感知", StringComparison.Ordinal) < 0 || gMsg.IndexOf("ignore me", StringComparison.Ordinal) >= 0)
+                    {
+                        Console.WriteLine("FAIL: Generic dual text must take last non-reminder: " + gMsg);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(genSem,
+                        "{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"content\":\"stdout\"}]}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { genSem, "Windsurf" });
+                    System.Windows.Forms.Application.DoEvents();
+                    gTask = findTask24d.Invoke(app, new object[] { "Windsurf" });
+                    string gMsg2 = gTask != null ? (string)gTask.GetType().GetField("Message", bf).GetValue(gTask) : "";
+                    if (gMsg2.IndexOf("实现通用智能体感知", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Generic tool_result must not replace Topic: " + gMsg2);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(genSem,
+                        "{\"role\":\"assistant\",\"content\":[{\"thought\":true,\"text\":\"Let me reason about the wire protocol.\"}]}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { genSem, "Windsurf" });
+                    System.Windows.Forms.Application.DoEvents();
+                    gTask = findTask24d.Invoke(app, new object[] { "Windsurf" });
+                    string gSub = gTask != null ? (string)gTask.GetType().GetField("SubDetail", bf).GetValue(gTask) : "";
+                    if (string.IsNullOrEmpty(gSub) || gSub.IndexOf("Let me reason", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Gemini thought:true not shown: " + gSub);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(genSem,
+                        "{\"role\":\"assistant\",\"status\":\"DONE\",\"content\":\"should not complete\"}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { genSem, "Windsurf" });
+                    System.Windows.Forms.Application.DoEvents();
+                    System.Threading.Thread.Sleep(80);
+                    System.Windows.Forms.Application.DoEvents();
+                    gTask = findTask24d.Invoke(app, new object[] { "Windsurf" });
+                    string gMsg3 = gTask != null ? (string)gTask.GetType().GetField("Message", bf).GetValue(gTask) : "";
+                    if (gMsg3.IndexOf("完成", StringComparison.Ordinal) >= 0)
+                    {
+                        Console.WriteLine("FAIL: Generic status=DONE must not complete: " + gMsg3);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(genSem,
+                        "{\"role\":\"assistant\",\"finish_reason\":\"stop\",\"content\":\"通用感知已经接好。\"}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { genSem, "Windsurf" });
+                    string gDone = "";
+                    object gDoneTask = null;
+                    for (int w = 0; w < 30; w++)
+                    {
+                        System.Threading.Thread.Sleep(20);
+                        System.Windows.Forms.Application.DoEvents();
+                        gDoneTask = findTask24d.Invoke(app, new object[] { "Windsurf" });
+                        gDone = gDoneTask != null ? (string)gDoneTask.GetType().GetField("Message", bf).GetValue(gDoneTask) : "";
+                        if (gDone.IndexOf("完成", StringComparison.Ordinal) >= 0) break;
+                    }
+                    if (gDone.IndexOf("实现通用智能体感知", StringComparison.Ordinal) < 0 || gDone.IndexOf("完成", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: Generic finish_reason=stop must complete: " + gDone);
+                        return 82;
+                    }
+                    if (clearProg24d != null) clearProg24d.Invoke(app, new object[] { "Windsurf" });
+                }
+                finally
+                {
+                    try { ((IDisposable)watcher24d).Dispose(); } catch { }
+                    try { System.IO.Directory.Delete(semDir, true); } catch { }
+                }
+                Console.WriteLine("PASS: Protocol-aware transcript semantics for Cursor/Claude/Codex/Antigravity/generic verified.");
+            }
+
             // 24b. Rest-length button: the arrow zone opens the preset menu and
             // must NOT start the break; the text still starts it. The arrow used
             // to sit outside the clickable zone, so the menu was unreachable.
