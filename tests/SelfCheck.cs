@@ -2167,7 +2167,7 @@ internal static class TestCheck
                 Console.WriteLine("PASS: Protocol-aware transcript semantics for Cursor/Claude/Codex/Antigravity/generic verified.");
             }
 
-            // 24e. HUD display queue: important nodes each appear; reads merge; wait interrupts
+            // Latest status replaces whatever is on screen. Waiting still interrupts.
             {
                 MethodInfo setMsg24e = appType.GetMethod("SetAgentTaskMessage", BindingFlags.NonPublic | BindingFlags.Instance);
                 MethodInfo findTask24e = appType.GetMethod("FindTaskStatus", BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(string) }, null);
@@ -2180,27 +2180,9 @@ internal static class TestCheck
                 System.Windows.Forms.Application.DoEvents();
                 object qTask = findTask24e.Invoke(app, new object[] { "QueueHUD" });
                 string qSub = qTask != null ? (string)qTask.GetType().GetField("SubDetail", bf).GetValue(qTask) : "";
-                if (qSub.IndexOf("Alpha", StringComparison.Ordinal) < 0)
+                if (qSub.IndexOf("Gamma", StringComparison.Ordinal) < 0 || qSub.IndexOf("Alpha", StringComparison.Ordinal) >= 0)
                 {
-                    Console.WriteLine("FAIL: display queue must keep first important edit on screen: " + qSub);
-                    return 83;
-                }
-                bool sawRun = false, sawRead = false;
-                for (int w = 0; w < 40; w++)
-                {
-                    System.Threading.Thread.Sleep(15);
-                    System.Windows.Forms.Application.DoEvents();
-                    qTask = findTask24e.Invoke(app, new object[] { "QueueHUD" });
-                    qSub = qTask != null ? (string)qTask.GetType().GetField("SubDetail", bf).GetValue(qTask) : "";
-                    if (!sawRun && (qSub.IndexOf("build.ps1", StringComparison.Ordinal) >= 0 || qSub.IndexOf("⚡", StringComparison.Ordinal) >= 0))
-                        sawRun = true;
-                    if (qSub.IndexOf("阅读", StringComparison.Ordinal) >= 0 || qSub.IndexOf("Beta", StringComparison.Ordinal) >= 0 || qSub.IndexOf("Gamma", StringComparison.Ordinal) >= 0)
-                        sawRead = true;
-                    if (sawRun && sawRead) break;
-                }
-                if (!sawRun)
-                {
-                    Console.WriteLine("FAIL: display queue must later show the run node: " + qSub);
+                    Console.WriteLine("FAIL: latest status must replace the previous one immediately: " + qSub);
                     return 83;
                 }
                 setMsg24e.Invoke(app, new object[] { "❓ [队列] 等待决策", "QueueHUD", false, "请确认: 选哪个方案", null, -2f, DateTime.Now, "queue-sem" });
@@ -2208,13 +2190,13 @@ internal static class TestCheck
                 qTask = findTask24e.Invoke(app, new object[] { "QueueHUD" });
                 string qMsg = qTask != null ? (string)qTask.GetType().GetField("Message", bf).GetValue(qTask) : "";
                 qSub = qTask != null ? (string)qTask.GetType().GetField("SubDetail", bf).GetValue(qTask) : "";
-                if (qMsg.IndexOf("等待", StringComparison.Ordinal) < 0 || qSub.IndexOf("选哪个方案", StringComparison.Ordinal) < 0 || qSub.IndexOf("Alpha", StringComparison.Ordinal) >= 0)
+                if (qMsg.IndexOf("等待", StringComparison.Ordinal) < 0 || qSub.IndexOf("选哪个方案", StringComparison.Ordinal) < 0 || qSub.IndexOf("Gamma", StringComparison.Ordinal) >= 0)
                 {
-                    Console.WriteLine("FAIL: waiting must interrupt display queue: " + qMsg + " / " + qSub);
+                    Console.WriteLine("FAIL: waiting must replace the current status immediately: " + qMsg + " / " + qSub);
                     return 83;
                 }
                 if (clearProg24e != null) clearProg24e.Invoke(app, new object[] { "QueueHUD" });
-                Console.WriteLine("PASS: HUD calm display queue (dwell, merge, wait interrupt) verified.");
+                Console.WriteLine("PASS: HUD shows the latest status immediately and waiting still interrupts.");
             }
 
             // 24b. Rest-length button: the arrow zone opens the preset menu and

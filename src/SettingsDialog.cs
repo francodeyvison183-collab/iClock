@@ -1583,7 +1583,11 @@ internal sealed class SettingsDialog : Form
             if (lblSkillFeedback.Visible) y = lblSkillFeedback.Bottom;
         }
         if (panelAgentScroll != null)
+        {
             panelAgentScroll.AutoScrollMinSize = new Size(0, y + 4);
+            panelAgentScroll.HorizontalScroll.Enabled = false;
+            panelAgentScroll.HorizontalScroll.Visible = false;
+        }
     }
 
     private void BuildAgentRows(bool en, bool force)
@@ -1608,6 +1612,14 @@ internal sealed class SettingsDialog : Form
         int y = 0;
         int rowHeight = 28;
         int rowIndex = 0;
+        int viewH = panelAgentScroll != null && panelAgentScroll.Height > 0 ? panelAgentScroll.Height : 100;
+        int hostW = panelAgentScroll != null && panelAgentScroll.Width > 0 ? panelAgentScroll.Width : AgentCardWidth;
+        if (running.Count * rowHeight > viewH)
+            hostW -= SystemInformation.VerticalScrollBarWidth;
+        if (panelAgentScroll != null && panelAgentScroll.ClientSize.Width > 0 && panelAgentScroll.ClientSize.Width < hostW)
+            hostW = panelAgentScroll.ClientSize.Width;
+        if (hostW < 80) hostW = panelAgentScroll != null ? panelAgentScroll.Width : AgentCardWidth;
+        panelAgentRows.Width = hostW;
         foreach (string agent in running)
         {
             bool rowInstalled = CliSkillInstaller.IsInstalled(agent);
@@ -1629,10 +1641,6 @@ internal sealed class SettingsDialog : Form
             name.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
             name.ForeColor = deepOn ? AppContext.Win11TextPrimary : Color.FromArgb(156, 163, 175);
             name.TextAlign = ContentAlignment.MiddleLeft;
-            // Same right edge as the preview buttons. The copy-prompt button uses this width too.
-            int hostW = panelAgentScroll != null && panelAgentScroll.ClientSize.Width > 0
-                ? panelAgentScroll.ClientSize.Width : AgentCardWidth;
-            panelAgentRows.Width = hostW;
             int btnRight = PreviewBtnX + PreviewBtnWidth - panelAgentScroll.Left;
             if (btnRight > hostW - 4) btnRight = hostW - 4;
             int btnX = btnRight - AgentActionBtnWidth;

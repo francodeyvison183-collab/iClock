@@ -21,15 +21,8 @@ using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using System.Web.Script.Serialization;
 
-internal sealed class HudDisplayNode
-{
-    internal string Text;
-    internal int Level;
-}
-
 internal sealed class AgentTaskStatus
 {
-    internal const int MaxPendingNodes = 4;
     internal string AgentName;
     internal string SessionKey;
     internal bool HasProgress;
@@ -42,17 +35,11 @@ internal sealed class AgentTaskStatus
     internal DateTime StepStartTime;
     internal double ForegroundSeenSeconds;
     internal DateTime MessageTimestamp;
-    internal readonly List<HudDisplayNode> PendingNodes = new List<HudDisplayNode>();
     internal int DetailShownTick;
     internal int DetailLevel;
     internal bool InterruptHold;
 
-    internal static int DisplayDwellMs
-    {
-        get { return AppContext.IsSelfCheckRunning ? 40 : 900; }
-    }
-
-    // 0 interrupt, 1 complete (never drop), 2 write/run (never drop),
+    // 0 interrupt, 1 complete, 2 write/run,
     // 3 search, 4 read, 5 thought. -1 = generic keep, not a new slot.
     internal static int ClassifyHudNode(string text, string message, out bool interrupt)
     {
@@ -103,7 +90,6 @@ internal sealed class AgentTaskStatus
 
     internal void ResetDisplayQueue()
     {
-        PendingNodes.Clear();
         DetailShownTick = 0;
         DetailLevel = 0;
         InterruptHold = false;
@@ -115,7 +101,6 @@ internal sealed class AgentTaskStatus
         int level = ClassifyHudNode(text, message, out interrupt);
         if (interrupt)
         {
-            PendingNodes.Clear();
             SubDetail = text;
             DetailLevel = 0;
             DetailShownTick = Environment.TickCount;
@@ -123,6 +108,7 @@ internal sealed class AgentTaskStatus
             return;
         }
         InterruptHold = false;
+        // A generic echo is not a new step. Keep the action already on screen.
         if (level < 0)
         {
             if (string.IsNullOrEmpty(SubDetail))
@@ -133,140 +119,10 @@ internal sealed class AgentTaskStatus
             }
             return;
         }
-        if (level == 1)
-        {
-            for (int i = PendingNodes.Count - 1; i >= 0; i--)
-            {
-                if (PendingNodes[i].Level >= 3) PendingNodes.RemoveAt(i);
-            }
-            if (PendingNodes.Count == 0)
-            {
-                SubDetail = text;
-                DetailLevel = 1;
-                DetailShownTick = Environment.TickCount;
-                return;
-            }
-            PendingNodes.Add(new HudDisplayNode { Text = text, Level = 1 });
-            return;
-        }
         if (string.IsNullOrEmpty(text)) return;
-        if (string.Equals(SubDetail, text, StringComparison.Ordinal))
-        {
-            DetailLevel = level;
-            return;
-        }
-
-        DrainDueNodes();
-        if (TryMergeDisplay(text, level)) return;
-
-        int dwell = DisplayDwellMs;
-        bool canShowNow = string.IsNullOrEmpty(SubDetail) || DetailShownTick == 0 ||
-                          unchecked(Environment.TickCount - DetailShownTick) >= dwell;
-        if (canShowNow && PendingNodes.Count == 0)
-        {
-            SubDetail = text;
-            DetailLevel = level;
-            DetailShownTick = Environment.TickCount;
-            return;
-        }
-
-        PendingNodes.Add(new HudDisplayNode { Text = text, Level = level });
-        TrimDisplayQueue();
-    }
-
-    internal bool TryAdvanceDisplay(bool paused)
-    {
-        if (paused || InterruptHold || PendingNodes.Count == 0) return false;
-        int dwell = DisplayDwellMs;
-        if (DetailShownTick != 0 && unchecked(Environment.TickCount - DetailShownTick) < dwell)
-            return false;
-        HudDisplayNode n = PendingNodes[0];
-        PendingNodes.RemoveAt(0);
-        SubDetail = n.Text;
-        DetailLevel = n.Level;
+        SubDetail = text;
+        DetailLevel = level;
         DetailShownTick = Environment.TickCount;
-        return true;
-    }
-
-    private void DrainDueNodes()
-    {
-        while (TryAdvanceDisplay(false)) { }
-    }
-
-    private bool TryMergeDisplay(string text, int level)
-    {
-        if (PendingNodes.Count > 0)
-        {
-            HudDisplayNode last = PendingNodes[PendingNodes.Count - 1];
-            if (string.Equals(last.Text, text, StringComparison.Ordinal)) return true;
-            if (last.Level == level && (level == 4 || level == 5))
-            {
-                last.Text = text;
-                return true;
-            }
-            if (last.Level == level && level == 2 && SameNodeFile(last.Text, text))
-            {
-                last.Text = text;
-                return true;
-            }
-            return false;
-        }
-        if (string.IsNullOrEmpty(SubDetail)) return false;
-        if (DetailLevel == level && (level == 4 || level == 5))
-        {
-            SubDetail = text;
-            return true;
-        }
-        if (DetailLevel == level && level == 2 && SameNodeFile(SubDetail, text))
-        {
-            SubDetail = text;
-            return true;
-        }
-        return false;
-    }
-
-    private void TrimDisplayQueue()
-    {
-        while (PendingNodes.Count > MaxPendingNodes)
-        {
-            int drop = IndexOfDroppableNode();
-            if (drop < 0) break;
-            PendingNodes.RemoveAt(drop);
-        }
-    }
-
-    private int IndexOfDroppableNode()
-    {
-        for (int want = 5; want >= 3; want--)
-        {
-            for (int i = 0; i < PendingNodes.Count; i++)
-            {
-                if (PendingNodes[i].Level == want) return i;
-            }
-        }
-        return -1;
-    }
-
-    private static bool SameNodeFile(string a, string b)
-    {
-        string ka = NodeFileKey(a);
-        string kb = NodeFileKey(b);
-        return ka.Length > 0 && string.Equals(ka, kb, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NodeFileKey(string text)
-    {
-        if (string.IsNullOrEmpty(text)) return "";
-        string rest = text;
-        int colon = text.LastIndexOf(':');
-        if (colon >= 0 && colon + 1 < text.Length) rest = text.Substring(colon + 1).Trim();
-        int slash = rest.LastIndexOf('\\');
-        int slash2 = rest.LastIndexOf('/');
-        if (slash2 > slash) slash = slash2;
-        if (slash >= 0 && slash + 1 < rest.Length) rest = rest.Substring(slash + 1);
-        rest = rest.Trim();
-        if (rest.Length == 0 || rest.IndexOf(' ') >= 0) return "";
-        return rest;
     }
 }
 
@@ -334,6 +190,7 @@ internal sealed class AgentTaskStatusHud : Form
     private DateTime lastFgCheckTime = DateTime.MinValue;
     private NativeMethods.WinEventDelegate foregroundHookProc;
     private IntPtr foregroundHook = IntPtr.Zero;
+    private IntPtr minimizeHook = IntPtr.Zero;
     private int fadeStartTick = 0;
     private byte currentAlpha = 255;
 
@@ -527,14 +384,17 @@ internal sealed class AgentTaskStatusHud : Form
     {
         if (AppContext.IsSelfCheckRunning || foregroundHook != IntPtr.Zero) return;
         foregroundHookProc = OnForegroundWinEvent;
+        uint flags = NativeMethods.WINEVENT_OUTOFCONTEXT | NativeMethods.WINEVENT_SKIPOWNPROCESS;
         try
         {
             foregroundHook = NativeMethods.SetWinEventHook(
                 NativeMethods.EVENT_SYSTEM_FOREGROUND, NativeMethods.EVENT_SYSTEM_FOREGROUND,
-                IntPtr.Zero, foregroundHookProc, 0, 0,
-                NativeMethods.WINEVENT_OUTOFCONTEXT | NativeMethods.WINEVENT_SKIPOWNPROCESS);
+                IntPtr.Zero, foregroundHookProc, 0, 0, flags);
+            minimizeHook = NativeMethods.SetWinEventHook(
+                NativeMethods.EVENT_SYSTEM_MINIMIZESTART, NativeMethods.EVENT_SYSTEM_MINIMIZEEND,
+                IntPtr.Zero, foregroundHookProc, 0, 0, flags);
         }
-        catch { foregroundHook = IntPtr.Zero; }
+        catch { foregroundHook = IntPtr.Zero; minimizeHook = IntPtr.Zero; }
     }
 
     private void OnForegroundWinEvent(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
@@ -542,6 +402,14 @@ internal sealed class AgentTaskStatusHud : Form
         if (!IsHandleCreated || IsDisposed) return;
         try
         {
+            if (eventType == NativeMethods.EVENT_SYSTEM_MINIMIZESTART)
+                AppContext.LeavingDesktopHwnd = hwnd;
+            else if (eventType == NativeMethods.EVENT_SYSTEM_MINIMIZEEND)
+            {
+                if (AppContext.LeavingDesktopHwnd == hwnd) AppContext.LeavingDesktopHwnd = IntPtr.Zero;
+            }
+            else if (hwnd != AppContext.LeavingDesktopHwnd)
+                AppContext.LeavingDesktopHwnd = IntPtr.Zero;
             if (InvokeRequired) BeginInvoke(new Action(SyncVisibilityToForeground));
             else SyncVisibilityToForeground();
         }
@@ -577,6 +445,11 @@ internal sealed class AgentTaskStatusHud : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        if (minimizeHook != IntPtr.Zero)
+        {
+            try { NativeMethods.UnhookWinEvent(minimizeHook); } catch { }
+            minimizeHook = IntPtr.Zero;
+        }
         if (foregroundHook != IntPtr.Zero)
         {
             try { NativeMethods.UnhookWinEvent(foregroundHook); } catch { }
@@ -655,17 +528,6 @@ internal sealed class AgentTaskStatusHud : Form
         // Pin is a user-owned desktop-resident switch. Never drop it because a
         // session expired, completed, or was auto-cleared; only the pin icon
         // or the close button may release it.
-
-        if (!isHovered && tasks != null)
-        {
-            bool advanced = false;
-            for (int i = 0; i < tasks.Count; i++)
-            {
-                AgentTaskStatus t = tasks[i];
-                if (t != null && t.TryAdvanceDisplay(false)) advanced = true;
-            }
-            if (advanced) RenderLayeredWindow();
-        }
 
         // Fixed-cadence rotation when idle: if not pinned, not hovered and not manually locked, advance every 5s
         if (active.Count > 1 && string.IsNullOrEmpty(pinnedAgent) && !isHovered && Environment.TickCount > manualLockUntilTick)

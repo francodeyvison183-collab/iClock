@@ -2618,18 +2618,33 @@ internal sealed class AppContext : ApplicationContext
         return p.Contains("windowsterminal") || p == "pwsh" || p == "powershell" || p == "cmd" || p == "code" || p.Contains("cursor") || p.Contains("wezterm") || p.Contains("alacritty") || p.Contains("mintty");
     }
 
+    // Set while a top-level window is minimizing. Windows often leaves that
+    // window as the foreground window, so a foreground-only hook never fires.
+    internal static IntPtr LeavingDesktopHwnd = IntPtr.Zero;
+
     internal static bool IsAgentWindowInForeground(string agentName)
     {
         try
         {
-            
             IntPtr fg = NativeMethods.GetForegroundWindow();
             if (fg == IntPtr.Zero) return false;
+            if (NativeMethods.IsIconic(fg) || fg == LeavingDesktopHwnd) return false;
+            return WindowBelongsToAgent(fg, agentName);
+        }
+        catch { }
+        return false;
+    }
+
+    internal static bool WindowBelongsToAgent(IntPtr hwnd, string agentName)
+    {
+        try
+        {
+            if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd)) return false;
             uint pid = 0;
-            NativeMethods.GetWindowThreadProcessId(fg, out pid);
+            NativeMethods.GetWindowThreadProcessId(hwnd, out pid);
             if (pid == 0) return false;
             string procName = GetProcessNameByPid((int)pid);
-            string title = GetAgentWindowTitle(fg);
+            string title = GetAgentWindowTitle(hwnd);
 
             if (!string.IsNullOrEmpty(agentName))
             {
