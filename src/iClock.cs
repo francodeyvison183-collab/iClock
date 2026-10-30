@@ -1544,7 +1544,7 @@ internal sealed class AppContext : ApplicationContext
     {
         if (taskStatusHud == null || taskStatusHud.IsDisposed) return;
         taskStatusHud.SetTasks(agentTaskStatuses);
-        if (agentTaskStatuses.Count == 0 || settings == null || !settings.DesktopCollaborationEnabled)
+        if (settings == null || !settings.DesktopCollaborationEnabled)
         {
             if (taskStatusHud.Visible) taskStatusHud.Hide();
             return;
@@ -1555,9 +1555,9 @@ internal sealed class AppContext : ApplicationContext
             if (!taskStatusHud.Visible) taskStatusHud.Show();
             UpdateTaskStatusHudPosition();
         }
-        else
+        else if (taskStatusHud.Visible)
         {
-            if (taskStatusHud.Visible) taskStatusHud.Hide();
+            taskStatusHud.Hide();
         }
     }
 
@@ -1647,7 +1647,7 @@ internal sealed class AppContext : ApplicationContext
         }
         status.Message = message;
         status.IsThinking = isThinking;
-        status.SubDetail = subDetail;
+        status.OfferDisplay(subDetail, message);
         status.StepProgress = stepProgress;
         if (progress >= 0f)
         {

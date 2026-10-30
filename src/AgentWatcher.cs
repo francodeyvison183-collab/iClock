@@ -41,6 +41,10 @@ internal sealed partial class AgentSessionWatcher : IDisposable
         internal string PendingCompletionSummary = "";
         internal string PendingQuestion = "";
         internal string PendingError = "";
+        internal bool LastNodeIsThought = false;
+        internal string WatchedPath = "";
+        internal string WatchedAgent = "";
+        internal readonly List<string> BatchNodes = new List<string>();
     }
 
     private sealed class FileReadCursor
@@ -50,10 +54,13 @@ internal sealed partial class AgentSessionWatcher : IDisposable
     }
 
     private readonly Dictionary<string, FileReadCursor> fileCursors = new Dictionary<string, FileReadCursor>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int> fileLastParseTick = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> fileBurstAgent = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     private readonly Dictionary<string, TurnSession> sessions = new Dictionary<string, TurnSession>(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> watchedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private System.Threading.Timer processSyncTimer;
+    private System.Threading.Timer hotPollTimer;
     private bool disposed;
 
     internal AgentSessionWatcher(AppContext appContext)
@@ -75,8 +82,8 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             // Initial mount for active agents + common known agent locations
             SyncActiveAgentWatchers();
 
-            // Periodic sync (every 3 seconds): zero overhead via Toolhelp process snapshot cache
             processSyncTimer = new System.Threading.Timer(delegate { SyncActiveAgentWatchers(); }, null, 10000, 10000);
+            hotPollTimer = new System.Threading.Timer(delegate { HotPollProcessingSessions(); }, null, 200, 200);
         }
         catch { }
     }
@@ -242,6 +249,7 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             FileSystemWatcher fsw = new FileSystemWatcher(dirPath, filter);
             fsw.IncludeSubdirectories = true;
             fsw.NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size;
+            try { fsw.InternalBufferSize = 64 * 1024; } catch { }
             fsw.Changed += delegate(object s, FileSystemEventArgs e) { OnFileChanged(e.FullPath, agentName); };
             fsw.Created += delegate(object s, FileSystemEventArgs e) { OnFileChanged(e.FullPath, agentName); };
             fsw.EnableRaisingEvents = true;
@@ -259,42 +267,77 @@ internal sealed partial class AgentSessionWatcher : IDisposable
         if (!fullPath.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase)) return;
         if (!IsRelevantTranscript(fullPath, agentName)) return;
 
-        // Debounce: coalesce rapid successive writes with a 50ms trailing timer
-        // guarantees zero dropped tool events and freshest file state
+        // Leading + max-interval: first event parses quickly; later events in the
+        // same burst do not reset the timer (avoids trailing-debounce starvation).
         lock (syncLock)
         {
             if (disposed) return;
-            System.Threading.Timer timer;
-            if (fileDebounceTimers.TryGetValue(fullPath, out timer))
+            if (fileDebounceTimers.ContainsKey(fullPath))
             {
-                try { timer.Change(50, System.Threading.Timeout.Infinite); } catch { }
+                fileBurstAgent[fullPath] = agentName;
+                return;
             }
-            else
+            int now = Environment.TickCount;
+            int last;
+            int delay = 15;
+            if (fileLastParseTick.TryGetValue(fullPath, out last))
             {
-                string pathCopy = fullPath;
+                int since = now - last;
+                if (since < 80) delay = 80 - since;
+                if (delay < 0) delay = 0;
+            }
+            fileBurstAgent[fullPath] = agentName;
+            string pathCopy = fullPath;
+            System.Threading.Timer timer = null;
+            timer = new System.Threading.Timer(delegate
+            {
                 string agentCopy = agentName;
-                timer = new System.Threading.Timer(delegate
+                lock (syncLock)
                 {
-                    lock (syncLock)
+                    System.Threading.Timer t;
+                    if (fileDebounceTimers.TryGetValue(pathCopy, out t))
                     {
-                        System.Threading.Timer t;
-                        if (fileDebounceTimers.TryGetValue(pathCopy, out t))
-                        {
-                            try { t.Dispose(); } catch { }
-                            fileDebounceTimers.Remove(pathCopy);
-                        }
+                        try { t.Dispose(); } catch { }
+                        fileDebounceTimers.Remove(pathCopy);
                     }
-                    if (!disposed)
+                    string a;
+                    if (fileBurstAgent.TryGetValue(pathCopy, out a) && !string.IsNullOrEmpty(a))
                     {
-                        try
-                        {
-                            ProcessLogFile(pathCopy, agentCopy);
-                        }
-                        catch { }
+                        agentCopy = a;
+                        fileBurstAgent.Remove(pathCopy);
                     }
-                }, null, 50, System.Threading.Timeout.Infinite);
-                fileDebounceTimers[fullPath] = timer;
+                    fileLastParseTick[pathCopy] = Environment.TickCount;
+                }
+                if (!disposed)
+                {
+                    try { ProcessLogFile(pathCopy, agentCopy); }
+                    catch { }
+                }
+            }, null, delay, System.Threading.Timeout.Infinite);
+            fileDebounceTimers[fullPath] = timer;
+        }
+    }
+
+    private void HotPollProcessingSessions()
+    {
+        if (disposed || AppContext.IsSelfCheckRunning) return;
+        List<KeyValuePair<string, string>> hot = new List<KeyValuePair<string, string>>();
+        lock (syncLock)
+        {
+            foreach (KeyValuePair<string, TurnSession> kv in sessions)
+            {
+                TurnSession s = kv.Value;
+                if (s == null || s.State != TurnState.Processing) continue;
+                if (string.IsNullOrEmpty(s.WatchedPath) || !s.WatchedPath.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                hot.Add(new KeyValuePair<string, string>(s.WatchedPath, s.WatchedAgent));
             }
+        }
+        for (int i = 0; i < hot.Count; i++)
+        {
+            if (disposed) return;
+            try { ProcessLogFile(hot[i].Key, hot[i].Value); }
+            catch { }
         }
     }
 
@@ -1906,6 +1949,11 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             try { processSyncTimer.Dispose(); } catch { }
             processSyncTimer = null;
         }
+        if (hotPollTimer != null)
+        {
+            try { hotPollTimer.Dispose(); } catch { }
+            hotPollTimer = null;
+        }
         lock (syncLock)
         {
             for (int i = 0; i < watchers.Count; i++)
@@ -1924,6 +1972,8 @@ internal sealed partial class AgentSessionWatcher : IDisposable
                 try { t.Dispose(); } catch { }
             }
             fileDebounceTimers.Clear();
+            fileLastParseTick.Clear();
+            fileBurstAgent.Clear();
             sessions.Clear();
             fileCursors.Clear();
         }

@@ -190,6 +190,9 @@ internal sealed partial class AgentSessionWatcher
                 session = new TurnSession();
                 sessions[sessionKey] = session;
             }
+            session.WatchedPath = filePath ?? "";
+            session.WatchedAgent = agentKey;
+            session.BatchNodes.Clear();
         }
 
         ParseKind kind = DetectParser(filePath, agentKey, lines);
@@ -257,9 +260,28 @@ internal sealed partial class AgentSessionWatcher
         internal bool GenericKeep;
     }
 
+    private static void NoteWaiting(TurnSession session, ref ParseOutcome outcome, string q)
+    {
+        session.PendingQuestion = q;
+        session.State = TurnState.Waiting;
+        outcome.Waiting = true;
+        outcome.Complete = false;
+        outcome.Error = false;
+    }
+
     private static bool IsPlaceholderTopic(string t)
     {
         return t == "当前会话" || t == "当前任务" || t == "Session" || t == "Task";
+    }
+
+    private static bool IsHitlShortReply(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return true;
+        if (IsTrivialConfirmation(text)) return true;
+        string t = text.Trim();
+        if (t.Length > 40) return false;
+        if (t.IndexOf('。') >= 0 || t.IndexOf('？') >= 0 || t.IndexOf('?') >= 0) return false;
+        return true;
     }
 
     private void NoteUserIntent(TurnSession s, string text, bool rewritten, ref bool topicLocked)
@@ -269,32 +291,62 @@ internal sealed partial class AgentSessionWatcher
         lock (syncLock)
         {
             s.CurrentTurn = text;
-            s.State = TurnState.Processing;
             s.Version++;
             s.PendingQuestion = s.PendingError = "";
             s.LastWasGeneric = false;
+            bool wasWaiting = s.State == TurnState.Waiting;
             if (s.StartTime == DateTime.MinValue) s.StartTime = DateTime.Now;
-            bool empty = string.IsNullOrEmpty(s.Topic) || IsPlaceholderTopic(s.Topic);
-            if (empty)
+
+            if (wasWaiting && IsHitlShortReply(text))
             {
-                if (!trivial || string.IsNullOrEmpty(s.Topic))
-                {
-                    s.Topic = text;
-                    s.Target = text;
-                    if (!trivial) topicLocked = true;
-                }
+                s.State = TurnState.Processing;
+                return;
             }
-            else if (rewritten && !topicLocked && !trivial)
+            if (trivial && !string.IsNullOrEmpty(s.Topic) && !IsPlaceholderTopic(s.Topic))
             {
-                s.Topic = text;
-                s.Target = text;
-                topicLocked = true;
+                s.State = TurnState.Processing;
+                return;
+            }
+
+            bool empty = string.IsNullOrEmpty(s.Topic) || IsPlaceholderTopic(s.Topic);
+            bool same = !empty && string.Equals(s.Topic, text, StringComparison.Ordinal);
+            s.State = TurnState.Processing;
+            if (same) return;
+
+            bool newTurn = !empty && !trivial;
+            s.Topic = text;
+            s.Target = text;
+            if (!trivial) topicLocked = true;
+            if (newTurn)
+            {
+                s.StartTime = DateTime.Now;
                 s.ActiveStep = s.TotalSteps = 0;
                 s.StepDescription = s.LastToolAction = s.Action = s.Thought = s.Conclusion = "";
                 s.LowReadCount = 0;
                 s.LastHighAction = "";
+                s.LastNodeIsThought = false;
+                s.Node = "";
+                s.BatchNodes.Clear();
             }
         }
+    }
+
+    private static void OfferBatchNode(TurnSession s, string text)
+    {
+        if (s == null || string.IsNullOrEmpty(text)) return;
+        if (s.BatchNodes.Count > 0 && string.Equals(s.BatchNodes[s.BatchNodes.Count - 1], text, StringComparison.Ordinal))
+            return;
+        bool isThought = text.StartsWith("\ud83d\udcad") || text.StartsWith("\u2687");
+        if (isThought && s.BatchNodes.Count > 0)
+        {
+            string last = s.BatchNodes[s.BatchNodes.Count - 1];
+            if (last.StartsWith("\ud83d\udcad") || last.StartsWith("\u2687"))
+            {
+                s.BatchNodes[s.BatchNodes.Count - 1] = text;
+                return;
+            }
+        }
+        s.BatchNodes.Add(text);
     }
 
     private void NoteThought(TurnSession s, string thought)
@@ -306,8 +358,10 @@ internal sealed partial class AgentSessionWatcher
             s.State = TurnState.Processing;
             s.Version++;
             s.LastWasGeneric = false;
+            s.LastNodeIsThought = true;
             s.PendingQuestion = s.PendingError = "";
         }
+        OfferBatchNode(s, "\ud83d\udcad " + thought);
     }
 
     private void NoteTool(TurnSession s, Dictionary<string, object> data, string summary, bool isZh)
@@ -321,14 +375,15 @@ internal sealed partial class AgentSessionWatcher
         lock (syncLock)
         {
             s.LastToolAction = summary;
+            s.Action = summary;
             s.State = TurnState.Processing;
             s.Version++;
             s.LastWasGeneric = false;
+            s.LastNodeIsThought = false;
             s.PendingQuestion = s.PendingError = "";
             s.Conclusion = "";
             if (rank <= 1)
             {
-                s.Action = summary;
                 s.LastHighAction = summary;
                 s.LowReadCount = 0;
             }
@@ -343,6 +398,9 @@ internal sealed partial class AgentSessionWatcher
                 s.StepDescription = sd;
             }
         }
+        string formatted = FormatAuthenticAction(summary, null, null, 0, 0);
+        if (string.IsNullOrEmpty(formatted)) formatted = summary;
+        OfferBatchNode(s, formatted);
     }
 
     private static int RankAction(string action)
@@ -410,6 +468,7 @@ internal sealed partial class AgentSessionWatcher
         string lastAct, thought, curAct;
         int lowN;
         bool genericKeep;
+        bool lastThought;
         lock (syncLock)
         {
             session.State = TurnState.Processing;
@@ -418,6 +477,7 @@ internal sealed partial class AgentSessionWatcher
             thought = session.Thought;
             lowN = session.LowReadCount;
             genericKeep = outcome.GenericKeep || session.LastWasGeneric;
+            lastThought = session.LastNodeIsThought;
             if (session.ActiveStep > 0 && session.TotalSteps > 0)
             {
                 progress = (float)session.ActiveStep / session.TotalSteps;
@@ -428,9 +488,7 @@ internal sealed partial class AgentSessionWatcher
         }
 
         string showAct = curAct;
-        if (!string.IsNullOrEmpty(showAct) && RankAction(showAct) >= 2 && !string.IsNullOrEmpty(session.LastHighAction))
-            showAct = session.LastHighAction;
-        if (lowN >= 2 && RankAction(curAct) >= 2 && string.IsNullOrEmpty(session.LastHighAction))
+        if (lowN >= 2 && RankAction(curAct) >= 2)
             showAct = isZh ? ("阅读 " + lowN + " 个文件") : ("Read " + lowN + " files");
 
         string authenticAction = !string.IsNullOrEmpty(showAct)
@@ -439,16 +497,27 @@ internal sealed partial class AgentSessionWatcher
         string formattedLast = !string.IsNullOrEmpty(lastAct) ? FormatAuthenticAction(lastAct, null, null, 0, 0) : null;
 
         string subDetail;
-        if (!string.IsNullOrEmpty(authenticAction) && !genericKeep) subDetail = authenticAction;
-        else if (!string.IsNullOrEmpty(thought) && string.IsNullOrEmpty(authenticAction)) subDetail = "💭 " + thought;
-        else if (genericKeep) subDetail = !string.IsNullOrEmpty(formattedLast) ? ("✓ " + formattedLast) : null;
+        if (genericKeep) subDetail = !string.IsNullOrEmpty(formattedLast) ? ("✓ " + formattedLast) : authenticAction;
+        else if (lastThought && !string.IsNullOrEmpty(thought)) subDetail = "💭 " + thought;
+        else if (!string.IsNullOrEmpty(authenticAction)) subDetail = authenticAction;
         else if (!string.IsNullOrEmpty(thought)) subDetail = "💭 " + thought;
         else if (!string.IsNullOrEmpty(stepProgressText)) subDetail = "[" + session.ActiveStep + "/" + session.TotalSteps + "]" + (!string.IsNullOrEmpty(activeDesc) ? (" " + activeDesc) : "");
         else subDetail = formattedLast;
 
         session.Node = subDetail;
         string procMsg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
-        appContext.SetAgentTaskMessage(procMsg, agentName, true, subDetail, stepProgressText, progress, msgTime, filePath);
+        if (session.BatchNodes.Count > 0)
+        {
+            for (int n = 0; n < session.BatchNodes.Count; n++)
+            {
+                appContext.SetAgentTaskMessage(procMsg, agentName, true, session.BatchNodes[n], stepProgressText, progress, msgTime, filePath);
+            }
+            session.BatchNodes.Clear();
+        }
+        else
+        {
+            appContext.SetAgentTaskMessage(procMsg, agentName, true, subDetail, stepProgressText, progress, msgTime, filePath);
+        }
     }
 
     private void ParseCursorLine(Dictionary<string, object> data, TurnSession session, bool isZh, bool rewritten, ref bool topicLocked, ref ParseOutcome outcome)
@@ -497,9 +566,7 @@ internal sealed partial class AgentSessionWatcher
         string q = ExtractQuestion(data, isZh);
         if (!string.IsNullOrEmpty(q))
         {
-            session.PendingQuestion = q;
-            outcome.Waiting = true;
-            outcome.Complete = false;
+            NoteWaiting(session, ref outcome, q);
             return;
         }
 
@@ -560,9 +627,7 @@ internal sealed partial class AgentSessionWatcher
         string q = ExtractQuestion(data, isZh);
         if (!string.IsNullOrEmpty(q))
         {
-            session.PendingQuestion = q;
-            outcome.Waiting = true;
-            outcome.Complete = false;
+            NoteWaiting(session, ref outcome, q);
             return;
         }
 
@@ -704,10 +769,7 @@ internal sealed partial class AgentSessionWatcher
         string q = ExtractQuestion(data, isZh);
         if (!string.IsNullOrEmpty(q))
         {
-            session.PendingQuestion = q;
-            outcome.Waiting = true;
-            outcome.Complete = false;
-            outcome.Error = false;
+            NoteWaiting(session, ref outcome, q);
             return;
         }
 
@@ -782,9 +844,7 @@ internal sealed partial class AgentSessionWatcher
         if (string.IsNullOrEmpty(q) && body != data) q = ExtractQuestion(body, isZh);
         if (!string.IsNullOrEmpty(q))
         {
-            session.PendingQuestion = q;
-            outcome.Waiting = true;
-            outcome.Complete = false;
+            NoteWaiting(session, ref outcome, q);
             return;
         }
 

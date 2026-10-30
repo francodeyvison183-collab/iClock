@@ -1661,9 +1661,16 @@ internal static class TestCheck
                 // Test retention of action during trailing GENERIC tool output line
                 System.IO.File.AppendAllText(testFile, "{\"step_index\":2,\"type\":\"PLANNER_RESPONSE\",\"tool_calls\":[{\"name\":\"run_command\",\"args\":{\"CommandLine\":\"git status\",\"toolSummary\":\"Git status check\"}}]}\r\n", System.Text.Encoding.UTF8);
                 procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
-                System.Windows.Forms.Application.DoEvents();
-                object tTask2 = findTask.Invoke(app, new object[] { "TestAgent" });
-                string subD2 = (string)tTask2.GetType().GetField("SubDetail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(tTask2);
+                string subD2 = "";
+                object tTask2 = null;
+                for (int w = 0; w < 20; w++)
+                {
+                    System.Threading.Thread.Sleep(15);
+                    System.Windows.Forms.Application.DoEvents();
+                    tTask2 = findTask.Invoke(app, new object[] { "TestAgent" });
+                    subD2 = tTask2 != null ? (string)tTask2.GetType().GetField("SubDetail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(tTask2) : "";
+                    if (!string.IsNullOrEmpty(subD2) && subD2.Contains("Git status check")) break;
+                }
                 if (string.IsNullOrEmpty(subD2) || !subD2.Contains("Git status check"))
                 {
                     Console.WriteLine("FAIL: SubDetail does not contain toolSummary: " + subD2);
@@ -1707,7 +1714,7 @@ internal static class TestCheck
                 System.IO.Directory.CreateDirectory(semDir);
                 try
                 {
-                    // Cursor: follow-up must not replace Topic; text narration is thought; turn_ended uses prior text
+                    // Cursor: substantial follow-up replaces Topic; HITL short replies do not; turn_ended uses prior text
                     string cursorSem = System.IO.Path.Combine(semDir, "cursor-sem.jsonl");
                     System.IO.File.WriteAllText(cursorSem,
                         "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>优化倒计时页通用配置</user_query>\"}]}}\r\n",
@@ -1721,9 +1728,9 @@ internal static class TestCheck
                     System.Windows.Forms.Application.DoEvents();
                     object curTask = findTask24d.Invoke(app, new object[] { "CursorHUD" });
                     string curMsg = curTask != null ? (string)curTask.GetType().GetField("Message", bf).GetValue(curTask) : "";
-                    if (curMsg.IndexOf("优化倒计时页通用配置", StringComparison.Ordinal) < 0 || curMsg.IndexOf("文字版设计简图", StringComparison.Ordinal) >= 0)
+                    if (curMsg.IndexOf("文字版设计简图", StringComparison.Ordinal) < 0 || curMsg.IndexOf("优化倒计时页通用配置", StringComparison.Ordinal) >= 0)
                     {
-                        Console.WriteLine("FAIL: Cursor follow-up must not replace Topic: " + curMsg);
+                        Console.WriteLine("FAIL: Cursor follow-up must replace Topic: " + curMsg);
                         return 82;
                     }
 
@@ -1741,6 +1748,78 @@ internal static class TestCheck
                         return 82;
                     }
 
+                    System.IO.File.AppendAllText(cursorSem,
+                        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"StrReplace\",\"input\":{\"path\":\"src/StickyWrite.cs\"}}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { cursorSem, "CursorHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    System.IO.File.AppendAllText(cursorSem,
+                        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"path\":\"src/ReadOne.cs\"}}]}}\r\n" +
+                        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"path\":\"src/ReadTwo.cs\"}}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { cursorSem, "CursorHUD" });
+                    bool readAfterWrite = false;
+                    for (int w = 0; w < 20; w++)
+                    {
+                        System.Threading.Thread.Sleep(15);
+                        System.Windows.Forms.Application.DoEvents();
+                        curTask = findTask24d.Invoke(app, new object[] { "CursorHUD" });
+                        curSub = curTask != null ? (string)curTask.GetType().GetField("SubDetail", bf).GetValue(curTask) : "";
+                        if (!string.IsNullOrEmpty(curSub) && curSub.IndexOf("StickyWrite", StringComparison.Ordinal) < 0 &&
+                            (curSub.IndexOf("阅读", StringComparison.Ordinal) >= 0 || curSub.IndexOf("ReadOne", StringComparison.Ordinal) >= 0 || curSub.IndexOf("ReadTwo", StringComparison.Ordinal) >= 0))
+                        {
+                            readAfterWrite = true;
+                            break;
+                        }
+                    }
+                    if (!readAfterWrite)
+                    {
+                        Console.WriteLine("FAIL: consecutive Read must not stay pinned on earlier write: " + curSub);
+                        return 82;
+                    }
+
+                    System.IO.File.AppendAllText(cursorSem,
+                        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"AskQuestion\",\"input\":{\"questions\":[{\"question\":\"选哪个方案\"}]}}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { cursorSem, "CursorHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    curTask = findTask24d.Invoke(app, new object[] { "CursorHUD" });
+                    curMsg = curTask != null ? (string)curTask.GetType().GetField("Message", bf).GetValue(curTask) : "";
+                    if (curMsg.IndexOf("等待", StringComparison.Ordinal) < 0 || curMsg.IndexOf("文字版设计简图", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: AskQuestion must wait on current Topic: " + curMsg);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(cursorSem,
+                        "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>好的</user_query>\"}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { cursorSem, "CursorHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    curTask = findTask24d.Invoke(app, new object[] { "CursorHUD" });
+                    curMsg = curTask != null ? (string)curTask.GetType().GetField("Message", bf).GetValue(curTask) : "";
+                    if (curMsg.IndexOf("文字版设计简图", StringComparison.Ordinal) < 0 || curMsg.IndexOf("[好的]", StringComparison.Ordinal) >= 0)
+                    {
+                        Console.WriteLine("FAIL: HITL 好的 must not replace Topic: " + curMsg);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(cursorSem,
+                        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"AskQuestion\",\"input\":{\"questions\":[{\"question\":\"选哪个方案\"}]}}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { cursorSem, "CursorHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    System.IO.File.AppendAllText(cursorSem,
+                        "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>方案A</user_query>\"}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { cursorSem, "CursorHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    curTask = findTask24d.Invoke(app, new object[] { "CursorHUD" });
+                    curMsg = curTask != null ? (string)curTask.GetType().GetField("Message", bf).GetValue(curTask) : "";
+                    if (curMsg.IndexOf("文字版设计简图", StringComparison.Ordinal) < 0 || curMsg.IndexOf("方案A", StringComparison.Ordinal) >= 0)
+                    {
+                        Console.WriteLine("FAIL: HITL short option must not replace Topic: " + curMsg);
+                        return 82;
+                    }
+
                     System.IO.File.WriteAllText(cursorSem,
                         "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>优化倒计时页通用配置</user_query>\"}]}}\r\n{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"倒计时通用配置已按方案改完。\"}]}}\r\n{\"type\":\"turn_ended\",\"status\":\"success\"}\r\n",
                         System.Text.Encoding.UTF8);
@@ -1754,7 +1833,15 @@ internal static class TestCheck
                         curDone = curTask != null ? (string)curTask.GetType().GetField("Message", bf).GetValue(curTask) : "";
                         if (curDone.IndexOf("完成", StringComparison.Ordinal) >= 0) break;
                     }
-                    string curDoneSub = curTask != null ? (string)curTask.GetType().GetField("SubDetail", bf).GetValue(curTask) : "";
+                    string curDoneSub = "";
+                    for (int w = 0; w < 20; w++)
+                    {
+                        System.Threading.Thread.Sleep(15);
+                        System.Windows.Forms.Application.DoEvents();
+                        curTask = findTask24d.Invoke(app, new object[] { "CursorHUD" });
+                        curDoneSub = curTask != null ? (string)curTask.GetType().GetField("SubDetail", bf).GetValue(curTask) : "";
+                        if (!string.IsNullOrEmpty(curDoneSub) && curDoneSub.IndexOf("倒计时通用配置已按方案改完", StringComparison.Ordinal) >= 0) break;
+                    }
                     if (curDone.IndexOf("优化倒计时页通用配置", StringComparison.Ordinal) < 0 || curDone.IndexOf("完成", StringComparison.Ordinal) < 0)
                     {
                         Console.WriteLine("FAIL: Cursor turn_ended did not complete on Topic: " + curDone);
@@ -1766,6 +1853,57 @@ internal static class TestCheck
                         return 82;
                     }
                     if (clearProg24d != null) clearProg24d.Invoke(app, new object[] { "CursorHUD" });
+
+                    MethodInfo onChanged24d = watcherType24d.GetMethod("OnFileChanged", BindingFlags.NonPublic | BindingFlags.Instance);
+                    string burstFile = System.IO.Path.Combine(semDir, "cursor-burst.jsonl");
+                    System.IO.File.WriteAllText(burstFile,
+                        "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>跟上节奏</user_query>\"}]}}\r\n" +
+                        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"StrReplace\",\"input\":{\"path\":\"src/BurstFirst.cs\"}}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    onChanged24d.Invoke(watcher24d, new object[] { burstFile, "CursorBurst" });
+                    string burstSub = "";
+                    object burstTask = null;
+                    bool burstLead = false;
+                    for (int w = 0; w < 8; w++)
+                    {
+                        System.Threading.Thread.Sleep(10);
+                        System.Windows.Forms.Application.DoEvents();
+                        burstTask = findTask24d.Invoke(app, new object[] { "CursorBurst" });
+                        burstSub = burstTask != null ? (string)burstTask.GetType().GetField("SubDetail", bf).GetValue(burstTask) : "";
+                        if (!string.IsNullOrEmpty(burstSub) && burstSub.IndexOf("BurstFirst", StringComparison.Ordinal) >= 0)
+                        {
+                            burstLead = true;
+                            break;
+                        }
+                    }
+                    if (!burstLead)
+                    {
+                        Console.WriteLine("FAIL: leading debounce did not parse within ~80ms: " + burstSub);
+                        return 82;
+                    }
+                    System.IO.File.AppendAllText(burstFile,
+                        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"path\":\"src/BurstLast.cs\"}}]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    onChanged24d.Invoke(watcher24d, new object[] { burstFile, "CursorBurst" });
+                    bool burstLast = false;
+                    for (int w = 0; w < 12; w++)
+                    {
+                        System.Threading.Thread.Sleep(10);
+                        System.Windows.Forms.Application.DoEvents();
+                        burstTask = findTask24d.Invoke(app, new object[] { "CursorBurst" });
+                        burstSub = burstTask != null ? (string)burstTask.GetType().GetField("SubDetail", bf).GetValue(burstTask) : "";
+                        if (!string.IsNullOrEmpty(burstSub) && burstSub.IndexOf("BurstLast", StringComparison.Ordinal) >= 0)
+                        {
+                            burstLast = true;
+                            break;
+                        }
+                    }
+                    if (!burstLast)
+                    {
+                        Console.WriteLine("FAIL: max-interval debounce did not reach last tool within 80ms: " + burstSub);
+                        return 82;
+                    }
+                    if (clearProg24d != null) clearProg24d.Invoke(app, new object[] { "CursorBurst" });
 
                     // Claude: last non-reminder text; tool_result user row ignored
                     string claudeSem = System.IO.Path.Combine(semDir, "session.jsonl");
@@ -2025,6 +2163,56 @@ internal static class TestCheck
                     try { System.IO.Directory.Delete(semDir, true); } catch { }
                 }
                 Console.WriteLine("PASS: Protocol-aware transcript semantics for Cursor/Claude/Codex/Antigravity/generic verified.");
+            }
+
+            // 24e. HUD display queue: important nodes each appear; reads merge; wait interrupts
+            {
+                MethodInfo setMsg24e = appType.GetMethod("SetAgentTaskMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+                MethodInfo findTask24e = appType.GetMethod("FindTaskStatus", BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(string) }, null);
+                MethodInfo clearProg24e = appType.GetMethod("ClearAgentProgress", BindingFlags.NonPublic | BindingFlags.Instance, null, new Type[] { typeof(string) }, null);
+                DateTime now24e = DateTime.Now;
+                setMsg24e.Invoke(app, new object[] { "⏳ [队列] 处理中...", "QueueHUD", true, "edit_file: Alpha.cs", null, -1f, now24e, "queue-sem" });
+                setMsg24e.Invoke(app, new object[] { "⏳ [队列] 处理中...", "QueueHUD", true, "⚡ build.ps1", null, -1f, now24e, "queue-sem" });
+                setMsg24e.Invoke(app, new object[] { "⏳ [队列] 处理中...", "QueueHUD", true, "read_file: Beta.cs", null, -1f, now24e, "queue-sem" });
+                setMsg24e.Invoke(app, new object[] { "⏳ [队列] 处理中...", "QueueHUD", true, "read_file: Gamma.cs", null, -1f, now24e, "queue-sem" });
+                System.Windows.Forms.Application.DoEvents();
+                object qTask = findTask24e.Invoke(app, new object[] { "QueueHUD" });
+                string qSub = qTask != null ? (string)qTask.GetType().GetField("SubDetail", bf).GetValue(qTask) : "";
+                if (qSub.IndexOf("Alpha", StringComparison.Ordinal) < 0)
+                {
+                    Console.WriteLine("FAIL: display queue must keep first important edit on screen: " + qSub);
+                    return 83;
+                }
+                bool sawRun = false, sawRead = false;
+                for (int w = 0; w < 40; w++)
+                {
+                    System.Threading.Thread.Sleep(15);
+                    System.Windows.Forms.Application.DoEvents();
+                    qTask = findTask24e.Invoke(app, new object[] { "QueueHUD" });
+                    qSub = qTask != null ? (string)qTask.GetType().GetField("SubDetail", bf).GetValue(qTask) : "";
+                    if (!sawRun && (qSub.IndexOf("build.ps1", StringComparison.Ordinal) >= 0 || qSub.IndexOf("⚡", StringComparison.Ordinal) >= 0))
+                        sawRun = true;
+                    if (qSub.IndexOf("阅读", StringComparison.Ordinal) >= 0 || qSub.IndexOf("Beta", StringComparison.Ordinal) >= 0 || qSub.IndexOf("Gamma", StringComparison.Ordinal) >= 0)
+                        sawRead = true;
+                    if (sawRun && sawRead) break;
+                }
+                if (!sawRun)
+                {
+                    Console.WriteLine("FAIL: display queue must later show the run node: " + qSub);
+                    return 83;
+                }
+                setMsg24e.Invoke(app, new object[] { "❓ [队列] 等待决策", "QueueHUD", false, "请确认: 选哪个方案", null, -2f, DateTime.Now, "queue-sem" });
+                System.Windows.Forms.Application.DoEvents();
+                qTask = findTask24e.Invoke(app, new object[] { "QueueHUD" });
+                string qMsg = qTask != null ? (string)qTask.GetType().GetField("Message", bf).GetValue(qTask) : "";
+                qSub = qTask != null ? (string)qTask.GetType().GetField("SubDetail", bf).GetValue(qTask) : "";
+                if (qMsg.IndexOf("等待", StringComparison.Ordinal) < 0 || qSub.IndexOf("选哪个方案", StringComparison.Ordinal) < 0 || qSub.IndexOf("Alpha", StringComparison.Ordinal) >= 0)
+                {
+                    Console.WriteLine("FAIL: waiting must interrupt display queue: " + qMsg + " / " + qSub);
+                    return 83;
+                }
+                if (clearProg24e != null) clearProg24e.Invoke(app, new object[] { "QueueHUD" });
+                Console.WriteLine("PASS: HUD calm display queue (dwell, merge, wait interrupt) verified.");
             }
 
             // 24b. Rest-length button: the arrow zone opens the preset menu and
@@ -4587,6 +4775,19 @@ internal static class TestCheck
                         Console.WriteLine("FAIL: HUD ShouldBeVisible should be false when last message is older than 5 minutes");
                         return 76;
                     }
+                    // Pinned HUD stays visible even after the 5-minute idle expiry
+                    FieldInfo fPinnedEarly = statusHudType.GetField("pinnedAgent", BindingFlags.NonPublic | BindingFlags.Instance);
+                    if (fPinnedEarly != null)
+                    {
+                        fPinnedEarly.SetValue(hudInstance, "NonExistentBackgroundAgent");
+                        bool vPinnedExpired = (bool)mShould.Invoke(hudInstance, null);
+                        fPinnedEarly.SetValue(hudInstance, null);
+                        if (!vPinnedExpired)
+                        {
+                            Console.WriteLine("FAIL: Pinned HUD must stay visible after 5-minute idle expiry");
+                            return 76;
+                        }
+                    }
                     taskType.GetField("MessageTimestamp", bf).SetValue(t1, DateTime.Now);
 
                     // Case 4: Test rendering in both collapsed and expanded (isHovered) modes
@@ -4715,6 +4916,20 @@ internal static class TestCheck
                             if (!stickyVisible)
                             {
                                 Console.WriteLine("FAIL: Pinned HUD should always be visible (Sticky Mode)");
+                                return 76;
+                            }
+
+                            // 2b. Auto-clear / empty task list must not hide or drop a pinned HUD
+                            object emptyList = Activator.CreateInstance(taskListType);
+                            fTasks.SetValue(hudInstance, emptyList);
+                            MethodInfo mHeartbeatPin = statusHudType.GetMethod("OnHeartbeatTick", BindingFlags.NonPublic | BindingFlags.Instance);
+                            if (mHeartbeatPin != null) mHeartbeatPin.Invoke(hudInstance, new object[] { hudInstance, EventArgs.Empty });
+                            string pinAfterEmpty = (string)fPinned.GetValue(hudInstance);
+                            bool stickyEmpty = (bool)mShouldVisible.Invoke(hudInstance, null);
+                            fTasks.SetValue(hudInstance, singleList);
+                            if (pinAfterEmpty == null || !stickyEmpty)
+                            {
+                                Console.WriteLine("FAIL: Pinned HUD must stay resident when sessions are auto-cleared");
                                 return 76;
                             }
 

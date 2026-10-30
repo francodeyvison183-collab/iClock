@@ -21,8 +21,15 @@ using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using System.Web.Script.Serialization;
 
+internal sealed class HudDisplayNode
+{
+    internal string Text;
+    internal int Level;
+}
+
 internal sealed class AgentTaskStatus
 {
+    internal const int MaxPendingNodes = 4;
     internal string AgentName;
     internal string SessionKey;
     internal bool HasProgress;
@@ -35,6 +42,232 @@ internal sealed class AgentTaskStatus
     internal DateTime StepStartTime;
     internal double ForegroundSeenSeconds;
     internal DateTime MessageTimestamp;
+    internal readonly List<HudDisplayNode> PendingNodes = new List<HudDisplayNode>();
+    internal int DetailShownTick;
+    internal int DetailLevel;
+    internal bool InterruptHold;
+
+    internal static int DisplayDwellMs
+    {
+        get { return AppContext.IsSelfCheckRunning ? 40 : 900; }
+    }
+
+    // 0 interrupt, 1 complete (never drop), 2 write/run (never drop),
+    // 3 search, 4 read, 5 thought. -1 = generic keep, not a new slot.
+    internal static int ClassifyHudNode(string text, string message, out bool interrupt)
+    {
+        interrupt = false;
+        string m = message ?? "";
+        if (m.StartsWith("\u26a0") || m.IndexOf("\u5f02\u5e38", StringComparison.Ordinal) >= 0 || m.IndexOf("\u6b7b\u5faa\u73af", StringComparison.Ordinal) >= 0)
+        {
+            interrupt = true;
+            return 0;
+        }
+        if (m.StartsWith("\u2753") || m.IndexOf("\u7b49\u5f85", StringComparison.Ordinal) >= 0 || m.IndexOf("Waiting", StringComparison.Ordinal) >= 0 || m.IndexOf("\u51b3\u7b56", StringComparison.Ordinal) >= 0)
+        {
+            interrupt = true;
+            return 0;
+        }
+        if (m.StartsWith("\u2705") || m.IndexOf("\u5b8c\u6210", StringComparison.Ordinal) >= 0 || m.IndexOf("Completed", StringComparison.Ordinal) >= 0)
+            return 1;
+
+        string s = (text ?? "").Trim();
+        if (s.Length == 0) return 2;
+        if (s.StartsWith("\u2713") || s.StartsWith("\u2714")) return -1;
+        if (s.Length >= 2 && s[0] == '\uD83D' && s[1] == '\uDCAD') return 5;
+        if (s.StartsWith("\u2753") || s.StartsWith("\u8bf7\u786e\u8ba4") || s.StartsWith("Confirm:"))
+        {
+            interrupt = true;
+            return 0;
+        }
+        if (s.StartsWith("\u26a0"))
+        {
+            interrupt = true;
+            return 0;
+        }
+        string sl = s.ToLowerInvariant();
+        if (sl.IndexOf("\u9605\u8bfb", StringComparison.Ordinal) >= 0 || sl.StartsWith("read_file") ||
+            sl.IndexOf("\u8bfb\u53d6", StringComparison.Ordinal) >= 0 || sl.StartsWith("read ") || sl.StartsWith("reading"))
+            return 4;
+        if (sl.StartsWith("search:") || sl.StartsWith("search ") || sl.IndexOf("\u641c\u7d22", StringComparison.Ordinal) >= 0 ||
+            sl.IndexOf("grep", StringComparison.Ordinal) >= 0 || sl.IndexOf("glob", StringComparison.Ordinal) >= 0)
+            return 3;
+        if (sl.StartsWith("edit_file") || sl.StartsWith("write_file") || sl.StartsWith("delete_file") ||
+            sl.IndexOf("\u4fee\u6539", StringComparison.Ordinal) >= 0 || sl.IndexOf("\u5199\u5165", StringComparison.Ordinal) >= 0 ||
+            sl.StartsWith("\u26a1") || sl.StartsWith("\u8fd0\u884c") || sl.StartsWith("run:") || sl.StartsWith("run ") ||
+            sl.IndexOf("build", StringComparison.Ordinal) >= 0 || sl.IndexOf("selfcheck", StringComparison.Ordinal) >= 0 ||
+            sl.IndexOf("csc", StringComparison.Ordinal) >= 0)
+            return 2;
+        return 2;
+    }
+
+    internal void ResetDisplayQueue()
+    {
+        PendingNodes.Clear();
+        DetailShownTick = 0;
+        DetailLevel = 0;
+        InterruptHold = false;
+    }
+
+    internal void OfferDisplay(string text, string message)
+    {
+        bool interrupt;
+        int level = ClassifyHudNode(text, message, out interrupt);
+        if (interrupt)
+        {
+            PendingNodes.Clear();
+            SubDetail = text;
+            DetailLevel = 0;
+            DetailShownTick = Environment.TickCount;
+            InterruptHold = true;
+            return;
+        }
+        InterruptHold = false;
+        if (level < 0)
+        {
+            if (string.IsNullOrEmpty(SubDetail))
+            {
+                SubDetail = text;
+                DetailLevel = 2;
+                DetailShownTick = Environment.TickCount;
+            }
+            return;
+        }
+        if (level == 1)
+        {
+            for (int i = PendingNodes.Count - 1; i >= 0; i--)
+            {
+                if (PendingNodes[i].Level >= 3) PendingNodes.RemoveAt(i);
+            }
+            if (PendingNodes.Count == 0)
+            {
+                SubDetail = text;
+                DetailLevel = 1;
+                DetailShownTick = Environment.TickCount;
+                return;
+            }
+            PendingNodes.Add(new HudDisplayNode { Text = text, Level = 1 });
+            return;
+        }
+        if (string.IsNullOrEmpty(text)) return;
+        if (string.Equals(SubDetail, text, StringComparison.Ordinal))
+        {
+            DetailLevel = level;
+            return;
+        }
+
+        DrainDueNodes();
+        if (TryMergeDisplay(text, level)) return;
+
+        int dwell = DisplayDwellMs;
+        bool canShowNow = string.IsNullOrEmpty(SubDetail) || DetailShownTick == 0 ||
+                          unchecked(Environment.TickCount - DetailShownTick) >= dwell;
+        if (canShowNow && PendingNodes.Count == 0)
+        {
+            SubDetail = text;
+            DetailLevel = level;
+            DetailShownTick = Environment.TickCount;
+            return;
+        }
+
+        PendingNodes.Add(new HudDisplayNode { Text = text, Level = level });
+        TrimDisplayQueue();
+    }
+
+    internal bool TryAdvanceDisplay(bool paused)
+    {
+        if (paused || InterruptHold || PendingNodes.Count == 0) return false;
+        int dwell = DisplayDwellMs;
+        if (DetailShownTick != 0 && unchecked(Environment.TickCount - DetailShownTick) < dwell)
+            return false;
+        HudDisplayNode n = PendingNodes[0];
+        PendingNodes.RemoveAt(0);
+        SubDetail = n.Text;
+        DetailLevel = n.Level;
+        DetailShownTick = Environment.TickCount;
+        return true;
+    }
+
+    private void DrainDueNodes()
+    {
+        while (TryAdvanceDisplay(false)) { }
+    }
+
+    private bool TryMergeDisplay(string text, int level)
+    {
+        if (PendingNodes.Count > 0)
+        {
+            HudDisplayNode last = PendingNodes[PendingNodes.Count - 1];
+            if (string.Equals(last.Text, text, StringComparison.Ordinal)) return true;
+            if (last.Level == level && (level == 4 || level == 5))
+            {
+                last.Text = text;
+                return true;
+            }
+            if (last.Level == level && level == 2 && SameNodeFile(last.Text, text))
+            {
+                last.Text = text;
+                return true;
+            }
+            return false;
+        }
+        if (string.IsNullOrEmpty(SubDetail)) return false;
+        if (DetailLevel == level && (level == 4 || level == 5))
+        {
+            SubDetail = text;
+            return true;
+        }
+        if (DetailLevel == level && level == 2 && SameNodeFile(SubDetail, text))
+        {
+            SubDetail = text;
+            return true;
+        }
+        return false;
+    }
+
+    private void TrimDisplayQueue()
+    {
+        while (PendingNodes.Count > MaxPendingNodes)
+        {
+            int drop = IndexOfDroppableNode();
+            if (drop < 0) break;
+            PendingNodes.RemoveAt(drop);
+        }
+    }
+
+    private int IndexOfDroppableNode()
+    {
+        for (int want = 5; want >= 3; want--)
+        {
+            for (int i = 0; i < PendingNodes.Count; i++)
+            {
+                if (PendingNodes[i].Level == want) return i;
+            }
+        }
+        return -1;
+    }
+
+    private static bool SameNodeFile(string a, string b)
+    {
+        string ka = NodeFileKey(a);
+        string kb = NodeFileKey(b);
+        return ka.Length > 0 && string.Equals(ka, kb, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NodeFileKey(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        string rest = text;
+        int colon = text.LastIndexOf(':');
+        if (colon >= 0 && colon + 1 < text.Length) rest = text.Substring(colon + 1).Trim();
+        int slash = rest.LastIndexOf('\\');
+        int slash2 = rest.LastIndexOf('/');
+        if (slash2 > slash) slash = slash2;
+        if (slash >= 0 && slash + 1 < rest.Length) rest = rest.Substring(slash + 1);
+        rest = rest.Trim();
+        if (rest.Length == 0 || rest.IndexOf(' ') >= 0) return "";
+        return rest;
+    }
 }
 
 internal sealed class AgentTaskStatusHud : Form
@@ -120,10 +353,13 @@ internal sealed class AgentTaskStatusHud : Form
         DateTime now = DateTime.Now;
         Dictionary<string, AgentTaskStatus> projectMap = new Dictionary<string, AgentTaskStatus>(StringComparer.OrdinalIgnoreCase);
 
+        bool stayPinned = !string.IsNullOrEmpty(pinnedAgent);
         for (int i = 0; i < tasks.Count; i++)
         {
             AgentTaskStatus t = tasks[i];
-            if (t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
+            // A pinned HUD is desktop-resident: keep its sessions even after the
+            // 5-minute idle expiry that otherwise auto-hides the bar.
+            if (!stayPinned && t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
 
             string key = GetProjectKey(t);
             AgentTaskStatus existing;
@@ -146,6 +382,10 @@ internal sealed class AgentTaskStatusHud : Form
         foreach (var v in projectMap.Values)
         {
             active.Add(v);
+        }
+        if (active.Count == 0 && stayPinned && lastDisplayedTask != null)
+        {
+            active.Add(lastDisplayedTask);
         }
         // Group same-agent sessions adjacently so multi-session pills are never
         // split by other agents. SessionCompareTask keeps the pill order and
@@ -295,13 +535,18 @@ internal sealed class AgentTaskStatusHud : Form
         else RenderLayeredWindow();
     }
 
+    internal bool IsHudPinned
+    {
+        get { return !string.IsNullOrEmpty(pinnedAgent); }
+    }
+
     internal bool ShouldBeVisible()
     {
         if (settings == null || !settings.DesktopCollaborationEnabled) return false;
+        // Pinned HUD stays on the desktop until the user unpins or closes it.
+        if (!string.IsNullOrEmpty(pinnedAgent)) return true;
         var active = GetActiveTasks();
         if (active.Count == 0) return false;
-        // Pinned HUD is a deliberate "keep it on screen" anchor; never auto-hide.
-        if (!string.IsNullOrEmpty(pinnedAgent)) return true;
         if (isHovered || moving || resizingWidth) return true;
         for (int i = 0; i < active.Count; i++)
         {
@@ -346,13 +591,19 @@ internal sealed class AgentTaskStatusHud : Form
         }
 
         var active = GetActiveTasks();
-        if (!string.IsNullOrEmpty(pinnedAgent))
+        // Pin is a user-owned desktop-resident switch. Never drop it because a
+        // session expired, completed, or was auto-cleared; only the pin icon
+        // or the close button may release it.
+
+        if (!isHovered && tasks != null)
         {
-            int pIdx = active.FindIndex(t => string.Equals(t.AgentName, pinnedAgent, StringComparison.OrdinalIgnoreCase));
-            // Pin prevents auto-rotation / auto-hide, but does NOT lock the
-            // protagonist: the user can still click any pill to switch. Only
-            // drop the pin when the pinned agent's session has expired.
-            if (pIdx < 0) pinnedAgent = null;
+            bool advanced = false;
+            for (int i = 0; i < tasks.Count; i++)
+            {
+                AgentTaskStatus t = tasks[i];
+                if (t != null && t.TryAdvanceDisplay(false)) advanced = true;
+            }
+            if (advanced) RenderLayeredWindow();
         }
 
         // Fixed-cadence rotation when idle: if not pinned, not hovered and not manually locked, advance every 5s
@@ -419,24 +670,28 @@ internal sealed class AgentTaskStatusHud : Form
                 }
             }
 
-            // Auto-acknowledge completed tasks after user focuses the agent window for >= 5s
-            for (int i = tasks.Count - 1; i >= 0; i--)
+            // Auto-acknowledge completed tasks after user focuses the agent window for >= 5s.
+            // A pinned bar is resident: do not silently clear/hide it.
+            if (string.IsNullOrEmpty(pinnedAgent))
             {
-                AgentTaskStatus t = tasks[i];
-                bool done = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("✅") || t.Message.Contains("完成") || t.Message.Contains("Completed"));
-                if (done && (!t.HasProgress || string.IsNullOrEmpty(t.StepProgress)))
+                for (int i = tasks.Count - 1; i >= 0; i--)
                 {
-                    if (AppContext.IsAgentWindowInForeground(t.AgentName))
+                    AgentTaskStatus t = tasks[i];
+                    bool done = !string.IsNullOrEmpty(t.Message) && (t.Message.StartsWith("✅") || t.Message.Contains("完成") || t.Message.Contains("Completed"));
+                    if (done && (!t.HasProgress || string.IsNullOrEmpty(t.StepProgress)))
                     {
-                        t.ForegroundSeenSeconds += 0.25;
-                        if (t.ForegroundSeenSeconds >= 5.0 && AppContext.Current != null)
+                        if (AppContext.IsAgentWindowInForeground(t.AgentName))
                         {
-                            AppContext.Current.ClearAgentProgress(t.AgentName);
+                            t.ForegroundSeenSeconds += 0.25;
+                            if (t.ForegroundSeenSeconds >= 5.0 && AppContext.Current != null)
+                            {
+                                AppContext.Current.ClearAgentProgress(t.AgentName);
+                            }
                         }
-                    }
-                    else
-                    {
-                        t.ForegroundSeenSeconds = 0;
+                        else
+                        {
+                            t.ForegroundSeenSeconds = 0;
+                        }
                     }
                 }
             }
@@ -652,14 +907,20 @@ internal sealed class AgentTaskStatusHud : Form
         if (isHovered && pinRect.Contains(e.Location))
         {
             pinnedAgent = string.IsNullOrEmpty(pinnedAgent) ? active[currentAgentIndex].AgentName : null;
+            if (!string.IsNullOrEmpty(pinnedAgent))
+            {
+                fadeStartTick = 0;
+                currentAlpha = 255;
+            }
             RenderLayeredWindow();
             return;
         }
 
-        // Top-right close button [✕]
+        // Top-right close button [✕] — explicit dismiss also releases the pin
         Rectangle cornerClose = new Rectangle(Width - 27, 5, 18, 18);
         if (cornerClose.Contains(e.Location))
         {
+            pinnedAgent = null;
             if (AppContext.Current != null)
             {
                 AppContext.Current.ClearAgentProgress(active[currentAgentIndex].AgentName);
