@@ -1139,8 +1139,15 @@ internal sealed class AgentTaskStatusHud : Form
 
         string textToDraw = !string.IsNullOrEmpty(mainText) ? mainText : "";
         float textW = Math.Max(40f, rightLimit - textX);
-        RectangleF titleRect = new RectangleF(textX, cardY, textW, CardHeight);
-        g.DrawString(textToDraw, titleFont, titleBrush, titleRect, titleFormat);
+        if (!isCompleted && !isHovered && IsPhaseStatusLine(textToDraw))
+        {
+            DrawPhaseLine(g, textToDraw, titleFont, titleBrush, titleFormat, textX, cardY, textW, CardHeight);
+        }
+        else
+        {
+            RectangleF titleRect = new RectangleF(textX, cardY, textW, CardHeight);
+            g.DrawString(textToDraw, titleFont, titleBrush, titleRect, titleFormat);
+        }
 
         // 4b. Fixed Elapsed Time Badge (just left of the status ring, distinct color)
         if (showTime)
@@ -1432,6 +1439,62 @@ internal sealed class AgentTaskStatusHud : Form
         if (label != null) { color = Color.FromArgb(rgb | unchecked((int)0xFF000000)); return; }
         color = GetDeterministicAgentColor(baseAgent);
         label = baseAgent.Length <= 6 ? (baseAgent.Length == 0 ? "AI" : baseAgent) : baseAgent.Substring(0, 5) + "…";
+    }
+
+    private static bool IsPhaseStatusLine(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return false;
+        return PhaseLabel(text, "正在思考") || PhaseLabel(text, "计划下一步")
+            || PhaseLabel(text, "Thinking") || PhaseLabel(text, "Planning next moves");
+    }
+
+    private static bool PhaseLabel(string text, string label)
+    {
+        if (string.Equals(text, label, StringComparison.Ordinal)) return true;
+        return text.StartsWith(label + " \u00b7 ", StringComparison.Ordinal);
+    }
+
+    // One, two, then three dots, holding each step for 400ms. Paint only.
+    private static string PhaseDots()
+    {
+        int n = (int)(unchecked((uint)Environment.TickCount) / 400u) % 3 + 1;
+        return n == 1 ? "." : (n == 2 ? ".." : "...");
+    }
+
+    private static float MeasureTight(Graphics g, string text, Font font)
+    {
+        if (string.IsNullOrEmpty(text)) return 0f;
+        using (StringFormat fmt = new StringFormat(StringFormat.GenericTypographic))
+        {
+            fmt.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
+            CharacterRange[] ranges = { new CharacterRange(0, text.Length) };
+            fmt.SetMeasurableCharacterRanges(ranges);
+            Region[] regions = g.MeasureCharacterRanges(text, font, new RectangleF(0, 0, 10000f, 200f), fmt);
+            float w = 0f;
+            if (regions != null && regions.Length > 0)
+            {
+                w = regions[0].GetBounds(g).Width;
+                for (int i = 0; i < regions.Length; i++) regions[i].Dispose();
+            }
+            if (w <= 0f) w = g.MeasureString(text, font).Width;
+            return w;
+        }
+    }
+
+    private static void DrawPhaseLine(Graphics g, string text, Font font, Brush brush, StringFormat format, float x, float y, float width, int height)
+    {
+        string dots = PhaseDots();
+        float slot = MeasureTight(g, "...", font) + 2f;
+        float limit = Math.Max(12f, width - slot);
+        float wordsW = MeasureTight(g, text, font);
+        if (wordsW > limit)
+        {
+            g.DrawString(text, font, brush, new RectangleF(x, y, limit, height), format);
+            g.DrawString(dots, font, brush, new RectangleF(x + limit, y, slot, height), format);
+            return;
+        }
+        g.DrawString(text, font, brush, new RectangleF(x, y, wordsW + 6f, height), format);
+        g.DrawString(dots, font, brush, new RectangleF(x + wordsW + 1f, y, slot, height), format);
     }
 
     internal static Color GetDeterministicAgentColor(string name)
