@@ -1152,9 +1152,11 @@ internal sealed class AgentTaskStatusHud : Form
         bool isWaiting = statusColor == ColorWaiting || isError;
         bool isRunning = statusColor == ColorRunning;
 
-        // 2. Agent Brand Badge (Single-agent only) & Project Hint Chip
+        // Name chip on the main line for a single task, and also while pinned.
+        // With several tasks the name otherwise lives only on the pills below,
+        // so pinning the bar looked like the agent name had disappeared.
         float textX = 10f;
-        if (!isMulti)
+        if (!isMulti || !string.IsNullOrEmpty(pinnedAgent))
         {
             Color badgeColor; string badgeLabel;
             GetAgentBadge(task.AgentName, out badgeColor, out badgeLabel);
