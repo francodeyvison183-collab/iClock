@@ -258,8 +258,9 @@ internal sealed class AgentTaskStatusHud : Form
         for (int i = 0; i < tasks.Count; i++)
         {
             AgentTaskStatus t = tasks[i];
-            // A finished task leaves after 5 quiet minutes. A running task stays.
-            if (!stayPinned && IsFinishedTask(t) && t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
+            // A finished task leaves after 5 quiet minutes. Pinning keeps the bar
+            // on screen; it does not bring those finished sessions back.
+            if (IsFinishedTask(t) && t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
 
             string key = GetProjectKey(t);
             AgentTaskStatus existing;
@@ -1152,11 +1153,10 @@ internal sealed class AgentTaskStatusHud : Form
         bool isWaiting = statusColor == ColorWaiting || isError;
         bool isRunning = statusColor == ColorRunning;
 
-        // Name chip on the main line for a single task, and also while pinned.
-        // With several tasks the name otherwise lives only on the pills below,
-        // so pinning the bar looked like the agent name had disappeared.
+        // The pills under the bar already name each agent. The main line
+        // keeps a name chip only when there is no pill row.
         float textX = 10f;
-        if (!isMulti || !string.IsNullOrEmpty(pinnedAgent))
+        if (!isMulti)
         {
             Color badgeColor; string badgeLabel;
             GetAgentBadge(task.AgentName, out badgeColor, out badgeLabel);
