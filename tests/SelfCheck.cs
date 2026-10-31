@@ -4813,6 +4813,31 @@ internal static class TestCheck
                         Console.WriteLine("FAIL: TaskStatusHeight must clamp to 28px min, got " + fH.GetValue(st));
                         return 75;
                     }
+                    FieldInfo fText = settingsType.GetField("TaskStatusTextColor");
+                    if (fText == null || !string.IsNullOrEmpty((string)fText.GetValue(st)))
+                    {
+                        Console.WriteLine("FAIL: TaskStatusTextColor should default empty");
+                        return 75;
+                    }
+                }
+
+                Type colorHudType = appType.Assembly.GetType("AgentTaskStatusHud");
+                if (colorHudType != null)
+                {
+                    MethodInfo mSlot = colorHudType.GetMethod("ColorSlotRect", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+                    MethodInfo mSwatch = colorHudType.GetMethod("ColorSwatchRect", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+                    if (mSlot == null || mSwatch == null)
+                    {
+                        Console.WriteLine("FAIL: status text color slot missing");
+                        return 75;
+                    }
+                    Rectangle slot = (Rectangle)mSlot.Invoke(null, new object[] { 400, 28 });
+                    Rectangle swatch = (Rectangle)mSwatch.Invoke(null, new object[] { slot });
+                    if (slot.Width != 18 || slot.X != 337 || swatch.Width != 10 || swatch.Height != 10 || swatch.X != slot.X + 4)
+                    {
+                        Console.WriteLine("FAIL: color swatch must be a 10px dot in an 18px slot left of the pin: " + slot + " " + swatch);
+                        return 75;
+                    }
                 }
 
                 Console.WriteLine("PASS: Process-guided dynamic watcher & Universal schema-agnostic parsing verified.");

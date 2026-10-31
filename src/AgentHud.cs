@@ -225,6 +225,7 @@ internal sealed class AgentTaskStatusHud : Form
     private int lastRotationTick = Environment.TickCount;
     private int manualLockUntilTick = 0;
     private int lastHoverPillIndex = -1;
+    private bool hoverColorDot;
     private const int AutoRotationCadenceMs = 5000;
 
     private DateTime lastHoverTime;
@@ -607,6 +608,7 @@ internal sealed class AgentTaskStatusHud : Form
             {
                 isHovered = false;
                 lastHoverPillIndex = -1;
+                hoverColorDot = false;
                 hoverChanged = true;
                 RenderLayeredWindow();
             }
@@ -891,8 +893,15 @@ internal sealed class AgentTaskStatusHud : Form
 
         if (e.Button != MouseButtons.Left) return;
 
+        // Text-color swatch, left of the pin. Only the dot opens the picker.
+        if (isHovered && ColorSlotRect(Width, cardH).Contains(e.Location))
+        {
+            ChooseStatusTextColor();
+            return;
+        }
+
         // Pin button [📌] (Left of status icon)
-        Rectangle pinRect = new Rectangle(Width - 45, 5, 18, 18);
+        Rectangle pinRect = HoverSlotRect(Width, cardH, 45);
         if (isHovered && pinRect.Contains(e.Location))
         {
             pinnedAgent = string.IsNullOrEmpty(pinnedAgent) ? active[currentAgentIndex].AgentName : null;
@@ -906,7 +915,7 @@ internal sealed class AgentTaskStatusHud : Form
         }
 
         // Top-right close button [✕] — same as turning off agent status sensing.
-        Rectangle cornerClose = new Rectangle(Width - 27, 5, 18, 18);
+        Rectangle cornerClose = HoverSlotRect(Width, cardH, 27);
         if (cornerClose.Contains(e.Location))
         {
             if (AppContext.Current != null) AppContext.Current.TurnOffAgentStatusPin(null);
@@ -955,8 +964,14 @@ internal sealed class AgentTaskStatusHud : Form
             {
                 bool showPin = isHovered;
                 int curHoverPill = GetIndicatorDotIndex(e.Location, cardH);
-                bool hand = new Rectangle(Width - 27, 5, 18, 18).Contains(e.Location) || (showPin && new Rectangle(Width - 45, 5, 18, 18).Contains(e.Location)) || curHoverPill >= 0;
+                bool onColor = showPin && ColorSlotRect(Width, cardH).Contains(e.Location);
+                bool hand = HoverSlotRect(Width, cardH, 27).Contains(e.Location) || (showPin && HoverSlotRect(Width, cardH, 45).Contains(e.Location)) || onColor || curHoverPill >= 0;
                 Cursor.Current = hand ? Cursors.Hand : Cursors.Default;
+                if (onColor != hoverColorDot)
+                {
+                    hoverColorDot = onColor;
+                    RenderLayeredWindow();
+                }
                 if (curHoverPill != lastHoverPillIndex)
                 {
                     lastHoverPillIndex = curHoverPill;
@@ -1188,7 +1203,7 @@ internal sealed class AgentTaskStatusHud : Form
         }
 
         float rightLimit = ringCenterX - 10f;
-        if (showPin) rightLimit -= 18f;
+        if (showPin) rightLimit -= 36f;
         if (showTime) rightLimit -= timeW;
 
         string textToDraw = !string.IsNullOrEmpty(mainText) ? mainText : "";
@@ -1206,13 +1221,30 @@ internal sealed class AgentTaskStatusHud : Form
         // 4b. Fixed Elapsed Time Badge (just left of the status ring, distinct color)
         if (showTime)
         {
-            float timeRight = ringCenterX - 10f - (showPin ? 18f : 0f);
+            float timeRight = ringCenterX - 10f - (showPin ? 36f : 0f);
             RectangleF timeRect = new RectangleF(timeRight - timeW, cardY, timeW, CardHeight);
             using (SolidBrush timeBrush = new SolidBrush(Color.FromArgb(180, 148, 163, 184))) // slate-400, muted but distinct from main text
             using (StringFormat rightFmt = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center, FormatFlags = StringFormatFlags.NoWrap })
             {
                 g.DrawString(timeBadge, badgeFont, timeBrush, timeRect, rightFmt);
             }
+        }
+
+        if (showPin)
+        {
+            Rectangle colorSlot = ColorSlotRect(Width, CardHeight);
+            Rectangle swatch = ColorSwatchRect(colorSlot);
+            bool hoverDot = colorSlot.Contains(clientCursor);
+            if (hoverDot)
+            {
+                using (SolidBrush dotBg = new SolidBrush(Color.FromArgb(45, 255, 255, 255)))
+                    g.FillEllipse(dotBg, colorSlot);
+            }
+            Color textColor = StatusTextColor();
+            using (SolidBrush dotFill = new SolidBrush(textColor))
+                g.FillEllipse(dotFill, swatch);
+            using (Pen dotRing = new Pen(Color.FromArgb(160, 255, 255, 255), 1f))
+                g.DrawEllipse(dotRing, swatch);
         }
 
         // 4a. Pin Icon Slot (Directly left of status ring: ringCenterX - 20f)
@@ -1540,6 +1572,50 @@ internal sealed class AgentTaskStatusHud : Form
         }
     }
 
+    internal static Rectangle HoverSlotRect(int width, int cardH, int fromRight)
+    {
+        int cy = Math.Max(0, cardH) / 2;
+        return new Rectangle(width - fromRight, cy - 9, 18, 18);
+    }
+
+    internal static Rectangle ColorSlotRect(int width, int cardH)
+    {
+        return HoverSlotRect(width, cardH, 63);
+    }
+
+    internal static Rectangle ColorSwatchRect(Rectangle slot)
+    {
+        return new Rectangle(slot.X + 4, slot.Y + 4, 10, 10);
+    }
+
+    internal Color StatusTextColor()
+    {
+        if (settings != null && !string.IsNullOrEmpty(settings.TaskStatusTextColor))
+        {
+            try { return ColorTranslator.FromHtml(settings.TaskStatusTextColor); }
+            catch { }
+        }
+        return ColorTitleText;
+    }
+
+    private void ChooseStatusTextColor()
+    {
+        if (settings == null) return;
+        using (ColorDialog cd = new ColorDialog())
+        {
+            cd.Color = StatusTextColor();
+            cd.AllowFullOpen = true;
+            cd.FullOpen = true;
+            cd.AnyColor = true;
+            if (cd.ShowDialog(this) == DialogResult.OK)
+            {
+                settings.TaskStatusTextColor = ColorTranslator.ToHtml(cd.Color);
+                settings.Save();
+                RenderLayeredWindow();
+            }
+        }
+    }
+
     internal static Color GetDeterministicAgentColor(string name)
     {
         if (string.IsNullOrEmpty(name)) return AppContext.Win11Accent;
@@ -1570,7 +1646,9 @@ internal sealed class AgentTaskStatusHud : Form
             cachedTitleFont = new Font("Microsoft YaHei UI", fs, FontStyle.Regular, GraphicsUnit.Point);
             cachedTitleFontSize = fs;
         }
-        if (cachedTitleBrush == null) cachedTitleBrush = new SolidBrush(ColorTitleText);
+        Color titleColor = StatusTextColor();
+        if (cachedTitleBrush == null) cachedTitleBrush = new SolidBrush(titleColor);
+        else if (cachedTitleBrush.Color.ToArgb() != titleColor.ToArgb()) cachedTitleBrush.Color = titleColor;
         if (cachedBorderNormal == null) cachedBorderNormal = new Pen(ColorBorderNormal, 1.0f);
         if (cachedBorderHover == null) cachedBorderHover = new Pen(ColorBorderHover, 1.0f);
         if (cachedTitleFormat == null) cachedTitleFormat = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
