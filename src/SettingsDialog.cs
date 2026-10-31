@@ -1541,12 +1541,11 @@ internal sealed class SettingsDialog : Form
     private void ApplyCollabSwitchState()
     {
         bool pin = Value == null || Value.AgentStatusPinEnabled;
-        bool deep = Value == null || Value.AgentDeepCollabEnabled;
         Color on = AppContext.Win11TextPrimary;
         Color off = Color.FromArgb(156, 163, 175);
         if (lblStatusDesc != null) lblStatusDesc.ForeColor = pin ? on : off;
-        if (lblAskLine != null) lblAskLine.ForeColor = deep ? on : off;
-        if (lblNoticeLine != null) lblNoticeLine.ForeColor = deep ? on : off;
+        if (lblAskLine != null) lblAskLine.ForeColor = on;
+        if (lblNoticeLine != null) lblNoticeLine.ForeColor = on;
         RefreshSkillInstallUi();
     }
 
@@ -1554,9 +1553,8 @@ internal sealed class SettingsDialog : Form
     {
         if (panelSkillCard == null || lblSkillMethod1 == null) return;
         bool en = Value != null && Value.Language == "en";
-        bool deep = Value == null || Value.AgentDeepCollabEnabled;
-        Color title = deep ? AppContext.Win11TextPrimary : Color.FromArgb(156, 163, 175);
-        Color sub = deep ? AppContext.Win11TextSecondary : Color.FromArgb(156, 163, 175);
+        Color title = AppContext.Win11TextPrimary;
+        Color sub = AppContext.Win11TextSecondary;
         lblSkillMethod1.Text = en ? "Install skill · stays on" : "安装技能 · 一直有效";
         lblSkillMethod1.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f, FontStyle.Bold);
         lblSkillMethod1.ForeColor = title;
@@ -1575,7 +1573,7 @@ internal sealed class SettingsDialog : Form
         if (btnCopyCliGuide != null)
         {
             btnCopyCliGuide.Text = en ? "Copy prompt" : "复制提示词";
-            btnCopyCliGuide.Enabled = deep;
+            btnCopyCliGuide.Enabled = true;
         }
 
         BuildAgentRows(en, false);
@@ -1698,9 +1696,7 @@ internal sealed class SettingsDialog : Form
         // Fingerprint = agent names + per-agent install state + language.
         // Skip the rebuild entirely when nothing changed so the list doesn't flicker.
         List<string> running = AppContext.DetectAgents();
-        bool deepOn = Value == null || Value.AgentDeepCollabEnabled;
         StringBuilder fps = new StringBuilder(en ? "en|" : "zh|");
-        fps.Append(deepOn ? "deep|" : "off|");
         foreach (string a in running) { fps.Append(a); fps.Append('='); fps.Append(CliSkillInstaller.IsInstalled(a)); fps.Append(';'); }
         string fp = fps.ToString();
         // Rows contribute 3 controls each (dot, name, button); dividers contribute running.Count - 1.
@@ -1737,7 +1733,7 @@ internal sealed class SettingsDialog : Form
             Label name = new Label();
             name.Text = agent;
             name.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
-            name.ForeColor = deepOn ? AppContext.Win11TextPrimary : Color.FromArgb(156, 163, 175);
+            name.ForeColor = AppContext.Win11TextPrimary;
             name.TextAlign = ContentAlignment.MiddleLeft;
             int btnRight = hostW;
             int btnX = btnRight - AgentActionBtnWidth;
@@ -1752,10 +1748,10 @@ internal sealed class SettingsDialog : Form
             // Solid fill, no border: reduces line-noise against the row divider.
             btn.FlatStyle = FlatStyle.Flat;
             btn.FlatAppearance.BorderSize = 0;
-            btn.Cursor = (rowInstalled || !deepOn) ? Cursors.Default : Cursors.Hand;
-            if (rowInstalled || !deepOn)
+            btn.Cursor = rowInstalled ? Cursors.Default : Cursors.Hand;
+            if (rowInstalled)
             {
-                btn.Text = rowInstalled ? (en ? "Installed ✓" : "已安装 ✓") : (en ? "Install" : "安装技能");
+                btn.Text = en ? "Installed ✓" : "已安装 ✓";
                 btn.Enabled = false;
                 btn.BackColor = Color.FromArgb(229, 231, 235);
                 btn.ForeColor = Color.FromArgb(107, 114, 128);
