@@ -38,6 +38,9 @@ internal sealed class AgentTaskStatus
     internal int DetailShownTick;
     internal int DetailLevel;
     internal bool InterruptHold;
+    internal readonly List<string> DetailQueue = new List<string>();
+    internal int DetailQueueTick;
+    internal const int DetailDwellMs = 700;
 
     // 0 interrupt, 1 complete, 2 write/run,
     // 3 search, 4 read, 5 thought. -1 = generic keep, not a new slot.
@@ -93,12 +96,50 @@ internal sealed class AgentTaskStatus
         DetailShownTick = 0;
         DetailLevel = 0;
         InterruptHold = false;
+        DetailQueue.Clear();
+    }
+
+    internal void QueueAfterCurrent(IList nodes)
+    {
+        DetailQueue.Clear();
+        if (nodes == null) return;
+        for (int i = 1; i < nodes.Count; i++)
+        {
+            string text = nodes[i] as string;
+            if (string.IsNullOrEmpty(text)) continue;
+            if (DetailQueue.Count == 0 && string.Equals(text, SubDetail, StringComparison.Ordinal)) continue;
+            if (DetailQueue.Count > 0 && string.Equals(DetailQueue[DetailQueue.Count - 1], text, StringComparison.Ordinal)) continue;
+            DetailQueue.Add(text);
+        }
+        DetailQueueTick = Environment.TickCount;
+    }
+
+    internal bool AdvanceDetailQueue(bool visible)
+    {
+        if (DetailQueue.Count == 0) return false;
+        if (!visible)
+        {
+            DetailQueueTick = Environment.TickCount;
+            return false;
+        }
+        int elapsed = unchecked(Environment.TickCount - DetailQueueTick);
+        if (elapsed < DetailDwellMs) return false;
+        string next = DetailQueue[0];
+        DetailQueue.RemoveAt(0);
+        SubDetail = next;
+        bool interrupt;
+        DetailLevel = ClassifyHudNode(next, Message, out interrupt);
+        DetailShownTick = Environment.TickCount;
+        DetailQueueTick = DetailShownTick;
+        StepStartTime = DateTime.Now;
+        return true;
     }
 
     internal void OfferDisplay(string text, string message)
     {
         bool interrupt;
         int level = ClassifyHudNode(text, message, out interrupt);
+        DetailQueue.Clear();
         if (interrupt)
         {
             SubDetail = text;
@@ -109,7 +150,7 @@ internal sealed class AgentTaskStatus
         }
         InterruptHold = false;
         if (string.IsNullOrEmpty(text)) return;
-        // The newest line replaces whatever is on screen, including a thought sentence.
+        // A newer line replaces whatever is on screen, including a thought sentence.
         SubDetail = text;
         DetailLevel = level;
         DetailShownTick = Environment.TickCount;
@@ -647,8 +688,17 @@ internal sealed class AgentTaskStatusHud : Form
             }
         }
 
+        bool detailAdvanced = false;
+        if (tasks != null)
+        {
+            for (int i = 0; i < tasks.Count; i++)
+            {
+                if (tasks[i] != null && tasks[i].AdvanceDetailQueue(Visible)) detailAdvanced = true;
+            }
+        }
+
         // Animation self-driven: running comet ring & waiting pulse run continuously
-        bool hasActiveAnimation = moving || resizingWidth || isHovered || hoverChanged;
+        bool hasActiveAnimation = moving || resizingWidth || isHovered || hoverChanged || detailAdvanced;
         if (!hasActiveAnimation && active.Count > 0)
         {
             for (int i = 0; i < active.Count; i++)

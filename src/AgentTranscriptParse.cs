@@ -438,6 +438,15 @@ internal sealed partial class AgentSessionWatcher
         OfferBatchNode(s, formatted);
     }
 
+    private bool NoteTools(TurnSession s, Dictionary<string, object> data, bool isZh)
+    {
+        List<string> actions = ExtractToolActions(data, isZh);
+        if (actions.Count == 0) return false;
+        for (int i = 0; i < actions.Count; i++)
+            NoteTool(s, i == actions.Count - 1 ? data : null, actions[i], isZh);
+        return true;
+    }
+
     private static int RankAction(string action)
     {
         if (string.IsNullOrEmpty(action)) return 1;
@@ -547,11 +556,11 @@ internal sealed partial class AgentSessionWatcher
         string procMsg = "⏳ [" + session.Target + "] " + (isZh ? "处理中..." : "Processing...");
         if (session.BatchNodes.Count > 0)
         {
-            for (int n = 0; n < session.BatchNodes.Count; n++)
-            {
-                appContext.SetAgentTaskMessage(procMsg, agentName, true, session.BatchNodes[n], stepProgressText, progress, msgTime, filePath);
-            }
+            List<string> nodes = new List<string>(session.BatchNodes);
             session.BatchNodes.Clear();
+            appContext.SetAgentTaskMessage(procMsg, agentName, true, nodes[0], stepProgressText, progress, msgTime, filePath);
+            if (nodes.Count > 1)
+                appContext.QueueStatusDetails(agentName, filePath, nodes);
         }
         else
         {
@@ -616,7 +625,7 @@ internal sealed partial class AgentSessionWatcher
         else if (!hasTool && PartsHaveThinking(parts)) NoteThinkingPhase(session, isZh);
         if (hasTool)
         {
-            NoteTool(session, data, ExtractToolSummary(data, isZh), isZh);
+            NoteTools(session, data, isZh);
             outcome.Complete = false;
             outcome.GenericKeep = false;
             return;
@@ -686,7 +695,7 @@ internal sealed partial class AgentSessionWatcher
         bool hasTool = PartsHaveTool(parts);
         if (hasTool)
         {
-            NoteTool(session, data, ExtractToolSummary(data, isZh), isZh);
+            NoteTools(session, data, isZh);
             outcome.Complete = false;
             return;
         }
@@ -754,10 +763,8 @@ internal sealed partial class AgentSessionWatcher
         string thought = ExtractCodexThought(data, payload, item);
         if (!string.IsNullOrEmpty(thought)) NoteThought(session, thought, isZh);
 
-        string tool = ExtractToolSummary(data, isZh);
-        if (!string.IsNullOrEmpty(tool))
+        if (NoteTools(session, data, isZh))
         {
-            NoteTool(session, data, tool, isZh);
             outcome.Complete = false;
             outcome.GenericKeep = "function_call_output".Equals(pType);
             return;
@@ -830,7 +837,7 @@ internal sealed partial class AgentSessionWatcher
 
         if (hasTool)
         {
-            NoteTool(session, data, ExtractToolSummary(data, isZh), isZh);
+            NoteTools(session, data, isZh);
             outcome.Complete = false;
             outcome.GenericKeep = false;
             outcome.Waiting = false;
@@ -926,7 +933,8 @@ internal sealed partial class AgentSessionWatcher
                        (body != null && body.ContainsKey("tool_calls") && body["tool_calls"] is IList && ((IList)body["tool_calls"]).Count > 0);
         if (hasTool)
         {
-            NoteTool(session, data, ExtractToolSummary(data, isZh) ?? ExtractToolSummary(body, isZh), isZh);
+            if (!NoteTools(session, data, isZh) && body != null && body != data)
+                NoteTools(session, body, isZh);
             outcome.Complete = false;
             return;
         }

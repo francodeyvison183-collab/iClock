@@ -1261,6 +1261,84 @@ internal sealed partial class AgentSessionWatcher : IDisposable
         return toolName;
     }
 
+    private static void AppendContentTools(IList content, bool isZh, List<string> found)
+    {
+        if (content == null) return;
+        for (int i = 0; i < content.Count; i++)
+        {
+            Dictionary<string, object> part = content[i] as Dictionary<string, object>;
+            if (part == null) continue;
+            string pType = part.ContainsKey("type") ? part["type"] as string : null;
+            if (!"tool_use".Equals(pType) && !"function_call".Equals(pType) && !"custom_tool_call".Equals(pType)) continue;
+            string name = part.ContainsKey("name") ? CleanToolParam(part["name"]) : null;
+            Dictionary<string, object> input = null;
+            if (part.ContainsKey("input")) input = part["input"] as Dictionary<string, object>;
+            else if (part.ContainsKey("arguments")) input = part["arguments"] as Dictionary<string, object>;
+            else if (part.ContainsKey("parameters")) input = part["parameters"] as Dictionary<string, object>;
+            string action = ExtractFriendlyAction(name, input, isZh);
+            if (!string.IsNullOrEmpty(action)) found.Add(action);
+        }
+    }
+
+    private static void AppendCallList(IList calls, bool isZh, List<string> found)
+    {
+        if (calls == null) return;
+        for (int i = 0; i < calls.Count; i++)
+        {
+            Dictionary<string, object> call = calls[i] as Dictionary<string, object>;
+            if (call == null) continue;
+            if (call.ContainsKey("toolSummary") && call["toolSummary"] != null)
+            {
+                string summary = CleanToolParam(call["toolSummary"]);
+                if (!string.IsNullOrEmpty(summary)) { found.Add(summary); continue; }
+            }
+            string name = call.ContainsKey("name") ? CleanToolParam(call["name"]) : null;
+            Dictionary<string, object> args = null;
+            if (call.ContainsKey("function") && call["function"] is Dictionary<string, object>)
+            {
+                Dictionary<string, object> fn = (Dictionary<string, object>)call["function"];
+                if (fn.ContainsKey("name")) name = CleanToolParam(fn["name"]);
+                object raw = fn.ContainsKey("arguments") ? fn["arguments"] : null;
+                if (raw is Dictionary<string, object>) args = (Dictionary<string, object>)raw;
+                else if (raw is string)
+                {
+                    string sArgs = ((string)raw).Trim();
+                    if (sArgs.StartsWith("{") && sArgs.EndsWith("}"))
+                    {
+                        try { args = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(sArgs); } catch { }
+                    }
+                }
+            }
+            if (args == null)
+            {
+                if (call.ContainsKey("args")) args = call["args"] as Dictionary<string, object>;
+                else if (call.ContainsKey("input")) args = call["input"] as Dictionary<string, object>;
+                else if (call.ContainsKey("parameters")) args = call["parameters"] as Dictionary<string, object>;
+            }
+            string action = ExtractFriendlyAction(name, args, isZh);
+            if (!string.IsNullOrEmpty(action)) found.Add(action);
+        }
+    }
+
+    internal static List<string> ExtractToolActions(Dictionary<string, object> data, bool isZh)
+    {
+        List<string> found = new List<string>();
+        if (data == null) return found;
+        Dictionary<string, object> msg = data.ContainsKey("message") ? data["message"] as Dictionary<string, object> : null;
+        if (msg != null && msg.ContainsKey("content") && msg["content"] is IList)
+            AppendContentTools((IList)msg["content"], isZh, found);
+        else if (data.ContainsKey("content") && data["content"] is IList)
+            AppendContentTools((IList)data["content"], isZh, found);
+        if (found.Count == 0 && data.ContainsKey("tool_calls") && data["tool_calls"] is IList)
+            AppendCallList((IList)data["tool_calls"], isZh, found);
+        if (found.Count == 0)
+        {
+            string one = ExtractToolSummary(data, isZh);
+            if (!string.IsNullOrEmpty(one)) found.Add(one);
+        }
+        return found;
+    }
+
     internal static string ExtractToolSummary(Dictionary<string, object> data, bool isZh)
     {
         if (data == null) return null;

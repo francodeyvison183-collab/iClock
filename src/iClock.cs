@@ -1726,6 +1726,20 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
+    internal void QueueStatusDetails(string agentName, string sessionKey, List<string> nodes)
+    {
+        if (nodes == null || nodes.Count < 2) return;
+        if (overlay != null && overlay.InvokeRequired)
+        {
+            overlay.BeginInvoke((MethodInvoker)delegate { QueueStatusDetails(agentName, sessionKey, nodes); });
+            return;
+        }
+        string name = GetTaskAgentName(agentName, settings.Language == "en" ? "AI Agent" : "\u667a\u80fd\u4f53");
+        AgentTaskStatus status = FindTaskStatus(name, sessionKey);
+        if (status == null) return;
+        status.QueueAfterCurrent(nodes);
+    }
+
     internal void ClearAgentProgress(string agentName = null)
     {
         ClearAgentProgress(agentName, null);

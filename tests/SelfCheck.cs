@@ -1925,6 +1925,46 @@ internal static class TestCheck
                     }
                     if (clearProg24d != null) clearProg24d.Invoke(app, new object[] { "CursorBurst" });
 
+                    string seqFile = System.IO.Path.Combine(semDir, "cursor-seq.jsonl");
+                    System.IO.File.WriteAllText(seqFile,
+                        "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>逐条显示这三条</user_query>\"}]}}\r\n" +
+                        "{\"role\":\"assistant\",\"message\":{\"content\":[" +
+                        "{\"type\":\"tool_use\",\"name\":\"Shell\",\"input\":{\"command\":\"git status\",\"description\":\"Show git working tree status\"}}," +
+                        "{\"type\":\"tool_use\",\"name\":\"Shell\",\"input\":{\"command\":\"git diff\",\"description\":\"Show staged and unstaged diffs\"}}," +
+                        "{\"type\":\"tool_use\",\"name\":\"Shell\",\"input\":{\"command\":\"git log\",\"description\":\"Show recent commit message style\"}}" +
+                        "]}}\r\n",
+                        System.Text.Encoding.UTF8);
+                    proc24d.Invoke(watcher24d, new object[] { seqFile, "SeqHUD" });
+                    System.Windows.Forms.Application.DoEvents();
+                    object seqTask = findTask24d.Invoke(app, new object[] { "SeqHUD" });
+                    string seqSub = seqTask != null ? (string)seqTask.GetType().GetField("SubDetail", bf).GetValue(seqTask) : "";
+                    object seqQueue = seqTask != null ? seqTask.GetType().GetField("DetailQueue", bf).GetValue(seqTask) : null;
+                    System.Collections.IList seqList = seqQueue as System.Collections.IList;
+                    if (seqSub.IndexOf("working tree", StringComparison.Ordinal) < 0 || seqList == null || seqList.Count < 2 ||
+                        seqList[0].ToString().IndexOf("staged and unstaged", StringComparison.Ordinal) < 0 ||
+                        seqList[1].ToString().IndexOf("commit message style", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: one record with several tools must keep each line: " + seqSub);
+                        return 82;
+                    }
+                    seqTask.GetType().GetField("DetailQueueTick", bf).SetValue(seqTask, Environment.TickCount - 800);
+                    object advanced = seqTask.GetType().GetMethod("AdvanceDetailQueue", bf).Invoke(seqTask, new object[] { true });
+                    seqSub = (string)seqTask.GetType().GetField("SubDetail", bf).GetValue(seqTask);
+                    if (!true.Equals(advanced) || seqSub.IndexOf("staged and unstaged", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: queued tool did not advance: " + seqSub);
+                        return 82;
+                    }
+                    seqTask.GetType().GetField("DetailQueueTick", bf).SetValue(seqTask, Environment.TickCount - 800);
+                    seqTask.GetType().GetMethod("AdvanceDetailQueue", bf).Invoke(seqTask, new object[] { true });
+                    seqSub = (string)seqTask.GetType().GetField("SubDetail", bf).GetValue(seqTask);
+                    if (seqSub.IndexOf("commit message style", StringComparison.Ordinal) < 0)
+                    {
+                        Console.WriteLine("FAIL: last queued tool did not advance: " + seqSub);
+                        return 82;
+                    }
+                    if (clearProg24d != null) clearProg24d.Invoke(app, new object[] { "SeqHUD" });
+
                     // Claude: last non-reminder text; tool_result user row ignored
                     string claudeSem = System.IO.Path.Combine(semDir, "session.jsonl");
                     System.IO.File.WriteAllText(claudeSem,
