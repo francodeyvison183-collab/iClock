@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Text;
@@ -72,6 +72,9 @@ internal sealed class SettingsDialog : Form
     private const int AgentActionBtnX = PreviewBtnX + PreviewBtnWidth - AgentActionBtnWidth;
     // Dynamic per-agent rows (running agents only), rebuilt by RefreshSkillInstallUi.
     private Panel panelAgentRows;
+    private Panel panelAgentClip;
+    private Panel panelAgentBody;
+    private VScrollBar agentListScroll;
     private Label lblAgentEmpty;
     private Label lblSkillMethod1, lblSkillMethod2;
     private Label lblCliGuideHint;
@@ -649,10 +652,35 @@ internal sealed class SettingsDialog : Form
         panelAgentScroll.HorizontalScroll.Enabled = false;
         panelSkillCard.Controls.Add(panelAgentScroll);
 
+        // Buttons stay on the preview button's right edge. The scrollbar, when
+        // needed, uses the padding to the right of that edge and does not shift them.
+        int listW = AgentListContentWidth();
+        panelAgentClip = new Panel();
+        panelAgentClip.SetBounds(0, 0, listW, panelAgentScroll.Height);
+        panelAgentClip.BackColor = Color.White;
+        panelAgentScroll.Controls.Add(panelAgentClip);
+
+        panelAgentBody = new Panel();
+        panelAgentBody.SetBounds(0, 0, listW, 10);
+        panelAgentBody.BackColor = Color.White;
+        panelAgentClip.Controls.Add(panelAgentBody);
+
+        agentListScroll = new VScrollBar();
+        agentListScroll.SetBounds(listW, 0, panelAgentScroll.Width - listW, panelAgentScroll.Height);
+        agentListScroll.SmallChange = 28;
+        agentListScroll.LargeChange = panelAgentScroll.Height;
+        agentListScroll.Visible = false;
+        agentListScroll.TabStop = false;
+        agentListScroll.ValueChanged += OnAgentListScrollValueChanged;
+        panelAgentScroll.Controls.Add(agentListScroll);
+        panelAgentScroll.MouseWheel += OnAgentListWheel;
+        panelAgentClip.MouseWheel += OnAgentListWheel;
+        panelAgentBody.MouseWheel += OnAgentListWheel;
+
         panelAgentRows = new Panel();
-        panelAgentRows.SetBounds(0, 0, panelAgentScroll.Width, 10);
+        panelAgentRows.SetBounds(0, 0, listW, 10);
         panelAgentRows.BackColor = Color.Transparent;
-        panelAgentScroll.Controls.Add(panelAgentRows);
+        panelAgentBody.Controls.Add(panelAgentRows);
 
         lblAgentEmpty = new Label();
         lblAgentEmpty.Name = "lblAgentEmpty";
@@ -660,13 +688,13 @@ internal sealed class SettingsDialog : Form
         lblAgentEmpty.ForeColor = AppContext.Win11TextSecondary;
         lblAgentEmpty.SetBounds(14, 8, 300, 36);
         lblAgentEmpty.Visible = false;
-        panelAgentScroll.Controls.Add(lblAgentEmpty);
+        panelAgentBody.Controls.Add(lblAgentEmpty);
 
         panelInstallFail = new Panel();
         panelInstallFail.SetBounds(10, 8, 310, 76);
         panelInstallFail.BackColor = Color.FromArgb(255, 250, 243);
         panelInstallFail.Visible = false;
-        panelAgentScroll.Controls.Add(panelInstallFail);
+        panelAgentBody.Controls.Add(panelInstallFail);
 
         lblFailReason = new Label();
         lblFailReason.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
@@ -711,7 +739,7 @@ internal sealed class SettingsDialog : Form
         lblSkillFeedback.AutoSize = false;
         lblSkillFeedback.SetBounds(14, 8, 300, 18);
         lblSkillFeedback.Visible = false;
-        panelAgentScroll.Controls.Add(lblSkillFeedback);
+        panelAgentBody.Controls.Add(lblSkillFeedback);
 
         panelSessionCard = new Panel();
         panelSessionCard.SetBounds(1, 126, 342, 47);
@@ -1436,7 +1464,7 @@ internal sealed class SettingsDialog : Form
         }
         panelInstallFail.Visible = true;
         RefreshSkillInstallUi();
-        if (panelAgentScroll != null) panelAgentScroll.ScrollControlIntoView(panelInstallFail);
+        ScrollAgentListTo(panelInstallFail);
     }
 
     private void HideInstallFailure()
@@ -1474,7 +1502,7 @@ internal sealed class SettingsDialog : Form
         lblSkillFeedback.ForeColor = Color.FromArgb(180, 83, 9);
         lblSkillFeedback.Visible = true;
         RefreshSkillInstallUi();
-        if (panelAgentScroll != null) panelAgentScroll.ScrollControlIntoView(lblSkillFeedback);
+        ScrollAgentListTo(lblSkillFeedback);
     }
 
     protected override void OnFormClosed(FormClosedEventArgs e)
@@ -1582,12 +1610,87 @@ internal sealed class SettingsDialog : Form
             lblSkillFeedback.Font = AppContext.GetUiFont(en ? "en" : "zh", 8f);
             if (lblSkillFeedback.Visible) y = lblSkillFeedback.Bottom;
         }
-        if (panelAgentScroll != null)
+        LayoutAgentListScroll(y + 4);
+    }
+
+    // Right edge of the agent-list buttons, in panelAgentScroll coordinates.
+    // This is the same card-relative x as the preview buttons' right edge.
+    private int AgentListContentWidth()
+    {
+        int left = panelAgentScroll != null ? panelAgentScroll.Left : 1;
+        int width = panelAgentScroll != null && panelAgentScroll.Width > 0 ? panelAgentScroll.Width : 342;
+        int right = PreviewBtnX + PreviewBtnWidth - left;
+        if (right > width - 8) right = width - 8;
+        if (right < 80) right = width;
+        return right;
+    }
+
+    private void LayoutAgentListScroll(int contentHeight)
+    {
+        if (panelAgentScroll == null || panelAgentClip == null || panelAgentBody == null || agentListScroll == null) return;
+        int contentW = AgentListContentWidth();
+        int viewH = panelAgentScroll.Height > 0 ? panelAgentScroll.Height : 100;
+        int gutter = panelAgentScroll.Width - contentW;
+        if (gutter < 8) gutter = 8;
+        panelAgentClip.SetBounds(0, 0, contentW, viewH);
+        panelAgentBody.Width = contentW;
+        panelAgentBody.Height = Math.Max(contentHeight, 1);
+        agentListScroll.SetBounds(contentW, 0, gutter, viewH);
+        agentListScroll.SmallChange = 28;
+        agentListScroll.LargeChange = Math.Max(1, viewH);
+        int maxVal = Math.Max(0, contentHeight - viewH);
+        bool need = maxVal > 0;
+        agentListScroll.Visible = need;
+        int keep = agentListScroll.Value;
+        if (keep > maxVal) keep = maxVal;
+        if (agentListScroll.Value != 0) agentListScroll.Value = 0;
+        if (need)
         {
-            panelAgentScroll.AutoScrollMinSize = new Size(0, y + 4);
-            panelAgentScroll.HorizontalScroll.Enabled = false;
-            panelAgentScroll.HorizontalScroll.Visible = false;
+            agentListScroll.Maximum = contentHeight - 1;
+            agentListScroll.LargeChange = Math.Max(1, viewH);
+            if (keep != 0) agentListScroll.Value = keep;
         }
+        panelAgentBody.Top = -agentListScroll.Value;
+        panelAgentScroll.AutoScrollMinSize = Size.Empty;
+        panelAgentScroll.HorizontalScroll.Enabled = false;
+        panelAgentScroll.HorizontalScroll.Visible = false;
+    }
+
+    private void OnAgentListScrollValueChanged(object sender, EventArgs e)
+    {
+        if (panelAgentBody != null && agentListScroll != null) panelAgentBody.Top = -agentListScroll.Value;
+    }
+
+    private void OnAgentListWheel(object sender, MouseEventArgs e)
+    {
+        if (agentListScroll == null || !agentListScroll.Visible) return;
+        int maxVal = Math.Max(0, agentListScroll.Maximum - agentListScroll.LargeChange + 1);
+        int delta = e.Delta > 0 ? -agentListScroll.SmallChange : agentListScroll.SmallChange;
+        int next = agentListScroll.Value + delta;
+        if (next < 0) next = 0;
+        if (next > maxVal) next = maxVal;
+        if (next != agentListScroll.Value) agentListScroll.Value = next;
+    }
+
+    private void BindAgentListWheel(Control c)
+    {
+        if (c == null) return;
+        c.MouseWheel -= OnAgentListWheel;
+        c.MouseWheel += OnAgentListWheel;
+    }
+
+    private void ScrollAgentListTo(Control target)
+    {
+        if (target == null || panelAgentBody == null || agentListScroll == null || !agentListScroll.Visible) return;
+        int view = panelAgentClip != null ? panelAgentClip.Height : 0;
+        if (view <= 0) return;
+        int offset = -panelAgentBody.Top;
+        if (target.Top < offset) offset = target.Top;
+        else if (target.Bottom > offset + view) offset = target.Bottom - view;
+        int maxVal = Math.Max(0, agentListScroll.Maximum - agentListScroll.LargeChange + 1);
+        if (offset < 0) offset = 0;
+        if (offset > maxVal) offset = maxVal;
+        agentListScroll.Value = offset;
     }
 
     private void BuildAgentRows(bool en, bool force)
@@ -1612,13 +1715,7 @@ internal sealed class SettingsDialog : Form
         int y = 0;
         int rowHeight = 28;
         int rowIndex = 0;
-        int viewH = panelAgentScroll != null && panelAgentScroll.Height > 0 ? panelAgentScroll.Height : 100;
-        int hostW = panelAgentScroll != null && panelAgentScroll.Width > 0 ? panelAgentScroll.Width : AgentCardWidth;
-        if (running.Count * rowHeight > viewH)
-            hostW -= SystemInformation.VerticalScrollBarWidth;
-        if (panelAgentScroll != null && panelAgentScroll.ClientSize.Width > 0 && panelAgentScroll.ClientSize.Width < hostW)
-            hostW = panelAgentScroll.ClientSize.Width;
-        if (hostW < 80) hostW = panelAgentScroll != null ? panelAgentScroll.Width : AgentCardWidth;
+        int hostW = AgentListContentWidth();
         panelAgentRows.Width = hostW;
         foreach (string agent in running)
         {
@@ -1634,6 +1731,7 @@ internal sealed class SettingsDialog : Form
                 using (SolidBrush b = new SolidBrush(Color.FromArgb(22, 163, 74)))
                     pe.Graphics.FillEllipse(b, 0, 0, 7, 7);
             };
+            BindAgentListWheel(dot);
             panelAgentRows.Controls.Add(dot);
 
             Label name = new Label();
@@ -1641,10 +1739,10 @@ internal sealed class SettingsDialog : Form
             name.Font = AppContext.GetUiFont(en ? "en" : "zh", 8.5f);
             name.ForeColor = deepOn ? AppContext.Win11TextPrimary : Color.FromArgb(156, 163, 175);
             name.TextAlign = ContentAlignment.MiddleLeft;
-            int btnRight = PreviewBtnX + PreviewBtnWidth - panelAgentScroll.Left;
-            if (btnRight > hostW - 4) btnRight = hostW - 4;
+            int btnRight = hostW;
             int btnX = btnRight - AgentActionBtnWidth;
             name.SetBounds(32, y, Math.Max(80, btnX - 32 - 8), rowHeight);
+            BindAgentListWheel(name);
             panelAgentRows.Controls.Add(name);
 
             Button btn = new Button();
@@ -1671,6 +1769,7 @@ internal sealed class SettingsDialog : Form
                 btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(29, 78, 216);
                 btn.Click += OnInstallCliSkillClick;
             }
+            BindAgentListWheel(btn);
             panelAgentRows.Controls.Add(btn);
             y += rowHeight;
 
@@ -1689,26 +1788,32 @@ internal sealed class SettingsDialog : Form
         panelAgentRows.ResumeLayout();
     }
 
+    public void SetAgentStatusPinChecked(bool on)
+    {
+        if (chkAgentStatusPin == null || chkAgentStatusPin.Checked == on) return;
+        chkAgentStatusPin.CheckedChanged -= OnAgentStatusPinChanged;
+        chkAgentStatusPin.Checked = on;
+        chkAgentStatusPin.CheckedChanged += OnAgentStatusPinChanged;
+        ApplyCollabSwitchState();
+    }
+
     private void OnAgentStatusPinChanged(object sender, EventArgs e)
     {
         bool enabled = chkAgentStatusPin.Checked;
-        bool en = Value.Language == "en";
-        if (!enabled && AppContext.Current != null && AppContext.Current.HasAgentStatus)
+        if (!enabled)
         {
-            DialogResult result = MessageBox.Show(this,
-                en ? "Turning this off hides the desktop status line. Continue?"
-                   : "关闭后会收起状态条。是否继续？",
-                en ? "Hide agent status?" : "收起状态条？",
-                MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
-            if (result != DialogResult.Yes)
+            if (AppContext.Current != null && !AppContext.Current.TurnOffAgentStatusPin(this))
             {
+                chkAgentStatusPin.CheckedChanged -= OnAgentStatusPinChanged;
                 chkAgentStatusPin.Checked = true;
+                chkAgentStatusPin.CheckedChanged += OnAgentStatusPinChanged;
                 return;
             }
+            ApplyCollabSwitchState();
+            return;
         }
-        Value.AgentStatusPinEnabled = enabled;
+        Value.AgentStatusPinEnabled = true;
         Value.Save();
-        if (!enabled && AppContext.Current != null) AppContext.Current.ClearAgentProgress();
         if (AppContext.Current != null) AppContext.Current.ApplyAgentCollabSettings();
         ApplyCollabSwitchState();
     }

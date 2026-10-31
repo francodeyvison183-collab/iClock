@@ -1282,10 +1282,56 @@ internal sealed class AppContext : ApplicationContext
         }
     }
 
+    internal bool HasTaskForSession(string agentName, string sessionKey)
+    {
+        string name = GetTaskAgentName(agentName, settings != null && settings.Language == "en" ? "AI Agent" : "\u667a\u80fd\u4f53");
+        return FindTaskStatus(name, sessionKey) != null;
+    }
+
+    internal void EnsureRunningStatusOnHud()
+    {
+        if (IsSelfCheckRunning || sessionWatcher == null) return;
+        try { sessionWatcher.KeepRunningSessionsOnHud(); } catch { }
+    }
+
     internal void ApplyAgentCollabSettings()
     {
         RestartSessionWatcher();
         RefreshTaskStatusHud();
+    }
+
+    // Same path as the settings switch: hide the status bar and stop sensing.
+    // Ask dialogs and completion notices stay. Returns false when the user cancels.
+    internal bool TurnOffAgentStatusPin(IWin32Window owner)
+    {
+        if (settings != null && settings.AgentStatusPinEnabled && HasAgentStatus)
+        {
+            bool en = settings.Language == "en";
+            DialogResult result = owner != null
+                ? MessageBox.Show(owner,
+                    en ? "Turning this off hides the desktop status line. Continue?" : "关闭后会收起状态条。是否继续？",
+                    en ? "Hide agent status?" : "收起状态条？",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2)
+                : MessageBox.Show(
+                    en ? "Turning this off hides the desktop status line. Continue?" : "关闭后会收起状态条。是否继续？",
+                    en ? "Hide agent status?" : "收起状态条？",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2);
+            if (result != DialogResult.Yes) return false;
+        }
+        if (settings != null)
+        {
+            settings.AgentStatusPinEnabled = false;
+            settings.Save();
+        }
+        if (taskStatusHud != null && !taskStatusHud.IsDisposed) taskStatusHud.ReleaseStatusPin();
+        ClearAgentProgress();
+        ApplyAgentCollabSettings();
+        try
+        {
+            if (activeDialog is SettingsDialog) ((SettingsDialog)activeDialog).SetAgentStatusPinChecked(false);
+        }
+        catch { }
+        return true;
     }
 
     internal void CancelDesktopCollaboration()
@@ -2618,8 +2664,8 @@ internal sealed class AppContext : ApplicationContext
         return p.Contains("windowsterminal") || p == "pwsh" || p == "powershell" || p == "cmd" || p == "code" || p.Contains("cursor") || p.Contains("wezterm") || p.Contains("alacritty") || p.Contains("mintty");
     }
 
-    // The window that just left the desktop. Cleared only after a restored
-    // window is actually in front — MINIMIZEEND still means "minimized".
+    // The agent window the user just minimized. Cleared only when that same
+    // window is back on screen. MINIMIZEEND is still the minimize animation.
     internal static IntPtr LeavingDesktopHwnd = IntPtr.Zero;
     internal static int LeavingDesktopTick;
 
@@ -2650,21 +2696,97 @@ internal sealed class AppContext : ApplicationContext
         return false;
     }
 
+    // A window the user can actually look at. Hidden and zero-size helper
+    // windows of the same process do not count.
+    internal static bool HasUserWindowSize(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd)) return false;
+        try
+        {
+            RECT r;
+            if (NativeMethods.GetWindowRect(hwnd, out r))
+            {
+                if ((r.Right - r.Left) >= 160 && (r.Bottom - r.Top) >= 80) return true;
+            }
+            WINDOWPLACEMENT wp = new WINDOWPLACEMENT();
+            wp.length = System.Runtime.InteropServices.Marshal.SizeOf(typeof(WINDOWPLACEMENT));
+            if (NativeMethods.GetWindowPlacement(hwnd, ref wp))
+            {
+                int w = wp.rcNormalPosition.Right - wp.rcNormalPosition.Left;
+                int h = wp.rcNormalPosition.Bottom - wp.rcNormalPosition.Top;
+                if (w >= 160 && h >= 80) return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    internal static bool IsWindowRestored(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd)) return false;
+        if (IsWindowMinimized(hwnd)) return false;
+        if (!IsUserFacingWindow(hwnd)) return false;
+        try
+        {
+            RECT r;
+            if (!NativeMethods.GetWindowRect(hwnd, out r)) return false;
+            if (r.Left <= -32000 || r.Top <= -32000) return false;
+            if ((r.Right - r.Left) < 160 || (r.Bottom - r.Top) < 80) return false;
+        }
+        catch { return false; }
+        return true;
+    }
+
+    internal static bool IsUserFacingWindow(IntPtr hwnd)
+    {
+        if (!HasUserWindowSize(hwnd)) return false;
+        if (!NativeMethods.IsWindowVisible(hwnd)) return false;
+        if (IsWindowMinimized(hwnd)) return false;
+        return true;
+    }
+
+    internal static bool IsAgentMinimized(string agentName)
+    {
+        if (string.IsNullOrEmpty(agentName)) return false;
+        try
+        {
+            IntPtr leave = LeavingDesktopHwnd;
+            if (leave != IntPtr.Zero && WindowBelongsToAgent(leave, agentName))
+            {
+                IntPtr leaveRoot = RootWindow(leave);
+                if (leaveRoot == IntPtr.Zero) leaveRoot = leave;
+                if (!IsWindowRestored(leaveRoot)) return true;
+            }
+            IntPtr hwnd = FindAgentWindow(agentName);
+            if (hwnd == IntPtr.Zero) return false;
+            IntPtr root = RootWindow(hwnd);
+            if (root == IntPtr.Zero) root = hwnd;
+            return IsWindowMinimized(hwnd) || IsWindowMinimized(root);
+        }
+        catch { }
+        return false;
+    }
+
     internal static bool IsAgentWindowInForeground(string agentName)
     {
         try
         {
+            IntPtr leave = LeavingDesktopHwnd;
+            if (leave != IntPtr.Zero && !string.IsNullOrEmpty(agentName) && WindowBelongsToAgent(leave, agentName))
+            {
+                IntPtr leaveRoot = RootWindow(leave);
+                if (leaveRoot == IntPtr.Zero) leaveRoot = leave;
+                // Stay "not on the desktop" until the minimized window is actually restored.
+                if (!IsWindowRestored(leaveRoot)) return false;
+            }
+
             IntPtr fg = NativeMethods.GetForegroundWindow();
             if (fg == IntPtr.Zero) return false;
             IntPtr fgRoot = RootWindow(fg);
+            if (fgRoot == IntPtr.Zero) fgRoot = fg;
             if (IsWindowMinimized(fg) || IsWindowMinimized(fgRoot)) return false;
-            IntPtr leave = LeavingDesktopHwnd;
-            if (leave != IntPtr.Zero)
-            {
-                IntPtr leaveRoot = RootWindow(leave);
-                if (fg == leave || fgRoot == leave || fg == leaveRoot || fgRoot == leaveRoot) return false;
-            }
-            return WindowBelongsToAgent(fg, agentName);
+            if (!IsUserFacingWindow(fgRoot)) return false;
+            return WindowBelongsToAgent(fgRoot, agentName);
         }
         catch { }
         return false;

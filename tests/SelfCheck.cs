@@ -1679,15 +1679,15 @@ internal static class TestCheck
                     return 32;
                 }
 
-                // Append GENERIC output line; SubDetail should stay locked to toolSummary
+                // A newer GENERIC line replaces the previous tool summary.
                 System.IO.File.AppendAllText(testFile, "{\"step_index\":3,\"type\":\"GENERIC\",\"content\":\"On branch main\"}\r\n", System.Text.Encoding.UTF8);
                 procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
                 System.Windows.Forms.Application.DoEvents();
                 object tTask3 = findTask.Invoke(app, new object[] { "TestAgent" });
                 string subD3 = (string)tTask3.GetType().GetField("SubDetail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(tTask3);
-                if (string.IsNullOrEmpty(subD3) || !subD3.Contains("Git status check"))
+                if (string.IsNullOrEmpty(subD3) || subD3.IndexOf("On branch main", StringComparison.Ordinal) < 0)
                 {
-                    Console.WriteLine("FAIL: SubDetail lost toolSummary after GENERIC output line: " + subD3);
+                    Console.WriteLine("FAIL: newer GENERIC line must replace the previous tool: " + subD3);
                     return 32;
                 }
 
@@ -1736,9 +1736,9 @@ internal static class TestCheck
                         return 82;
                     }
                     string phaseSub = curTask != null ? (string)curTask.GetType().GetField("SubDetail", bf).GetValue(curTask) : "";
-                    if (phaseSub.IndexOf("计划下一步", StringComparison.Ordinal) < 0)
+                    if (phaseSub.IndexOf("正在思考", StringComparison.Ordinal) < 0)
                     {
-                        Console.WriteLine("FAIL: model call with no step yet must show 计划下一步: " + phaseSub);
+                        Console.WriteLine("FAIL: model call with no step yet must show 正在思考: " + phaseSub);
                         return 82;
                     }
                     System.IO.File.AppendAllText(cursorSem,
@@ -2220,9 +2220,9 @@ internal static class TestCheck
                 System.Windows.Forms.Application.DoEvents();
                 object thTask = findTask24e.Invoke(app, new object[] { "ThoughtHUD" });
                 string thSub = thTask != null ? (string)thTask.GetType().GetField("SubDetail", bf).GetValue(thTask) : "";
-                if (thSub.IndexOf("边框", StringComparison.Ordinal) < 0 || thSub.IndexOf("SettingsDialog", StringComparison.Ordinal) >= 0 || thSub.IndexOf("OnCardPaint", StringComparison.Ordinal) >= 0)
+                if (thSub.IndexOf("OnCardPaint", StringComparison.Ordinal) < 0)
                 {
-                    Console.WriteLine("FAIL: read or search must not cover the current thought: " + thSub);
+                    Console.WriteLine("FAIL: a later search must replace the thought: " + thSub);
                     return 83;
                 }
                 setMsg24e.Invoke(app, new object[] { "⏳ [思考] 处理中...", "ThoughtHUD", true, "edit_file: SettingsDialog.cs", null, -1f, now24e, "thought-sem" });
@@ -2244,14 +2244,14 @@ internal static class TestCheck
                     Console.WriteLine("FAIL: a run must replace the thought: " + thSub);
                     return 83;
                 }
-                setMsg24e.Invoke(app, new object[] { "⏳ [阶段] 处理中...", "PhaseHUD", true, "计划下一步", null, -1f, now24e, "phase-sem" });
+                setMsg24e.Invoke(app, new object[] { "⏳ [阶段] 处理中...", "PhaseHUD", true, "正在思考", null, -1f, now24e, "phase-sem" });
                 setMsg24e.Invoke(app, new object[] { "⏳ [阶段] 处理中...", "PhaseHUD", true, "read_file: PhaseRead.cs", null, -1f, now24e, "phase-sem" });
                 System.Windows.Forms.Application.DoEvents();
                 object phaseTask = findTask24e.Invoke(app, new object[] { "PhaseHUD" });
                 string phaseHud = phaseTask != null ? (string)phaseTask.GetType().GetField("SubDetail", bf).GetValue(phaseTask) : "";
                 if (phaseHud.IndexOf("PhaseRead", StringComparison.Ordinal) < 0)
                 {
-                    Console.WriteLine("FAIL: a step must replace 计划下一步: " + phaseHud);
+                    Console.WriteLine("FAIL: a step must replace 正在思考: " + phaseHud);
                     return 83;
                 }
                 setMsg24e.Invoke(app, new object[] { "⏳ [阶段] 处理中...", "PhaseHUD", true, "正在思考 · 先看阶段", null, -1f, now24e, "phase-sem" });
@@ -2259,9 +2259,9 @@ internal static class TestCheck
                 System.Windows.Forms.Application.DoEvents();
                 phaseTask = findTask24e.Invoke(app, new object[] { "PhaseHUD" });
                 phaseHud = phaseTask != null ? (string)phaseTask.GetType().GetField("SubDetail", bf).GetValue(phaseTask) : "";
-                if (phaseHud.IndexOf("先看阶段", StringComparison.Ordinal) < 0 || phaseHud.IndexOf("HiddenRead", StringComparison.Ordinal) >= 0)
+                if (phaseHud.IndexOf("HiddenRead", StringComparison.Ordinal) < 0)
                 {
-                    Console.WriteLine("FAIL: a read must not cover 正在思考: " + phaseHud);
+                    Console.WriteLine("FAIL: a later read must replace 正在思考: " + phaseHud);
                     return 83;
                 }
                 if (clearProg24e != null) clearProg24e.Invoke(app, new object[] { "ThoughtHUD" });
@@ -4838,12 +4838,19 @@ internal static class TestCheck
                     }
                     hudInstance.Hide();
 
-                    // Case 3b: Test 5-minute inactivity rule (>5min no new message -> ShouldBeVisible is false)
+                    // A running task stays on the bar however long the turn has been quiet.
                     taskType.GetField("MessageTimestamp", bf).SetValue(t1, DateTime.Now.AddMinutes(-6));
+                    bool vRunningQuiet = (bool)mShould.Invoke(hudInstance, null);
+                    if (!vRunningQuiet)
+                    {
+                        Console.WriteLine("FAIL: a running task must stay visible after 5 minutes");
+                        return 76;
+                    }
+                    taskType.GetField("Message", bf).SetValue(t1, "✅ [SelfCheck] Completed");
                     bool vExpired = (bool)mShould.Invoke(hudInstance, null);
                     if (vExpired)
                     {
-                        Console.WriteLine("FAIL: HUD ShouldBeVisible should be false when last message is older than 5 minutes");
+                        Console.WriteLine("FAIL: a finished task should leave after 5 minutes");
                         return 76;
                     }
                     // Pinned HUD stays visible even after the 5-minute idle expiry
@@ -4859,6 +4866,7 @@ internal static class TestCheck
                             return 76;
                         }
                     }
+                    taskType.GetField("Message", bf).SetValue(t1, "[SelfCheck] Testing background HUD");
                     taskType.GetField("MessageTimestamp", bf).SetValue(t1, DateTime.Now);
 
                     // Case 4: Test rendering in both collapsed and expanded (isHovered) modes

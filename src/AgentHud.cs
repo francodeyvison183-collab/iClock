@@ -108,20 +108,8 @@ internal sealed class AgentTaskStatus
             return;
         }
         InterruptHold = false;
-        // A generic echo is not a new step. Keep the action already on screen.
-        if (level < 0)
-        {
-            if (string.IsNullOrEmpty(SubDetail))
-            {
-                SubDetail = text;
-                DetailLevel = 2;
-                DetailShownTick = Environment.TickCount;
-            }
-            return;
-        }
         if (string.IsNullOrEmpty(text)) return;
-        // A read or search is not a new decision. Keep the thought already on screen.
-        if ((level == 3 || level == 4) && IsThoughtDetail(SubDetail)) return;
+        // The newest line replaces whatever is on screen, including a thought sentence.
         SubDetail = text;
         DetailLevel = level;
         DetailShownTick = Environment.TickCount;
@@ -228,9 +216,8 @@ internal sealed class AgentTaskStatusHud : Form
         for (int i = 0; i < tasks.Count; i++)
         {
             AgentTaskStatus t = tasks[i];
-            // A pinned HUD is desktop-resident: keep its sessions even after the
-            // 5-minute idle expiry that otherwise auto-hides the bar.
-            if (!stayPinned && t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
+            // A finished task leaves after 5 quiet minutes. A running task stays.
+            if (!stayPinned && IsFinishedTask(t) && t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
 
             string key = GetProjectKey(t);
             AgentTaskStatus existing;
@@ -331,6 +318,19 @@ internal sealed class AgentTaskStatusHud : Form
         return key;
     }
 
+    private static bool HasRecentDynamic(AgentTaskStatus t)
+    {
+        if (t == null || t.MessageTimestamp <= DateTime.MinValue) return false;
+        return (DateTime.Now - t.MessageTimestamp).TotalMinutes < 5.0;
+    }
+
+    private static bool IsFinishedTask(AgentTaskStatus t)
+    {
+        if (t == null || t.IsThinking || t.HasProgress) return false;
+        string m = t.Message ?? "";
+        return m.StartsWith("\u2705") || m.Contains("\u5b8c\u6210") || m.Contains("Completed");
+    }
+
     private static int GetTaskPriority(AgentTaskStatus t)
     {
         if (t == null) return 0;
@@ -416,26 +416,31 @@ internal sealed class AgentTaskStatusHud : Form
         {
             if (eventType == NativeMethods.EVENT_SYSTEM_MINIMIZESTART)
             {
+                // The window the user just minimized. Focus has often already moved,
+                // so do not require it to still be GetForegroundWindow.
                 IntPtr root = AppContext.RootWindow(hwnd);
-                IntPtr fgRoot = AppContext.RootWindow(NativeMethods.GetForegroundWindow());
-                if (root != IntPtr.Zero && root == fgRoot)
+                if (root == IntPtr.Zero) root = hwnd;
+                bool agent = AppContext.WindowBelongsToAgent(root, null) || AppContext.WindowBelongsToAgent(hwnd, null);
+                if (agent && (AppContext.HasUserWindowSize(root) || AppContext.HasUserWindowSize(hwnd)))
                 {
-                    AppContext.LeavingDesktopHwnd = fgRoot != IntPtr.Zero ? fgRoot : root;
+                    AppContext.LeavingDesktopHwnd = root;
                     AppContext.LeavingDesktopTick = Environment.TickCount;
                 }
             }
             else if (eventType != NativeMethods.EVENT_SYSTEM_MINIMIZEEND)
             {
+                // Only the restored agent window itself clears the mark.
+                // Another window coming forward must not.
                 IntPtr leave = AppContext.LeavingDesktopHwnd;
                 if (leave != IntPtr.Zero)
                 {
                     IntPtr fgRoot = AppContext.RootWindow(hwnd);
                     IntPtr leaveRoot = AppContext.RootWindow(leave);
-                    bool same = hwnd == leave || fgRoot == leave || fgRoot == leaveRoot;
-                    bool minimized = AppContext.IsWindowMinimized(hwnd) || AppContext.IsWindowMinimized(fgRoot);
+                    if (leaveRoot == IntPtr.Zero) leaveRoot = leave;
+                    bool same = hwnd == leave || hwnd == leaveRoot || fgRoot == leave || fgRoot == leaveRoot;
                     int age = unchecked(Environment.TickCount - AppContext.LeavingDesktopTick);
-                    if (!same && !minimized) AppContext.LeavingDesktopHwnd = IntPtr.Zero;
-                    else if (same && !minimized && age > 400) AppContext.LeavingDesktopHwnd = IntPtr.Zero;
+                    if (same && age > 400 && AppContext.IsWindowRestored(leaveRoot))
+                        AppContext.LeavingDesktopHwnd = IntPtr.Zero;
                 }
             }
             if (InvokeRequired) BeginInvoke(new Action(SyncVisibilityToForeground));
@@ -447,8 +452,10 @@ internal sealed class AgentTaskStatusHud : Form
     // Foreground loss shows the bar on this call. The heartbeat only backstops a missed event.
     internal void SyncVisibilityToForeground()
     {
-        if (moving || resizingWidth || tasks == null || tasks.Count == 0) return;
+        if (moving || resizingWidth) return;
         if (settings == null || !settings.AgentStatusPinEnabled) return;
+        if (AppContext.Current != null) AppContext.Current.EnsureRunningStatusOnHud();
+        if (tasks == null || tasks.Count == 0) return;
         lastFgCheckTime = DateTime.Now;
         bool shouldShow = ShouldBeVisible();
         if (shouldShow)
@@ -462,7 +469,8 @@ internal sealed class AgentTaskStatusHud : Form
             {
                 if (AppContext.Current != null) AppContext.Current.UpdateTaskStatusHudPosition();
                 currentAlpha = 255;
-                Visible = true;
+                Show();
+                RenderLayeredWindow();
             }
         }
         else if (Visible && fadeStartTick == 0)
@@ -502,6 +510,11 @@ internal sealed class AgentTaskStatusHud : Form
         get { return !string.IsNullOrEmpty(pinnedAgent); }
     }
 
+    internal void ReleaseStatusPin()
+    {
+        pinnedAgent = null;
+    }
+
     internal bool ShouldBeVisible()
     {
         if (settings == null || !settings.AgentStatusPinEnabled) return false;
@@ -514,6 +527,12 @@ internal sealed class AgentTaskStatusHud : Form
         {
             AgentTaskStatus t = active[i];
             if (!AppContext.IsAgentWindowInForeground(t.AgentName))
+            {
+                return true;
+            }
+            // A minimized window can still be reported as the foreground window.
+            // Recent activity must keep the bar up anyway.
+            if (HasRecentDynamic(t) && AppContext.IsAgentMinimized(t.AgentName))
             {
                 return true;
             }
@@ -820,17 +839,6 @@ internal sealed class AgentTaskStatusHud : Form
             return;
         }
 
-        // Right-click: quickly dismiss/clear current agent progress
-        if (e.Button == MouseButtons.Right)
-        {
-            string agent = active[currentAgentIndex].AgentName;
-            if (AppContext.Current != null)
-            {
-                AppContext.Current.ClearAgentProgress(agent);
-            }
-            return;
-        }
-
         if (e.Button != MouseButtons.Left) return;
 
         // Pin button [📌] (Left of status icon)
@@ -847,15 +855,11 @@ internal sealed class AgentTaskStatusHud : Form
             return;
         }
 
-        // Top-right close button [✕] — explicit dismiss also releases the pin
+        // Top-right close button [✕] — same as turning off agent status sensing.
         Rectangle cornerClose = new Rectangle(Width - 27, 5, 18, 18);
         if (cornerClose.Contains(e.Location))
         {
-            pinnedAgent = null;
-            if (AppContext.Current != null)
-            {
-                AppContext.Current.ClearAgentProgress(active[currentAgentIndex].AgentName);
-            }
+            if (AppContext.Current != null) AppContext.Current.TurnOffAgentStatusPin(null);
             return;
         }
 
@@ -1455,46 +1459,35 @@ internal sealed class AgentTaskStatusHud : Form
     }
 
     // One, two, then three dots, holding each step for 400ms. Paint only.
-    private static string PhaseDots()
+    private static int PhaseDotCount()
     {
-        int n = (int)(unchecked((uint)Environment.TickCount) / 400u) % 3 + 1;
-        return n == 1 ? "." : (n == 2 ? ".." : "...");
-    }
-
-    private static float MeasureTight(Graphics g, string text, Font font)
-    {
-        if (string.IsNullOrEmpty(text)) return 0f;
-        using (StringFormat fmt = new StringFormat(StringFormat.GenericTypographic))
-        {
-            fmt.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
-            CharacterRange[] ranges = { new CharacterRange(0, text.Length) };
-            fmt.SetMeasurableCharacterRanges(ranges);
-            Region[] regions = g.MeasureCharacterRanges(text, font, new RectangleF(0, 0, 10000f, 200f), fmt);
-            float w = 0f;
-            if (regions != null && regions.Length > 0)
-            {
-                w = regions[0].GetBounds(g).Width;
-                for (int i = 0; i < regions.Length; i++) regions[i].Dispose();
-            }
-            if (w <= 0f) w = g.MeasureString(text, font).Width;
-            return w;
-        }
+        return (int)(unchecked((uint)Environment.TickCount) / 400u) % 3 + 1;
     }
 
     private static void DrawPhaseLine(Graphics g, string text, Font font, Brush brush, StringFormat format, float x, float y, float width, int height)
     {
-        string dots = PhaseDots();
-        float slot = MeasureTight(g, "...", font) + 2f;
-        float limit = Math.Max(12f, width - slot);
-        float wordsW = MeasureTight(g, text, font);
-        if (wordsW > limit)
+        int n = PhaseDotCount();
+        float step = Math.Max(8f, font.GetHeight(g) * 0.42f);
+        float gap = 6f;
+        float slot = step * 3f;
+        float inkW = g.MeasureString(text, font, new SizeF(10000f, height), format).Width;
+        bool overflow = inkW + gap + slot > width;
+        float wordsW = overflow ? Math.Max(12f, width - gap - slot) : inkW + 2f;
+        g.DrawString(text, font, brush, new RectangleF(x, y, wordsW, height), format);
+        float dotsX = x + (overflow ? wordsW : inkW) + gap;
+        using (StringFormat dotFmt = new StringFormat
         {
-            g.DrawString(text, font, brush, new RectangleF(x, y, limit, height), format);
-            g.DrawString(dots, font, brush, new RectangleF(x + limit, y, slot, height), format);
-            return;
+            Alignment = StringAlignment.Near,
+            LineAlignment = StringAlignment.Center,
+            Trimming = StringTrimming.None,
+            FormatFlags = StringFormatFlags.NoWrap
+        })
+        {
+            for (int i = 0; i < n; i++)
+            {
+                g.DrawString(".", font, brush, new RectangleF(dotsX + i * step, y, step, height), dotFmt);
+            }
         }
-        g.DrawString(text, font, brush, new RectangleF(x, y, wordsW + 6f, height), format);
-        g.DrawString(dots, font, brush, new RectangleF(x + wordsW + 1f, y, slot, height), format);
     }
 
     internal static Color GetDeterministicAgentColor(string name)

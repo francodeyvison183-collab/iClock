@@ -361,9 +361,8 @@ internal sealed partial class AgentSessionWatcher
 
     private static string FormatAgentPhase(bool thinking, string sentence, bool isZh)
     {
-        string label = thinking
-            ? (isZh ? "\u6b63\u5728\u601d\u8003" : "Thinking")
-            : (isZh ? "\u8ba1\u5212\u4e0b\u4e00\u6b65" : "Planning next moves");
+        string label = isZh ? "\u6b63\u5728\u601d\u8003" : "Thinking";
+        if (thinking && string.IsNullOrEmpty(sentence)) return label;
         if (string.IsNullOrEmpty(sentence)) return label;
         return label + " \u00b7 " + sentence;
     }
@@ -795,9 +794,20 @@ internal sealed partial class AgentSessionWatcher
         if (string.Equals(type, "GENERIC", StringComparison.OrdinalIgnoreCase))
         {
             string st = data.ContainsKey("status") ? data["status"] as string : null;
+            string echoed = data.ContainsKey("content") && data["content"] != null ? data["content"].ToString() : null;
+            string line = FirstSentence(echoed);
+            lock (syncLock) { session.Version++; }
+            if (!string.IsNullOrEmpty(line))
+            {
+                session.LastWasGeneric = false;
+                session.LastNodeIsThought = false;
+                outcome.GenericKeep = false;
+                outcome.Complete = false;
+                OfferBatchNode(session, line);
+                return;
+            }
             session.LastWasGeneric = true;
             outcome.GenericKeep = true;
-            lock (syncLock) { session.Version++; }
             if (string.Equals(st, "RUNNING", StringComparison.OrdinalIgnoreCase))
             {
                 outcome.Complete = false;
@@ -852,6 +862,16 @@ internal sealed partial class AgentSessionWatcher
             string.Equals(type, "tool_output", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(type, "tool_response", StringComparison.OrdinalIgnoreCase))
         {
+            string echoed = data.ContainsKey("content") && data["content"] != null ? data["content"].ToString() : null;
+            string line = FirstSentence(echoed);
+            if (!string.IsNullOrEmpty(line))
+            {
+                session.LastWasGeneric = false;
+                outcome.GenericKeep = false;
+                outcome.Complete = false;
+                OfferBatchNode(session, line);
+                return;
+            }
             outcome.GenericKeep = true;
             session.LastWasGeneric = true;
             outcome.Complete = false;

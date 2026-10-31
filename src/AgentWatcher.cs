@@ -369,7 +369,11 @@ internal sealed partial class AgentSessionWatcher : IDisposable
 
         bool rewritten;
         List<string> lines = ReadIncrementalJsonLines(fullPath, out rewritten);
-        if (lines == null || lines.Count == 0) return;
+        if (lines == null || lines.Count == 0)
+        {
+            RestoreRunningSession(fullPath, agentName);
+            return;
+        }
 
         DispatchParsedEvents(lines, fullPath, agentName, rewritten);
     }
@@ -517,6 +521,56 @@ internal sealed partial class AgentSessionWatcher : IDisposable
     private void DispatchParsedEvents(List<string> lines, string filePath, string agentName, bool rewritten)
     {
         ProcessTranscriptLines(lines, filePath, agentName, rewritten);
+    }
+
+    // A running turn stays on the status bar without waiting for another transcript line.
+    internal void KeepRunningSessionsOnHud()
+    {
+        if (disposed || appContext == null || AppContext.IsSelfCheckRunning) return;
+        List<TurnSession> running = new List<TurnSession>();
+        lock (syncLock)
+        {
+            foreach (KeyValuePair<string, TurnSession> kv in sessions)
+            {
+                TurnSession s = kv.Value;
+                if (s == null) continue;
+                if (s.State != TurnState.Processing && s.State != TurnState.Waiting) continue;
+                running.Add(s);
+            }
+        }
+        for (int i = 0; i < running.Count; i++)
+        {
+            TurnSession s = running[i];
+            if (appContext.HasTaskForSession(s.WatchedAgent, s.WatchedPath)) continue;
+            RestoreSession(s, s.WatchedAgent, s.WatchedPath);
+        }
+    }
+
+    private void RestoreRunningSession(string fullPath, string agentName)
+    {
+        if (disposed || appContext == null || AppContext.IsSelfCheckRunning) return;
+        if (appContext.HasTaskForSession(agentName, fullPath)) return;
+        TurnSession session;
+        string sessionLookupKey = agentName + "|" + (fullPath ?? "");
+        lock (syncLock)
+        {
+            if (!sessions.TryGetValue(sessionLookupKey, out session) || session == null) return;
+            if (session.State != TurnState.Processing && session.State != TurnState.Waiting) return;
+        }
+        RestoreSession(session, agentName, fullPath);
+    }
+
+    private void RestoreSession(TurnSession session, string agentName, string filePath)
+    {
+        if (session == null || appContext == null) return;
+        bool isZh = appContext.Settings == null || appContext.Settings.Language != "en";
+        if (session.State == TurnState.Waiting)
+        {
+            string msg = "❓ [" + session.Target + "] " + (isZh ? "等待决策" : "Waiting for input");
+            appContext.SetAgentTaskMessage(msg, agentName, false, session.PendingQuestion, null, -2f, DateTime.Now, filePath);
+            return;
+        }
+        PublishSession(session, agentName, filePath, isZh, DateTime.Now, new ParseOutcome());
     }
 
     internal static DateTime ExtractMessageTimestamp(Dictionary<string, object> data, string filePath)
