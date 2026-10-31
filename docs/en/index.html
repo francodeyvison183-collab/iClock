@@ -52,18 +52,20 @@
       "operatingSystem": "Windows 7, Windows 8, Windows 10, Windows 11",
       "applicationCategory": "UtilitiesApplication",
       "applicationSubCategory": "Productivity",
-      "fileSize": "332KB",
-      "softwareVersion": "1.13",
-      "dateModified": "2026-10-24",
+      "fileSize": "434KB",
+      "softwareVersion": "1.14",
+      "dateModified": "2026-10-31",
       "inLanguage": [
         "zh-CN",
         "en"
       ],
-      "description": "Ultra-lightweight (332 KB), zero-dependency, click-through desktop countdown timer, ambient zero-polling daily quotes, and local CLI collaboration for AI agents on Windows.",
+      "description": "Ultra-lightweight (434 KB), zero-dependency, click-through desktop countdown timer, ambient zero-polling daily quotes, and local CLI collaboration for AI agents on Windows.",
       "featureList": [
         "Click-through floating countdown timer (WS_EX_TRANSPARENT, never steals focus)",
-        "Daily focus goal, tray history with live totals, language and auto-start on the tray menu",
+        "Daily focus goal, eye-care reminder, tray history with live totals, language and auto-start on the tray menu",
         "Ambient zero-polling daily quotes (0.0% idle CPU, under 10 MB RAM)",
+        "Unified multi-agent status bar that reads each agent's own session log",
+        "Always-on usage tracking with a trends view (process names only)",
         "CLI desktop collaboration for AI agents"
       ],
       "offers": {
@@ -72,8 +74,8 @@
         "priceCurrency": "USD"
       },
       "license": "https://opensource.org/licenses/MIT",
-      "downloadUrl": "https://github.com/francodeyvison183-collab/iClock/releases/download/v1.13/iClock-1.13-windows.zip",
-      "releaseNotes": "https://github.com/francodeyvison183-collab/iClock/releases/tag/v1.13",
+      "downloadUrl": "https://github.com/francodeyvison183-collab/iClock/releases/download/v1.14/iClock-1.14-windows.zip",
+      "releaseNotes": "https://github.com/francodeyvison183-collab/iClock/releases/tag/v1.14",
       "screenshot": "https://francodeyvison183-collab.github.io/iClock/og-preview.jpg",
       "url": "https://francodeyvison183-collab.github.io/iClock/",
       "codeRepository": "https://github.com/francodeyvison183-collab/iClock",
@@ -111,7 +113,7 @@
         },
         {
           "@type": "Question",
-          "name": "Why is the executable only 332 KB?",
+          "name": "Why is the executable only 434 KB?",
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Pure native C# and GDI+ rendering. Zero Electron, zero Chromium runtime, zero bulky dependencies. Active memory stays strictly under 10 MB."
@@ -1627,7 +1629,7 @@
       <a href="#" class="brand">
         <img src="../icon-64.png" alt="iClock" class="brand-icon" width="28" height="28">
         <span>iClock</span>
-        <span class="version-tag">v1.13</span>
+        <span class="version-tag">v1.14</span>
       </a>
       <ul class="nav-links">
         <li><a href="#features" data-i18n="nav_features">
@@ -1680,14 +1682,14 @@
     <div class="container">
       <div class="hero-eyebrow">
         <span data-i18n="hero_eyebrow">
-            iClock 1.13 · Native Minimalist Productivity Hub
+            iClock 1.14 · Native Minimalist Productivity Hub
           </span>
       </div>
       <h1 class="hero-title" data-i18n="hero_title">
             Bring focus inspiration and intelligent collaboration together for a calmer more productive day
           </h1>
       <div class="hero-buttons">
-        <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.13/iClock-1.13-windows.zip" class="btn-primary btn-large" id="heroDownloadBtn">
+        <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.14/iClock-1.14-windows.zip" class="btn-primary btn-large" id="heroDownloadBtn">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
@@ -1697,7 +1699,7 @@
             Download Portable (.zip · Recommended)
           </span>
         </a>
-        <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.13/iClock-1.13-windows.exe" class="btn-secondary btn-large">
+        <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.14/iClock-1.14-windows.exe" class="btn-secondary btn-large">
           <span data-i18n="hero_btn_exe">
             Standalone .exe
           </span>
@@ -1715,7 +1717,7 @@
       <!-- Apple 签名式 4 核心指标条 -->
       <div class="hero-key-metrics">
         <div class="metric-item">
-          <div class="metric-val">332 KB</div>
+          <div class="metric-val">434 KB</div>
           <div class="metric-label" data-i18n="metric_size">
             Portable Single Binary
           </div>
@@ -1803,33 +1805,57 @@
             <div class="simulated-agent-card" id="simAgentCard">
               <div class="sim-agent-stage">
                 <div class="sim-agent-panel" id="simAgentProgress">
-                  <div class="sim-agent-kicker" data-i18n="sandbox_agent_progress_label">Task progress</div>
+                  <div class="sim-agent-kicker" data-i18n="sandbox_agent_progress_label">
+            Task progress
+          </div>
                   <div class="sim-hud-top">
                     <div class="sim-hud-name">Codex</div>
-                    <div class="sim-hud-step" id="simAgentStep" data-i18n="sandbox_agent_progress_step">3/5 Running tests</div>
+                    <div class="sim-hud-step" id="simAgentStep" data-i18n="sandbox_agent_progress_step">
+            3/5 Running tests
+          </div>
                   </div>
                   <div class="sim-hud-bar"><div class="sim-hud-fill" id="simAgentFill"></div></div>
                 </div>
                 <div class="sim-agent-panel" id="simAgentAsk" style="display: none;">
-                  <div class="sim-agent-kicker" data-i18n="sandbox_agent_ask_label">Agent asking</div>
-                  <div class="sim-ask-q" data-i18n="sandbox_agent_ask_q">Continue deployment?</div>
+                  <div class="sim-agent-kicker" data-i18n="sandbox_agent_ask_label">
+            Agent asking
+          </div>
+                  <div class="sim-ask-q" data-i18n="sandbox_agent_ask_q">
+            Continue deployment?
+          </div>
                   <div class="sim-ask-actions">
-                    <button class="sim-btn primary" id="simAgentYes" data-i18n="sandbox_agent_ask_yes">Continue</button>
-                    <button class="sim-btn" id="simAgentNo" data-i18n="sandbox_agent_ask_no">Cancel</button>
+                    <button class="sim-btn primary" id="simAgentYes" data-i18n="sandbox_agent_ask_yes">
+            Continue
+          </button>
+                    <button class="sim-btn" id="simAgentNo" data-i18n="sandbox_agent_ask_no">
+            Cancel
+          </button>
                   </div>
                 </div>
                 <div class="sim-agent-panel sim-notice" id="simAgentNotice" style="display: none;">
                   <div class="sim-notice-mark">✨</div>
-                  <div class="sim-notice-title" data-i18n="sandbox_agent_notice_title">Task completed</div>
-                  <div class="sim-notice-sub" data-i18n="sandbox_agent_notice_sub">Codex · All tests passed</div>
+                  <div class="sim-notice-title" data-i18n="sandbox_agent_notice_title">
+            Task completed
+          </div>
+                  <div class="sim-notice-sub" data-i18n="sandbox_agent_notice_sub">
+            Codex · All tests passed
+          </div>
                 </div>
               </div>
               <div class="simulated-controls" style="margin-top: 14px;">
-                <button class="sim-btn" id="simAgentAskBtn" data-i18n="sandbox_agent_ask_btn">Ask</button>
-                <button class="sim-btn primary" id="simAgentProgressBtn" data-i18n="sandbox_agent_progress_btn">Progress</button>
-                <button class="sim-btn" id="simAgentNoticeBtn" data-i18n="sandbox_agent_notice_btn">Notice</button>
+                <button class="sim-btn" id="simAgentAskBtn" data-i18n="sandbox_agent_ask_btn">
+            Ask
+          </button>
+                <button class="sim-btn primary" id="simAgentProgressBtn" data-i18n="sandbox_agent_progress_btn">
+            Progress
+          </button>
+                <button class="sim-btn" id="simAgentNoticeBtn" data-i18n="sandbox_agent_notice_btn">
+            Notice
+          </button>
               </div>
-              <div class="sim-tip" data-i18n="sandbox_agent_tip">Try how an agent asks, reports progress, and announces completion on the desktop</div>
+              <div class="sim-tip" data-i18n="sandbox_agent_tip">
+            Try how an agent asks, reports progress, and announces completion on the desktop
+          </div>
             </div>
 
             <!-- 实物截图模式 -->
@@ -1869,7 +1895,7 @@
             The Minimalist Focus Timer
           </h3>
             <p class="pillar-desc" data-i18n="p1_desc">
-            Native 32-bit ARGB subpixel anti-aliasing with adaptive drop shadow. 100% click-through never steals focus or blocks clicks; direct Alt+drag repositioning, tray wheel duration tuning, auto-suppression during fullscreen games & presentations. Daily focus goal, in-progress sessions in Today's history, language and auto-start on the tray menu.
+            Native 32-bit ARGB subpixel anti-aliasing with adaptive drop shadow. 100% click-through never steals focus or blocks clicks; direct Alt+drag repositioning, tray wheel duration tuning, auto-suppression during fullscreen games & presentations. Daily focus goal and eye-care reminder interval, in-progress sessions in Today's history, always-on usage tracking with a trends view, language and auto-start on the tray menu.
           </p>
           </div>
           <div class="pillar-tags">
@@ -1885,6 +1911,9 @@
           </span>
             <span class="feature-tag-pill" data-i18n="tag_stats">
             Focus Analytics
+          </span>
+            <span class="feature-tag-pill" data-i18n="tag_eye">
+            Eye-Care Reminder
           </span>
           </div>
         </div>
@@ -1928,13 +1957,13 @@
             AI Agent Long-Task Collaboration
           </h3>
             <p class="pillar-desc" data-i18n="p3_desc">
-            Automated task completion monitoring for 20+ programming agents. Agents can request human decisions, project task progress, and send completion alerts through the local CLI with structured JSON responses.
+            Reads the local session logs of Claude Code, OpenAI Codex, Antigravity, and Cursor to show the agent's authentic state, with no synthesized filler text. When several agents run at once, one bar at the top of the desktop holds them all: pills sort by priority and rotate on a fixed cadence, and multiple sessions of the same agent get numbered. Agents can also request human decisions, update the status bar text, project task progress, and send completion alerts through the local CLI with structured JSON responses.
           </p>
           </div>
           <div class="pillar-tags">
-            <span class="feature-tag-pill">⚡ Flash Approval HUD</span>
+            <span class="feature-tag-pill">⚡ Unified Multi-Agent HUD</span>
             <span class="feature-tag-pill" data-i18n="tag_agents">
-            20+ Agents Monitored
+            Reads The Agent Log
           </span>
             <span class="feature-tag-pill">stdio JSON-RPC</span>
             <span class="feature-tag-pill" data-i18n="tag_cli_pipe">
@@ -1997,7 +2026,7 @@
           </p>
           <ul class="why-card-list">
             <li><span class="badge-check">✔</span> <span data-i18n="why_sol_1">
-            Single 332 KB binary, pure native, RAM < 10 MB
+            Single 434 KB binary, pure native, RAM < 10 MB
           </span></li>
             <li><span class="badge-check">✔</span> <span data-i18n="why_sol_2">
             True click-through (WS_EX_TRANSPARENT) never steals focus
@@ -2056,7 +2085,7 @@
             Binary Size
           </strong></td>
               <td class="highlight" data-i18n="comp_r1_iclock">
-            ⚡ 332 KB (Single Portable File)
+            ⚡ 434 KB (Single Portable File)
           </td>
               <td data-i18n="comp_r1_electron">
             120 MB ~ 250 MB
@@ -2135,7 +2164,7 @@
             AI Agents Perception
           </strong></td>
               <td class="highlight" data-i18n="comp_r6_iclock">
-            ⚡ 20+ Coding Agents Monitored
+            ⚡ Reads the agent's own session log
           </td>
               <td><span class="badge-cross">✘</span> None</td>
               <td><span class="badge-cross">✘</span> None</td>
@@ -2200,9 +2229,9 @@
             iClock Portable Archive
           </h3>
           <p class="dl-meta" data-i18n="dl_c1_meta">
-            v1.13 · iClock-1.13-windows.zip · Safe & Fast · Avoids False Alarms
+            v1.14 · iClock-1.14-windows.zip · Safe & Fast · Avoids False Alarms
           </p>
-          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.13/iClock-1.13-windows.zip" class="dl-btn btn-solid">
+          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.14/iClock-1.14-windows.zip" class="dl-btn btn-solid">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
@@ -2220,9 +2249,9 @@
             iClock Standalone Portable
           </h3>
           <p class="dl-meta" data-i18n="dl_c2_meta">
-            v1.13 · iClock-1.13-windows.exe · 332 KB
+            v1.14 · iClock-1.14-windows.exe · 434 KB
           </p>
-          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.13/iClock-1.13-windows.exe" class="dl-btn btn-outline">
+          <a href="https://github.com/francodeyvison183-collab/iClock/releases/download/v1.14/iClock-1.14-windows.exe" class="dl-btn btn-outline">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
@@ -2269,14 +2298,14 @@
           </span>
         </div>
         <div class="checksum-row">
-          <span>iClock-1.13-windows.zip: <strong>003b0d00a2706c4a9c87d6763ae3745d48207621c8d640fd223e54fcef4e915c</strong></span>
-          <button class="copy-btn" onclick="copyText('003b0d00a2706c4a9c87d6763ae3745d48207621c8d640fd223e54fcef4e915c')" data-i18n="btn_copy">
+          <span>iClock-1.14-windows.zip: <strong>83a456fc606e40bb109d64b505fe99d134f026d83c46bd33c09377dea7ff85af</strong></span>
+          <button class="copy-btn" onclick="copyText('83a456fc606e40bb109d64b505fe99d134f026d83c46bd33c09377dea7ff85af')" data-i18n="btn_copy">
             Copy
           </button>
         </div>
         <div class="checksum-row">
-          <span>iClock-1.13-windows.exe: <strong>3e53c07cbc1c9ee4759d719ed822650e747ee615930a1c43995773834931bb01</strong></span>
-          <button class="copy-btn" onclick="copyText('3e53c07cbc1c9ee4759d719ed822650e747ee615930a1c43995773834931bb01')" data-i18n="btn_copy">
+          <span>iClock-1.14-windows.exe: <strong>b3875d0a133732bbde78e08257eccbacf1ebcacbd8efdf43542d2f197013bc93</strong></span>
+          <button class="copy-btn" onclick="copyText('b3875d0a133732bbde78e08257eccbacf1ebcacbd8efdf43542d2f197013bc93')" data-i18n="btn_copy">
             Copy
           </button>
         </div>
@@ -2387,6 +2416,14 @@
             Rotate to next desktop quote randomly
           </td>
               <td><code>iclock -q</code></td>
+            </tr>
+            <tr>
+              <td><code>iclock -st &lt;文字|clear&gt;</code></td>
+              <td><code>iclock --status</code></td>
+              <td data-i18n="cli_r9_desc">
+            Update the AI status bar text; accepts --thinking / --done / --error modifiers
+          </td>
+              <td><code>iclock -st "正在重构" --thinking --agent-name "Codex"</code></td>
             </tr>
             <tr>
               <td><code>iclock --help</code></td>
@@ -2501,7 +2538,7 @@
           <div class="faq-question">
             <span class="faq-q-icon">Q</span>
             <span data-i18n="faq_q2">
-            Why is the executable only 332 KB?
+            Why is the executable only 434 KB?
           </span>
           </div>
           <div class="faq-answer" data-i18n="faq_a2">
@@ -2638,7 +2675,7 @@
         nav_sponsor: "赞赏致谢",
         nav_btn_download: "下载",
 
-        hero_eyebrow: "iClock 1.13 · Windows 原生极简效率中枢",
+        hero_eyebrow: "iClock 1.14 · Windows 原生极简效率中枢",
         hero_title: "汇聚专注灵感与智能协作开启从容高效的每一天",
         hero_btn_dl: "下载便携压缩包 (ZIP · 推荐)",
         hero_btn_exe: "独立 .exe 版",
@@ -2687,8 +2724,8 @@
         why_pain_3: "后台定时循环轮询，持续耗电与唤醒",
         why_sol_badge: "iClock 的极简哲学",
         why_sol_title: "原生、穿透与 0-Polling 协同",
-        why_sol_desc: "基于 Windows 原生底层 Win32 与 GDI+ 构建，无任何第三方依赖，单文件仅 332 KB，内存 < 10 MB。它不仅是支持完全点击穿透的悬浮倒计时，更融合了零轮询桌面灵感与命令行智能体长任务协同。",
-        why_sol_1: "单文件 332 KB，纯原生，内存稳定 < 10 MB",
+        why_sol_desc: "基于 Windows 原生底层 Win32 与 GDI+ 构建，无任何第三方依赖，单文件仅 434 KB，内存 < 10 MB。它不仅是支持完全点击穿透的悬浮倒计时，更融合了零轮询桌面灵感与命令行智能体长任务协同。",
+        why_sol_1: "单文件 434 KB，纯原生，内存稳定 < 10 MB",
         why_sol_2: "完全点击穿透（WS_EX_TRANSPARENT），不挡鼠标",
         why_sol_3: "纯事件驱动消息机制，桌面常驻 0.0% CPU 占用",
 
@@ -2697,22 +2734,23 @@
         feat_subtitle: "专为现代开发者与深度专注者量身打造的效率中枢。",
         p1_num: "01 / FOCUS TIMER",
         p1_title: "极简悬浮倒计时",
-        p1_desc: "基于 Windows 原生 32 位 ARGB 渲染，消除毛刺平滑细腻，自适应微投影。默认鼠标完全点击穿透，不抢焦点不挡代码；按住 Alt 鼠标左键拖拽瞬时定位，托盘滚轮微调时长，智能识别全屏游戏与 PPT 降级原位呼吸免打扰。可设每日专注目标，今日记录含进行中的倒计时，语言与开机自启动在托盘菜单。",
+        p1_desc: "基于 Windows 原生 32 位 ARGB 渲染，消除毛刺平滑细腻，自适应微投影。默认鼠标完全点击穿透，不抢焦点不挡代码；按住 Alt 鼠标左键拖拽瞬时定位，托盘滚轮微调时长，智能识别全屏游戏与 PPT 降级原位呼吸免打扰。可设每日专注目标与护眼提醒间隔，今日记录含进行中的倒计时、始终开启的用时统计与趋势视图，语言与开机自启动在托盘菜单。",
         p2_num: "02 / DAILY QUOTES",
         p2_title: "桌面每日金句与灵感常驻",
         p2_desc: "开机/解锁晨间唤醒优雅浮现，支持一键钉在桌面背景常驻。纯事件消息驱动架构，彻底剔除死循环轮询，常驻 0 唤醒、0.0% CPU 占用！支持 Alt+拖拽位置、边缘调节折行、Alt+Ctrl+滚轮缩放字号；内置 300+ 双语精选词库，支持 AI 生成金句并通过命令行导入并自动去重备份。",
         p3_num: "03 / AI AGENT CLI",
         p3_title: "AI 智能体长任务协同",
-        p3_desc: "自动感知国内外 20+ 款主流编程智能体（Cursor、Antigravity、Claude Code、GitHub Copilot、Trae 等）长任务完成，四级感知矩阵 0ms 零误报即时提醒；智能体可通过 CLI 请求人工决策、投射任务进度、发送完成提醒；支持结构化 JSON 返回。",
+        p3_desc: "直接读取 Claude Code、OpenAI Codex、Antigravity、Cursor 的本地会话记录，还原智能体真实状态，不再使用程序拼出的提示词。多个智能体同时运行时，桌面顶部只有一条状态条，药丸按优先级动态排序并定时轮播，同一智能体的多个会话自动编号。智能体还可通过 CLI 请求人工决策、更新状态条文字、投射任务进度、发送完成提醒；支持结构化 JSON 返回。",
         tag_drag: "Alt + 拖拽定位",
         tag_wheel: "托盘滚轮微调",
         tag_dnd: "全屏免打扰",
         tag_stats: "专注多维统计",
+        tag_eye: "护眼提醒",
         tag_zero: "0-Polling 零能耗",
         tag_quotes: "300+ 离线双语库",
         tag_scale: "Alt+Ctrl+滚轮缩放",
         tag_ai_exp: "AI 批量扩充去重",
-        tag_agents: "20+ 智能体感知",
+        tag_agents: "直读智能体会话记录",
         tag_cli_pipe: "免 .exe 终端调用",
 
         comp_tag: "Benchmark",
@@ -2724,7 +2762,7 @@
         comp_col_win: "Windows 自带闹钟",
         comp_col_web: "网页在线番茄钟",
         comp_r1_name: "安装包体积",
-        comp_r1_iclock: "⚡ 332 KB (单文件免安装)",
+        comp_r1_iclock: "⚡ 434 KB (单文件免安装)",
         comp_r1_electron: "120 MB ~ 250 MB",
         comp_r1_win: "系统预装应用",
         comp_r1_web: "每次加载数 MB",
@@ -2746,7 +2784,7 @@
         comp_r5_name: "智能体桌面协作",
         comp_r5_iclock: "⚡ CLI + 结构化 JSON",
         comp_r6_name: "AI 任务感知矩阵",
-        comp_r6_iclock: "⚡ 20+ 款智能体任务结束感知",
+        comp_r6_iclock: "⚡ 直读智能体会话记录，真实状态",
         comp_r7_name: "桌面灵感金句",
         comp_r7_iclock: "⚡ 0-Polling 悬浮 + AI 扩充",
         comp_r8_name: "网络行为与隐私",
@@ -2760,10 +2798,10 @@
         dl_subtitle: "单文件绿色免安装，纯本地，解压即用。适配 Windows 7 / 8 / 10 / 11。",
         dl_c1_rec: "官方推荐",
         dl_c1_title: "iClock 便携压缩包",
-        dl_c1_meta: "v1.13 · iClock-1.13-windows.zip · 推荐下载 · 防浏览器误报拦截",
+        dl_c1_meta: "v1.14 · iClock-1.14-windows.zip · 推荐下载 · 防浏览器误报拦截",
         dl_c1_btn: "直接下载 .zip (推荐 · 防浏览器拦截)",
         dl_c2_title: "iClock 单文件独立绿色版",
-        dl_c2_meta: "v1.13 · iClock-1.13-windows.exe · 332 KB",
+        dl_c2_meta: "v1.14 · iClock-1.14-windows.exe · 434 KB",
         dl_c2_btn: "下载独立 .exe 格式",
         btn_copy: "复制",
         dl_chk_title: "🔒 文件完整性 SHA-256 校验和",
@@ -2786,6 +2824,7 @@
         cli_r6_desc: "触发桌面置顶强通知弹窗与提示音",
         cli_r7_desc: "随机切换下一句桌面金句",
         cli_r8_desc: "在控制台终端打印完整指令帮助手册",
+        cli_r9_desc: "更新 AI 状态条文字，可带 --thinking / --done / --error 等修饰符",
 
         sc_tag: "Ergonomics",
         sc_title: "常用快捷键与随心微交互",
@@ -2804,7 +2843,7 @@
         faq_subtitle: "解答关于极简架构、置顶穿透体验与安全性的核心疑问。",
         faq_q1: "为什么打游戏或写代码时不挡鼠标操作？",
         faq_a1: "基于 Windows WS_EX_TRANSPARENT 原生 API，倒计时浮窗始终悬浮在桌面最顶层，但所有鼠标点击与滚轮事件均直接穿透到底层的编辑器、终端或游戏画面，丝毫不干扰任何操作。",
-        faq_q2: "为什么体积只有 332 KB？",
+        faq_q2: "为什么体积只有 434 KB？",
         faq_a2: "坚持纯粹原生。基于 Windows 内置的 .NET Framework 与 GDI+ 绘制，坚决不打包任何动辄上百兆的 Electron 或 Chromium 浏览器壳，运行内存稳定在 10 MB 以内。",
         faq_q3: "桌面金句常驻后台会消耗笔记本电池吗？",
         faq_a3: "完全不会。iClock 采用纯事件消息驱动与 0-Polling 架构，静止常驻时 CPU 占用为 0.0%，彻底消除了后台定时器循环唤醒，笔记本全天候常驻零耗电。",
@@ -2856,7 +2895,7 @@
         nav_sponsor: "Sponsor",
         nav_btn_download: "Download",
 
-        hero_eyebrow: "iClock 1.13 · Native Minimalist Productivity Hub",
+        hero_eyebrow: "iClock 1.14 · Native Minimalist Productivity Hub",
         hero_title: "Bring focus inspiration and intelligent collaboration together for a calmer more productive day",
         hero_btn_dl: "Download Portable (.zip · Recommended)",
         hero_btn_exe: "Standalone .exe",
@@ -2906,7 +2945,7 @@
         why_sol_badge: "iClock's Minimalist Philosophy",
         why_sol_title: "Native, Click-Through & 0-Polling",
         why_sol_desc: "Engineered on Windows native Win32 and GDI+ APIs with zero external runtimes. Single portable executable with active RAM under 10 MB. Click-through overlay, 0-polling ambient quotes, and CLI agent collaboration.",
-        why_sol_1: "Single 332 KB binary, pure native, RAM < 10 MB",
+        why_sol_1: "Single 434 KB binary, pure native, RAM < 10 MB",
         why_sol_2: "True click-through (WS_EX_TRANSPARENT) never steals focus",
         why_sol_3: "Pure event-driven message loop, 0.0% CPU when idle",
 
@@ -2915,22 +2954,23 @@
         feat_subtitle: "Engineered for developers, creators, and power users in deep flow.",
         p1_num: "01 / FOCUS TIMER",
         p1_title: "The Minimalist Focus Timer",
-        p1_desc: "Native 32-bit ARGB subpixel anti-aliasing with adaptive drop shadow. 100% click-through never steals focus or blocks clicks; direct Alt+drag repositioning, tray wheel duration tuning, auto-suppression during fullscreen games & presentations. Daily focus goal, in-progress sessions in Today's history, language and auto-start on the tray menu.",
+        p1_desc: "Native 32-bit ARGB subpixel anti-aliasing with adaptive drop shadow. 100% click-through never steals focus or blocks clicks; direct Alt+drag repositioning, tray wheel duration tuning, auto-suppression during fullscreen games & presentations. Daily focus goal and eye-care reminder interval, in-progress sessions in Today's history, always-on usage tracking with a trends view, language and auto-start on the tray menu.",
         p2_num: "02 / DAILY QUOTES",
         p2_title: "Ambient Desktop Inspiration",
         p2_desc: "Morning unlock appearance, permanently pinned to desktop. Pure event-driven architecture eliminates polling loops. Import AI-generated quote files through the CLI with automatic deduplication.",
         p3_num: "03 / AI AGENT CLI",
         p3_title: "AI Agent Long-Task Collaboration",
-        p3_desc: "Automated task completion monitoring for 20+ programming agents. Agents can request human decisions, project task progress, and send completion alerts through the local CLI with structured JSON responses.",
+        p3_desc: "Reads the local session logs of Claude Code, OpenAI Codex, Antigravity, and Cursor to show the agent's authentic state, with no synthesized filler text. When several agents run at once, one bar at the top of the desktop holds them all: pills sort by priority and rotate on a fixed cadence, and multiple sessions of the same agent get numbered. Agents can also request human decisions, update the status bar text, project task progress, and send completion alerts through the local CLI with structured JSON responses.",
         tag_drag: "Alt + Drag Positioning",
         tag_wheel: "Tray Scroll Tuning",
         tag_dnd: "Fullscreen DND",
         tag_stats: "Focus Analytics",
+        tag_eye: "Eye-Care Reminder",
         tag_zero: "0-Polling Zero CPU",
         tag_quotes: "300+ Curated Quotes",
         tag_scale: "Alt+Ctrl+Wheel Scale",
         tag_ai_exp: "AI Batch Expansion",
-        tag_agents: "20+ Agents Monitored",
+        tag_agents: "Reads The Agent Log",
         tag_cli_pipe: "Zero-Latency CLI",
 
         comp_tag: "Benchmark",
@@ -2942,7 +2982,7 @@
         comp_col_win: "Windows Alarms & Clock",
         comp_col_web: "Online Web Timers",
         comp_r1_name: "Binary Size",
-        comp_r1_iclock: "⚡ 332 KB (Single Portable File)",
+        comp_r1_iclock: "⚡ 434 KB (Single Portable File)",
         comp_r1_electron: "120 MB ~ 250 MB",
         comp_r1_win: "Pre-installed System App",
         comp_r1_web: "Several MBs per visit",
@@ -2964,7 +3004,7 @@
         comp_r5_name: "Agent Desktop Collaboration",
         comp_r5_iclock: "⚡ CLI + structured JSON",
         comp_r6_name: "AI Agents Perception",
-        comp_r6_iclock: "⚡ 20+ Coding Agents Monitored",
+        comp_r6_iclock: "⚡ Reads the agent's own session log",
         comp_r7_name: "Ambient Daily Quotes",
         comp_r7_iclock: "⚡ 0-Polling Floating + AI Expansion",
         comp_r8_name: "Network & Privacy",
@@ -2978,10 +3018,10 @@
         dl_subtitle: "100% portable, standalone, zero installation. Compatible with Windows 7 / 8 / 10 / 11.",
         dl_c1_rec: "Recommended",
         dl_c1_title: "iClock Portable Archive",
-        dl_c1_meta: "v1.13 · iClock-1.13-windows.zip · Safe & Fast · Avoids False Alarms",
+        dl_c1_meta: "v1.14 · iClock-1.14-windows.zip · Safe & Fast · Avoids False Alarms",
         dl_c1_btn: "Download .zip (Recommended · Safe)",
         dl_c2_title: "iClock Standalone Portable",
-        dl_c2_meta: "v1.13 · iClock-1.13-windows.exe · 332 KB",
+        dl_c2_meta: "v1.14 · iClock-1.14-windows.exe · 434 KB",
         dl_c2_btn: "Download Standalone .exe",
         btn_copy: "Copy",
         dl_chk_title: "🔒 File Integrity SHA-256 Checksums",
@@ -3004,6 +3044,7 @@
         cli_r6_desc: "Trigger desktop TopMost notification modal & chime",
         cli_r7_desc: "Rotate to next desktop quote randomly",
         cli_r8_desc: "Print command help manual in terminal",
+        cli_r9_desc: "Update the AI status bar text; accepts --thinking / --done / --error modifiers",
 
         sc_tag: "Ergonomics",
         sc_title: "Ergonomic Hotkeys & Micro-Interactions",
@@ -3022,7 +3063,7 @@
         faq_subtitle: "Direct answers regarding architecture, click-through behavior, and security.",
         faq_q1: "Why does it never interfere with coding or full-screen gaming?",
         faq_a1: "Powered by the native Windows WS_EX_TRANSPARENT API, digits float TopMost while all mouse clicks and scrolls pass through directly to underlying IDEs, terminals, and games without stealing focus.",
-        faq_q2: "Why is the executable only 332 KB?",
+        faq_q2: "Why is the executable only 434 KB?",
         faq_a2: "Pure native C# and GDI+ rendering. Zero Electron, zero Chromium runtime, zero bulky dependencies. Active memory stays strictly under 10 MB.",
         faq_q3: "Does ambient quote display drain laptop battery?",
         faq_a3: "Not at all. Pure event-driven message handling (0-Polling). Idle CPU consumption is 0.0%, preserving battery life throughout the day.",

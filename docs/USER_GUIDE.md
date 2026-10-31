@@ -24,6 +24,7 @@ Settings uses an authentic Windows 11 File Explorer multi-tab navigation / 设�
 - **Start/pause hotkey / 快捷键:** click the hotkey field and press a key combination containing Ctrl, Alt, or Shift. Default is `Ctrl + Shift + T`.
 - **End sound & notification / 声音与通知:** independently control the prompt sound style (**QQ Message / QQ 经典提示 (嘀嘀)**, **Classic Telephone Ring / 经典电话铃 (叮铃铃)**, **Alarm Ring / 醒目闹铃**, all >= 3s duration) and notification mode (**Popup / Auto DND Fullscreen** vs **In-Place Pulse**).
 - **Daily focus goal / 每日专注目标:** Off, or 1 / 2 / 3 / 4 / 6 / 8 hours. When on, a flat progress line appears under the overlay digits and the tray 「今日记录」 row shows today's total next to the goal. / 关闭，或 1 / 2 / 3 / 4 / 6 / 8 小时。开启后悬浮数字下方出现平直进度线，托盘「今日记录」右侧显示当天累计与目标。
+- **Eye-care reminder / 护眼提醒:** one dropdown that is both the switch and the interval, the same shape as 「结束声音」. While on, iClock samples the system's last-input time every 30 seconds; 3 minutes with no input counts as a real break and resets the accumulated screen time. It does not accumulate during a rest countdown, and it stays quiet while a full-screen app or this Settings window is open, reminding you once you are back. Hover the ⓘ beside it for the details. / 一个下拉同时管开关与间隔，与「结束声音」用法一致。开启后每 30 秒采样一次系统最后输入时间，连续 3 分钟无输入视为一次真正的休息并清零。休息倒计时期间不计时；全屏游戏或本设置窗口打开时先不弹卡，回到普通窗口再提醒。旁边的 ⓘ 悬停可看说明。
 - **Interface language / 界面语言:** on the tray menu, choose **简体中文** or **English**. The menu stays open after a switch. / 在托盘菜单中选择，切换后菜单保持打开。
 - **Start with Windows / 开机自启动:** a capsule switch on the tray menu. Enabling it writes the 64-bit HKCU Run key so Explorer launches iClock at logon. / 托盘菜单上的胶囊开关。打开后写入 64 位 HKCU Run，登录时由资源管理器拉起。
 
@@ -50,15 +51,20 @@ Settings uses an authentic Windows 11 File Explorer multi-tab navigation / 设�
   - Full support for multi-monitor setups including secondary screens placed to the left or above primary display (negative coordinates `QuoteX`/`QuoteY`). Automatically verifies visibility across `Screen.AllScreens` and recovers safely if a monitor is disconnected.
 
 ### 🤖 智能体协作 / AI Agent Collaboration Tab (Plan B-1)
-- **Master Alert Toggle / 启用智能体后台任务完成提醒:** automatically notifies you with a floating prompt when AI coding agents finish long tasks in the background or minimized.
-- **Domestic & International Agent Matrix / 全面覆盖国内外主流智能体:** Automatically detects and tracks 20+ top AI coding assistants and CLI agents:
-  - *International*: Cursor, Antigravity, Claude Code, GitHub Copilot, Codex, Gemini, Windsurf/Codeium, OpenCode, Aider, Cline, Roo Code, Continue, Tabnine, Cody, Amazon Q, Devin, Grok, Pi.
-  - *Domestic (国内主流)*: 字节跳动 Trae, 阿里通义灵码 (Lingma), 智谱 CodeGeeX / Z Code, 百度文心快码 (Comate), MiniMax (Code), 腾讯云 CodeBuddy, 华为云 CodeArts Snap, 非十科技 Fitten Code, 代码小浣熊 (Raccoon), WorkBuddy, Kimi Code, SheetAgent.
-- **4-Tier Perception Engine / 四级全向感知矩阵:**
-  1. 🥇 **Tier 1 (WinRT Toast Notification Listener)**: Real-time listener for system toast alerts from Antigravity, Cursor, etc. Triggers with 0ms latency, extracts the actual task summary, and 100% eliminates false positives.
-  2. 🥈 **Tier 2 (Win32 Shell Hook Taskbar Flash `HSHELL_FLASH`)**: Intercepts native taskbar flashing (`FlashWindowEx`) with 0ms latency and 0.0% CPU overhead, instantly capturing background completion signals.
-  3. 🥉 **Tier 3 (Terminal & Window Title State)**: Dynamically inspects status badges (`[Running]`, `Thinking...`, `●`) in terminal/IDE window titles, firing immediately when status reverts to idle.
-  4. 🛡️ **Tier 4 (High-Threshold Cluster CPU Fallback)**: Multi-process aggregated CPU edge detector with enhanced guard thresholds ($\ge 5$s sustained busy, $\ge 6$s continuous quiet, 30s cooldown debounce) to prevent false triggers during multi-step tool pauses.
+- **Agent Status Sensing Toggle / 智能体状态自动感知:** pins what a background agent is doing to the desktop, so you can read it at a glance without switching to the agent's window.
+- **Deep Collaboration Toggle / 智能体运行深度协作:** accepts the agent's decision requests (`--ask`) and completion alerts (`--notice`) while it runs.
+- **Authentic Agent Stream / 100% 真实的智能体状态:** iClock reads the agent's **own session log** and reconstructs what it is doing, what it is thinking, and which command it ran — no synthesized filler text. The parser speaks each agent's own format:
+  - *Claude Code* — Anthropic `content` blocks and `tool_use` records.
+  - *OpenAI Codex* — `function_call` and `item_completed` / `event_msg` records.
+  - *Antigravity* — planner responses, tool calls, and done records.
+  - *Cursor*, plus a *generic* fallback for everything else.
+  - Every command inside one record is shown, in order — not just the last one.
+- **Unified Multi-Agent Status Bar / 多智能体统一状态条:** when several agents run at once, one bar at the top of the desktop holds them all:
+  - Pills sort by priority (waiting / error > running > done) and rotate on a fixed 5-second cadence.
+  - Multiple sessions of the same agent get stable `#1` / `#2` labels.
+  - The bar's height is draggable, and the pin icon keeps it resident on the desktop.
+  - The bar sits top-centered by default, fades out on foreground change after a 5-second completion debounce, and draws a vertical dashed snap guide when dragged near the screen centre.
+- **Process-Guided Lazy Watching / 进程引导的懒监听:** a session directory is watched only while the matching agent process is running, so idle agents cost nothing.
 - **Detected Agents Only / 仅显示已检测到的智能体:** cleanly displays detected agents installed or running on your system with real-time status indicators (`🟢 [运行中 / Running]` or `⚪ [已就绪 / Ready]`).
 - **Real-Time Re-Scan / 🔄 重新检测:** one-click button to refresh processes and system directories immediately without restarting iClock.
 - **One-Click Window Restore / 一键恢复窗口:** clicking **「查看 / View」** on the completion notification immediately restores and focuses the corresponding AI agent window.
@@ -99,14 +105,16 @@ Choose **Today's history** from the tray menu to open the comprehensive history 
 - **Days Summary / 按天汇总**: Switch tabs to inspect daily aggregated focus metrics over selected ranges (Last 7 Days, 14 Days, 30 Days, or All History). Shows total focus time, cycle counts, completion rates, and achievement evaluations (● Excellent, ● Good, ● Fair, ● Needs work).
 - **Drill-Down / 穿透钻取**: Double-click any day in the Days Summary table to immediately jump to that day's granular breakdown in Daily Details.
 - **Keyboard Shortcuts / 快捷交互**: Press `Left`/`Right` arrow keys to step through dates, `Ctrl+Tab` to switch views, and `Ctrl+C` to copy selected rows to clipboard.
-- **Time tracking / 时间跟踪统计**: Off by default. Turn on **Usage** at the top-right of the history window. iClock then records foreground process names (not window titles) from unlock until lock or sleep. Daily Details shows a color axis; under it, switch **Countdown** / **Time tracking**. While tracking is on, the tray menu draws a color strip under Today's history. Idle after 3 minutes is counted as idle, not as the last app.
+- **Time tracking / 时间跟踪统计**: always on. iClock records foreground process names (never window titles) from unlock until lock or sleep. Daily Details shows a color axis; clicking that axis toggles between the **activity window** and the **full day**, and the window starts at the day's first real record. Idle after 3 minutes is counted as idle, not as the last app. The tray menu draws a color strip under Today's history.
+- **Trends / 趋势**: a third view charting **screen-active vs. focus time** per day, with an application ranking for the selected window (This week / Last 30 days).
 
 从托盘菜单选择「今日记录」，即可打开专注历史记录与统计窗口。菜单右侧提示当天累计时长（设了每日目标时带上 `/ 目标`）。
 - **单日明细**：通过顶部的日期切换器（`◀`、下拉菜单、`▶`）查看任意日期的具体倒计时明细，包含开始与结束时间、设定时长、实际专注时长及结果（已完成、已重置、已中断、**进行中**）。已经开始、尚未结束的倒计时会作为「进行中」出现，并计入当天累计。底部汇总栏动态呈现当日累计专注时长、完成周期数与达成率。
 - **按天汇总**：切换至该标签页可宏观查看按天聚合的专注指标，支持切换统计范围（最近 7 天、14 天、30 天、全部历史）。直观呈现每日专注总时长、完成/总数、完成率以及达成状态（● 卓越、● 良好、● 及格、● 待提升）。
 - **穿透钻取**：在按天汇总表中双击任意一行日期，即可无缝穿透跳转至该日的“单日明细”查看具体会话。
 - **快捷交互**：支持通过键盘 `←` / `→` 键前后切换日期，`Ctrl+Tab` 快速切换视图，选中文本支持 `Ctrl+C` 复制到剪贴板。
-- **时间跟踪统计**：默认关闭。在今日记录窗口右上角打开「开启使用时间跟踪&统计」后，iClock 只记前台进程名（不记窗口标题）。单日明细顶部出现色轴，轴下可切换「倒计时记录 / 时间跟踪统计」。开启后托盘「今日记录」下方出现通栏色带。空闲超过 3 分钟记为空闲，不算给最后一个应用。
+- **时间跟踪统计**：始终开启。iClock 只记前台进程名（不记窗口标题）。单日明细顶部出现色轴，点击色带即可在「活动窗口」与「全天」之间切换，窗口起点对齐当天第一条真实记录。托盘「今日记录」下方出现通栏色带。空闲超过 3 分钟记为空闲，不算给最后一个应用。
+- **趋势**：第三个视图，按天对比「屏幕活跃 vs 专注」双序列曲线，并给出所选窗口内的应用排行（本周 / 最近 30 天）。
 
 ## Command Line & Script Pipeline (IPC) / 命令行与脚本联动
 
@@ -142,6 +150,7 @@ This appends iClock's directory to your User `PATH` environment variable. Open a
 | `-n <msg>` | `--notice` | Trigger TopMost alert & chime / 触发置顶弹窗与提示音 | `iclock -n "Task Done"` |
 | `--ask <question>` | `-a` | Request a desktop decision / 呼出桌面决策请示 | `iclock --ask "Continue?" --options "Yes,No" --json` |
 | `--progress <value>` | `-pr` | Project task status; use `clear` to remove / 投射任务进度，`clear` 清除 | `iclock --progress 3/5 "Testing" --agent-name "Codex" --json` |
+| `--status <text\|clear>` | `-st` | Update the AI status bar text; accepts `--detail`, `--progress`, `--thinking`, `--done`, `--waiting`, `--error`, `--agent-name`, `--project` / 更新 AI 状态条文字 | `iclock --status "Refactoring" --thinking --agent-name "Codex" --json` |
 | `--json` | - | Return structured collaboration response / 返回结构化协作结果 | `iclock --notice "Done" --json` |
 | `--quote-add <file>` | - | Import quote lines from a UTF-8 file / 从 UTF-8 文件导入金句 | `iclock --quote-add "quotes.txt" --json` |
 | `-q` | `--quote` | Show Daily Quote popup / 弹出每日金句浮窗 | `iclock -q` |

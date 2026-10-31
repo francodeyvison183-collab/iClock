@@ -1,3 +1,7 @@
+param(
+    [string]$Version
+)
+
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $releaseDir = Join-Path $projectRoot 'release-assets'
@@ -5,18 +9,28 @@ if (-not (Test-Path $releaseDir)) {
     New-Item -ItemType Directory -Path $releaseDir | Out-Null
 }
 
+# Default to the version the binary itself reports, so the packaging name can
+# never drift away from src/iClock.cs. Pass -Version to override.
+if (-not $Version) {
+    $src = Get-Content -LiteralPath (Join-Path $projectRoot 'src\iClock.cs') -Raw
+    $m = [regex]::Match($src, 'CURRENT_VERSION\s*=\s*"([^"]+)"')
+    if (-not $m.Success) { throw 'Could not read CURRENT_VERSION from src\iClock.cs.' }
+    $Version = $m.Groups[1].Value
+}
+$Version = "$Version".Trim()
+
 $exeSource = Join-Path $projectRoot 'dist\iClock.exe'
 if (-not (Test-Path $exeSource)) {
     & (Join-Path $projectRoot 'build.ps1')
 }
 
-$targetExe = Join-Path $releaseDir 'iClock-1.12-windows.exe'
-$targetZip = Join-Path $releaseDir 'iClock-1.12-windows.zip'
-$targetSums = Join-Path $releaseDir 'iClock-1.12-SHA256SUMS.txt'
+$targetExe = Join-Path $releaseDir "iClock-$Version-windows.exe"
+$targetZip = Join-Path $releaseDir "iClock-$Version-windows.zip"
+$targetSums = Join-Path $releaseDir "iClock-$Version-SHA256SUMS.txt"
 
 Copy-Item $exeSource $targetExe -Force
 
-$stage = Join-Path $env:TEMP 'iClock_v112_package_stage'
+$stage = Join-Path $env:TEMP "iClock_v${Version}_package_stage"
 if (Test-Path $stage) {
     Remove-Item $stage -Recurse -Force
 }
@@ -46,9 +60,9 @@ $zipHash = (Get-FileHash $targetZip -Algorithm SHA256).Hash.ToLowerInvariant()
 $exeSize = (Get-Item $targetExe).Length
 $zipSize = (Get-Item $targetZip).Length
 
-$sums = "$exeHash  iClock-1.12-windows.exe`r`n$zipHash  iClock-1.12-windows.zip`r`n"
+$sums = "$exeHash  iClock-$Version-windows.exe`r`n$zipHash  iClock-$Version-windows.zip`r`n"
 [System.IO.File]::WriteAllText($targetSums, $sums, [System.Text.Encoding]::ASCII)
 
-Write-Host "PACKAGE SUCCESS:"
+Write-Host "PACKAGE SUCCESS (v$Version):"
 Write-Host "EXE: $exeSize bytes | SHA256: $exeHash"
 Write-Host "ZIP: $zipSize bytes | SHA256: $zipHash"

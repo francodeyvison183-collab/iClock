@@ -4,14 +4,15 @@
 
 iClock is an open-source Windows desktop utility built as a portable native executable with no third-party runtime dependencies.
 
-Last updated: 2026-10-24. Full context: https://francodeyvison183-collab.github.io/iClock/llms-full.txt
+Last updated: 2026-10-31. Full context: https://francodeyvison183-collab.github.io/iClock/llms-full.txt
 
 ## Key Features
 
-- Floating countdown timer with click-through overlay, global hotkey, daily focus goal, and focus history (including in-progress sessions). Language and auto-start live on the tray menu.
+- Floating countdown timer with click-through overlay, global hotkey, daily focus goal, eye-care reminder, and focus history (including in-progress sessions). Language and auto-start live on the tray menu.
 - Ambient desktop quotes with local library editing and CLI import for AI-generated quote files.
-- AI agent task monitoring for supported desktop agents.
-- Local CLI collaboration: `--ask` for human decisions, `--progress` for task status, `--notice` for completion alerts, and `--quote-add` for quote imports.
+- Unified multi-agent status bar that reads each agent's own local session log (Claude Code, OpenAI Codex, Antigravity, Cursor) and shows authentic, unsynthesized status. Nothing is watched unless the matching agent process is running.
+- Always-on usage tracking (process names only) with a per-day trend view; the day color axis toggles between the activity window and the full day.
+- Local CLI collaboration: `--ask` for human decisions, `--status` for status-bar text, `--progress` for task status, `--notice` for completion alerts, and `--quote-add` for quote imports.
 - Add `--json` to collaboration commands for structured machine-readable results; `--agent-name` distinguishes concurrent agents.
 - `iclock --install-cli` adds the app directory to User PATH. Commands communicate with the running desktop app over local Win32 IPC.
 
@@ -20,6 +21,6 @@ Last updated: 2026-10-24. Full context: https://francodeyvison183-collab.github.
 - Website: https://francodeyvison183-collab.github.io/iClock/
 - GitHub: https://github.com/francodeyvison183-collab/iClock
 - User guide: https://github.com/francodeyvison183-collab/iClock/blob/main/docs/USER_GUIDE.md
-- CLI examples: `iclock --ask \"Continue?\" --options \"Yes,No\" --json`; `iclock --progress 3/5 \"Running tests\" --agent-name \"Codex\" --json`; `iclock --notice \"Done\" --json`.
+- CLI examples: `iclock --ask \"Continue?\" --options \"Yes,No\" --json`; `iclock --status \"Refactoring\" --thinking --agent-name \"Codex\" --json`; `iclock --progress 3/5 \"Running tests\" --agent-name \"Codex\" --json`; `iclock --notice \"Done\" --json`.
 
 Existing agent-side `iclock` MCP entries are not automatically modified and should be removed manually. The MCP server is no longer included.

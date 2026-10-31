@@ -2,7 +2,7 @@
 
 # <img src="docs/icon-64.png" width="36" height="36" style="vertical-align: -6px;" alt="iClock Logo" /> iClock
 
-### Ultra-Lightweight (332 KB) Windows Native Productivity Hub
+### Ultra-Lightweight (434 KB) Windows Native Productivity Hub
 **⏱ Transparent Floating Timer · 💬 Ambient Daily Quotes · 🤖 AI Agent Monitor & CLI Collaboration**
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
@@ -13,7 +13,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>Single 332 KB Binary · RAM &lt; 10 MB · 0.0% CPU Idle · Full Mouse Click-Through · Zero-Polling Daily Quotes · CLI Agent Collaboration</b>
+  <b>Single 434 KB Binary · RAM &lt; 10 MB · 0.0% CPU Idle · Full Mouse Click-Through · Zero-Polling Daily Quotes · CLI Agent Collaboration</b>
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@
 
 Desktop tools often fall into two extremes: either crude and single-purpose, or bloated **100MB+** Electron packages that continuously consume CPU and hundreds of megabytes of RAM, often bundled with telemetry or ads, while their opaque windows obstruct your code and web workspace.
 
-**iClock adheres to extreme engineering minimalism**: built on Windows native Win32 and GDI+ APIs with zero external runtimes or dependencies, packing a **332 KB** standalone executable with an active RAM footprint under **10 MB**. It is not merely a click-through desktop countdown timer, but a cohesive productivity hub integrating **zero-polling ambient daily quotes** and **CLI-driven desktop collaboration for AI agents**.
+**iClock adheres to extreme engineering minimalism**: built on Windows native Win32 and GDI+ APIs with zero external runtimes or dependencies, packing a **434 KB** standalone executable with an active RAM footprint under **10 MB**. It is not merely a click-through desktop countdown timer, but a cohesive productivity hub integrating **zero-polling ambient daily quotes** and **CLI-driven desktop collaboration for AI agents**.
 
 ---
 
@@ -45,7 +45,8 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 * 🪟 **Native 32-bit ARGB & Full Click-Through**: Powered by Windows native `UpdateLayeredWindow`, delivering pristine subpixel anti-aliasing without jagged monochrome edges; adaptive soft drop shadows ensure crystal-clear contrast across light, dark, or busy backgrounds; default `WS_EX_TRANSPARENT` click-through never steals focus from your IDE, terminal, or full-screen games.
 * ⌨️ **Ergonomic Direct Drag & Tray Scroll**: Reposition instantly by **holding `Alt` + left-click dragging** anywhere on the digits; hover over the tray icon and **scroll your mouse wheel to adjust duration** (`±1m`, or `±5m` with `Shift`); default `Ctrl + Shift + T` global hotkey.
 * 🔔 **Tiered Alerts & Auto Fullscreen DND**: Choose between a **TopMost Popup Dialog** (with classic mechanical telephone ring or chime for critical deadlines) or an **In-Place Breathing Pulse** (desktop digits gently breathe for 5 seconds with a soft chime without stealing window focus). Built-in **Auto Fullscreen DND** automatically downgrades popups to subtle breathing pulses whenever full-screen DirectX/Vulkan games, PPT slideshows, or video playback are detected in the foreground.
-* 📊 **History Logs & Multi-Day Analytics**: Set a daily focus goal (Off or 1–8 hours); the overlay bar and tray 「Today's history」 row show today's total. Review [Daily Details] (including in-progress countdowns) and [Days Summary] (7 / 14 / 30 days or all-time). Optional computer-usage tracking (off by default, process names only) lives at the top-right of Today's history, with a day color axis and a Countdown / Time tracking switch. Language and auto-start live on the tray menu.
+* 📊 **History Logs & Multi-Day Analytics**: Set a daily focus goal (Off or 1–8 hours); the overlay bar and tray 「Today's history」 row show today's total. Review [Daily Details] (including in-progress countdowns) and [Days Summary] (7 / 14 / 30 days or all-time). Computer-usage tracking is always on and records process names only; the day color axis doubles as a toggle between the activity window and the full day, and a new [Trends] view charts screen-active vs. focus time day by day. Language and auto-start live on the tray menu.
+* 👁 **Eye-Care Reminder**: Enable it from the countdown settings and pick an interval. iClock samples the system's last-input time every 30 seconds; 3 minutes without input counts as a real break and resets the counter. The clock does not accumulate during a break, and it stays quiet while a full-screen game or the settings window is open, reminding you once you are back.
 
 ### 2. 💬 Ambient Desktop Inspiration (Daily Quotes)
 * 🌅 **Morning Unlock & Desktop Pinning**: Gracefully fades in centered upon morning system unlock; pin to wallpaper or leave floating permanently.
@@ -53,10 +54,11 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 * 🎨 **Direct Desktop Micro-Interactions**: **Hold `Alt` + drag** quote text to reposition, drag the right edge to adjust wrap width, and use **`Alt + Ctrl + Wheel` to scale font size**; double-click to skip to the next quote.
 * 📚 **Offline Library & AI Expansion**: Includes 300+ bilingual curated quotes and notepad editing for `quotes.txt`. In Settings, trigger your local AI agent to generate a quote file, then import it through the CLI with automatic deduplication and safe `quotes.txt.bak` backup.
 
-### 3. 🤖 AI Agent CLI Collaboration
-* 👁 **20+ Programming Agents Monitored**: Automated perception for Cursor, Antigravity, Claude Code, GitHub Copilot, Windsurf, Trae, Tongyi Lingma, CodeGeeX, MiniMax, CodeBuddy, Aider, and more. A 4-tier perception matrix (Toast hooks, `HSHELL_FLASH` window flashing, title scanning, process lifecycle) delivers **0ms instant alert** upon task completion with 1-click window restore.
-* 💻 **Structured CLI Desktop Collaboration**: Agents use `--ask` for human decisions, `--progress` for task status, and `--notice` for completion alerts. Add `--json` for machine-readable results. `--agent-name` distinguishes parallel agents; `--quote-add` imports AI-generated quotes.
-* 🔗 **Lightweight IPC & Script Automation**: `WM_COPYDATA` sends commands to the running iClock instance. Run `iclock --install-cli` to add the executable directory to User PATH for agents, CI/CD, and scripts.
+### 3. 🤖 AI Agent Status Bar & CLI Collaboration
+* 👁 **Reads the agent's own session log — 100% authentic status**: a protocol-aware parser reads the local session files of Claude Code, OpenAI Codex, Antigravity, and Cursor, and reconstructs what the agent is doing, thinking, and which command it ran. No more synthesized filler text. Nothing is watched unless the matching agent process is actually running, so the cost is close to zero.
+* 🧩 **Unified multi-agent HUD**: when several agents run at once, one bar at the top of the desktop holds them all. Pills sort by priority (waiting/error > running > done) and rotate on a fixed cadence; multiple sessions of the same agent get stable `#1` / `#2` labels. The bar height is draggable and a pin icon keeps it resident.
+* 💻 **Structured CLI Desktop Collaboration**: Agents use `--ask` for human decisions, `--status` to update the status bar text, `--progress` for task status, and `--notice` for completion alerts. Add `--json` for machine-readable results. `--agent-name` distinguishes parallel agents; `--quote-add` imports AI-generated quotes.
+* 🔗 **Companion `iclock.com` console entry**: typing `iclock` passes the command straight through to the running iClock and returns its exit code, so the terminal prompt never ends up inverted. Run `iclock --install-cli` to add the executable directory to User PATH for agents, CI/CD, and scripts.
 
 ---
 
@@ -64,12 +66,12 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 
 | Metric | **iClock (This Project)** | Typical Electron Timer | Windows Clock App | Web Pomodoro Timer |
 | :--- | :--- | :--- | :--- | :--- |
-| **Package Size** | ⚡ **332 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed | Several MBs on load |
+| **Package Size** | ⚡ **434 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed | Several MBs on load |
 | **Memory (RAM)** | ⚡ **~3.5 MB** (Physical baseline) | 150 MB ~ 300 MB | ~30 MB | 80 MB ~ 200 MB (Browser tab) |
 | **CPU Usage** | ⚡ **0.0%** (Heartbeat aligned) | 0.5% ~ 3.0% (Polling) | 0.0% | 0.3% ~ 1.5% |
 | **Interaction** | ⚡ **Full click-through, borderless** | Solid window blocking view | Minimized or full window | Must switch tab to view |
 | **Agent Desktop Collaboration** | ⚡ **CLI + structured JSON** | ❌ None | ❌ None | ❌ None |
-| **AI Agent Monitor**| ⚡ **20+ coding agents supported** | ❌ None | ❌ None | ❌ None |
+| **AI Agent Monitor**| ⚡ **Reads the agent's own session log** | ❌ None | ❌ None | ❌ None |
 | **Desktop Quotes** | ⚡ **0-Polling + AI expansion** | ❌ None | ❌ None | ❌ In-page only |
 | **Network Traffic**| ⚡ **0 network calls, 100% offline** | Telemetry / Update checks | Microsoft account sync | Cloud telemetry |
 
@@ -79,7 +81,7 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 
 ### Option A: Portable ZIP Archive (Recommended · Avoids browser false warnings)
 
-1. Download **`iClock-1.13-windows.zip`** from [GitHub Releases](../../releases/latest) (recommended to avoid SmartScreen warnings for unsigned `.exe` files).
+1. Download **`iClock-1.14-windows.zip`** from [GitHub Releases](../../releases/latest) (recommended to avoid SmartScreen warnings for unsigned `.exe` files).
 2. Extract the archive and double-click `iClock.exe` to run (100% portable, zero registry pollution).
 3. Upon launch, iClock sits quietly in the system tray ready for action.
 
@@ -104,6 +106,7 @@ Copy the CLI collaboration instructions from **Settings → AI Collaboration** a
 
 ```powershell
 iclock --ask "Continue deployment?" --options "Continue,Cancel" --json
+iclock --status "Refactoring the core module" --thinking --agent-name "Codex" --json
 iclock --progress 3/5 "Running tests" --agent-name "Codex" --json
 iclock --progress clear --agent-name "Codex" --json
 iclock --notice "Task completed" --agent-name "Codex" --json
@@ -137,6 +140,7 @@ This adds iClock's directory to your User PATH. You can then invoke `iclock` fro
 | `iclock --reset` | - | Reset timer to standby and hide digits | `iclock --reset` |
 | `iclock --rest [m]` | - | Start rest countdown (default 5 min) | `iclock --rest 10` |
 | `iclock -n <message>`| `iclock --notice` | Trigger desktop TopMost popup & chime | `iclock -n "Build Succeeded!"` |
+| `iclock -st <text\|clear>` | `iclock --status` | Update the AI status bar text; accepts `--detail`, `--progress`, `--thinking`, `--done`, `--waiting`, `--error` | `iclock -st "Refactoring" --thinking --agent-name "Codex"` |
 | `iclock -q` | `iclock --quote` | Rotate to next daily quote | `iclock -q` |
 | `iclock --install-cli`| - | Add iClock directory to User PATH | `iclock --install-cli` |
 | `iclock --help` | `iclock -h` | Print CLI reference manual | `iclock -h` |
@@ -161,7 +165,7 @@ iclock -s 50
 * **Direct Repositioning**: Hold `Alt` + left-click drag anywhere on the countdown digits.
 * **Scroll Wheel Duration Adjustment**: Hover over the tray icon and scroll mouse wheel (`±1m`, or `±5m` with `Shift`).
 * **Desktop Quotes Interaction**: Hold `Alt` + drag to move, drag right edge to resize width, **`Alt + Ctrl + Wheel` to scale font size**, double-click to rotate quotes, click `📌` to pin to desktop.
-* **Settings Dialog**: Right-click tray $\rightarrow$ **Settings** (3 tabs: ⏱ Countdown / 💬 Daily Quotes / 🤖 AI Collaboration).
+* **Settings Dialog**: Right-click tray $\rightarrow$ **Settings** (3 tabs: ⏱ Countdown / 💬 Daily Quotes / 🤖 AI Collaboration). The Countdown tab also holds the daily focus goal and the eye-care reminder interval.
 
 ---
 
@@ -169,7 +173,7 @@ iclock -s 50
 
 * **Q: Why doesn't it block mouse clicks while gaming or coding?**
   **A**: iClock leverages the native Windows `WS_EX_TRANSPARENT` style. Digits render TopMost above all windows, but all mouse clicks and scroll events pass through directly to underlying games, IDEs, and browser tabs.
-* **Q: Why is the file size only 332 KB?**
+* **Q: Why is the file size only 434 KB?**
   **A**: Pure native C# WinForms and GDI+ rendering. Zero Electron, zero Chromium runtime, zero bulky third-party DLLs. Memory stays strictly below 10 MB.
 * **Q: Does desktop quote hibernation consume laptop battery?**
   **A**: No. It relies purely on Windows native event messages (0-Polling). Idle CPU consumption is 0.0%, preserving battery life.
@@ -189,7 +193,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> Builds in less than a second into `dist/iClock.exe` (about 332 KB). See [BUILDING.md](docs/BUILDING.md).
+> Builds in less than a second into `dist/iClock.exe` (about 434 KB). See [BUILDING.md](docs/BUILDING.md).
 
 ---
 

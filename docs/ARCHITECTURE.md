@@ -1,6 +1,27 @@
 # Architecture
 
-iClock is an ultra-lightweight Windows desktop utility compiled directly via `csc.exe` against the .NET Framework (4.6+ / 4.8). It has zero external package dependencies, produces one compact binary (~332 KB), and runs with minimal resource usage (< 10 MB RAM, ~0.0% idle CPU).
+iClock is an ultra-lightweight Windows desktop utility compiled directly via `csc.exe` against the .NET Framework (4.6+ / 4.8). It has zero external package dependencies, produces one compact binary (~434 KB), and runs with minimal resource usage (< 10 MB RAM, ~0.0% idle CPU).
+
+The source tree is split into 16 focused modules compiled together into that single binary:
+
+| Module | Responsibility |
+| :--- | :--- |
+| `iClock.cs` | Entry point, countdown engine, tray menu, history windows, CLI dispatch |
+| `Core.cs` | `Settings`, `NativeMethods` (all Win32 P/Invoke), shared helpers |
+| `Controls.cs` | Reusable Win11-styled controls (toggle switch, quote rows, cards) |
+| `Overlay.cs` | Layered countdown window and its GDI+ rendering pipeline |
+| `Quotes.cs` | Daily quote library, screensaver, custom quote import |
+| `Usage.cs` | Usage tracking, day-axis panel, trend panel, history menu item |
+| `AgentWatcher.cs` | Filesystem watchers for agent session directories |
+| `AgentTranscriptParse.cs` | Protocol-aware transcript parsing for each agent's log format |
+| `AgentHud.cs` | Multi-agent status bar HUD, pill row, priority rotation |
+| `SettingsDialog.cs` | Settings window (timer / quotes / AI collaboration tabs) |
+| `Dialogs.cs` | `NoticeDialog`, about dialog, dialog mutual exclusion |
+| `EyeCare.cs` | Eye-care reminder tracker |
+| `Screensaver.cs` | Windows screensaver mode |
+| `Menu.cs` | Tray menu construction and language submenu |
+| `WelcomeAbout.cs` | First-run welcome and the about box |
+| `CliLauncher.cs` | The companion `iclock.com` console entry point |
 
 ## Architectural Foundations
 
@@ -28,15 +49,16 @@ All Win32 P/Invoke declarations (`user32.dll`, `gdi32.dll`, `dwmapi.dll`, `kerne
 ### 5. Atomic Configuration Persistence (`Settings`)
 Configuration (`settings.ini`) uses an atomic write pattern: settings are serialized to a temporary file (`settings.ini.tmp`) before calling `File.Replace`, guaranteeing file integrity even during unexpected system shutdowns or power cuts.
 
-### 6. Background Agent Monitoring & Multi-Process Aggregation
-Modern AI coding assistants (e.g., Antigravity, Cursor, Windsurf, Trae) employ multi-process Chromium/Electron architectures where work is distributed across UI, GPU, utility, and renderer worker processes:
-- **Group Aggregation by Agent**: Rather than tracking isolated PIDs, iClock clusters processes by agent application identity (`AgentTrack`). Processor time is aggregated across all worker PIDs to detect sustained CPU bursts ($\ge 0.40\text{s}$ cluster CPU time or $\ge 8\%$ total system CPU).
-- **Desktop Window Resolution**: Electron child processes often report `MainWindowHandle == 0`. iClock enumerates top-level visible desktop windows via `EnumDesktopWindows` / `EnumWindows` matching active agent PIDs to reliably locate the primary interactive GUI window handle (`HWND`).
-- **Foreground Context & Completion Lifecycle**: Foreground status is resolved by comparing the foreground window and thread process ID against the agent's clustered PIDs. When a fallback agent transitions from sustained high workload ($\ge 5$ consecutive busy ticks, filtering out transient spikes like linting or auto-save) to a stable quiet state in the background ($\ge 6$ consecutive quiet ticks, avoiding premature triggers during multi-step tool calls or LLM pauses), iClock dispatches completion alerts with 30s cooldown and one-click window restoration (`ShowWindow` + `SetForegroundWindow`).
-- **Window Title Dynamics & Instant Completion**: iClock inspects top-level session window title strings (`GetAgentWindowTitle`, `IsBusyAgentTitle`). For IDEs and terminal agents that expose status badges or markers (e.g., `[Running]`, `(Running)`, `●`, `Thinking...`, `[Building]`), the moment the title reverts back to normal, iClock immediately triggers completion without waiting for the quiet debounce period, providing 0-latency alerts.
-- **Windows Toast Notification Listener (Zero False Positives & Task Context)**: For agents supporting Windows system toast notifications (such as Antigravity and Cursor), iClock listens to incoming notifications via Windows Runtime `UserNotificationListener` dynamically. When a task completion toast arrives, iClock extracts the agent identity and exact task summary text, immediately triggering a zero-latency alert with rich task context while completely bypassing noisy CPU load heuristics to achieve 100% precision and zero false positives.
-- **Win32 Shell Hook Taskbar Flashing (`RegisterShellHookWindow` + `HSHELL_FLASH`)**: In addition to Toast notifications, iClock registers a native Win32 Shell hook via `RegisterShellHookWindow`. When background IDEs or terminals (such as Cursor, Windsurf, VS Code, Windows Terminal, JetBrains) complete a task and flash their taskbar button (`FlashWindowEx` / `HSHELL_FLASH`), iClock captures the message via its message pump with 0ms latency and 0.0% CPU overhead, instantly verifying the window's agent identity and routing to completion alerts while suppressing duplicate alerts via a 30s cooldown.
-- **Kernel Handle Safety**: Every process handle query is strictly scoped (`using (Process)`), ensuring non-managed OS process handles (`SafeProcessHandle`) are immediately released to eliminate kernel resource leaks.
+### 6. Ambient Agent Session Watching & Multi-Agent HUD
+Instead of guessing what an agent is doing from CPU load or window-title heuristics, iClock reads the agent's **own session log** and reconstructs its state from the real transcript. The old heuristics (cluster CPU thresholds, `RegisterShellHookWindow` / `HSHELL_FLASH` capture, toast-listener interception) are gone; what remains is a direct, protocol-aware read of what the agent actually wrote.
+
+- **Process-Guided Lazy Watching**: watchers are mounted only for agents whose process is actually running. A directory for an idle agent is never opened, so no file handles and no CPU are spent on agents that are not working.
+- **Watched Session Roots**: `~/.claude/projects`, `~/.codex/sessions`, `~/.gemini/antigravity/brain` (+ `~/.antigravity`), `~/.cursor/projects`, plus the `sessions` / `projects` / `logs` / `transcripts` subfolders of a generic agent root, and a `.claude` folder next to the executable.
+- **Protocol-Aware Parsing (`AgentTranscriptParse`)**: each agent's log format has its own parser — `Cursor`, `Claude`, `Codex`, `Antigravity`, and a generic fallback. The parser recognizes the tool-call shapes each agent emits (`tool_calls`, Anthropic `content` blocks, Codex `function_call` / `item_completed` events, Antigravity planner/done records) and extracts the real command text, the assistant's reasoning, and the turn outcome.
+- **Zero-Allocation Sniffing**: the hot path uses a hand-written JSON key-value sniffer instead of deserializing each line, so a long-running watch produces no garbage-collection pressure.
+- **Strict Event Validation**: the event type is validated before any prompt or command text is pulled out, and a temporal-continuity intent extractor plus a cursor-based filter drop false positives — a tool call is never mistaken for "thinking finished".
+- **Authentic Stream Only**: the HUD never invents filler text. Every line it shows came from the agent's own record, in order; a record with several commands shows all of them, not just the last.
+- **Unified Multi-Agent HUD (`AgentHud`)**: one bar at the top of the desktop holds every live session. Pills sort by priority (waiting/error > running > done) and rotate on a fixed cadence; multiple sessions of the same agent get stable `#1` / `#2` labels derived from the lexicographic order of the session key. The bar is draggable in height, pinnable to stay resident, fades out on foreground change after a 5-second debounce, and draws a vertical dashed snap guide when dragged near the screen centre.
 
 ### 7. Pure In-Memory Audio Synthesis
 Custom PCM audio synthesis generates classic retro sounds (QQ message 4-beep sequence, Pager 3-beep call) dynamically in memory with envelope smoothing, eliminating external sound asset files while ensuring consistent $\ge 3\text{s}$ alert durations.
@@ -47,4 +69,19 @@ To enable terminal scripting and automation without external daemon services or 
 - **Message-Only Dispatch Window**: The running GUI instance maintains a lightweight message window (`MessageWindow`) with title `"iClock.IpcWindow"`.
 - **Zero-Allocation Data Transfer**: Secondary CLI processes marshal arguments via Win32 `WM_COPYDATA` (`0x004A`) with `NativeMethods.COPYDATASTRUCT`. The message is delivered synchronously into the primary instance's message queue on the main UI thread with 0ms dispatch latency.
 - **Console Attachment for GUI Binaries**: As a `/target:winexe` application, standard output is not attached to a console by default. `Program.WriteToConsole` probes `GetStdHandle(STD_OUTPUT_HANDLE)` and calls `AttachConsole(-1)` dynamically. This guarantees that CLI feedback, help text (`-h`), and pipe redirections (`|`, `>`) print correctly in interactive PowerShell, CMD, or headless automation runners without flashing unwanted console windows during standard GUI launches.
+- **Companion Console Entry (`CliLauncher`)**: the release ships a tiny `iclock.com` console shim next to the GUI binary. Windows resolves `iclock.com` ahead of `iclock.exe`, so a bare `iclock` in a terminal launches the GUI when no arguments are given and otherwise forwards the raw argument string to `iClock.exe` synchronously, preserving quotes and the exit code. This keeps the shell prompt from ever ending up inverted.
 - **Idempotent User PATH Registration**: `iclock --install-cli` queries and updates `Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User)` natively, providing global terminal invocation without `.exe` (via Windows `%PATHEXT%`).
+
+### 9. Always-On Usage Tracking & Trend Analysis (`Usage`)
+- **Process Names Only**: the tracker records the foreground process name and duration, never window titles, file paths, or any content. `UsageLog.IsIgnoredExe` keeps the shell and other noise out of the samples.
+- **Person-Level Model**: each segment is classified `active`, `idle`, `locked`, or `sleep`. "Active" means the user was operating the machine; the other three are person states, not applications, so they never dilute the app ranking.
+- **Input Strength**: samples count keyboard/mouse activity, splitting active time into heavy and light input so the summary reads as a person's day rather than a raw process ranking.
+- **TSV Persistence**: segments are appended to a per-day TSV file, merged on consecutive entries, and short flicker windows are absorbed so a click does not become its own row.
+- **Day-Axis Panel**: the history dialog's color axis shows the whole day at a glance; clicking it toggles between the activity window and the full day, with the window anchored to the day's first real record.
+- **Trend Panel**: a second view charts screen-active vs. focus time per day over a selectable window (this week / last 30 days) and ranks the applications inside it.
+
+### 10. Eye-Care Reminder (`EyeCare`)
+- **Idle-Based Break Detection**: every 30 seconds the tracker reads the system's last-input timestamp. Three minutes without any input counts as a genuine break and resets the accumulated screen time.
+- **No Double Counting**: the clock does not accumulate during a rest countdown, so a scheduled break never counts as screen time.
+- **Context-Aware Suppression**: the reminder stays quiet while a full-screen app or the settings window is open, and fires once the user is back in an ordinary window.
+- **Shared Notice Path**: the reminder reuses `NoticeDialog`, so every strong reminder in the app looks and behaves the same.

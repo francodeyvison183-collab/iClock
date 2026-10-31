@@ -171,7 +171,7 @@ internal sealed class AppContext : ApplicationContext
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuLanguage, menuLangZh, menuLangEn, menuAbout, menuExit, menuUpdate;
     private MenuSwitchItem menuStartup;
     private bool holdTrayMenuOpen;
-    internal const string CURRENT_VERSION = "1.13";
+    internal const string CURRENT_VERSION = "1.14";
     private string updateUrl;
     private string latestVersion;
     private Timer timer;
