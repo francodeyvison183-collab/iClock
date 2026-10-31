@@ -34,7 +34,7 @@ csc.exe /nologo /target:exe /optimize+ /out:dist\iclock.com src\CliLauncher.cs
 
 - Build from a clean checkout using `build.ps1`.
 - Confirm the application starts, tray menu opens, and the configured hotkey can start and pause the countdown.
-- Confirm the release executable is below the project's 1 MB hard limit (currently about 434 KB).
+- Confirm the release executable is below the project's 1 MB hard limit (currently about 435 KB).
 - Run `dist\SelfCheck.exe` and `dist\QuoteLayoutCheck.exe`; both must pass.
 - Run `scripts/package.ps1` to stage the release assets. It reads the version from `CURRENT_VERSION` in `src/iClock.cs`, so the artifact names can never drift from the binary; attach the staged `.exe`, `.zip`, and `SHA256SUMS.txt` to the GitHub Release. Do not commit generated binaries to the source tree.
 - Update `CHANGELOG.md` and tag the source commit used for the release.

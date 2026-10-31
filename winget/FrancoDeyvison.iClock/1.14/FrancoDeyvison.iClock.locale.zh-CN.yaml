@@ -11,11 +11,11 @@ PackageUrl: https://francodeyvison183-collab.github.io/iClock/
 License: MIT
 LicenseUrl: https://github.com/francodeyvison183-collab/iClock/blob/main/LICENSE
 Copyright: Copyright (c) 2026 iClock Project
-ShortDescription: 仅 434 KB 原生单文件、零依赖、置顶穿透 Windows 极简桌面悬浮倒计时与 AI 智能体状态条工具。
+ShortDescription: 仅 435 KB 原生单文件、零依赖、置顶穿透 Windows 极简桌面悬浮倒计时与 AI 智能体状态条工具。
 Description: |
   iClock 是一款专注于心流状态与智能协作的极简 Windows 桌面悬浮倒计时、每日金句与 AI 智能体命令行协同工具。
   特性：
-  - 434 KB 原生单文件，零第三方依赖
+  - 435 KB 原生单文件，零第三方依赖
   - 置顶悬浮且支持鼠标完全穿透（不挡全屏游戏与日常操作）
   - 全局快捷键一键启停（默认 Ctrl+Shift+T）
   - 每日专注目标与护眼提醒，托盘显示今日累计，进行中的倒计时可在今日记录里查看

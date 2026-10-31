@@ -2,7 +2,7 @@
 
 # <img src="docs/icon-64.png" width="36" height="36" style="vertical-align: -6px;" alt="iClock Logo" /> iClock
 
-### Ultra-Lightweight (434 KB) Windows Native Productivity Hub
+### Ultra-Lightweight (435 KB) Windows Native Productivity Hub
 **⏱ Transparent Floating Timer · 💬 Ambient Daily Quotes · 🤖 AI Agent Monitor & CLI Collaboration**
 
 [![Release](https://img.shields.io/github/v/release/francodeyvison183-collab/iClock?color=blue&label=Release)](https://github.com/francodeyvison183-collab/iClock/releases/latest)
@@ -13,7 +13,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <p align="center">
-  <b>Single 434 KB Binary · RAM &lt; 10 MB · 0.0% CPU Idle · Full Mouse Click-Through · Zero-Polling Daily Quotes · CLI Agent Collaboration</b>
+  <b>Single 435 KB Binary · RAM &lt; 10 MB · 0.0% CPU Idle · Full Mouse Click-Through · Zero-Polling Daily Quotes · CLI Agent Collaboration</b>
 </p>
 
 <p align="center">
@@ -35,7 +35,7 @@
 
 Desktop tools often fall into two extremes: either crude and single-purpose, or bloated **100MB+** Electron packages that continuously consume CPU and hundreds of megabytes of RAM, often bundled with telemetry or ads, while their opaque windows obstruct your code and web workspace.
 
-**iClock adheres to extreme engineering minimalism**: built on Windows native Win32 and GDI+ APIs with zero external runtimes or dependencies, packing a **434 KB** standalone executable with an active RAM footprint under **10 MB**. It is not merely a click-through desktop countdown timer, but a cohesive productivity hub integrating **zero-polling ambient daily quotes** and **CLI-driven desktop collaboration for AI agents**.
+**iClock adheres to extreme engineering minimalism**: built on Windows native Win32 and GDI+ APIs with zero external runtimes or dependencies, packing a **435 KB** standalone executable with an active RAM footprint under **10 MB**. It is not merely a click-through desktop countdown timer, but a cohesive productivity hub integrating **zero-polling ambient daily quotes** and **CLI-driven desktop collaboration for AI agents**.
 
 ---
 
@@ -66,7 +66,7 @@ Desktop tools often fall into two extremes: either crude and single-purpose, or 
 
 | Metric | **iClock (This Project)** | Typical Electron Timer | Windows Clock App | Web Pomodoro Timer |
 | :--- | :--- | :--- | :--- | :--- |
-| **Package Size** | ⚡ **434 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed | Several MBs on load |
+| **Package Size** | ⚡ **435 KB** (Portable single exe) | 120 MB ~ 250 MB | Pre-installed | Several MBs on load |
 | **Memory (RAM)** | ⚡ **~3.5 MB** (Physical baseline) | 150 MB ~ 300 MB | ~30 MB | 80 MB ~ 200 MB (Browser tab) |
 | **CPU Usage** | ⚡ **0.0%** (Heartbeat aligned) | 0.5% ~ 3.0% (Polling) | 0.0% | 0.3% ~ 1.5% |
 | **Interaction** | ⚡ **Full click-through, borderless** | Solid window blocking view | Minimized or full window | Must switch tab to view |
@@ -173,7 +173,7 @@ iclock -s 50
 
 * **Q: Why doesn't it block mouse clicks while gaming or coding?**
   **A**: iClock leverages the native Windows `WS_EX_TRANSPARENT` style. Digits render TopMost above all windows, but all mouse clicks and scroll events pass through directly to underlying games, IDEs, and browser tabs.
-* **Q: Why is the file size only 434 KB?**
+* **Q: Why is the file size only 435 KB?**
   **A**: Pure native C# WinForms and GDI+ rendering. Zero Electron, zero Chromium runtime, zero bulky third-party DLLs. Memory stays strictly below 10 MB.
 * **Q: Does desktop quote hibernation consume laptop battery?**
   **A**: No. It relies purely on Windows native event messages (0-Polling). Idle CPU consumption is 0.0%, preserving battery life.
@@ -193,7 +193,7 @@ git clone https://github.com/francodeyvison183-collab/iClock.git
 cd iClock
 .\build.ps1
 ```
-> Builds in less than a second into `dist/iClock.exe` (about 434 KB). See [BUILDING.md](docs/BUILDING.md).
+> Builds in less than a second into `dist/iClock.exe` (about 435 KB). See [BUILDING.md](docs/BUILDING.md).
 
 ---
 

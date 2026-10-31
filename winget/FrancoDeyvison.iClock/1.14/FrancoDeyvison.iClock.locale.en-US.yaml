@@ -11,11 +11,11 @@ PackageUrl: https://francodeyvison183-collab.github.io/iClock/
 License: MIT
 LicenseUrl: https://github.com/francodeyvison183-collab/iClock/blob/main/LICENSE
 Copyright: Copyright (c) 2026 iClock Project
-ShortDescription: Ultra-lightweight (434 KB) Windows timer, daily quotes, AI agent status bar, and CLI-based desktop collaboration tool.
+ShortDescription: Ultra-lightweight (435 KB) Windows timer, daily quotes, AI agent status bar, and CLI-based desktop collaboration tool.
 Description: |
   iClock is a minimalist Windows desktop timer with daily quotes, a multi-agent AI status bar, and CLI-based desktop collaboration.
   Features:
-  - 434 KB single portable binary with zero external dependencies
+  - 435 KB single portable binary with zero external dependencies
   - Topmost and mouse click-through support
   - Global hotkey toggle (Ctrl+Shift+T by default)
   - Daily focus goal, an eye-care reminder, a tray history hint, and in-progress sessions

@@ -18,6 +18,8 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 - **新增 `--status` 命令 (New `--status` command)**: 智能体可以用 `-st` 更新状态条上的文字，并带上 `--detail`、`--progress`、`--thinking`、`--done`、`--waiting`、`--error`、`--agent-name`、`--project` 等修饰符。/ 智能体可以用 `-st` 更新状态条文字，支持 `--detail`、`--progress`、`--thinking`、`--done`、`--waiting`、`--error`、`--agent-name`、`--project` 等修饰符。
 
+- **状态条文字颜色自选 (Pick the status text color)**: 悬停状态条时，图钉左侧出现一个色点，点它即可挑一个颜色，状态条文字颜色立刻跟着变；色点跟随当前文字颜色渲染，悬停时有高亮。/ 悬停状态条时图钉左侧出现色点，点一下即可自选状态条文字颜色，色点跟随当前颜色并带悬停高亮。
+
 ### Changed
 
 - **用时统计改为始终开启 (Usage tracking always on)**: 删掉原来的开关，用时统计始终记录（只记进程名与时长，不碰任何内容）。单日明细顶部汇总从「应用排名」升级为「在座 / 操作 / 未操作 / 离开」四段人的画像，操作时间再按输入强度分成重操作与轻操作。/ 删除开关，用时统计始终记录（只记进程名与时长）。单日明细顶部汇总改为「在座 / 操作 / 未操作 / 离开」四段画像，操作时间再按输入强度细分。
@@ -32,7 +34,7 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 - **打包脚本自动跟随版本号 (Packaging follows the binary version)**: `scripts/package.ps1` 不再硬编码版本号，直接读取 `src/iClock.cs` 里的 `CURRENT_VERSION`，产物名永远与程序自身一致。/ `scripts/package.ps1` 不再硬编码版本号，直接读取 `src/iClock.cs` 的 `CURRENT_VERSION`，产物名永远与程序一致。
 
-- Binary size is now **434 KB** (444,416 bytes). / 单文件现为 **434 KB**（444,416 字节）。
+- Binary size is now **435 KB** (444,928 bytes). / 单文件现为 **435 KB**（444,928 字节）。
 
 ### Fixed
 
@@ -43,6 +45,10 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 - **应用颜色不再撞色 (Distinct app colors)**: 给新应用分配彩带颜色时，色相会自动滑动到与已分配颜色间隔至少 22°，相似名字的应用不再共用几乎一样的颜色；已有应用颜色保持不变。/ 给新应用分配彩带颜色时，色相自动滑动到与已分配颜色间隔至少 22°，相似名字的应用不再共用几乎一样的颜色。
 
 - **常驻内存 < 10 MB (Resident memory under 10 MB)**: 低频内存维护每 5 分钟检查一次工作集，超过 8 MB 即整理一次；HUD GDI 句柄缓存化，解析热路径零分配，私有提交稳定在 35 MB 左右，无泄漏。/ 低频内存维护每 5 分钟检查一次工作集，超过 8 MB 即整理；HUD GDI 句柄缓存化，解析热路径零分配，私有提交稳定在 35 MB 左右，无泄漏。
+
+- **深度协作关掉后说明依然可用 (Deep-collaboration guidance stays visible)**: 关闭「深度协作」开关时，安装技能卡片、复制提示词按钮与智能体列表不再整片变灰或被禁用，照样可读、可复制、可安装。/ 关闭深度协作后，安装技能卡片、复制提示词按钮与智能体列表依然可见可用。
+
+- **钉住不再复活已结束的任务 (Pinning no longer resurrects finished tasks)**: 状态条钉住后会一直留在桌面，但已经完成超过 5 分钟的任务不会被重新拉回列表；智能体名字继续由下方的胶囊药丸承担。/ 钉住后状态条常驻，但完成超过 5 分钟的任务不会被重新拉回，智能体名字仍由下方药丸显示。
 
 ## [1.13] - 2026-10-24
 
