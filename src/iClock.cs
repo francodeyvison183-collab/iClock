@@ -1686,8 +1686,15 @@ internal sealed class AppContext : ApplicationContext
             agentTaskStatuses.Add(status);
         }
         
-        status.MessageTimestamp = msgTime.HasValue && msgTime.Value > DateTime.MinValue ? msgTime.Value : DateTime.Now;
-        if (status.Message == message && status.IsThinking == isThinking && status.SubDetail == subDetail && status.StepProgress == stepProgress && taskStatusHud != null && taskStatusHud.Visible) return;
+        // MessageTimestamp tracks the last REAL change. A keep-alive republish
+        // of identical content must not refresh it, or the 5-minute quiet
+        // expiry in the HUD would never fire for stale "processing" rows.
+        bool unchanged = status.Message == message && status.IsThinking == isThinking && status.SubDetail == subDetail && status.StepProgress == stepProgress;
+        if (!unchanged)
+        {
+            status.MessageTimestamp = msgTime.HasValue && msgTime.Value > DateTime.MinValue ? msgTime.Value : DateTime.Now;
+        }
+        if (unchanged && taskStatusHud != null && taskStatusHud.Visible) return;
         DateTime now = DateTime.Now;
         bool isCompleted = !string.IsNullOrEmpty(message) && (message.Contains("完成") || message.Contains("Completed") || message.StartsWith("✅"));
         bool isError = !string.IsNullOrEmpty(message) && (message.StartsWith("⚠️") || message.Contains("异常") || message.Contains("死循环"));

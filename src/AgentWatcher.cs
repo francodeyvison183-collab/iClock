@@ -331,6 +331,18 @@ internal sealed partial class AgentSessionWatcher : IDisposable
                 if (s == null || s.State != TurnState.Processing) continue;
                 if (string.IsNullOrEmpty(s.WatchedPath) || !s.WatchedPath.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase))
                     continue;
+                // A live turn keeps appending to its log; 5 quiet minutes means
+                // the writer went away. Drop to Idle so the hot poll stops
+                // spinning on a dead file and the HUD row can expire.
+                try
+                {
+                    if (File.Exists(s.WatchedPath) && (DateTime.Now - File.GetLastWriteTime(s.WatchedPath)).TotalMinutes >= 5.0)
+                    {
+                        s.State = TurnState.Idle;
+                        continue;
+                    }
+                }
+                catch { }
                 hot.Add(new KeyValuePair<string, string>(s.WatchedPath, s.WatchedAgent));
             }
         }
@@ -523,7 +535,10 @@ internal sealed partial class AgentSessionWatcher : IDisposable
         ProcessTranscriptLines(lines, filePath, agentName, rewritten);
     }
 
-    // A running turn stays on the status bar without waiting for another transcript line.
+    // Restores a running turn to the status bar without waiting for another
+    // transcript line. The republish carries no freshness: identical content
+    // does not move MessageTimestamp, so the 5-minute quiet expiry still
+    // applies to a turn whose log has gone silent.
     internal void KeepRunningSessionsOnHud()
     {
         if (disposed || appContext == null || AppContext.IsSelfCheckRunning) return;

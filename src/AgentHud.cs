@@ -258,9 +258,11 @@ internal sealed class AgentTaskStatusHud : Form
         for (int i = 0; i < tasks.Count; i++)
         {
             AgentTaskStatus t = tasks[i];
-            // A finished task leaves after 5 quiet minutes. Pinning keeps the bar
-            // on screen; it does not bring those finished sessions back.
-            if (IsFinishedTask(t) && t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
+            // Unified expiry: every task leaves after 5 quiet minutes.
+            // MessageTimestamp only moves when the content actually changes,
+            // so a live turn keeps refreshing itself while a stale
+            // "processing" row goes away. Pinning keeps the bar, not tasks.
+            if (t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
 
             string key = GetProjectKey(t);
             AgentTaskStatus existing;
@@ -365,13 +367,6 @@ internal sealed class AgentTaskStatusHud : Form
     {
         if (t == null || t.MessageTimestamp <= DateTime.MinValue) return false;
         return (DateTime.Now - t.MessageTimestamp).TotalMinutes < 5.0;
-    }
-
-    private static bool IsFinishedTask(AgentTaskStatus t)
-    {
-        if (t == null || t.IsThinking || t.HasProgress) return false;
-        string m = t.Message ?? "";
-        return m.StartsWith("\u2705") || m.Contains("\u5b8c\u6210") || m.Contains("Completed");
     }
 
     private static int GetTaskPriority(AgentTaskStatus t)

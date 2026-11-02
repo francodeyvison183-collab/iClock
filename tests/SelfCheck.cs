@@ -4903,12 +4903,13 @@ internal static class TestCheck
                     }
                     hudInstance.Hide();
 
-                    // A running task stays on the bar however long the turn has been quiet.
+                    // Unified 5-minute quiet expiry: a running task whose log has
+                    // been silent for over 5 minutes leaves the bar like any other.
                     taskType.GetField("MessageTimestamp", bf).SetValue(t1, DateTime.Now.AddMinutes(-6));
                     bool vRunningQuiet = (bool)mShould.Invoke(hudInstance, null);
-                    if (!vRunningQuiet)
+                    if (vRunningQuiet)
                     {
-                        Console.WriteLine("FAIL: a running task must stay visible after 5 minutes");
+                        Console.WriteLine("FAIL: any task should leave after 5 quiet minutes, running included");
                         return 76;
                     }
                     taskType.GetField("Message", bf).SetValue(t1, "✅ [SelfCheck] Completed");
