@@ -255,14 +255,21 @@ internal sealed class AgentTaskStatusHud : Form
         Dictionary<string, AgentTaskStatus> projectMap = new Dictionary<string, AgentTaskStatus>(StringComparer.OrdinalIgnoreCase);
 
         bool stayPinned = !string.IsNullOrEmpty(pinnedAgent);
+        HashSet<string> runningAgents = null;
         for (int i = 0; i < tasks.Count; i++)
         {
             AgentTaskStatus t = tasks[i];
-            // Unified expiry: every task leaves after 5 quiet minutes.
-            // MessageTimestamp only moves when the content actually changes,
-            // so a live turn keeps refreshing itself while a stale
-            // "processing" row goes away. Pinning keeps the bar, not tasks.
-            if (t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0) continue;
+            // Unified expiry: every task leaves after 5 quiet minutes — except
+            // unresolved ones. A waiting question or an error means a human is
+            // on the critical path, so that row stays while the agent process
+            // is alive; once the process is gone it expires like any other.
+            // MessageTimestamp only moves on real content changes.
+            if (t.MessageTimestamp > DateTime.MinValue && (now - t.MessageTimestamp).TotalMinutes >= 5.0)
+            {
+                if (GetTaskPriority(t) != 3) continue;
+                if (runningAgents == null) runningAgents = AppContext.GetRunningAgents();
+                if (!runningAgents.Contains(t.AgentName)) continue;
+            }
 
             string key = GetProjectKey(t);
             AgentTaskStatus existing;

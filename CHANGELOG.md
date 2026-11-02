@@ -8,6 +8,8 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 - **统一 5 分钟静默超时 (Unified 5-minute quiet expiry)**: 状态条上所有任务（运行中/等待/完成）统一按最后真实变化时间静默 5 分钟后撤下，不再只有已完成任务会过期；keep-alive 重发不再刷新时间戳，watcher 对日志静默超 5 分钟的"处理中"会话降级停止热轮询。修复旧会话被打成"处理中"后永久驻留状态条、计时器空转的问题。/ All HUD tasks now expire after 5 quiet minutes since their last real change, not just finished ones; keep-alive republishes no longer refresh the timestamp, and the watcher stops hot-polling "processing" sessions whose log has been silent for 5 minutes. Fixes stale sessions pinned to the bar forever with a running timer.
 
+- **等待/错误任务豁免于静默过期 (Unresolved tasks exempt from quiet expiry)**: 「等待决策 / 异常」状态的任务在对应智能体进程存活期间不再被 5 分钟静默超时撤下——这是人卡在关键路径上的时刻，离开后回来仍能看到；进程消失后按正常 5 分钟过期。运行中/已完成任务行为不变。/ Waiting/error HUD tasks no longer expire after 5 quiet minutes while the agent process is alive — a human on the critical path stays visible after you return; once the process is gone they expire normally. Running/finished tasks are unchanged.
+
 ## [1.14] - 2026-10-31
 
 ### Added

@@ -4932,6 +4932,49 @@ internal static class TestCheck
                             return 76;
                         }
                     }
+                    // Unresolved exemption: a waiting/error row survives the
+                    // 5-minute quiet expiry while its agent process is alive,
+                    // and expires normally once the process is gone. The
+                    // running-agents cache is injected so no real process is
+                    // needed for the test.
+                    FieldInfo fRunCache = appType.GetField("cachedRunningAgents", BindingFlags.NonPublic | BindingFlags.Static);
+                    FieldInfo fRunCacheTime = appType.GetField("lastRunningAgentsTime", BindingFlags.NonPublic | BindingFlags.Static);
+                    if (fRunCache == null || fRunCacheTime == null)
+                    {
+                        Console.WriteLine("FAIL: AppContext running-agents cache fields not found");
+                        return 76;
+                    }
+                    taskType.GetField("Message", bf).SetValue(t1, "❓ [SelfCheck] Waiting for input");
+                    taskType.GetField("MessageTimestamp", bf).SetValue(t1, DateTime.Now.AddMinutes(-6));
+                    fRunCache.SetValue(null, new HashSet<string>(new[] { "NonExistentBackgroundAgent" }, StringComparer.OrdinalIgnoreCase));
+                    fRunCacheTime.SetValue(null, DateTime.Now);
+                    bool vWaitingAlive = (bool)mShould.Invoke(hudInstance, null);
+                    if (!vWaitingAlive)
+                    {
+                        Console.WriteLine("FAIL: a waiting task must survive the 5-minute expiry while its agent process is alive");
+                        return 76;
+                    }
+                    fRunCache.SetValue(null, new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+                    fRunCacheTime.SetValue(null, DateTime.Now);
+                    bool vWaitingDead = (bool)mShould.Invoke(hudInstance, null);
+                    if (vWaitingDead)
+                    {
+                        Console.WriteLine("FAIL: a waiting task must expire once its agent process is gone");
+                        return 76;
+                    }
+                    // A running task of the same agent still expires even while
+                    // the process is alive: only waiting/error rows are exempt.
+                    taskType.GetField("Message", bf).SetValue(t1, "⏳ [SelfCheck] Processing");
+                    fRunCache.SetValue(null, new HashSet<string>(new[] { "NonExistentBackgroundAgent" }, StringComparer.OrdinalIgnoreCase));
+                    fRunCacheTime.SetValue(null, DateTime.Now);
+                    bool vRunningAlive = (bool)mShould.Invoke(hudInstance, null);
+                    if (vRunningAlive)
+                    {
+                        Console.WriteLine("FAIL: a quiet running task must expire even while its agent process is alive");
+                        return 76;
+                    }
+                    fRunCache.SetValue(null, null);
+                    fRunCacheTime.SetValue(null, DateTime.MinValue);
                     taskType.GetField("Message", bf).SetValue(t1, "[SelfCheck] Testing background HUD");
                     taskType.GetField("MessageTimestamp", bf).SetValue(t1, DateTime.Now);
 
