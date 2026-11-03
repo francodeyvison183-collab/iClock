@@ -1617,6 +1617,47 @@ internal static class TestCheck
                     return 32;
                 }
 
+                // Regression: the CLI re-emits last-prompt lines (same text) after
+                // the turn ends. A replay landing right after end_turn (inside the
+                // commit window) must not drop the pending completion commit, and
+                // a replay arriving after the commit must not resurrect the
+                // finished turn back to Processing.
+                System.IO.File.AppendAllText(claudeTestFile, "{\"type\":\"last-prompt\",\"lastPrompt\":\"调整侧边栏间距\",\"sessionId\":\"abc\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { claudeTestFile, "Claude Code" });
+                System.Windows.Forms.Application.DoEvents();
+                System.IO.File.AppendAllText(claudeTestFile, "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"stop_reason\":\"end_turn\",\"content\":[{\"type\":\"text\",\"text\":\"Done.\"}]}}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { claudeTestFile, "Claude Code" });
+                System.IO.File.AppendAllText(claudeTestFile, "{\"type\":\"last-prompt\",\"lastPrompt\":\"调整侧边栏间距\",\"sessionId\":\"abc\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { claudeTestFile, "Claude Code" });
+                for (int w = 0; w < 30; w++)
+                {
+                    System.Threading.Thread.Sleep(20);
+                    System.Windows.Forms.Application.DoEvents();
+                    object t = findTask.Invoke(app, new object[] { "Claude Code" });
+                    string m = t != null ? (t.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(t) as string) : "";
+                    if (!string.IsNullOrEmpty(m) && m.Contains("本轮已完成")) break;
+                }
+                System.Windows.Forms.Application.DoEvents();
+                object cTask4 = findTask.Invoke(app, new object[] { "Claude Code" });
+                string cMsg4 = (string)cTask4.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cTask4);
+                if (string.IsNullOrEmpty(cMsg4) || !cMsg4.Contains("[调整侧边栏间距]") || !cMsg4.Contains("本轮已完成"))
+                {
+                    Console.WriteLine("FAIL: last-prompt replay dropped the pending completion commit: " + cMsg4);
+                    return 32;
+                }
+
+                // Late replay after the commit already landed: turn stays Completed.
+                System.IO.File.AppendAllText(claudeTestFile, "{\"type\":\"last-prompt\",\"lastPrompt\":\"调整侧边栏间距\",\"sessionId\":\"abc\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { claudeTestFile, "Claude Code" });
+                System.Windows.Forms.Application.DoEvents();
+                object cTask5 = findTask.Invoke(app, new object[] { "Claude Code" });
+                string cMsg5 = (string)cTask5.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cTask5);
+                if (string.IsNullOrEmpty(cMsg5) || !cMsg5.Contains("本轮已完成"))
+                {
+                    Console.WriteLine("FAIL: late last-prompt replay resurrected a completed turn: " + cMsg5);
+                    return 32;
+                }
+
                 // 7. Verify TODO / Step Progress detection & HUD integration
                 MethodInfo extractStep = watcherType.GetMethod("ExtractStepProgress", BindingFlags.NonPublic | BindingFlags.Static);
                 if (extractStep != null)

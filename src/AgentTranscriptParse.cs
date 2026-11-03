@@ -199,6 +199,8 @@ internal sealed partial class AgentSessionWatcher
         ParseOutcome outcome = new ParseOutcome();
         DateTime msgTime = DateTime.MinValue;
         int parsed = 0;
+        int verBefore;
+        lock (syncLock) { verBefore = session.Version; }
 
         for (int i = 0; i < lines.Count; i++)
         {
@@ -247,6 +249,17 @@ internal sealed partial class AgentSessionWatcher
             }
         }
 
+        // A pass that only replayed metadata lines (no session version change)
+        // must not republish a completed turn as Processing.
+        if (!outcome.Complete && !outcome.Waiting && !outcome.Error)
+        {
+            lock (syncLock)
+            {
+                if (session.Version == verBefore && session.State == TurnState.Completed)
+                    return;
+            }
+        }
+
         PublishSession(session, agentKey, filePath, isZh, msgTime, outcome);
     }
 
@@ -283,12 +296,22 @@ internal sealed partial class AgentSessionWatcher
         return true;
     }
 
-    private void NoteUserIntent(TurnSession s, string text, bool rewritten)
+    private void NoteUserIntent(TurnSession s, string text, bool rewritten, bool isReplay)
     {
         if (string.IsNullOrEmpty(text)) return;
         bool trivial = IsTrivialConfirmation(text);
         lock (syncLock)
         {
+            bool empty = string.IsNullOrEmpty(s.Topic) || IsPlaceholderTopic(s.Topic);
+            if (isReplay && !empty && string.Equals(s.Topic, text, StringComparison.Ordinal))
+            {
+                // Claude's CLI re-emits last-prompt lines (carrying the same
+                // text) after the turn has ended. Such replays must be a
+                // no-op: bumping Version here would drop a pending completion
+                // commit, and touching State would resurrect a finished turn.
+                return;
+            }
+
             s.CurrentTurn = text;
             s.Version++;
             s.AwaitingModel = true;
@@ -302,13 +325,12 @@ internal sealed partial class AgentSessionWatcher
                 s.State = TurnState.Processing;
                 return;
             }
-            if (trivial && !string.IsNullOrEmpty(s.Topic) && !IsPlaceholderTopic(s.Topic))
+            if (trivial && !empty)
             {
                 s.State = TurnState.Processing;
                 return;
             }
 
-            bool empty = string.IsNullOrEmpty(s.Topic) || IsPlaceholderTopic(s.Topic);
             bool same = !empty && string.Equals(s.Topic, text, StringComparison.Ordinal);
             s.State = TurnState.Processing;
             if (same) return;
@@ -599,7 +621,7 @@ internal sealed partial class AgentSessionWatcher
             string user = ExtractLastHumanText(msg) ?? ExtractLastHumanText(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten);
+                NoteUserIntent(session, user, rewritten, false);
                 outcome.Complete = false;
                 outcome.Waiting = false;
                 outcome.Error = false;
@@ -655,7 +677,10 @@ internal sealed partial class AgentSessionWatcher
             string user = ExtractUserRequest(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten);
+                // The CLI re-emits this line with the same text after nearly
+                // every event (including after the turn ends); mark it as a
+                // replay so a duplicate cannot drop a pending completion.
+                NoteUserIntent(session, user, rewritten, true);
                 outcome.Complete = false;
                 outcome.Waiting = false;
             }
@@ -669,7 +694,7 @@ internal sealed partial class AgentSessionWatcher
             string user = ExtractLastHumanText(data) ?? ExtractUserRequest(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten);
+                NoteUserIntent(session, user, rewritten, false);
                 outcome.Complete = false;
                 outcome.Waiting = false;
             }
@@ -758,7 +783,7 @@ internal sealed partial class AgentSessionWatcher
             string user = ExtractLastHumanText(src) ?? ExtractUserRequest(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten);
+                NoteUserIntent(session, user, rewritten, false);
                 outcome.Complete = false;
                 outcome.Waiting = false;
             }
@@ -795,7 +820,7 @@ internal sealed partial class AgentSessionWatcher
             string user = ExtractUserRequest(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten);
+                NoteUserIntent(session, user, rewritten, false);
                 outcome.Complete = false;
                 outcome.Waiting = false;
                 outcome.Error = false;
@@ -906,7 +931,7 @@ internal sealed partial class AgentSessionWatcher
             string user = ExtractLastHumanText(body) ?? ExtractLastHumanText(data) ?? ExtractUserRequest(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten);
+                NoteUserIntent(session, user, rewritten, false);
                 outcome.Complete = false;
                 outcome.Waiting = false;
             }
