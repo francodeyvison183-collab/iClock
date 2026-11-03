@@ -832,7 +832,7 @@ internal sealed partial class AgentSessionWatcher
         {
             string st = data.ContainsKey("status") ? data["status"] as string : null;
             string echoed = data.ContainsKey("content") && data["content"] != null ? data["content"].ToString() : null;
-            string line = FirstSentence(echoed);
+            string line = FirstSentence(StripStepEnvelope(echoed));
             lock (syncLock) { session.Version++; }
             if (!string.IsNullOrEmpty(line))
             {
@@ -900,7 +900,7 @@ internal sealed partial class AgentSessionWatcher
             string.Equals(type, "tool_response", StringComparison.OrdinalIgnoreCase))
         {
             string echoed = data.ContainsKey("content") && data["content"] != null ? data["content"].ToString() : null;
-            string line = FirstSentence(echoed);
+            string line = FirstSentence(StripStepEnvelope(echoed));
             if (!string.IsNullOrEmpty(line))
             {
                 session.LastWasGeneric = false;
@@ -1242,6 +1242,31 @@ internal sealed partial class AgentSessionWatcher
         int dot = s.IndexOfAny(SentenceDelims);
         if (dot > 0) s = s.Substring(0, dot).Trim();
         return s.Length > 2 ? s : null;
+    }
+
+    // Antigravity wraps every tool result in a step envelope:
+    //   Created At: <iso>\nCompleted At: <iso>\n<payload>
+    // The envelope is logging metadata, not agent activity, so it must never
+    // reach the HUD. Payloads that are pure result banners (file dumps,
+    // successful command exits) carry no action either and are hidden, which
+    // keeps the real tool action from the preceding tool_calls visible; a
+    // non-zero exit code stays visible as a failure signal.
+    private static string StripStepEnvelope(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return content;
+        string s = content;
+        while (s.StartsWith("Created At:", StringComparison.Ordinal) ||
+               s.StartsWith("Completed At:", StringComparison.Ordinal))
+        {
+            int nl = s.IndexOf('\n');
+            if (nl < 0) return null;
+            s = s.Substring(nl + 1);
+        }
+        if (s.StartsWith("Showing lines ", StringComparison.Ordinal) ||
+            s.StartsWith("Command exited with code 0", StringComparison.Ordinal) ||
+            s.StartsWith("Command output:", StringComparison.Ordinal))
+            return null;
+        return s;
     }
 
     private static bool IsCodexNonHumanUser(Dictionary<string, object> d)

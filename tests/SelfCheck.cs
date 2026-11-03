@@ -1539,6 +1539,41 @@ internal static class TestCheck
                     return 32;
                 }
 
+                // Regression: Antigravity wraps every tool result in a step envelope
+                // ("Created At: <iso>\nCompleted At: <iso>\n<payload>"). The envelope
+                // and pure result banners must never replace the live tool action.
+                System.IO.File.AppendAllText(testFile, "{\"step_index\":2,\"type\":\"GENERIC\",\"status\":\"DONE\",\"content\":\"Created At: 2026-11-03T21:49:19+08:00\\nCompleted At: 2026-11-03T21:49:19+08:00\\nShowing lines 1-120 of 120\\n1: ---\\n2: name: ponytail\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+                object sTask2b = findTask.Invoke(app, new object[] { "TestAgent" });
+                string sSub2b = (string)sTask2b.GetType().GetField("SubDetail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTask2b);
+                if (!string.IsNullOrEmpty(sSub2b) && sSub2b.IndexOf("Created At", StringComparison.Ordinal) >= 0)
+                {
+                    Console.WriteLine("FAIL: Antigravity step envelope leaked onto the HUD: " + sSub2b);
+                    return 32;
+                }
+                System.IO.File.AppendAllText(testFile, "{\"step_index\":3,\"type\":\"GENERIC\",\"status\":\"DONE\",\"content\":\"Created At: 2026-11-03T21:50:01+08:00\\nCompleted At: 2026-11-03T21:50:02+08:00\\nCommand exited with code 0.\\n\\nCommand output:\\nOK 8322\\n\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+                object sTask2c = findTask.Invoke(app, new object[] { "TestAgent" });
+                string sSub2c = (string)sTask2c.GetType().GetField("SubDetail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTask2c);
+                if (!string.IsNullOrEmpty(sSub2c) && (sSub2c.IndexOf("Created At", StringComparison.Ordinal) >= 0 || sSub2c.IndexOf("Command exited with code 0", StringComparison.Ordinal) >= 0))
+                {
+                    Console.WriteLine("FAIL: Antigravity result banner leaked onto the HUD: " + sSub2c);
+                    return 32;
+                }
+                // A failed command stays visible as a failure signal.
+                System.IO.File.AppendAllText(testFile, "{\"step_index\":4,\"type\":\"GENERIC\",\"status\":\"DONE\",\"content\":\"Created At: 2026-11-03T21:51:01+08:00\\nCompleted At: 2026-11-03T21:51:02+08:00\\nCommand exited with code 1.\\n\\nCommand output:\\nboom\\n\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
+                System.Windows.Forms.Application.DoEvents();
+                object sTask2d = findTask.Invoke(app, new object[] { "TestAgent" });
+                string sSub2d = (string)sTask2d.GetType().GetField("SubDetail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(sTask2d);
+                if (string.IsNullOrEmpty(sSub2d) || sSub2d.IndexOf("Command exited with code 1", StringComparison.Ordinal) < 0)
+                {
+                    Console.WriteLine("FAIL: Antigravity non-zero exit did not surface as failure signal: " + sSub2d);
+                    return 32;
+                }
+
                 // Completion: transitions calmly to Completed with anchored target
                 System.IO.File.AppendAllText(testFile, "{\"step_index\":2,\"type\":\"PLANNER_RESPONSE\",\"status\":\"DONE\",\"content\":\"All done.\"}\r\n", System.Text.Encoding.UTF8);
                 procMethod.Invoke(watcher, new object[] { testFile, "TestAgent" });
