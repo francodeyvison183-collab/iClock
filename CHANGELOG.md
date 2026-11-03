@@ -6,6 +6,8 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 ### Fixed
 
+- **悬停目标前缀乱码修复为 @ 会话图标 (Hover goal marker: @ icon replaces tofu emoji)**: 悬停状态条显示任务目标时，标题前方的 🎯 是超出基本平面的 emoji，在 HUD 字体（Microsoft YaHei UI）下渲染成方框乱码。现在改用 Windows 系统图标字体（Segoe MDL2 Assets，Win10+ 自带）中的 @ 字形，按状态色着色绘制，语义为「这是当前会话的任务标题」，与实时动作信息区分开。/ The hover goal marker 🎯 is a surrogate-pair emoji that rendered as tofu in the HUD font. It is now an @ glyph from the Segoe MDL2 Assets icon font (ships with Windows 10+), tinted with the status color, marking the line as the session's task title versus live action info.
+
 - **AI 自动会话名不再抢占状态标题 (Auto session titles no longer clobber the HUD title)**: Claude Code 会根据首条发言自动生成会话名（custom-title）并在几乎每个事件后重写，此前它被当作用户发言处理，导致状态标题每隔几秒被重置回过时的会话名（例如一整天的会话只显示 "Git pull"）。现在 custom-title 不再作为标题来源，状态条始终显示当前真实指令。/ Claude Code auto-generates a session label (custom-title) from the first prompt and re-emits it after nearly every event; it was treated as a user prompt, so the HUD title kept resetting to the stale label. Custom titles no longer feed the HUD title, which now always shows the live instruction.
 
 - **状态标题清洗加固 (Title cleaning hardened)**: 用户发言里的 CDATA 标记、Markdown 标题/列表/强调符号、围栏代码块不再泄漏进状态标题（此前会显示 `<![CDATA[# Open Design…` 之类的垃圾文本）；超长发言按首句截取而非 200 字硬切。顺带移除了解析器里只写不读的 topicLocked 死参数。/ CDATA markers, Markdown headers/bullets/emphasis and fenced code blocks in user prompts no longer leak into the HUD title; long prompts collapse to their opening sentence instead of a hard 200-char cut. Also removed the write-only topicLocked dead parameter.

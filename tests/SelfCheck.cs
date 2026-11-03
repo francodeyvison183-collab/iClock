@@ -5090,6 +5090,15 @@ internal static class TestCheck
                                 fHover.SetValue(hudInstance, false);
                             }
                         }
+                        // The hover goal marker must come from the Windows icon
+                        // font (BMP PUA glyph), not a tofu-prone emoji.
+                        FieldInfo fGoalIcon = statusHudType.GetField("cachedGoalIconFont", BindingFlags.NonPublic | BindingFlags.Instance);
+                        Font goalIconFont = fGoalIcon != null ? fGoalIcon.GetValue(hudInstance) as Font : null;
+                        if (goalIconFont == null || goalIconFont.FontFamily.Name != "Segoe MDL2 Assets")
+                        {
+                            Console.WriteLine("FAIL: HUD goal icon must use Segoe MDL2 Assets, got: " + (goalIconFont != null ? goalIconFont.FontFamily.Name : "missing"));
+                            return 76;
+                        }
                     }
 
                     // Case 5: Multi-agent unified single-bar HUD with bottom mini-indicator

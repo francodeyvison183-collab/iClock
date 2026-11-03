@@ -212,6 +212,12 @@ internal sealed class AgentTaskStatusHud : Form
     private float cachedPillSize = -1f;
     private Font cachedTitleFont;
     private float cachedTitleFontSize = -1f;
+    // Session-goal marker drawn from the Windows icon font: the "@"
+    // (U+E910) is a BMP PUA glyph that ships with Win10+, replacing the
+    // surrogate-pair 🎯 emoji that renders as tofu in Microsoft YaHei UI.
+    private Font cachedGoalIconFont;
+    private float cachedGoalIconSize = -1f;
+    private const string GoalIconGlyph = "";
     private SolidBrush cachedTitleBrush;
     private Pen cachedBorderNormal;
     private Pen cachedBorderHover;
@@ -1169,6 +1175,7 @@ internal sealed class AgentTaskStatusHud : Form
         // 4. Main Line Content: Three-State Dispatch (Live Action default, Title on Hover & Done)
         string targetGoal = ExtractGoal(task.Message);
         string mainText;
+        bool showGoalIcon = false;
 
         if (isCompleted)
         {
@@ -1177,7 +1184,10 @@ internal sealed class AgentTaskStatusHud : Form
         }
         else if (isHovered)
         {
-            mainText = !string.IsNullOrEmpty(targetGoal) ? ("🎯 " + targetGoal) : task.SubDetail;
+            mainText = !string.IsNullOrEmpty(targetGoal) ? targetGoal : task.SubDetail;
+            // Goal mode gets the icon-font "@" marker; the old 🎯 emoji is a
+            // surrogate pair and renders as tofu in the HUD font.
+            showGoalIcon = !string.IsNullOrEmpty(targetGoal) && cachedGoalIconFont != null;
         }
         else
         {
@@ -1218,7 +1228,16 @@ internal sealed class AgentTaskStatusHud : Form
         }
         else
         {
-            RectangleF titleRect = new RectangleF(textX, cardY, textW, CardHeight);
+            float iconAdvance = 0f;
+            if (showGoalIcon)
+            {
+                iconAdvance = g.MeasureString(GoalIconGlyph, cachedGoalIconFont).Width + 4f;
+                using (SolidBrush iconBrush = new SolidBrush(Color.FromArgb(225, statusColor)))
+                {
+                    g.DrawString(GoalIconGlyph, cachedGoalIconFont, iconBrush, new RectangleF(textX, cardY, iconAdvance + 4f, CardHeight), titleFormat);
+                }
+            }
+            RectangleF titleRect = new RectangleF(textX + iconAdvance, cardY, textW - iconAdvance, CardHeight);
             g.DrawString(textToDraw, titleFont, titleBrush, titleRect, titleFormat);
         }
 
@@ -1650,6 +1669,14 @@ internal sealed class AgentTaskStatusHud : Form
             cachedTitleFont = new Font("Microsoft YaHei UI", fs, FontStyle.Regular, GraphicsUnit.Point);
             cachedTitleFontSize = fs;
         }
+        float goalIconSize = Math.Max(8.0f, Math.Min(22.0f, fs));
+        if (cachedGoalIconFont == null || Math.Abs(cachedGoalIconSize - goalIconSize) > 0.01f)
+        {
+            if (cachedGoalIconFont != null) cachedGoalIconFont.Dispose();
+            try { cachedGoalIconFont = new Font("Segoe MDL2 Assets", goalIconSize, FontStyle.Regular, GraphicsUnit.Point); }
+            catch { cachedGoalIconFont = null; }
+            cachedGoalIconSize = goalIconSize;
+        }
         Color titleColor = StatusTextColor();
         if (cachedTitleBrush == null) cachedTitleBrush = new SolidBrush(titleColor);
         else if (cachedTitleBrush.Color.ToArgb() != titleColor.ToArgb()) cachedTitleBrush.Color = titleColor;
@@ -1681,7 +1708,7 @@ internal sealed class AgentTaskStatusHud : Form
     {
         HideSnapGuide();
         if (snapGuideForm != null) { try { snapGuideForm.Dispose(); } catch { } snapGuideForm = null; }
-        IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedPillFont, cachedTitleFont, cachedTitleBrush, cachedBorderNormal, cachedBorderHover, cachedTitleFormat, cachedCenterFormat };
+        IDisposable[] d = new IDisposable[] { cachedBadgeFont, cachedPillFont, cachedTitleFont, cachedGoalIconFont, cachedTitleBrush, cachedBorderNormal, cachedBorderHover, cachedTitleFormat, cachedCenterFormat };
         for (int i = 0; i < d.Length; i++) if (d[i] != null) try { d[i].Dispose(); } catch { }
     }
 }
