@@ -1455,6 +1455,31 @@ internal static class TestCheck
                         return 32;
                     }
 
+                    // CDATA markers and markdown headers must not leak into the title
+                    string rCdata = (string)cleanReqMethod.Invoke(null, new object[] { "<![CDATA[# Open Design execution and security boundary]]>" });
+                    if (rCdata != "Open Design execution and security boundary")
+                    {
+                        Console.WriteLine("FAIL: CleanUserRequest should strip CDATA markers and markdown headers, got: " + rCdata);
+                        return 32;
+                    }
+
+                    // Fenced code blocks are pasted material; drop them, keep the prose
+                    string rFence = (string)cleanReqMethod.Invoke(null, new object[] { "帮我解释这段代码的输出 ```csharp\nConsole.WriteLine(1);\n``` 并给出改进建议" });
+                    if (string.IsNullOrEmpty(rFence) || rFence.IndexOf("Console", StringComparison.Ordinal) >= 0 || !rFence.Contains("解释这段代码"))
+                    {
+                        Console.WriteLine("FAIL: CleanUserRequest should drop fenced code blocks, got: " + rFence);
+                        return 32;
+                    }
+
+                    // Long requests collapse to their opening sentence
+                    string longReq = new string('任', 30) + "。" + new string('务', 100);
+                    string rLong = (string)cleanReqMethod.Invoke(null, new object[] { longReq });
+                    if (rLong != new string('任', 30))
+                    {
+                        Console.WriteLine("FAIL: CleanUserRequest should keep only the opening sentence of a long request, got: " + rLong);
+                        return 32;
+                    }
+
                     MethodInfo fastReqMethod = watcherType.GetMethod("FastExtractUserRequest", BindingFlags.NonPublic | BindingFlags.Static);
                     if (fastReqMethod != null)
                     {
@@ -1544,6 +1569,19 @@ internal static class TestCheck
                 if (cMsg1 != "⏳ [数据中心表单字段优化] 处理中...")
                 {
                     Console.WriteLine("FAIL: Claude Code last-prompt did not anchor session target: " + cMsg1);
+                    return 32;
+                }
+
+                // The CLI re-emits its auto-generated custom-title after nearly
+                // every event; it must never clobber the live instruction title.
+                System.IO.File.AppendAllText(claudeTestFile, "{\"type\":\"custom-title\",\"customTitle\":\"Git pull\",\"sessionId\":\"abc\"}\r\n", System.Text.Encoding.UTF8);
+                procMethod.Invoke(watcher, new object[] { claudeTestFile, "Claude Code" });
+                System.Windows.Forms.Application.DoEvents();
+                object cTask1b = findTask.Invoke(app, new object[] { "Claude Code" });
+                string cMsg1b = (string)cTask1b.GetType().GetField("Message", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(cTask1b);
+                if (cMsg1b != "⏳ [数据中心表单字段优化] 处理中...")
+                {
+                    Console.WriteLine("FAIL: custom-title clobbered the live session target: " + cMsg1b);
                     return 32;
                 }
 

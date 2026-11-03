@@ -197,7 +197,6 @@ internal sealed partial class AgentSessionWatcher
 
         ParseKind kind = DetectParser(filePath, agentKey, lines);
         ParseOutcome outcome = new ParseOutcome();
-        bool topicLocked = false;
         DateTime msgTime = DateTime.MinValue;
         int parsed = 0;
 
@@ -211,11 +210,11 @@ internal sealed partial class AgentSessionWatcher
 
             switch (kind)
             {
-                case ParseKind.Cursor: ParseCursorLine(data, session, isZh, rewritten, ref topicLocked, ref outcome); break;
-                case ParseKind.Claude: ParseClaudeLine(data, session, isZh, rewritten, ref topicLocked, ref outcome); break;
-                case ParseKind.Codex: ParseCodexLine(data, session, isZh, rewritten, ref topicLocked, ref outcome); break;
-                case ParseKind.Antigravity: ParseAntigravityLine(data, session, isZh, rewritten, ref topicLocked, ref outcome); break;
-                default: ParseProtocolGenericLine(data, session, isZh, rewritten, ref topicLocked, ref outcome); break;
+                case ParseKind.Cursor: ParseCursorLine(data, session, isZh, rewritten, ref outcome); break;
+                case ParseKind.Claude: ParseClaudeLine(data, session, isZh, rewritten, ref outcome); break;
+                case ParseKind.Codex: ParseCodexLine(data, session, isZh, rewritten, ref outcome); break;
+                case ParseKind.Antigravity: ParseAntigravityLine(data, session, isZh, rewritten, ref outcome); break;
+                default: ParseProtocolGenericLine(data, session, isZh, rewritten, ref outcome); break;
             }
         }
 
@@ -284,7 +283,7 @@ internal sealed partial class AgentSessionWatcher
         return true;
     }
 
-    private void NoteUserIntent(TurnSession s, string text, bool rewritten, ref bool topicLocked)
+    private void NoteUserIntent(TurnSession s, string text, bool rewritten)
     {
         if (string.IsNullOrEmpty(text)) return;
         bool trivial = IsTrivialConfirmation(text);
@@ -317,7 +316,6 @@ internal sealed partial class AgentSessionWatcher
             bool newTurn = !empty && !trivial;
             s.Topic = text;
             s.Target = text;
-            if (!trivial) topicLocked = true;
             if (newTurn)
             {
                 s.StartTime = DateTime.Now;
@@ -568,7 +566,7 @@ internal sealed partial class AgentSessionWatcher
         }
     }
 
-    private void ParseCursorLine(Dictionary<string, object> data, TurnSession session, bool isZh, bool rewritten, ref bool topicLocked, ref ParseOutcome outcome)
+    private void ParseCursorLine(Dictionary<string, object> data, TurnSession session, bool isZh, bool rewritten, ref ParseOutcome outcome)
     {
         string type = data.ContainsKey("type") ? data["type"] as string : null;
         if (string.Equals(type, "turn_ended", StringComparison.OrdinalIgnoreCase))
@@ -601,7 +599,7 @@ internal sealed partial class AgentSessionWatcher
             string user = ExtractLastHumanText(msg) ?? ExtractLastHumanText(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten, ref topicLocked);
+                NoteUserIntent(session, user, rewritten);
                 outcome.Complete = false;
                 outcome.Waiting = false;
                 outcome.Error = false;
@@ -637,20 +635,27 @@ internal sealed partial class AgentSessionWatcher
         }
     }
 
-    private void ParseClaudeLine(Dictionary<string, object> data, TurnSession session, bool isZh, bool rewritten, ref bool topicLocked, ref ParseOutcome outcome)
+    private void ParseClaudeLine(Dictionary<string, object> data, TurnSession session, bool isZh, bool rewritten, ref ParseOutcome outcome)
     {
         string type = data.ContainsKey("type") ? data["type"] as string : null;
         if (string.Equals(type, "attachment", StringComparison.OrdinalIgnoreCase) ||
             string.Equals(type, "queue-operation", StringComparison.OrdinalIgnoreCase))
             return;
 
-        if (string.Equals(type, "last-prompt", StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(type, "custom-title", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(type, "custom-title", StringComparison.OrdinalIgnoreCase))
+        {
+            // The CLI auto-generates this session label from the FIRST prompt
+            // and re-emits it after nearly every event, so treating it as a
+            // user intent lets a stale title clobber the live instruction.
+            return;
+        }
+
+        if (string.Equals(type, "last-prompt", StringComparison.OrdinalIgnoreCase))
         {
             string user = ExtractUserRequest(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten, ref topicLocked);
+                NoteUserIntent(session, user, rewritten);
                 outcome.Complete = false;
                 outcome.Waiting = false;
             }
@@ -664,7 +669,7 @@ internal sealed partial class AgentSessionWatcher
             string user = ExtractLastHumanText(data) ?? ExtractUserRequest(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten, ref topicLocked);
+                NoteUserIntent(session, user, rewritten);
                 outcome.Complete = false;
                 outcome.Waiting = false;
             }
@@ -713,7 +718,7 @@ internal sealed partial class AgentSessionWatcher
         if (!string.IsNullOrEmpty(text)) session.Conclusion = text;
     }
 
-    private void ParseCodexLine(Dictionary<string, object> data, TurnSession session, bool isZh, bool rewritten, ref bool topicLocked, ref ParseOutcome outcome)
+    private void ParseCodexLine(Dictionary<string, object> data, TurnSession session, bool isZh, bool rewritten, ref ParseOutcome outcome)
     {
         Dictionary<string, object> payload = data.ContainsKey("payload") ? data["payload"] as Dictionary<string, object> : null;
         Dictionary<string, object> item = payload != null && payload.ContainsKey("item") ? payload["item"] as Dictionary<string, object> : null;
@@ -753,7 +758,7 @@ internal sealed partial class AgentSessionWatcher
             string user = ExtractLastHumanText(src) ?? ExtractUserRequest(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten, ref topicLocked);
+                NoteUserIntent(session, user, rewritten);
                 outcome.Complete = false;
                 outcome.Waiting = false;
             }
@@ -778,7 +783,7 @@ internal sealed partial class AgentSessionWatcher
         }
     }
 
-    private void ParseAntigravityLine(Dictionary<string, object> data, TurnSession session, bool isZh, bool rewritten, ref bool topicLocked, ref ParseOutcome outcome)
+    private void ParseAntigravityLine(Dictionary<string, object> data, TurnSession session, bool isZh, bool rewritten, ref ParseOutcome outcome)
     {
         string type = data.ContainsKey("type") ? data["type"] as string : null;
         if (string.Equals(type, "SYSTEM_MESSAGE", StringComparison.OrdinalIgnoreCase) ||
@@ -790,7 +795,7 @@ internal sealed partial class AgentSessionWatcher
             string user = ExtractUserRequest(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten, ref topicLocked);
+                NoteUserIntent(session, user, rewritten);
                 outcome.Complete = false;
                 outcome.Waiting = false;
                 outcome.Error = false;
@@ -861,7 +866,7 @@ internal sealed partial class AgentSessionWatcher
         }
     }
 
-    private void ParseProtocolGenericLine(Dictionary<string, object> data, TurnSession session, bool isZh, bool rewritten, ref bool topicLocked, ref ParseOutcome outcome)
+    private void ParseProtocolGenericLine(Dictionary<string, object> data, TurnSession session, bool isZh, bool rewritten, ref ParseOutcome outcome)
     {
         string type = data.ContainsKey("type") ? data["type"] as string : null;
         if (!string.IsNullOrEmpty(type) && NoiseTypes.Contains(type)) return;
@@ -901,7 +906,7 @@ internal sealed partial class AgentSessionWatcher
             string user = ExtractLastHumanText(body) ?? ExtractLastHumanText(data) ?? ExtractUserRequest(data);
             if (!string.IsNullOrEmpty(user))
             {
-                NoteUserIntent(session, user, rewritten, ref topicLocked);
+                NoteUserIntent(session, user, rewritten);
                 outcome.Complete = false;
                 outcome.Waiting = false;
             }

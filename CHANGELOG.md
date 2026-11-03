@@ -6,6 +6,10 @@ This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY
 
 ### Fixed
 
+- **AI 自动会话名不再抢占状态标题 (Auto session titles no longer clobber the HUD title)**: Claude Code 会根据首条发言自动生成会话名（custom-title）并在几乎每个事件后重写，此前它被当作用户发言处理，导致状态标题每隔几秒被重置回过时的会话名（例如一整天的会话只显示 "Git pull"）。现在 custom-title 不再作为标题来源，状态条始终显示当前真实指令。/ Claude Code auto-generates a session label (custom-title) from the first prompt and re-emits it after nearly every event; it was treated as a user prompt, so the HUD title kept resetting to the stale label. Custom titles no longer feed the HUD title, which now always shows the live instruction.
+
+- **状态标题清洗加固 (Title cleaning hardened)**: 用户发言里的 CDATA 标记、Markdown 标题/列表/强调符号、围栏代码块不再泄漏进状态标题（此前会显示 `<![CDATA[# Open Design…` 之类的垃圾文本）；超长发言按首句截取而非 200 字硬切。顺带移除了解析器里只写不读的 topicLocked 死参数。/ CDATA markers, Markdown headers/bullets/emphasis and fenced code blocks in user prompts no longer leak into the HUD title; long prompts collapse to their opening sentence instead of a hard 200-char cut. Also removed the write-only topicLocked dead parameter.
+
 - **外部编辑金句库后「换一句」跳过新增金句 (Next quote skipped externally added quotes)**: 「自定义…」用记事本编辑 quotes.txt 后，桌面金句卡片与设置页预览仍持有旧的内存列表，点「换一句」会跳过刚新增的金句直接显示旧列表的下一条。现在「换一句」（及索引同步）前会按文件写入时间懒检测外部修改：有修改则重载并按当前金句内容重新锚定，新增在当前金句之后的一条恰好成为下一句。/ After editing quotes.txt externally via "自定义…", the desktop card and settings preview kept a stale in-memory list, so "换一句" skipped the newly added quote. Both now lazily detect the file change before advancing, reload, and re-anchor on the current quote by content, so a line inserted right after the current quote becomes the very next one.
 
 - **统一 5 分钟静默超时 (Unified 5-minute quiet expiry)**: 状态条上所有任务（运行中/等待/完成）统一按最后真实变化时间静默 5 分钟后撤下，不再只有已完成任务会过期；keep-alive 重发不再刷新时间戳，watcher 对日志静默超 5 分钟的"处理中"会话降级停止热轮询。修复旧会话被打成"处理中"后永久驻留状态条、计时器空转的问题。/ All HUD tasks now expire after 5 quiet minutes since their last real change, not just finished ones; keep-alive republishes no longer refresh the timestamp, and the watcher stops hot-polling "processing" sessions whose log has been silent for 5 minutes. Fixes stale sessions pinned to the bar forever with a running timer.

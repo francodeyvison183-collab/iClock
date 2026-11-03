@@ -1090,6 +1090,24 @@ internal sealed partial class AgentSessionWatcher : IDisposable
         // 2. Strip disruptive metadata blocks (like <timestamp>...</timestamp>, <context>...</context>)
         text = Regex.Replace(text, @"<(?:timestamp|context|system_info|system_instructions|system-reminder|system_reminder|ADDITIONAL_METADATA|USER_SETTINGS_CHANGE)[^>]*>[\s\S]*?<\/(?:timestamp|context|system_info|system_instructions|system-reminder|system_reminder|ADDITIONAL_METADATA|USER_SETTINGS_CHANGE)>", " ", RegexOptions.IgnoreCase);
 
+        // 2b. HTML comments are metadata; drop them wholesale.
+        text = Regex.Replace(text, @"<!--[\s\S]*?-->", " ");
+        // 2c. CDATA markers are not matched by the tag stripper below (they
+        // start with '!'), so peel them here but keep the inner content.
+        text = text.Replace("<![CDATA[", " ").Replace("]]>", " ");
+        // 2d. Fenced code blocks are pasted material, not the request itself;
+        // drop them entirely. Inline code loses only its backticks.
+        text = Regex.Replace(text, @"```[\s\S]*?(?:```|$)", " ");
+        // 2e. Markdown structural noise: ATX headers and list bullets at line
+        // starts, paired emphasis anywhere.
+        text = Regex.Replace(text, @"^[ \t]*#{1,6}[ \t]+", "", RegexOptions.Multiline);
+        text = Regex.Replace(text, @"^[ \t]*(?:[-*+]|\d{1,2}[.)、])[ \t]+", "", RegexOptions.Multiline);
+        text = Regex.Replace(text, @"\*\*([\s\S]*?)\*\*", "$1");
+        text = Regex.Replace(text, @"__([\s\S]*?)__", "$1");
+        text = Regex.Replace(text, @"~~([\s\S]*?)~~", "$1");
+        text = Regex.Replace(text, @"\*([^*\s][^*]*?)\*", "$1");
+        text = text.Replace("`", "");
+
         // 3. Strip remaining outer HTML/XML tags without destroying inner text
         text = Regex.Replace(text, @"<\/?[a-zA-Z0-9_\-]+(?:\s+[^>]*)?>", " ");
 
@@ -1103,12 +1121,32 @@ internal sealed partial class AgentSessionWatcher : IDisposable
 
         if (string.IsNullOrEmpty(text)) return null;
 
+        // 6. A long rambling request reads as its opening sentence on the HUD;
+        // the 200-char cap stays as a safety net for delimiter-free text.
+        if (text.Length > 80)
+        {
+            int cut = FirstSentenceBreak(text, 20, 80);
+            if (cut > 0) text = text.Substring(0, cut).Trim();
+        }
         if (text.Length > 200)
         {
             text = text.Substring(0, 200).Trim();
         }
 
         return text.Trim();
+    }
+
+    // Index of the first strong sentence ender between min and max, else -1.
+    private static int FirstSentenceBreak(string text, int min, int max)
+    {
+        int upper = Math.Min(text.Length, max);
+        for (int i = min; i < upper; i++)
+        {
+            char c = text[i];
+            if (c == '。' || c == '！' || c == '？' || c == '!' || c == '?' || c == '\n' || c == '\r') return i;
+            if (c == '.' && i + 1 < text.Length && text[i + 1] == ' ') return i;
+        }
+        return -1;
     }
 
     private static string CleanToolParam(object val)
