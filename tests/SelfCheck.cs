@@ -3238,6 +3238,64 @@ internal static class TestCheck
                 }
             }
 
+            // Lazy reload of externally edited quotes.txt: a line inserted right
+            // after the current quote must be the very next one "换一句" shows,
+            // not skipped over. Also a click with no file change advances by one.
+            MethodInfo mReloadIfChanged = quoteDlgType.GetMethod("ReloadQuotesIfFileChanged", BindingFlags.Public | BindingFlags.Instance);
+            if (mReloadIfChanged == null)
+            {
+                Console.WriteLine("FAIL: DailyQuoteDialog missing lazy quotes-file reload (ReloadQuotesIfFileChanged)");
+                return 53;
+            }
+            string lazyQFile = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "quotes.txt");
+            Form qDlgLazy = null;
+            try
+            {
+                DateTime stamp1 = new DateTime(2026, 1, 1, 10, 0, 0);
+                System.IO.File.WriteAllText(lazyQFile, "金句甲\r\n金句乙\r\n金句丙\r\n", new System.Text.UTF8Encoding(false));
+                System.IO.File.SetLastWriteTime(lazyQFile, stamp1);
+                qDlgLazy = (Form)Activator.CreateInstance(quoteDlgType, new object[] { settings });
+                PropertyInfo pCurIdx = quoteDlgType.GetProperty("CurrentQuoteIndex", BindingFlags.Public | BindingFlags.Instance);
+                FieldInfo fQuoteList = quoteDlgType.GetField("quoteList", BindingFlags.NonPublic | BindingFlags.Instance);
+                if (pCurIdx == null || fQuoteList == null)
+                {
+                    Console.WriteLine("FAIL: DailyQuoteDialog missing CurrentQuoteIndex/quoteList for lazy reload test");
+                    return 53;
+                }
+                pCurIdx.SetValue(qDlgLazy, 0, null); // shows 金句甲
+
+                // External edit: insert a new line right after the current quote.
+                System.IO.File.WriteAllText(lazyQFile, "金句甲\r\n新增金句\r\n金句乙\r\n金句丙\r\n", new System.Text.UTF8Encoding(false));
+                System.IO.File.SetLastWriteTime(lazyQFile, stamp1.AddHours(1));
+
+                MethodInfo mNextLazy = quoteDlgType.GetMethod("NextQuote", BindingFlags.Public | BindingFlags.Instance);
+                PropertyInfo pItemText = asm.GetType("QuoteItem").GetProperty("Text");
+                mNextLazy.Invoke(qDlgLazy, null);
+                int idxAfter = (int)pCurIdx.GetValue(qDlgLazy, null);
+                System.Collections.IList listAfter = fQuoteList.GetValue(qDlgLazy) as System.Collections.IList;
+                string shown = (string)pItemText.GetValue(listAfter[idxAfter], null);
+                if (shown != "新增金句")
+                {
+                    Console.WriteLine("FAIL: 换一句 should land on the externally inserted quote, got: " + shown);
+                    return 53;
+                }
+
+                mNextLazy.Invoke(qDlgLazy, null);
+                idxAfter = (int)pCurIdx.GetValue(qDlgLazy, null);
+                listAfter = fQuoteList.GetValue(qDlgLazy) as System.Collections.IList;
+                shown = (string)pItemText.GetValue(listAfter[idxAfter], null);
+                if (shown != "金句乙")
+                {
+                    Console.WriteLine("FAIL: next click without a file change should advance by one, got: " + shown);
+                    return 53;
+                }
+            }
+            finally
+            {
+                try { if (qDlgLazy != null) qDlgLazy.Dispose(); } catch { }
+                try { if (System.IO.File.Exists(lazyQFile)) System.IO.File.Delete(lazyQFile); } catch { }
+            }
+
             Type quoteItemType = asm.GetType("QuoteItem");
             if (quoteItemType != null)
             {

@@ -78,6 +78,8 @@ internal sealed class DailyQuoteDialog : Form
     private readonly Settings settings;
     private List<QuoteItem> quoteList;
     private int currentQuoteIndex;
+    private DateTime quoteListFileStamp = DateTime.MinValue;
+    private bool quoteListFromFile;
     private bool isPinned;
     private bool isHovered;
     private bool isDragging;
@@ -151,6 +153,7 @@ internal sealed class DailyQuoteDialog : Form
 
     public void SetQuoteIndex(int idx)
     {
+        ReloadQuotesIfFileChanged();
         if (quoteList != null && quoteList.Count > 0)
         {
             currentQuoteIndex = Math.Abs(idx) % quoteList.Count;
@@ -161,6 +164,7 @@ internal sealed class DailyQuoteDialog : Form
 
     public void NextQuote()
     {
+        ReloadQuotesIfFileChanged();
         if (quoteList != null && quoteList.Count > 0)
         {
             currentQuoteIndex = (currentQuoteIndex + 1) % quoteList.Count;
@@ -181,12 +185,64 @@ internal sealed class DailyQuoteDialog : Form
     public void ReloadQuotes()
     {
         quoteList = LoadQuotes();
+        quoteListFromFile = true;
+        quoteListFileStamp = QuotesFileStamp();
         if (quoteList != null && quoteList.Count > 0)
         {
             currentQuoteIndex = quoteList.Count - 1;
             UpdateCardLayout(keepLeft: false);
             if (QuoteChanged != null) QuoteChanged();
         }
+    }
+
+    // quotes.txt can be edited externally at any time — the settings page's
+    // "自定义…" button opens it in notepad and walks away. The card caches
+    // the list in memory, so the next-quote actions lazily pick up such
+    // edits: reload when the file's write time changed, re-anchoring on the
+    // current quote by content so one click lands on a newly inserted line
+    // instead of skipping past it.
+    public void ReloadQuotesIfFileChanged()
+    {
+        if (!quoteListFromFile) return;
+        DateTime stamp = QuotesFileStamp();
+        if (stamp == quoteListFileStamp) return;
+        QuoteItem current = (quoteList != null && quoteList.Count > 0)
+            ? quoteList[currentQuoteIndex % quoteList.Count]
+            : null;
+        List<QuoteItem> fresh = LoadQuotes();
+        if (fresh == null || fresh.Count == 0) return;
+        quoteList = fresh;
+        quoteListFileStamp = stamp;
+        int newIndex = RepositionByContent(fresh, current, currentQuoteIndex);
+        if (newIndex != currentQuoteIndex)
+        {
+            currentQuoteIndex = newIndex;
+            SaveQuotePosition();
+        }
+        UpdateCardLayout(keepLeft: true);
+    }
+
+    internal static DateTime QuotesFileStamp()
+    {
+        try { return File.GetLastWriteTime(Settings.QuotesFilePath); }
+        catch { return DateTime.MinValue; }
+    }
+
+    internal static int RepositionByContent(List<QuoteItem> newList, QuoteItem current, int fallbackIndex)
+    {
+        if (newList == null || newList.Count == 0) return 0;
+        if (current != null)
+        {
+            for (int i = 0; i < newList.Count; i++)
+            {
+                if (string.Equals(newList[i].Text, current.Text, StringComparison.Ordinal) &&
+                    string.Equals(newList[i].Author, current.Author, StringComparison.Ordinal))
+                {
+                    return i;
+                }
+            }
+        }
+        return Math.Abs(fallbackIndex) % newList.Count;
     }
 
     public void UpdateTopMostState()
@@ -293,6 +349,8 @@ internal sealed class DailyQuoteDialog : Form
         {
             quoteList = LoadQuotes();
             if (quoteList == null || quoteList.Count == 0) quoteList = new List<QuoteItem>(DefaultQuotes);
+            quoteListFromFile = true;
+            quoteListFileStamp = QuotesFileStamp();
             currentQuoteIndex = AppContext.ResolveTodayQuoteIndex(settings, quoteList.Count);
         }
 

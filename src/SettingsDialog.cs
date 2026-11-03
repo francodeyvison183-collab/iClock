@@ -105,6 +105,7 @@ internal sealed class SettingsDialog : Form
     private Button btnNextQuote;
     private List<QuoteItem> dialogQuoteList;
     private int dialogQuoteIndex;
+    private DateTime dialogQuotesFileStamp = DateTime.MinValue;
     private ToolTip toolTip;
     private static readonly string[] quoteFontFamilies = {
         "", "Microsoft YaHei", "KaiTi", "FangSong", "SimSun", "LiSu", "YouYuan", "Georgia", "Constantia", "Segoe UI"
@@ -332,6 +333,7 @@ internal sealed class SettingsDialog : Form
 
         dialogQuoteList = DailyQuoteDialog.LoadQuotes();
         if (dialogQuoteList == null || dialogQuoteList.Count == 0) dialogQuoteList = new List<QuoteItem>(DailyQuoteDialog.DefaultQuotes);
+        dialogQuotesFileStamp = DailyQuoteDialog.QuotesFileStamp();
         dialogQuoteIndex = AppContext.ResolveTodayQuoteIndex(s, dialogQuoteList.Count);
 
         // Section 1 Hero Banner: panelQuoteCard (Top = 62, Height = 98px, vertically centered content)
@@ -417,6 +419,7 @@ internal sealed class SettingsDialog : Form
         toolTip.SetToolTip(btnNextQuote, en ? "Next quote (↻)" : "换一句 (↻)");
         btnNextQuote.Click += delegate
         {
+            ReloadQuotesIfFileChanged();
             if (dialogQuoteList != null && dialogQuoteList.Count > 0)
             {
                 dialogQuoteIndex = (dialogQuoteIndex + 1) % dialogQuoteList.Count;
@@ -1193,8 +1196,25 @@ internal sealed class SettingsDialog : Form
         }
     }
 
+    // Same external-edit story as the desktop card: 自定义… opens quotes.txt
+    // in notepad, so refresh the preview list lazily before moving the index.
+    private void ReloadQuotesIfFileChanged()
+    {
+        DateTime stamp = DailyQuoteDialog.QuotesFileStamp();
+        if (stamp == dialogQuotesFileStamp) return;
+        QuoteItem current = (dialogQuoteList != null && dialogQuoteList.Count > 0)
+            ? dialogQuoteList[dialogQuoteIndex % dialogQuoteList.Count]
+            : null;
+        List<QuoteItem> fresh = DailyQuoteDialog.LoadQuotes();
+        if (fresh == null || fresh.Count == 0) return;
+        dialogQuoteList = fresh;
+        dialogQuotesFileStamp = stamp;
+        dialogQuoteIndex = DailyQuoteDialog.RepositionByContent(fresh, current, dialogQuoteIndex);
+    }
+
     public void SyncNextQuote()
     {
+        ReloadQuotesIfFileChanged();
         if (dialogQuoteList != null && dialogQuoteList.Count > 0)
         {
             dialogQuoteIndex = (dialogQuoteIndex + 1) % dialogQuoteList.Count;
@@ -1204,6 +1224,7 @@ internal sealed class SettingsDialog : Form
 
     public void SyncQuoteIndex(int idx)
     {
+        ReloadQuotesIfFileChanged();
         if (dialogQuoteList != null && dialogQuoteList.Count > 0)
         {
             dialogQuoteIndex = Math.Abs(idx) % dialogQuoteList.Count;
