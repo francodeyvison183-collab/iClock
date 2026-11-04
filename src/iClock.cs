@@ -167,6 +167,7 @@ internal sealed class AppContext : ApplicationContext
         return false;
     }
     private System.Threading.Timer memTrimTimer;
+    private System.Threading.Timer startupHealTimer;
     private NotifyIcon tray;
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuLanguage, menuLangZh, menuLangEn, menuAbout, menuExit, menuUpdate;
     private MenuSwitchItem menuStartup;
@@ -438,6 +439,9 @@ internal sealed class AppContext : ApplicationContext
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
         memTrimTimer = new System.Threading.Timer(delegate { if (Process.GetCurrentProcess().WorkingSet64 > 12L * 1024 * 1024) TrimMemory(); }, null, 3500, 8000);
         ApplyStartup();
+        // 第三方清理工具可能在任意时刻删掉 Run 注册项（观测到写入后数秒即被
+        // 删除）；60 秒自愈重断言，保证下次登录时启动项几乎必然在场。
+        startupHealTimer = new System.Threading.Timer(delegate { EnsureStartupRegistration(); }, null, 60000, 60000);
         EnsureStartMenuShortcut(false);
         ResetDisplay();
         UpdateDailyProgress();
@@ -4518,6 +4522,45 @@ internal sealed class AppContext : ApplicationContext
         catch { }
     }
 
+    // Auto-start self-heal, in both directions (same philosophy as
+    // EnsureSaverRegistry): with the toggle on, re-register when an external
+    // cleanup tool removed the Run entry — observed in the field as a
+    // third-party "startup manager" deleting the value seconds after it was
+    // written, which silently broke boot auto-start. With the toggle off,
+    // tear down a registration that still points at this exe (settings.ini
+    // reset, or copied over from another machine), because "off" has to mean
+    // Windows does not launch iClock.
+    private void EnsureStartupRegistration()
+    {
+        try
+        {
+            bool enable = settings != null && settings.AutoStart;
+            if (enable == IsStartupRegistered(Application.ExecutablePath)) return;
+            ApplyStartup();
+        }
+        catch { }
+    }
+
+    internal static bool IsStartupRegistered(string exePath)
+    {
+        try
+        {
+            using (RegistryKey hive = RegistryKey.OpenBaseKey(RegistryHive.CurrentUser, RegistryView.Registry64))
+            using (RegistryKey run = hive.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run"))
+            {
+                object v = run != null ? run.GetValue("iClock") : null;
+                return RunKeyValueMatches(v as string, exePath);
+            }
+        }
+        catch { return false; }
+    }
+
+    internal static bool RunKeyValueMatches(string written, string exePath)
+    {
+        return !string.IsNullOrEmpty(written) && !string.IsNullOrEmpty(exePath) &&
+               written.IndexOf(exePath, StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
     // 写入 64 位视图，供 64 位 Explorer 在登录时读取。StartupApproved 的首字节 0x02 表示启用；
     // 若用户曾在「启动应用」里关掉 iClock，只重写 Run 而留下 0x03，Windows 仍不会启动。
     private static bool TrySetRunKey(bool enable, string exePath)
@@ -4535,7 +4578,7 @@ internal sealed class AppContext : ApplicationContext
             if (enable)
             {
                 object written = run.GetValue(name);
-                if (!(written is string) || ((string)written).IndexOf(exePath, StringComparison.OrdinalIgnoreCase) < 0)
+                if (!(written is string) || !RunKeyValueMatches((string)written, exePath))
                     return false;
             }
         }
@@ -4594,7 +4637,7 @@ internal sealed class AppContext : ApplicationContext
         if (usageTracker != null) { try { usageTracker.Stop(); } catch { } usageTracker = null; }
         if (activeEyeCare != null && !activeEyeCare.IsDisposed) { activeEyeCare.Close(); activeEyeCare = null; }
         if (eyeCare != null) { try { eyeCare.Stop(); } catch { } eyeCare = null; }
-        if (memTrimTimer != null) { try { memTrimTimer.Dispose(); } catch { } memTrimTimer = null; } if (trayClickTimer != null) { try { trayClickTimer.Stop(); trayClickTimer.Dispose(); } catch { } trayClickTimer = null; }
+        if (memTrimTimer != null) { try { memTrimTimer.Dispose(); } catch { } memTrimTimer = null; } if (startupHealTimer != null) { try { startupHealTimer.Dispose(); } catch { } startupHealTimer = null; } if (trayClickTimer != null) { try { trayClickTimer.Stop(); trayClickTimer.Dispose(); } catch { } trayClickTimer = null; }
         if (taskStatusHud != null && !taskStatusHud.IsDisposed) { taskStatusHud.Close(); taskStatusHud.Dispose(); taskStatusHud = null; }
         overlay.Close(); overlay.Dispose(); messageWindow.DestroyHandle(); tray.Dispose(); appIcon.Dispose(); timer.Dispose(); ExitThread();
     }

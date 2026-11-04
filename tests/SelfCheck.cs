@@ -826,6 +826,33 @@ internal static class TestCheck
                 return 26;
             }
 
+            // 18b. Auto-start self-heal: the Run-key value matcher must accept the
+            // quoted command form the app writes, tolerate case differences, and
+            // reject foreign/empty values so healing never fights another app.
+            MethodInfo runKeyMatch = appType.GetMethod("RunKeyValueMatches", BindingFlags.NonPublic | BindingFlags.Static);
+            if (runKeyMatch == null)
+            {
+                Console.WriteLine("FAIL: RunKeyValueMatches method missing");
+                return 26;
+            }
+            string exe = "D:\\AIStudio\\iClock\\dist\\iClock.exe";
+            if (!(bool)runKeyMatch.Invoke(null, new object[] { "\"D:\\AIStudio\\iClock\\dist\\iClock.exe\"", exe }) ||
+                !(bool)runKeyMatch.Invoke(null, new object[] { "\"d:\\aistudio\\iclock\\dist\\iclock.exe\"", exe }) ||
+                (bool)runKeyMatch.Invoke(null, new object[] { "\"D:\\tools\\other.exe\"", exe }) ||
+                (bool)runKeyMatch.Invoke(null, new object[] { "", exe }) ||
+                (bool)runKeyMatch.Invoke(null, new object[] { null, exe }) ||
+                (bool)runKeyMatch.Invoke(null, new object[] { "\"D:\\AIStudio\\iClock\\dist\\iClock.exe\"", "" }))
+            {
+                Console.WriteLine("FAIL: RunKeyValueMatches accepted/rejected the wrong values");
+                return 26;
+            }
+            MethodInfo startupReg = appType.GetMethod("IsStartupRegistered", BindingFlags.NonPublic | BindingFlags.Static);
+            if (startupReg == null)
+            {
+                Console.WriteLine("FAIL: IsStartupRegistered method missing");
+                return 26;
+            }
+
             MethodInfo fmtDurationMins = appType.GetMethod("FormatDurationMinutes", BindingFlags.NonPublic | BindingFlags.Static);
             if (fmtDurationMins == null)
             {
