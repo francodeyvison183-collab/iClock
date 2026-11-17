@@ -1534,6 +1534,15 @@ internal sealed class SettingsDialog : Form
             cliCopyFeedbackTimer.Dispose();
             cliCopyFeedbackTimer = null;
         }
+        // The agent-list poller is only stopped by SetActiveTab when the user
+        // switches away; closing the dialog on the agent tab must also stop it,
+        // or it keeps snapshotting processes every 3s for the app's lifetime.
+        if (agentListTimer != null)
+        {
+            agentListTimer.Stop();
+            agentListTimer.Dispose();
+            agentListTimer = null;
+        }
         base.OnFormClosed(e);
     }
 

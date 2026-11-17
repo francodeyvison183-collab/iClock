@@ -266,7 +266,9 @@ internal sealed class AppContext : ApplicationContext
             GC.Collect(2, GCCollectionMode.Forced);
             GC.WaitForPendingFinalizers();
             GC.Collect(2, GCCollectionMode.Forced);
-            IntPtr hProc = NativeMethods.OpenProcess(0x0500, false, Process.GetCurrentProcess().Id);
+            int selfPid;
+            using (Process p = Process.GetCurrentProcess()) selfPid = p.Id;
+            IntPtr hProc = NativeMethods.OpenProcess(0x0500, false, selfPid);
             if (hProc != IntPtr.Zero)
             {
                 NativeMethods.EmptyWorkingSet(hProc);
@@ -333,14 +335,7 @@ internal sealed class AppContext : ApplicationContext
             deadlineTimestamp += (long)(delta * 60L * Stopwatch.Frequency);
             remaining = ReadRemaining();
             lastSeconds = -1;
-            if (remaining <= TimeSpan.Zero)
-            {
-                Tick(null, EventArgs.Empty);
-            }
-            else
-            {
-                Tick(null, EventArgs.Empty);
-            }
+            Tick(null, EventArgs.Empty);
         }
     }
 
@@ -437,7 +432,16 @@ internal sealed class AppContext : ApplicationContext
             ShowSettings();
         };
         timer = new Timer(); timer.Interval = 100; timer.Tick += Tick;
-        memTrimTimer = new System.Threading.Timer(delegate { if (Process.GetCurrentProcess().WorkingSet64 > 12L * 1024 * 1024) TrimMemory(); }, null, 3500, 8000);
+        memTrimTimer = new System.Threading.Timer(delegate
+        {
+            try
+            {
+                long workingSet;
+                using (Process p = Process.GetCurrentProcess()) workingSet = p.WorkingSet64;
+                if (workingSet > 12L * 1024 * 1024) TrimMemory();
+            }
+            catch { }
+        }, null, 3500, 8000);
         ApplyStartup();
         // 第三方清理工具可能在任意时刻删掉 Run 注册项（观测到写入后数秒即被
         // 删除）；60 秒自愈重断言，保证下次登录时启动项几乎必然在场。
@@ -712,6 +716,8 @@ internal sealed class AppContext : ApplicationContext
         }
         finally
         {
+            zh.Dispose();
+            en.Dispose();
             zhBold.Dispose();
             enBold.Dispose();
         }
@@ -6302,14 +6308,29 @@ Examples:
     // Diagnostics for the saver path: Windows launching a .scr is invisible from
     // the tray app, and "the screen went black" cannot be told apart from the
     // display powering down without a trace. Appends to saver.log next to iClock.scr.
+    // The log rotates at 256KB so idle saver cycles cannot grow it forever.
     internal static void LogSaverEvent(string message)
     {
         try
         {
             string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "iClock");
             Directory.CreateDirectory(dir);
-            File.AppendAllText(Path.Combine(dir, "saver.log"),
-                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " pid=" + Process.GetCurrentProcess().Id + " " + message + "\r\n");
+            string logPath = Path.Combine(dir, "saver.log");
+            try
+            {
+                FileInfo fi = new FileInfo(logPath);
+                if (fi.Exists && fi.Length > 256 * 1024)
+                {
+                    string oldPath = logPath + ".old";
+                    if (File.Exists(oldPath)) File.Delete(oldPath);
+                    File.Move(logPath, oldPath);
+                }
+            }
+            catch { }
+            int selfPid;
+            using (Process p = Process.GetCurrentProcess()) selfPid = p.Id;
+            File.AppendAllText(logPath,
+                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " pid=" + selfPid + " " + message + "\r\n");
         }
         catch { }
     }

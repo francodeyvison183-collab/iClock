@@ -1299,6 +1299,7 @@ internal sealed class DailyQuoteDialog : Form
             if (fadeTimer != null) { fadeTimer.Stop(); fadeTimer.Dispose(); fadeTimer = null; }
             if (renderGraphics != null) { renderGraphics.Dispose(); renderGraphics = null; }
             if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
+            if (snapGuideForm != null) { try { snapGuideForm.Dispose(); } catch { } snapGuideForm = null; }
 
             if (settings != null && !isProjectedNote)
             {

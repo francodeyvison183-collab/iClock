@@ -657,7 +657,15 @@ internal sealed class Overlay : Form
             if (renderGraphics != null) { renderGraphics.Dispose(); renderGraphics = null; }
             if (renderBitmap != null) { renderBitmap.Dispose(); renderBitmap = null; }
             if (pulseTimer != null) { pulseTimer.Stop(); pulseTimer.Dispose(); pulseTimer = null; }
+            if (snapGuideForm != null) { try { snapGuideForm.Dispose(); } catch { } snapGuideForm = null; }
+            // RebuildGdiResources falls back to cachedRestFont = cachedFont when
+            // Segoe UI Symbol is unavailable; detect sharing BEFORE disposing
+            // cachedFont, otherwise the ReferenceEquals guard sees null.
+            bool restFontShared = object.ReferenceEquals(cachedRestFont, cachedFont);
             if (cachedFont != null) { cachedFont.Dispose(); cachedFont = null; }
+            if (cachedRestFont != null && !restFontShared) { cachedRestFont.Dispose(); }
+            cachedRestFont = null;
+            if (cachedRestBrush != null) { cachedRestBrush.Dispose(); cachedRestBrush = null; }
             if (cachedBrush != null) { cachedBrush.Dispose(); cachedBrush = null; }
             if (cachedShadowBrush != null) { cachedShadowBrush.Dispose(); cachedShadowBrush = null; }
             if (cachedFormat != null) { cachedFormat.Dispose(); cachedFormat = null; }

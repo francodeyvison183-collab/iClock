@@ -675,22 +675,29 @@ internal sealed class HistoryMenuItem : ToolStripMenuItem
             if (segments != null && segments.Count > 0)
             {
                 double span = Math.Max(1.0, (axisEnd - axisStart).TotalSeconds);
-                Region old = g.Clip;
-                g.SetClip(path);
-                for (int i = 0; i < segments.Count; i++)
+                Region oldClip = g.Clip;
+                try
                 {
-                    UsageSegment s = segments[i];
-                    double a = (s.Start - axisStart).TotalSeconds / span;
-                    double b = (s.End - axisStart).TotalSeconds / span;
-                    if (b <= 0 || a >= 1) continue;
-                    if (a < 0) a = 0;
-                    if (b > 1) b = 1;
-                    int x = rc.X + (int)Math.Round(a * rc.Width);
-                    int w = Math.Max(1, (int)Math.Round((b - a) * rc.Width));
-                    using (SolidBrush br = new SolidBrush(UsageLog.ColorFor(s.State, s.Exe)))
-                        g.FillRectangle(br, x, rc.Y, w, rc.Height);
+                    g.SetClip(path);
+                    for (int i = 0; i < segments.Count; i++)
+                    {
+                        UsageSegment s = segments[i];
+                        double a = (s.Start - axisStart).TotalSeconds / span;
+                        double b = (s.End - axisStart).TotalSeconds / span;
+                        if (b <= 0 || a >= 1) continue;
+                        if (a < 0) a = 0;
+                        if (b > 1) b = 1;
+                        int x = rc.X + (int)Math.Round(a * rc.Width);
+                        int w = Math.Max(1, (int)Math.Round((b - a) * rc.Width));
+                        using (SolidBrush br = new SolidBrush(UsageLog.ColorFor(s.State, s.Exe)))
+                            g.FillRectangle(br, x, rc.Y, w, rc.Height);
+                    }
                 }
-                g.Clip = old;
+                finally
+                {
+                    g.Clip = oldClip;
+                    oldClip.Dispose();
+                }
             }
         }
         g.SmoothingMode = prev;

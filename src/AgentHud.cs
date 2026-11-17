@@ -841,9 +841,10 @@ internal sealed class AgentTaskStatusHud : Form
         return baseLabel;
     }
 
-    private float GetTaskPillWidth(AgentTaskStatus t)
+    // The active list is shared by every pill in one frame; pass it in so a
+    // repaint does not re-run GetActiveTasks (allocations + sort) per pill.
+    private float GetTaskPillWidthFor(AgentTaskStatus t, List<AgentTaskStatus> active)
     {
-        var active = GetActiveTasks();
         string label = GetPillTextForTask(t, active);
         // Scale the glyph-width estimate with the height-derived pill font
         // (10.5px per char at the 10pt / 28px default).
@@ -865,12 +866,12 @@ internal sealed class AgentTaskStatusHud : Form
         int count = active.Count;
         if (count <= 1) return -1;
         float totalW = 0f;
-        for (int i = 0; i < count; i++) totalW += GetTaskPillWidth(active[i]);
+        for (int i = 0; i < count; i++) totalW += GetTaskPillWidthFor(active[i], active);
         totalW += (count - 1) * 8f;
         float curX = (Width - totalW) / 2f;
         for (int i = 0; i < count; i++)
         {
-            float pillW = GetTaskPillWidth(active[i]);
+            float pillW = GetTaskPillWidthFor(active[i], active);
             // 外扩点击与悬停热区：左右各 4px，上下扩充至整个药丸及外围
             int pillZoneH = Math.Max(24, (int)Math.Round(cardH * 0.8));
             if (pt.X >= curX - 4 && pt.X <= curX + pillW + 4 && pt.Y >= cardH - 3 && pt.Y <= cardH + pillZoneH) return i;
@@ -1394,7 +1395,7 @@ internal sealed class AgentTaskStatusHud : Form
         if (isMulti)
         {
             float totalW = 0f;
-            for (int i = 0; i < active.Count; i++) totalW += GetTaskPillWidth(active[i]);
+            for (int i = 0; i < active.Count; i++) totalW += GetTaskPillWidthFor(active[i], active);
             totalW += (active.Count - 1) * 8f;
 
             float curX = (Width - totalW) / 2f;
@@ -1410,7 +1411,7 @@ internal sealed class AgentTaskStatusHud : Form
                 Color bColor; string bLabel;
                 GetAgentBadge(t.AgentName, out bColor, out bLabel);
                 string pillLabel = GetPillTextForTask(t, active);
-                float pillW = GetTaskPillWidth(t);
+                float pillW = GetTaskPillWidthFor(t, active);
                 Rectangle pillRect = new Rectangle((int)curX, pillY, (int)pillW, pillH);
 
                 Color dotColor = GetTaskStatusColor(t);

@@ -955,13 +955,16 @@ internal sealed partial class AgentSessionWatcher : IDisposable
         });
     }
 
+    // One-shot System.Threading.Timer instead of QueueUserWorkItem + Sleep:
+    // a 10-minute park used to occupy a pool thread per completed session,
+    // and repeated completions starved the parse debounces.
     private void ScheduleClearProgress(string agentName, string filePath, int expectedVersion, int delayMs)
     {
-        System.Threading.ThreadPool.QueueUserWorkItem(delegate
+        System.Threading.Timer clearTimer = null;
+        clearTimer = new System.Threading.Timer(delegate
         {
             try
             {
-                System.Threading.Thread.Sleep(delayMs);
                 lock (syncLock)
                 {
                     TurnSession session;
@@ -977,7 +980,11 @@ internal sealed partial class AgentSessionWatcher : IDisposable
                 }
             }
             catch { }
-        });
+            finally
+            {
+                if (clearTimer != null) { try { clearTimer.Dispose(); } catch { } }
+            }
+        }, null, Math.Max(1, delayMs), System.Threading.Timeout.Infinite);
     }
 
     internal static string ExtractUserRequest(Dictionary<string, object> data)

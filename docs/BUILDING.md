@@ -18,10 +18,11 @@ From the repository root in PowerShell:
 
 The script compiles every `src/*.cs` module together as a Windows GUI executable and writes `dist/iClock.exe`. It also compiles the companion console shim `dist/iclock.com`, generates `dist/iclock.cmd`, and builds the test binaries `dist/SelfCheck.exe` and `dist/QuoteLayoutCheck.exe`. The output directory is ignored by Git. The executable targets the .NET Framework v4 runtime and references framework assemblies only, including `System.Windows.Forms.dll`, `System.Drawing.dll`, `System.Runtime.WindowsRuntime.dll`, `System.Core.dll`, and `System.Web.Extensions.dll`.
 
-Equivalent compiler invocation:
+Equivalent compiler invocation (note that `src/CliLauncher.cs` carries its own
+`Main` and is compiled separately, so it must be excluded from the GUI build):
 
 ```powershell
-csc.exe /nologo /target:winexe /optimize+ /out:dist\iClock.exe /r:System.Core.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Runtime.WindowsRuntime.dll /r:System.Web.Extensions.dll /resource:src\zan.jpg,zan.jpg /win32icon:src\app.ico src\*.cs
+csc.exe /nologo /target:winexe /optimize+ /debug- /codepage:65001 /out:dist\iClock.exe /r:System.Core.dll /r:System.Windows.Forms.dll /r:System.Drawing.dll /r:System.Runtime.WindowsRuntime.dll /r:System.Web.Extensions.dll /resource:src\zan.jpg,zan.jpg /resource:docs\icon-32.png,logo32.png /win32icon:src\app.ico src\Core.cs src\Controls.cs src\Menu.cs src\Overlay.cs src\Quotes.cs src\Usage.cs src\AgentWatcher.cs src\AgentTranscriptParse.cs src\AgentHud.cs src\SettingsDialog.cs src\Dialogs.cs src\EyeCare.cs src\Screensaver.cs src\WelcomeAbout.cs src\iClock.cs
 ```
 
 The companion console entry point is a separate, tiny compile:

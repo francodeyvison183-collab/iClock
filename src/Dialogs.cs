@@ -396,6 +396,16 @@ internal sealed class NoticeDialog : Form
             try { agentTip.Dispose(); } catch { }
             agentTip = null;
         }
+        if (restTip != null)
+        {
+            try { restTip.Dispose(); } catch { }
+            restTip = null;
+        }
+        if (restMenu != null)
+        {
+            try { restMenu.Dispose(); } catch { }
+            restMenu = null;
+        }
     }
 }
 
