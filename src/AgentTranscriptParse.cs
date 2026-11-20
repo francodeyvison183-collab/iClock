@@ -594,12 +594,25 @@ internal sealed partial class AgentSessionWatcher
         if (string.Equals(type, "turn_ended", StringComparison.OrdinalIgnoreCase))
         {
             string st = data.ContainsKey("status") ? data["status"] as string : null;
+            if (string.Equals(st, "success", StringComparison.OrdinalIgnoreCase))
+            {
+                // REA 逆向：turn_ended.status=success 是 Cursor agent 的正常
+                // 终止标记；这里显式标记为完成，避免靠 fallback 猜。
+                outcome.Complete = true;
+                outcome.ExplicitTerminal = true;
+                outcome.Waiting = false;
+                outcome.Error = false;
+                return;
+            }
             if (string.Equals(st, "error", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(data.ContainsKey("reason") ? data["reason"] as string : null, "user_stopped_generation", StringComparison.OrdinalIgnoreCase))
             {
+                // REA 逆向：turn_ended.status=error 对应中断或失败；
+                // 对 HUD 仍按异常呈现，但文案用中断/失败而非通用错误。
+                session.PendingError = isZh ? "已中断或失败" : "Interrupted or failed";
                 outcome.Error = true;
                 outcome.Complete = false;
-                session.PendingError = isZh ? "⚠️ 用户中断" : "⚠️ Stopped by user";
+                outcome.Waiting = false;
                 return;
             }
             if (!string.IsNullOrEmpty(session.Conclusion))
@@ -750,6 +763,20 @@ internal sealed partial class AgentSessionWatcher
         string pType = payload != null && payload.ContainsKey("type") ? payload["type"] as string : null;
         string itemType = item != null && item.ContainsKey("type") ? item["type"] as string : null;
 
+        if ("task_started".Equals(pType))
+        {
+            // REA 逆向：task_started 是一个 turn 的锚点。这里显式重置
+            // StartTime/State，保证耗时统计与旧 turn 完成后的回写对齐。
+            lock (syncLock)
+            {
+                session.State = TurnState.Processing;
+                session.StartTime = DateTime.Now;
+                session.Version++;
+                session.PendingQuestion = session.PendingError = "";
+            }
+            return;
+        }
+
         if ("task_complete".Equals(pType) || "task_completed".Equals(pType))
         {
             string msg = null;
@@ -769,10 +796,12 @@ internal sealed partial class AgentSessionWatcher
 
         if ("turn_aborted".Equals(pType))
         {
-            string err = ExtractErrorSummary(data, isZh);
-            session.PendingError = err;
-            outcome.Error = true;
-            outcome.Complete = false;
+            // REA 逆向：turn_aborted 多为用户主动中断，不应渲染成错误；
+            // 作为“已中断”的完成态处理，保留最近一轮摘要。
+            session.Conclusion = isZh ? "已被用户中断" : "Interrupted by user";
+            outcome.Complete = true;
+            outcome.ExplicitTerminal = true;
+            outcome.Error = false;
             return;
         }
 
@@ -852,7 +881,19 @@ internal sealed partial class AgentSessionWatcher
             return;
         }
 
+        if (string.Equals(type, "ERROR_MESSAGE", StringComparison.OrdinalIgnoreCase))
+        {
+            string msg = data.ContainsKey("content") && data["content"] != null ? data["content"].ToString() : null;
+            if (!string.IsNullOrEmpty(msg)) session.PendingError = FirstSentence(StripStepEnvelope(msg));
+            outcome.Error = true;
+            outcome.Complete = false;
+            outcome.Waiting = false;
+            return;
+        }
+
         if (!string.Equals(type, "PLANNER_RESPONSE", StringComparison.OrdinalIgnoreCase)) return;
+
+        string plannerStatus = data.ContainsKey("status") ? data["status"] as string : null;
 
         string q = ExtractQuestion(data, isZh);
         if (!string.IsNullOrEmpty(q))
@@ -883,6 +924,22 @@ internal sealed partial class AgentSessionWatcher
         if (!string.IsNullOrEmpty(content))
         {
             content = content.Trim();
+            // REA 逆向：status 列区分 RUNNING/DONE/ERROR；仅在 DONE 或缺失时
+            // 视为 turn 结束，RUNNING 视为持续处理，ERROR 视为异常。
+            if (string.Equals(plannerStatus, "RUNNING", StringComparison.OrdinalIgnoreCase))
+            {
+                outcome.Complete = false;
+                outcome.Waiting = false;
+                return;
+            }
+            if (string.Equals(plannerStatus, "ERROR", StringComparison.OrdinalIgnoreCase))
+            {
+                session.PendingError = content;
+                outcome.Error = true;
+                outcome.Complete = false;
+                outcome.Waiting = false;
+                return;
+            }
             session.Conclusion = content;
             outcome.Complete = true;
             outcome.ExplicitTerminal = true;

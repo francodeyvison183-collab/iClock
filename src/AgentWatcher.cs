@@ -62,6 +62,13 @@ internal sealed partial class AgentSessionWatcher : IDisposable
     private readonly HashSet<string> watchedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     private System.Threading.Timer processSyncTimer;
     private System.Threading.Timer hotPollTimer;
+    private readonly HashSet<string> activeClaudeRegSessions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, DateTime> claudeWaitingSince = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> activeCursorWorkerProjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> activeWbSessions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> activeZCodeSessions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> activeKimiSessions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    private bool openCodeOnline;
     private bool disposed;
 
     internal AgentSessionWatcher(AppContext appContext)
@@ -83,7 +90,7 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             // Initial mount for active agents + common known agent locations
             SyncActiveAgentWatchers();
 
-            processSyncTimer = new System.Threading.Timer(delegate { SyncActiveAgentWatchers(); }, null, 10000, 10000);
+            processSyncTimer = new System.Threading.Timer(delegate { SyncActiveAgentWatchers(); SyncClaudeLiveState(); SyncCursorLiveState(); SyncWorkBuddyLiveState(); SyncZCodeLiveState(); SyncKimiLiveState(); SyncOpenCodeLiveState(); }, null, 10000, 10000);
             hotPollTimer = new System.Threading.Timer(delegate { HotPollProcessingSessions(); }, null, 200, 200);
         }
         catch { }
@@ -101,17 +108,55 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             AddDirIfExists(dirs, Path.Combine(root, sn));
     }
 
+    // 返回按优先级去重后的候选数据根：USERPROFILE → HOMEDRIVE+HOMEPATH →
+    // 运行中进程的 exe 目录。Sync*LiveState 对每个根做存在性检查后取
+    // 第一个命中的，避免同一智能体在多个根下重复建会话。
+    private static List<string> ResolveDataRoots(string agentName)
+    {
+        List<string> roots = new List<string>();
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrEmpty(home) && Directory.Exists(home)) roots.Add(home);
+
+        string hd = Environment.GetEnvironmentVariable("HOMEDRIVE");
+        string hp = Environment.GetEnvironmentVariable("HOMEPATH");
+        if (!string.IsNullOrEmpty(hd) && !string.IsNullOrEmpty(hp))
+        {
+            string h = hd + hp;
+            if (Directory.Exists(h) && !roots.Contains(h)) roots.Add(h);
+        }
+
+        try
+        {
+            Dictionary<string, string> exePaths = AppContext.GetRunningAgentExePaths();
+            string exe;
+            if (exePaths != null && exePaths.TryGetValue(agentName, out exe) && !string.IsNullOrEmpty(exe))
+            {
+                string exeDir = Path.GetDirectoryName(exe);
+                if (!string.IsNullOrEmpty(exeDir) && Directory.Exists(exeDir) && !roots.Contains(exeDir))
+                    roots.Add(exeDir);
+            }
+        }
+        catch { }
+        return roots;
+    }
+
     internal static List<string> ResolveCandidateDirectories(string agentName)
     {
         List<string> dirs = new List<string>();
         if (string.IsNullOrEmpty(agentName)) return dirs;
-        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
+        List<string> roots = ResolveDataRoots(agentName);
+        foreach (string root in roots) AddCandidateDirsForRoot(dirs, agentName, root);
+        return dirs;
+    }
+
+    private static void AddCandidateDirsForRoot(List<string> dirs, string agentName, string home)
+    {
         string n = agentName.ToLowerInvariant();
         if (n.Contains("claude"))
         {
             AddDirIfExists(dirs, Path.Combine(home, ".claude", "projects"));
-            if (dirs.Count == 0) AddDirIfExists(dirs, Path.Combine(home, ".claude"));
+            AddDirIfExists(dirs, Path.Combine(home, ".claude"));
             try { AddDirIfExists(dirs, Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ".claude")); } catch { }
         }
         else if (n.Contains("antigravity") || n.Contains("agy") || n.Contains("gemini"))
@@ -122,12 +167,12 @@ internal sealed partial class AgentSessionWatcher : IDisposable
         else if (n.Contains("codex"))
         {
             AddDirIfExists(dirs, Path.Combine(home, ".codex", "sessions"));
-            if (dirs.Count == 0) AddDirIfExists(dirs, Path.Combine(home, ".codex"));
+            AddDirIfExists(dirs, Path.Combine(home, ".codex"));
         }
         else if (n.Contains("cursor"))
         {
             AddDirIfExists(dirs, Path.Combine(home, ".cursor", "projects"));
-            if (dirs.Count == 0) AddDirIfExists(dirs, Path.Combine(home, ".cursor"));
+            AddDirIfExists(dirs, Path.Combine(home, ".cursor"));
         }
         else if (n.Contains("windsurf"))
         {
@@ -147,6 +192,26 @@ internal sealed partial class AgentSessionWatcher : IDisposable
         else if (n.Contains("kiro")) AddTranscriptSubdirs(dirs, Path.Combine(home, ".kiro"));
         else if (n.Contains("continue")) AddTranscriptSubdirs(dirs, Path.Combine(home, ".continue"));
         else if (n.Contains("deepseek")) AddTranscriptSubdirs(dirs, Path.Combine(home, ".deepseek"));
+        else if (n.Contains("zcode"))
+        {
+            AddTranscriptSubdirs(dirs, Path.Combine(home, ".zcode"));
+            AddDirIfExists(dirs, Path.Combine(home, ".zcode", "v2", "logs"));
+            AddDirIfExists(dirs, Path.Combine(home, ".zcode", "cli", "agents"));
+        }
+        else if (n.Contains("kimi"))
+        {
+            AddTranscriptSubdirs(dirs, Path.Combine(home, ".kimi-code"));
+            AddDirIfExists(dirs, Path.Combine(home, ".kimi-code", "sessions"));
+        }
+        else if (n.Contains("opencode"))
+        {
+            AddDirIfExists(dirs, Path.Combine(home, ".local", "share", "opencode"));
+        }
+        else if (n.Contains("workbuddy"))
+        {
+            AddTranscriptSubdirs(dirs, Path.Combine(home, ".workbuddy", "projects"));
+            AddTranscriptSubdirs(dirs, Path.Combine(home, ".workbuddy-ai", "projects"));
+        }
 
         string slug = Regex.Replace(agentName.ToLowerInvariant(), @"[^a-z0-9]+", "");
         if (!string.IsNullOrEmpty(slug))
@@ -157,8 +222,6 @@ internal sealed partial class AgentSessionWatcher : IDisposable
                 foreach (string sn in new string[] { "sessions", "projects", "logs", "transcripts" }) AddDirIfExists(dirs, Path.Combine(slugDir, sn));
             }
         }
-
-        return dirs;
     }
 
     internal void SyncActiveAgentWatchers()
@@ -180,6 +243,10 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             agentsToCheck.Add("Claude Code");
             agentsToCheck.Add("Codex");
             agentsToCheck.Add("Cursor");
+            agentsToCheck.Add("ZCode");
+            agentsToCheck.Add("Kimi Code");
+            agentsToCheck.Add("WorkBuddy");
+            agentsToCheck.Add("OpenCode");
 
             foreach (string agent in agentsToCheck)
             {
@@ -195,6 +262,557 @@ internal sealed partial class AgentSessionWatcher : IDisposable
                     WatchDirectory(dir, WatchFilterFor(agent, dir), agent);
                     ScanRecentSessionInDir(dir, agent);
                 }
+            }
+        }
+        catch { }
+    }
+
+    // Claude Code 实时注册表（REA 逆向：~/.claude/sessions/<pid>.json，
+    // 字段含 status / updatedAt / sessionId / name / cwd）。与桌面壳
+    // waiting-input 目录互补：注册表给运行中信号，waiting-input 给
+    // “等待人工输入”信号。注册表侧只在转录尚未接管该 sessionId 时发布，
+    // 避免同一 Claude 会话同时出现两条胶囊。
+    private void SyncClaudeLiveState()
+    {
+        if (disposed || AppContext.IsSelfCheckRunning) return;
+        bool isZh = appContext == null || appContext.Settings == null || appContext.Settings.Language != "en";
+        string regDir = null;
+        foreach (string root in ResolveDataRoots("Claude Code"))
+        {
+            string candidate = Path.Combine(root, ".claude", "sessions");
+            if (Directory.Exists(candidate)) { regDir = candidate; break; }
+        }
+        if (regDir == null) return;
+        try
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string f in Directory.GetFiles(regDir, "*.json"))
+            {
+                if (f.EndsWith(".key", StringComparison.OrdinalIgnoreCase)) continue;
+                ProcessClaudeRegistryFile(f, isZh, seen);
+            }
+            string[] activeCopy;
+            lock (syncLock) { activeCopy = new string[activeClaudeRegSessions.Count]; activeClaudeRegSessions.CopyTo(activeCopy); }
+            foreach (string sessionId in activeCopy)
+            {
+                if (seen.Contains(sessionId)) continue;
+                lock (syncLock) { activeClaudeRegSessions.Remove(sessionId); }
+                appContext.ClearAgentProgress("Claude Code", "claude-reg:" + sessionId);
+            }
+        }
+        catch { }
+
+        try
+        {
+            string shellRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Claude-3p", "claude-code-sessions");
+            var nowWait = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (Directory.Exists(shellRoot))
+            {
+                foreach (string profile in Directory.GetDirectories(shellRoot))
+                {
+                    foreach (string conv in Directory.GetDirectories(profile))
+                    {
+                        string waitDir = Path.Combine(conv, "waiting-input");
+                        if (!Directory.Exists(waitDir)) continue;
+                        foreach (string wf in Directory.GetFiles(waitDir, "*.json"))
+                        {
+                            string cliId = ReadJsonStringField(wf, "cliSessionId");
+                            if (string.IsNullOrEmpty(cliId)) continue;
+                            string key = "claude-wait:" + cliId;
+                            nowWait.Add(key);
+                            bool already;
+                            lock (syncLock) { already = claudeWaitingSince.ContainsKey(key); }
+                            if (already) continue;
+                            lock (syncLock) { claudeWaitingSince[key] = DateTime.Now; }
+                            // 转录侧已有该会话时只补等待行，不重建运行行。
+                            if (appContext.HasAgentSessionFragment("Claude Code", cliId))
+                            {
+                                string title = ReadJsonStringField(wf, "title");
+                                string target = string.IsNullOrEmpty(title) ? (isZh ? "等待输入" : "Awaiting input") : title;
+                                appContext.SetAgentTaskMessage("❓ [" + target + "] " + (isZh ? "等待决策" : "Waiting for input"),
+                                    "Claude Code", false, null, null, -2f, DateTime.Now, key);
+                            }
+                        }
+                    }
+                }
+            }
+            string[] waitCopy;
+            lock (syncLock)
+            {
+                waitCopy = new string[claudeWaitingSince.Count];
+                claudeWaitingSince.Keys.CopyTo(waitCopy, 0);
+            }
+            foreach (string key in waitCopy)
+            {
+                if (nowWait.Contains(key)) continue;
+                lock (syncLock) { claudeWaitingSince.Remove(key); }
+                appContext.ClearAgentProgress("Claude Code", key);
+            }
+        }
+        catch { }
+    }
+
+    private void ProcessClaudeRegistryFile(string file, bool isZh, HashSet<string> seen)
+    {
+        try
+        {
+            Dictionary<string, object> json = ReadSmallJsonObject(file);
+            if (json == null) return;
+            string status = GetJsonStringValue(json, "status");
+            string sessionId = GetJsonStringValue(json, "sessionId");
+            string name = GetJsonStringValue(json, "name");
+            if (string.IsNullOrEmpty(sessionId)) return;
+            seen.Add(sessionId);
+            string key = "claude-reg:" + sessionId;
+
+            if (appContext.HasAgentSessionFragment("Claude Code", sessionId))
+            {
+                lock (syncLock) { activeClaudeRegSessions.Add(sessionId); }
+                return;
+            }
+
+            // REA 校准（2026-11-21）：活跃会话实测运行态为 busy（非 running）。
+            // != idle 保守判定覆盖 busy 及未来其他非空闲值。
+            if (!string.IsNullOrEmpty(status) && !string.Equals(status, "idle", StringComparison.OrdinalIgnoreCase))
+            {
+                string target = string.IsNullOrEmpty(name) ? (isZh ? "Claude 会话" : "Claude session") : name;
+                lock (syncLock) { activeClaudeRegSessions.Add(sessionId); }
+                appContext.SetAgentTaskMessage("⏳ [" + target + "] " + (isZh ? "处理中..." : "Processing..."),
+                    "Claude Code", true, null, null, -1f, DateTime.Now, key);
+            }
+        }
+        catch { }
+    }
+
+    private static string ReadJsonStringField(string path, string key)
+    {
+        try
+        {
+            Dictionary<string, object> json = ReadSmallJsonObject(path);
+            return GetJsonStringValue(json, key);
+        }
+        catch { return null; }
+    }
+
+    private static string GetJsonStringValue(Dictionary<string, object> json, string key)
+    {
+        if (json == null || !json.ContainsKey(key)) return null;
+        object v = json[key];
+        return v == null ? null : v.ToString();
+    }
+
+    private static int ExtractIntTag(string line, string key)
+    {
+        if (string.IsNullOrEmpty(line) || string.IsNullOrEmpty(key)) return 0;
+        int at = line.IndexOf(key + "=", StringComparison.OrdinalIgnoreCase);
+        if (at < 0) return 0;
+        int start = at + key.Length + 1;
+        int end = start;
+        while (end < line.Length && char.IsDigit(line[end])) end++;
+        int v;
+        return end > start && int.TryParse(line.Substring(start, end - start), out v) ? v : 0;
+    }
+
+    private static Dictionary<string, object> ReadSmallJsonObject(string path)
+    {
+        try
+        {
+            using (FileStream fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using (var sr = new StreamReader(fs, Encoding.UTF8))
+            {
+                string text = sr.ReadToEnd();
+                if (string.IsNullOrWhiteSpace(text)) return null;
+                var ser = new JavaScriptSerializer();
+                return ser.Deserialize<Dictionary<string, object>>(text);
+            }
+        }
+        catch { return null; }
+    }
+
+    // Cursor CLI / Agent Worker 侧健康信号（REA：agent-cli-state.json +
+    // anysphere.cursor-agent-worker 目录）。当前实现只负责：当某个项目的
+    // worker PID 失效时，把对应 Cursor 会话从 HUD 清理掉，避免残留状态。
+    private void SyncCursorLiveState()
+    {
+        if (disposed || AppContext.IsSelfCheckRunning) return;
+        bool isZh = appContext == null || appContext.Settings == null || appContext.Settings.Language != "en";
+        try
+        {
+            string statePath = null;
+            foreach (string root in ResolveDataRoots("Cursor"))
+            {
+                string candidate = Path.Combine(root, ".cursor", "agent-cli-state.json");
+                if (File.Exists(candidate)) { statePath = candidate; break; }
+            }
+            if (statePath == null) return;
+            if (!File.Exists(statePath)) return;
+
+            Dictionary<string, object> json = ReadSmallJsonObject(statePath);
+            if (json == null) return;
+
+            object mapObj;
+            if (!json.TryGetValue("workerIdsByDisplayName", out mapObj)) return;
+            var map = mapObj as Dictionary<string, object>;
+            if (map == null) return;
+
+            // REA 修正：worker 日志头部有 `workerId: "<uuid>"` 和
+            // `workspacePath: "<project>"`，和 agent-cli-state.json 的
+            // workerIdsByDisplayName 精确对应。先扫所有 worker 日志建立
+            // workerId -> (alive, workspacePath) 映射，再按项目判定。
+            // workerBase 主路径走 %APPDATA%（跟随用户重定向）；便携版
+            // Cursor 可能把数据写到 exe 旁的 user-data 目录，作为候选。
+            var workerBases = new List<string>();
+            string appDataBase = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "Cursor", "User", "globalStorage", "anysphere.cursor-agent-worker");
+            if (Directory.Exists(appDataBase)) workerBases.Add(appDataBase);
+            try
+            {
+                Dictionary<string, string> exePaths = AppContext.GetRunningAgentExePaths();
+                string exe;
+                if (exePaths != null && exePaths.TryGetValue("Cursor", out exe) && !string.IsNullOrEmpty(exe))
+                {
+                    string exeDir = Path.GetDirectoryName(exe);
+                    string portableBase = Path.Combine(exeDir, "user-data", "User", "globalStorage", "anysphere.cursor-agent-worker");
+                    if (Directory.Exists(portableBase) && !workerBases.Contains(portableBase)) workerBases.Add(portableBase);
+                }
+            }
+            catch { }
+
+            var workerMap = new Dictionary<string, KeyValuePair<bool, string>>(StringComparer.OrdinalIgnoreCase);
+            foreach (string workerBase in workerBases)
+            {
+                foreach (string candidate in Directory.GetFiles(workerBase, "cursor-agent-worker-*.pid"))
+                {
+                    string baseName = Path.GetFileNameWithoutExtension(candidate); // cursor-agent-worker-<hash>.<pid>
+                    int lastDot = baseName.LastIndexOf('.');
+                    if (lastDot < 0) continue;
+                    int pid;
+                    if (!int.TryParse(baseName.Substring(lastDot + 1), out pid)) continue;
+                    bool alive = false;
+                    try { Process.GetProcessById(pid); alive = true; }
+                    catch { }
+                    if (!alive) continue;
+
+                    string logFile = Path.Combine(workerBase, baseName.Substring(0, lastDot) + ".log");
+                    if (!File.Exists(logFile)) continue;
+                    if ((DateTime.Now - File.GetLastWriteTime(logFile)).TotalMinutes > 3.0) continue;
+
+                    // 读日志前 60 行提取 workerId 和 workspacePath。
+                    string wid = null, wsPath = null;
+                    try
+                    {
+                        int read = 0;
+                        foreach (string line in File.ReadLines(logFile))
+                        {
+                            if (++read > 60) break;
+                            Match m;
+                            if (wid == null)
+                            {
+                                m = Regex.Match(line, @"workerId:\s*""([0-9a-f\-]{36})""", RegexOptions.IgnoreCase);
+                                if (m.Success) wid = m.Groups[1].Value;
+                            }
+                            if (wsPath == null)
+                            {
+                                m = Regex.Match(line, @"workspacePath:\s*""([^""]+)""", RegexOptions.IgnoreCase);
+                                if (m.Success) wsPath = m.Groups[1].Value;
+                            }
+                            if (wid != null && wsPath != null) break;
+                        }
+                    }
+                    catch { }
+                    if (wid != null && !workerMap.ContainsKey(wid))
+                        workerMap[wid] = new KeyValuePair<bool, string>(true, wsPath ?? "");
+                }
+            }
+
+            var nowActive = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in map)
+            {
+                string display = kv.Key ?? "";
+                string workerId = kv.Value == null ? null : kv.Value.ToString();
+                if (string.IsNullOrEmpty(workerId)) continue;
+
+                // 从 display 里拆项目根路径："d:\\AIStudio\\iClock @ Marx-G"
+                int at = display.LastIndexOf('@');
+                string project = at > 0 ? display.Substring(0, at).Trim() : display.Trim();
+                if (string.IsNullOrEmpty(project)) continue;
+
+                bool alive = workerMap.ContainsKey(workerId);
+                string key = "cursor-worker:" + project;
+                if (alive)
+                {
+                    // worker 有心跳：该项目尚无 Cursor 会话行时补一条
+                    // “在线”胶囊（isThinking=true 保持运行态与耗时统计）。
+                    if (!appContext.HasAgentSessionFragment("Cursor", project))
+                    {
+                        nowActive.Add(key);
+                        appContext.SetAgentTaskMessage("⏳ [" + project + "] " + (isZh ? "智能体在线" : "Agent online"),
+                            "Cursor", true, null, null, -1f, DateTime.Now, key);
+                    }
+                    continue;
+                }
+
+                // worker 无心跳/已退出：清掉该项目的在线胶囊。
+                appContext.ClearAgentProgress("Cursor", key);
+            }
+
+            // 本轮不再活跃的 worker 项目行也一并清掉。
+            string[] prev;
+            lock (syncLock)
+            {
+                prev = new string[activeCursorWorkerProjects.Count];
+                activeCursorWorkerProjects.CopyTo(prev);
+                activeCursorWorkerProjects.Clear();
+                foreach (string key in nowActive) activeCursorWorkerProjects.Add(key);
+            }
+            foreach (string key in prev)
+            {
+                if (nowActive.Contains(key)) continue;
+                appContext.ClearAgentProgress("Cursor", key);
+            }
+        }
+        catch { }
+    }
+
+    // ZCode：宿主日志 ~60s 输出一次 agent/bots 内存计数（REA：runningTasks /
+    // pendingUserInputs / seqStates）。增量 tail 最新一行，把非零计数映射为
+    // HUD 运行/等待态；零值清除。
+    // WorkBuddy：~/.workbuddy[-ai]/sessions/<pid>.json 心跳注册表（与 Claude
+    // 同构）。lastHeartbeat 新鲜 → 会话在线；过期/进程死亡 → 清理。
+    private void SyncWorkBuddyLiveState()
+    {
+        if (disposed || AppContext.IsSelfCheckRunning) return;
+        try
+        {
+            bool isZh = appContext == null || appContext.Settings == null || appContext.Settings.Language != "en";
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var wbRoots = new List<string>();
+            foreach (string root in ResolveDataRoots("WorkBuddy"))
+            {
+                string a = Path.Combine(root, ".workbuddy", "sessions");
+                string b = Path.Combine(root, ".workbuddy-ai", "sessions");
+                if (Directory.Exists(a) && !wbRoots.Contains(a)) wbRoots.Add(a);
+                if (Directory.Exists(b) && !wbRoots.Contains(b)) wbRoots.Add(b);
+            }
+            foreach (string root in wbRoots)
+            {
+                foreach (string f in Directory.GetFiles(root, "*.json"))
+                {
+                    Dictionary<string, object> json = ReadSmallJsonObject(f);
+                    if (json == null) continue;
+                    string sessionId = GetJsonStringValue(json, "sessionId");
+                    string cwd = GetJsonStringValue(json, "cwd");
+                    if (string.IsNullOrEmpty(sessionId)) continue;
+
+                    long hb;
+                    if (!long.TryParse(GetJsonStringValue(json, "lastHeartbeat"), out hb)) hb = 0;
+                    DateTime hbTime = hb > 0 ? new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(hb).ToLocalTime() : DateTime.MinValue;
+                    bool fresh = hb > 0 && (DateTime.Now - hbTime).TotalSeconds <= 15.0;
+
+                    int pid = 0;
+                    int.TryParse(GetJsonStringValue(json, "pid"), out pid);
+                    if (pid > 0 && !fresh)
+                    {
+                        try { Process.GetProcessById(pid); fresh = true; } catch { }
+                    }
+
+                    string key = "wb-reg:" + sessionId;
+                    if (fresh)
+                    {
+                        seen.Add(key);
+                        string target = string.IsNullOrEmpty(cwd) ? (isZh ? "WorkBuddy 会话" : "WorkBuddy session") : Path.GetFileName(cwd);
+                        appContext.SetAgentTaskMessage("⏳ [" + target + "] " + (isZh ? "处理中..." : "Processing..."),
+                            "WorkBuddy", true, null, null, -1f, DateTime.Now, key);
+                    }
+                    else
+                    {
+                        appContext.ClearAgentProgress("WorkBuddy", key);
+                    }
+                }
+            }
+
+            string[] prev;
+            lock (syncLock) { prev = new string[activeWbSessions.Count]; activeWbSessions.CopyTo(prev); }
+            foreach (string key in prev)
+            {
+                if (seen.Contains(key)) continue;
+                lock (syncLock) { activeWbSessions.Remove(key); }
+                appContext.ClearAgentProgress("WorkBuddy", key);
+            }
+            lock (syncLock) { foreach (string key in seen) activeWbSessions.Add(key); }
+        }
+        catch { }
+    }
+
+    // ZCode：tail ~/.zcode/v2/logs/YYYY-MM-DD.log 最新行，解析
+    // [memory] role=utility_host 行的 agent/bots 计数（REA 逆向：
+    // bots.runningTasks / agent.pendingUserInputs / agent.seqStates）。
+    // 非零 → 运行/等待胶囊；全零 → 清理。
+    private void SyncZCodeLiveState()
+    {
+        if (disposed || AppContext.IsSelfCheckRunning) return;
+        bool isZh = appContext == null || appContext.Settings == null || appContext.Settings.Language != "en";
+        try
+        {
+            string logDir = null;
+            foreach (string root in ResolveDataRoots("ZCode"))
+            {
+                string candidate = Path.Combine(root, ".zcode", "v2", "logs");
+                if (Directory.Exists(candidate)) { logDir = candidate; break; }
+            }
+            if (logDir == null) return;
+
+            // 找最新日志文件（按天滚动）。
+            string newestLog = null;
+            DateTime newestTime = DateTime.MinValue;
+            foreach (string f in Directory.GetFiles(logDir, "*.log"))
+            {
+                DateTime mt = File.GetLastWriteTime(f);
+                if (mt > newestTime) { newestTime = mt; newestLog = f; }
+            }
+            if (newestLog == null) return;
+
+            // 读最后 5 行找最新的 [memory] 计数行。
+            string memLine = null;
+            var tail = new List<string>();
+            foreach (string line in File.ReadLines(newestLog))
+            {
+                tail.Add(line);
+                if (tail.Count > 5) tail.RemoveAt(0);
+            }
+            for (int i = tail.Count - 1; i >= 0; i--)
+            {
+                if (tail[i].IndexOf("[memory]", StringComparison.Ordinal) >= 0 &&
+                    tail[i].IndexOf("role=utility_host", StringComparison.Ordinal) >= 0)
+                {
+                    memLine = tail[i];
+                    break;
+                }
+            }
+            if (memLine == null) return;
+
+            int running = ExtractIntTag(memLine, "bots.runningTasks");
+            int seqStates = ExtractIntTag(memLine, "agent.seqStates");
+            int pendingInputs = ExtractIntTag(memLine, "agent.pendingUserInputs");
+            int pendingPerms = ExtractIntTag(memLine, "agent.pendingPermissions");
+
+            string key = "zcode-host:" + Path.GetFileNameWithoutExtension(newestLog);
+            if (pendingInputs > 0 || pendingPerms > 0)
+            {
+                if (!activeZCodeSessions.Contains(key))
+                {
+                    activeZCodeSessions.Add(key);
+                    appContext.SetAgentTaskMessage("❓ [ZCode] " + (isZh ? "等待决策" : "Waiting for input"),
+                        "ZCode", false, null, null, -2f, DateTime.Now, key);
+                }
+            }
+            else if (running > 0 || seqStates > 0)
+            {
+                if (!activeZCodeSessions.Contains(key))
+                {
+                    activeZCodeSessions.Add(key);
+                    appContext.SetAgentTaskMessage("⏳ [ZCode] " + (isZh ? "处理中..." : "Processing..."),
+                        "ZCode", true, null, null, -1f, DateTime.Now, key);
+                }
+            }
+            else
+            {
+                if (activeZCodeSessions.Remove(key))
+                    appContext.ClearAgentProgress("ZCode", key);
+            }
+        }
+        catch { }
+    }
+
+    // Kimi：watch ~/.kimi-code/sessions/**/wire.jsonl 的 mtime。
+    // wire.jsonl 是双向事件流（REA：metadata/runtime.set_binding/profile.bind
+    // 为握手行，任务事件行形态未知）。mtime ≤3min → 会话在线胶囊；
+    // 过期 → 清理。保守方案：不解析事件内容，只判存活。
+    private void SyncKimiLiveState()
+    {
+        if (disposed || AppContext.IsSelfCheckRunning) return;
+        bool isZh = appContext == null || appContext.Settings == null || appContext.Settings.Language != "en";
+        try
+        {
+            string sessionsRoot = null;
+            foreach (string root in ResolveDataRoots("Kimi Code"))
+            {
+                string candidate = Path.Combine(root, ".kimi-code", "sessions");
+                if (Directory.Exists(candidate)) { sessionsRoot = candidate; break; }
+            }
+            if (sessionsRoot == null) return;
+
+            var nowActive = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (string wd in Directory.GetDirectories(sessionsRoot))
+            {
+                foreach (string sess in Directory.GetDirectories(wd))
+                {
+                    string wire = Path.Combine(sess, "agents", "main", "wire.jsonl");
+                    if (!File.Exists(wire)) continue;
+                    if ((DateTime.Now - File.GetLastWriteTime(wire)).TotalMinutes > 3.0) continue;
+
+                    string key = "kimi-wire:" + Path.GetFileName(sess);
+                    nowActive.Add(key);
+                    if (!activeKimiSessions.Contains(key))
+                    {
+                        activeKimiSessions.Add(key);
+                        appContext.SetAgentTaskMessage("⏳ [Kimi] " + (isZh ? "智能体在线" : "Agent online"),
+                            "Kimi Code", true, null, null, -1f, DateTime.Now, key);
+                    }
+                }
+            }
+
+            var prev = new List<string>(activeKimiSessions);
+            foreach (string key in prev)
+            {
+                if (nowActive.Contains(key)) continue;
+                activeKimiSessions.Remove(key);
+                appContext.ClearAgentProgress("Kimi Code", key);
+            }
+        }
+        catch { }
+    }
+
+    // opencode：宿主级在线检测（REA：opencode.db 是 SQLite 权威状态源，但
+    // .NET Framework 无内置 SQLite 且引入原生 DLL 超体积红线；v1 用
+    // opencode.db-wal 的 mtime 作活跃锚点 + OpenCode 进程存活）。会话级粒度
+    // （title/directory/agent/step 进度）需轻量 SQLite 读取，列为后续。
+    private void SyncOpenCodeLiveState()
+    {
+        if (disposed || AppContext.IsSelfCheckRunning) return;
+        bool isZh = appContext == null || appContext.Settings == null || appContext.Settings.Language != "en";
+        try
+        {
+            string walPath = null;
+            foreach (string root in ResolveDataRoots("OpenCode"))
+            {
+                string candidate = Path.Combine(root, ".local", "share", "opencode", "opencode.db-wal");
+                if (File.Exists(candidate)) { walPath = candidate; break; }
+            }
+
+            bool alive = false;
+            if (walPath != null && (DateTime.Now - File.GetLastWriteTime(walPath)).TotalMinutes <= 3.0)
+            {
+                // WAL 新鲜：再确认 OpenCode 进程存活（区别于 db 残留）。
+                HashSet<string> running = AppContext.GetRunningAgents();
+                alive = running != null && running.Contains("OpenCode");
+            }
+
+            const string key = "opencode-host";
+            if (alive)
+            {
+                if (!openCodeOnline)
+                {
+                    openCodeOnline = true;
+                    appContext.SetAgentTaskMessage("⏳ [OpenCode] " + (isZh ? "智能体在线" : "Agent online"),
+                        "OpenCode", true, null, null, -1f, DateTime.Now, key);
+                }
+            }
+            else if (openCodeOnline)
+            {
+                openCodeOnline = false;
+                appContext.ClearAgentProgress("OpenCode", key);
             }
         }
         catch { }
@@ -2169,6 +2787,12 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             fileBurstAgent.Clear();
             sessions.Clear();
             fileCursors.Clear();
+            activeClaudeRegSessions.Clear();
+            claudeWaitingSince.Clear();
+            activeCursorWorkerProjects.Clear();
+            activeWbSessions.Clear();
+            activeZCodeSessions.Clear();
+            activeKimiSessions.Clear();
         }
     }
 }

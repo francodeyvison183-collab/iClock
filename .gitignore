@@ -26,6 +26,9 @@ Desktop.ini
 # Local plan documents
 /plan/
 
+# REA raw analysis artifacts (hundreds of MB; the distilled .md docs stay)
+/rea/evidence/
+
 # Playwright MCP tool snapshots
 .playwright-mcp/
 

@@ -1546,6 +1546,10 @@ internal sealed class AgentTaskStatusHud : Form
         else if (ln.Contains("qoder")) { rgb = 0x06B6D4; label = "Qoder"; }
         else if (ln.Contains("kiro")) { rgb = 0x8B5CF6; label = "Kiro"; }
         else if (ln.Contains("deepseek")) { rgb = 0x4D6BFE; label = "DeepSeek"; }
+        else if (ln.Contains("zcode")) { rgb = 0x22C55E; label = "ZCode"; }
+        else if (ln.Contains("kimi")) { rgb = 0x0EA5E9; label = "Kimi"; }
+        else if (ln.Contains("workbuddy")) { rgb = 0xF97316; label = "WorkBuddy"; }
+        else if (ln.Contains("opencode")) { rgb = 0xE879F9; label = "OpenCode"; }
         if (label != null) { color = Color.FromArgb(rgb | unchecked((int)0xFF000000)); return; }
         color = GetDeterministicAgentColor(baseAgent);
         label = baseAgent.Length <= 6 ? (baseAgent.Length == 0 ? "AI" : baseAgent) : baseAgent.Substring(0, 5) + "…";

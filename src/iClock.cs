@@ -172,7 +172,7 @@ internal sealed class AppContext : ApplicationContext
     private ToolStripMenuItem menuStart, menuReset, menuMove, menuHistory, menuSettings, menuLanguage, menuLangZh, menuLangEn, menuAbout, menuExit, menuUpdate;
     private MenuSwitchItem menuStartup;
     private bool holdTrayMenuOpen;
-    internal const string CURRENT_VERSION = "1.14";
+    internal const string CURRENT_VERSION = "1.15";
     private string updateUrl;
     private string latestVersion;
     private Timer timer;
@@ -1296,6 +1296,24 @@ internal sealed class AppContext : ApplicationContext
     {
         string name = GetTaskAgentName(agentName, settings != null && settings.Language == "en" ? "AI Agent" : "\u667a\u80fd\u4f53");
         return FindTaskStatus(name, sessionKey) != null;
+    }
+
+    // Ownership probe for external registries (e.g. the Claude process
+    // registry): true when any live HUD row of this agent already carries a
+    // SessionKey containing the fragment, so a transcript-driven row blocks a
+    // synthetic registry row for the same underlying session.
+    internal bool HasAgentSessionFragment(string agentName, string fragment)
+    {
+        if (string.IsNullOrEmpty(fragment)) return false;
+        string name = GetTaskAgentName(agentName, settings != null && settings.Language == "en" ? "AI Agent" : "智能体");
+        for (int i = 0; i < agentTaskStatuses.Count; i++)
+        {
+            var st = agentTaskStatuses[i];
+            if (!string.Equals(st.AgentName, name, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!string.IsNullOrEmpty(st.SessionKey) &&
+                st.SessionKey.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+        }
+        return false;
     }
 
     internal void EnsureRunningStatusOnHud()
@@ -2903,6 +2921,37 @@ internal sealed class AppContext : ApplicationContext
         }
         catch { }
         return running;
+    }
+
+    // 拿每个已识别智能体当前进程的真实 exe 路径，用于从安装目录反推数据根。
+    // 结果按 agent name 去重，同名多进程只保留第一个。
+    internal static Dictionary<string, string> GetRunningAgentExePaths()
+    {
+        Dictionary<string, string> map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            List<int> pids = new List<int>();
+            EnumerateSystemProcesses(delegate(int pid, string exeName)
+            {
+                string name = MatchAgent(exeName);
+                if (name != null && !map.ContainsKey(name)) pids.Add(pid);
+            });
+            foreach (int pid in pids)
+            {
+                try
+                {
+                    Process p = Process.GetProcessById(pid);
+                    string name = MatchAgent(p.ProcessName);
+                    if (name == null || map.ContainsKey(name)) continue;
+                    string path = null;
+                    try { if (p.MainModule != null) path = p.MainModule.FileName; } catch { }
+                    if (!string.IsNullOrEmpty(path)) map[name] = path;
+                }
+                catch { }
+            }
+        }
+        catch { }
+        return map;
     }
 
     internal static List<string> DetectAgents()
