@@ -2,7 +2,15 @@
 
 This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY-MM-DD`).
 
-## [Unreleased]
+## [1.15] - 2026-11-21
+
+### Added
+
+- **逆向工程驱动的智能体状态感知 (Reverse-engineered agent state sensing)**: 对 8 家主流智能体做系统性逆向（rea/ 目录留档），状态栏从「读转录日志」升级为「读注册表 / 心跳 / worker 通道」。Claude Code 新增 ~/.claude/sessions/<pid>.json 注册表轮询（运行态枚举经活跃会话校准为 busy）+ 桌面壳 waiting-input 目录双通道；Cursor 新增 SyncCursorLiveState，解析 worker 日志头部的 workerId / workspacePath 实现项目级精确在线判定；WorkBuddy 用 ~/.workbuddy[-ai]/sessions/<pid>.json 心跳注册表；ZCode / Kimi Code / OpenCode 首次接入。/ Systematic reverse engineering of 8 mainstream agents (archived in rea/): the status bar now reads registries / heartbeats / worker channels instead of only tailing transcripts. Claude Code gains the ~/.claude/sessions/<pid>.json registry (running-state enum calibrated to busy against a live session) plus the desktop-shell waiting-input directory; Cursor gains per-project worker liveness via workerId/workspacePath parsed from worker log headers; WorkBuddy uses the ~/.workbuddy[-ai] heartbeat registry; ZCode, Kimi Code and OpenCode are supported for the first time.
+
+- **按真实会话样本校准的状态语义 (Semantics calibrated against live sessions)**: Codex 的 task_started / task_complete / turn_aborted 生命周期按活跃 rollout 逐字段确认，turn_aborted 不再渲染成错误；Antigravity 的 GENERIC status=ERROR 实证为步骤级错误（智能体自我恢复），不再误报整轮异常；Cursor 的 turn_ended.status 全集实测仅 success / error。尚未拿到活跃样本的映射（ZCode 计数、Kimi 事件行）在逆向文档中明确标注「未校准」，代码保守处理不误报。/ Codex lifecycle events were confirmed field-by-field against a live rollout, and turn_aborted no longer renders as an error; Antigravity GENERIC status=ERROR proved to be a step-level error (the agent recovers), no longer a false turn-level alarm; Cursor turn_ended.status is exactly success/error. Mappings without live samples (ZCode counters, Kimi wire events) are explicitly marked uncalibrated and handled conservatively.
+
+- **路径韧性 (Path resilience)**: 候选数据根从单一 USERPROFILE 扩展为 USERPROFILE → HOMEDRIVE\\HOMEPATH → 运行中进程 exe 目录反推，主目录重定向与便携版安装自动命中；Cursor worker 额外探测便携版 exe 旁的 user-data 目录。/ Candidate data roots expand from USERPROFILE alone to USERPROFILE → HOMEDRIVE\\HOMEPATH → running-process exe directory inference, covering redirected profiles and portable installs; Cursor worker probing also covers the portable user-data directory next to the exe.
 
 ### Fixed
 
