@@ -437,6 +437,10 @@ internal sealed partial class AgentSessionWatcher
             s.AwaitingModel = false;
             s.PendingQuestion = s.PendingError = "";
             s.Conclusion = "";
+            // 工具一旦开始执行，先前的思考已经落地为具体动作，残留的旧
+            // Thought 不该再被当作实时状态显示（实证：Codex 连续跑工具十几分钟，
+            // HUD 仍停在 11 分钟前的最后一条 thinking）。
+            s.Thought = "";
             if (rank <= 1)
             {
                 s.LastHighAction = summary;
@@ -833,6 +837,18 @@ internal sealed partial class AgentSessionWatcher
         {
             outcome.GenericKeep = true;
             session.LastWasGeneric = true;
+            outcome.Complete = false;
+        }
+
+        // assistant 正文消息（Codex 正在输出回复文字）说明模型已脱离
+        // “纯思考”阶段，残留的旧 Thought 不应再作为实时状态展示。
+        if ("message".Equals(pType))
+        {
+            lock (syncLock)
+            {
+                session.Thought = "";
+                session.LastNodeIsThought = false;
+            }
             outcome.Complete = false;
         }
     }

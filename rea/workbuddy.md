@@ -28,6 +28,12 @@
   列为高价值后续目标**。
 - 无 `status` 字段（区别于 Claude 注册表）—— 运行/等待语义需走转录。
 
+**PID 复用陷阱（2026-11-21 实证）**：注册表文件永久残留（本机 18 份，最老
+96 天）。心跳过期后若用 `GetProcessById(pid)` 做活性 fallback，必须校验该
+PID 当前的**进程名**确为 WorkBuddy——实证 PID 6444 被 svchost 复用，导致
+96 天前的死会话被误判为在线（HUD 幽灵胶囊）。修复：fallback 里用
+`MatchAgent(ProcessName) == "WorkBuddy"` 二次确认。
+
 ## 二级状态源：项目转录 `~/.workbuddy\projects\<slug>\<sessionId>.jsonl`
 
 实测（502KB）行 schema：`{content, cwd, id, message, parentId, providerData,

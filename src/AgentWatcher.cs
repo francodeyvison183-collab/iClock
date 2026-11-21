@@ -374,6 +374,10 @@ internal sealed partial class AgentSessionWatcher : IDisposable
 
             if (appContext.HasAgentSessionFragment("Claude Code", sessionId))
             {
+                // 转录侧已接管该会话：清掉此前可能已建立的注册表胶囊
+                // （重启时序里注册表轮询先于大文件转录首解析，会留下一条
+                // 只有会话名、没有实时动作的幽灵行）。
+                appContext.ClearAgentProgress("Claude Code", key);
                 lock (syncLock) { activeClaudeRegSessions.Add(sessionId); }
                 return;
             }
@@ -382,6 +386,23 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             // != idle 保守判定覆盖 busy 及未来其他非空闲值。
             if (!string.IsNullOrEmpty(status) && !string.Equals(status, "idle", StringComparison.OrdinalIgnoreCase))
             {
+                // 注册表不是心跳：status=busy 只在 turn 开始时写入，turn 结束/等待
+                // 后不会主动更新回 idle（实证：转录静默 104s、注册表仍 busy 43min）。
+                // 必须用 updatedAt 新鲜度兜底——超过 2 分钟的 busy 是停滞信号，
+                // 交给转录通道或静默过期接管，否则 HUD 会一直显示一个早已停下的会话。
+                string updStr = GetJsonStringValue(json, "statusUpdatedAt");
+                if (string.IsNullOrEmpty(updStr)) updStr = GetJsonStringValue(json, "updatedAt");
+                long updMs;
+                if (long.TryParse(updStr, out updMs))
+                {
+                    DateTime updTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(updMs).ToLocalTime();
+                    if ((DateTime.Now - updTime).TotalMinutes > 2.0)
+                    {
+                        // 停滞的 busy：不发布运行胶囊，并清掉可能残留的旧行。
+                        appContext.ClearAgentProgress("Claude Code", key);
+                        return;
+                    }
+                }
                 string target = string.IsNullOrEmpty(name) ? (isZh ? "Claude 会话" : "Claude session") : name;
                 lock (syncLock) { activeClaudeRegSessions.Add(sessionId); }
                 appContext.SetAgentTaskMessage("⏳ [" + target + "] " + (isZh ? "处理中..." : "Processing..."),
@@ -669,6 +690,17 @@ internal sealed partial class AgentSessionWatcher : IDisposable
                     string cwd = GetJsonStringValue(json, "cwd");
                     if (string.IsNullOrEmpty(sessionId)) continue;
 
+                    // REA 实证：sessions 目录里混有 kind=prewarm 的预热池进程
+                    // （meta.status=idle），它们带心跳、进程名也叫 WorkBuddy，但并不是
+                    // 真实用户会话。只认 kind=interactive（缺省为兼容旧版按 interactive 处理）。
+                    string kind = GetJsonStringValue(json, "kind");
+                    if (!string.IsNullOrEmpty(kind) &&
+                        !string.Equals(kind, "interactive", StringComparison.OrdinalIgnoreCase))
+                    {
+                        appContext.ClearAgentProgress("WorkBuddy", "wb-reg:" + sessionId);
+                        continue;
+                    }
+
                     long hb;
                     if (!long.TryParse(GetJsonStringValue(json, "lastHeartbeat"), out hb)) hb = 0;
                     DateTime hbTime = hb > 0 ? new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(hb).ToLocalTime() : DateTime.MinValue;
@@ -676,9 +708,24 @@ internal sealed partial class AgentSessionWatcher : IDisposable
 
                     int pid = 0;
                     int.TryParse(GetJsonStringValue(json, "pid"), out pid);
-                    if (pid > 0 && !fresh)
+                    // 心跳过旧（>2 分钟）的注册表文件不再用 pid 兜底复活：PID 会被
+                    // 系统复用（实证：8-24 残留的 20656.json，其 PID 现被 claude 进程
+                    // 占用）。没有任何近期心跳证据的陈旧文件一律判死，避免幽灵在线。
+                    bool hbTooOld = hbTime == DateTime.MinValue || (DateTime.Now - hbTime).TotalMinutes > 2.0;
+                    if (pid > 0 && !fresh && !hbTooOld)
                     {
-                        try { Process.GetProcessById(pid); fresh = true; } catch { }
+                        // PID 会被系统复用（实证：96 天前的心跳 + svchost 占用
+                        // 同一 PID 导致幽灵在线）。必须验证该 PID 当前的进程名
+                        // 真的是 WorkBuddy，而不是任意存活进程。
+                        try
+                        {
+                            Process p = Process.GetProcessById(pid);
+                            string procName = null;
+                            try { procName = p.ProcessName; } catch { }
+                            string matched = AppContext.MatchAgent(procName ?? "");
+                            fresh = string.Equals(matched, "WorkBuddy", StringComparison.OrdinalIgnoreCase);
+                        }
+                        catch { }
                     }
 
                     string key = "wb-reg:" + sessionId;
