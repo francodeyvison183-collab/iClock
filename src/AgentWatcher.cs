@@ -317,8 +317,14 @@ internal sealed partial class AgentSessionWatcher : IDisposable
                         if (!Directory.Exists(waitDir)) continue;
                         foreach (string wf in Directory.GetFiles(waitDir, "*.json"))
                         {
-                            string cliId = ReadJsonStringField(wf, "cliSessionId");
+                            // 实证（2026-11-21）：waiting-input 文件顶层是壳会话
+                            // sessionId（local_ 前缀），真正的 CLI 会话 UUID 在
+                            // entries[].msg.session_id；另有 savedAt 毫秒时间戳。
+                            // 陈旧文件会残留：只采纳 savedAt 新鲜且引用的 CLI 会话
+                            // 当前确有注册表/转录活动的文件。
+                            string cliId = ReadClaudeWaitingCliSessionId(wf);
                             if (string.IsNullOrEmpty(cliId)) continue;
+                            if (!IsClaudeWaitingFileFresh(wf)) continue;
                             string key = "claude-wait:" + cliId;
                             nowWait.Add(key);
                             bool already;
@@ -393,6 +399,64 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             return GetJsonStringValue(json, key);
         }
         catch { return null; }
+    }
+
+    // 从 waiting-input 壳会话文件提取真正的 CLI 会话 UUID：
+    // entries[].msg.session_id（最后一个带该字段的 entry 为准）。
+    private static string ReadClaudeWaitingCliSessionId(string path)
+    {
+        try
+        {
+            Dictionary<string, object> json = ReadSmallJsonObject(path);
+            if (json == null) return null;
+            object entriesObj;
+            if (!json.TryGetValue("entries", out entriesObj)) return null;
+            var entries = entriesObj as IList;
+            if (entries == null) return null;
+            string found = null;
+            foreach (object e in entries)
+            {
+                var entry = e as Dictionary<string, object>;
+                if (entry == null) continue;
+                object msgObj;
+                if (!entry.TryGetValue("msg", out msgObj)) continue;
+                var msg = msgObj as Dictionary<string, object>;
+                if (msg == null) continue;
+                string sid = GetJsonStringValue(msg, "session_id");
+                if (!string.IsNullOrEmpty(sid)) found = sid;
+            }
+            return found;
+        }
+        catch { return null; }
+    }
+
+    // waiting-input 文件的新鲜度 + 引用会话活性双重判定：
+    // savedAt 超过 10 分钟视为陈旧残留（正常等待文件会被壳实时改写/移除）；
+    // 且引用的 CLI 会话必须在注册表中有活跃记录，否则是死会话的残留。
+    private bool IsClaudeWaitingFileFresh(string path)
+    {
+        try
+        {
+            Dictionary<string, object> json = ReadSmallJsonObject(path);
+            if (json == null) return false;
+            string savedAtStr = GetJsonStringValue(json, "savedAt");
+            long savedAt;
+            if (!long.TryParse(savedAtStr, out savedAt)) return false;
+            DateTime savedTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(savedAt).ToLocalTime();
+            if ((DateTime.Now - savedTime).TotalMinutes > 10.0) return false;
+
+            // 引用的 CLI 会话必须仍有活跃注册表记录（注册表残留由
+            // SyncClaudeLiveState 的注册表分支按进程活性清理）。
+            string cliId = ReadClaudeWaitingCliSessionId(path);
+            if (string.IsNullOrEmpty(cliId)) return false;
+            lock (syncLock)
+            {
+                if (activeClaudeRegSessions.Contains(cliId)) return true;
+            }
+            // 注册表还没挂上该会话时，回落到转录侧是否已有该会话的状态行。
+            return appContext != null && appContext.HasAgentSessionFragment("Claude Code", cliId);
+        }
+        catch { return false; }
     }
 
     private static string GetJsonStringValue(Dictionary<string, object> json, string key)

@@ -56,6 +56,14 @@ deleted_<uuid>                                   ← 13 字节墓碑文件
 `postTurnSummary`、`turnBoxDeclared/Mounted/WrapUp`、`permissionMode`、`title`、
 `priorCliSessionIds` 等。
 
+**waiting-input 文件实证修正（2026-11-21）**：waiting-input 下的文件**不是**
+主会话 `local_*.json` 的完整拷贝，而是轻量子集，顶层字段为
+`{v, sessionId(=local_ 壳 ID), savedAt(ms), cleanShutdown, entries[]}`——
+**没有 `cliSessionId` 字段**。真正的 CLI 会话 UUID 在
+`entries[].msg.session_id`（取最后一个带该字段的 entry）。另外 waiting-input
+文件会被壳残留（实证：一个引用 23 天前死会话的文件仍躺在目录里），采纳前必须
+用 `savedAt` 新鲜度（>10min 视为残留）+ 引用会话当前活性双重过滤。
+
 状态推导：
 
 - 会话 JSON 出现在 `waiting-input\` 子目录，或 `interruptedAwaitingPerson=true`
