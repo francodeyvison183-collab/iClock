@@ -5991,6 +5991,22 @@ Examples:
     [STAThread]
     private static void Main(string[] args)
     {
+        // 全局未处理异常安全网：任何线程/ UI 线程的未捕获异常先落盘到
+        // %APPDATA%\iClock\crash.log（含完整堆栈），再交给默认处理，避免
+        // 无声崩溃且事后无法定位。
+        try
+        {
+            AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e)
+            {
+                try { LogCrash("UnhandledException", e.ExceptionObject as Exception); } catch { }
+            };
+            Application.ThreadException += delegate(object s, System.Threading.ThreadExceptionEventArgs e)
+            {
+                try { LogCrash("ThreadException", e.Exception); } catch { }
+            };
+        }
+        catch { }
+
         // Windows screensaver dispatch: explorer launches the .scr copy with /s (run),
         // /p <hwnd> (preview) or /c (configure). Handle these before CLI parsing and
         // before the single-instance mutex, so the saver never hijacks the tray app.
@@ -6380,6 +6396,21 @@ Examples:
             using (Process p = Process.GetCurrentProcess()) selfPid = p.Id;
             File.AppendAllText(logPath,
                 DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " pid=" + selfPid + " " + message + "\r\n");
+        }
+        catch { }
+    }
+
+    // 把未处理异常的完整堆栈写到 %APPDATA%\iClock\crash.log，供事后定位。
+    internal static void LogCrash(string kind, Exception ex)
+    {
+        try
+        {
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "iClock");
+            Directory.CreateDirectory(dir);
+            string logPath = Path.Combine(dir, "crash.log");
+            File.AppendAllText(logPath,
+                DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " [" + kind + "]\r\n" +
+                (ex == null ? "(null exception)" : ex.ToString()) + "\r\n----\r\n");
         }
         catch { }
     }
