@@ -337,6 +337,14 @@ internal sealed class AgentTaskStatusHud : Form
             if (currentAgentIndex < 0) currentAgentIndex = 0;
             lastDisplayedTask = active[currentAgentIndex];
         }
+        // Unconditional guard on every exit path: currentAgentIndex must never be
+        // left pointing past the end of the freshly rebuilt list. Several callers
+        // index active[currentAgentIndex] after only an upper-bound check, which
+        // throws ArgumentOutOfRangeException("index") when the list shrank in the
+        // same pass that dropped the anchor task. Clamp it once here.
+        if (active.Count == 0) currentAgentIndex = 0;
+        else if (currentAgentIndex >= active.Count) currentAgentIndex = active.Count - 1;
+        else if (currentAgentIndex < 0) currentAgentIndex = 0;
         return active;
     }
 
@@ -593,6 +601,8 @@ internal sealed class AgentTaskStatusHud : Form
 
     private void OnHeartbeatTick(object sender, EventArgs e)
     {
+        try
+        {
         if (!IsHandleCreated || IsDisposed) return;
 
         Point cursorPos = Cursor.Position;
@@ -724,6 +734,13 @@ internal sealed class AgentTaskStatusHud : Form
         if (Visible && (hasActiveAnimation || hoverChanged))
         {
             RenderLayeredWindow();
+        }
+        }
+        catch (Exception ex)
+        {
+            // Never let a render-tick fault bubble up as an unhandled crash.
+            // Capture the full stack so the offending index/line can be fixed.
+            try { Program.LogCrash("OnHeartbeatTick", ex); } catch { }
         }
     }
 
