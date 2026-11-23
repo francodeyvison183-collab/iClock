@@ -212,6 +212,13 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             AddTranscriptSubdirs(dirs, Path.Combine(home, ".workbuddy", "projects"));
             AddTranscriptSubdirs(dirs, Path.Combine(home, ".workbuddy-ai", "projects"));
         }
+        else if (n == "pi" || n.StartsWith("pi "))
+        {
+            // Pi CLI（Windows 终端里跑的 node agent）。会话转录在
+            // ~/.pi/agent/sessions/<cwd-slug>/<ts>_<uuid>.jsonl，统一 message 行，
+            // role 区分 user/assistant/toolResult，与现有 parts 解析同构。
+            AddDirIfExists(dirs, Path.Combine(home, ".pi", "agent", "sessions"));
+        }
 
         string slug = Regex.Replace(agentName.ToLowerInvariant(), @"[^a-z0-9]+", "");
         if (!string.IsNullOrEmpty(slug))
@@ -247,6 +254,10 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             agentsToCheck.Add("Kimi Code");
             agentsToCheck.Add("WorkBuddy");
             agentsToCheck.Add("OpenCode");
+            // Pi 是 node CLI，进程名与系统里其它 node 进程无法区分，
+            // 因此不能靠 process-guided 发现；其会话转录始终在
+            // ~/.pi/agent/sessions 下，纳入常驻监听即可在文件写入时感知。
+            agentsToCheck.Add("Pi");
 
             foreach (string agent in agentsToCheck)
             {
@@ -1623,6 +1634,21 @@ internal sealed partial class AgentSessionWatcher : IDisposable
                             raw = part["text"];
                             break;
                         }
+                        // Pi CLI：assistant 的思考嵌在 type=text 的 part 里，
+                        // 形如 "<think>...</think>正文"。这里提取 <think> 段作为思考。
+                        if ("text".Equals(pType) && part.ContainsKey("text"))
+                        {
+                            string ptx = part["text"] as string;
+                            if (!string.IsNullOrEmpty(ptx))
+                            {
+                                Match tm = Regex.Match(ptx, "<think>(.*?)</think>", RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                                if (tm.Success && !string.IsNullOrWhiteSpace(tm.Groups[1].Value))
+                                {
+                                    raw = tm.Groups[1].Value.Trim();
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2058,7 +2084,11 @@ internal sealed partial class AgentSessionWatcher : IDisposable
             Dictionary<string, object> part = content[i] as Dictionary<string, object>;
             if (part == null) continue;
             string pType = part.ContainsKey("type") ? part["type"] as string : null;
-            if (!"tool_use".Equals(pType) && !"function_call".Equals(pType) && !"custom_tool_call".Equals(pType)) continue;
+            // Pi CLI 的 content part 用 camelCase 的 toolCall，结构同为 name+arguments。
+            bool isTool = "tool_use".Equals(pType) || "function_call".Equals(pType) ||
+                          "custom_tool_call".Equals(pType) || "toolCall".Equals(pType) ||
+                          "tool_call".Equals(pType);
+            if (!isTool) continue;
             string name = part.ContainsKey("name") ? CleanToolParam(part["name"]) : null;
             Dictionary<string, object> input = null;
             if (part.ContainsKey("input")) input = part["input"] as Dictionary<string, object>;

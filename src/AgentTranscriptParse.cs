@@ -1146,6 +1146,8 @@ internal sealed partial class AgentSessionWatcher
             if (part == null) continue;
             string pType = part.ContainsKey("type") ? part["type"] as string : null;
             if ("tool_use".Equals(pType) || "function_call".Equals(pType) || "custom_tool_call".Equals(pType)) return true;
+            // Pi CLI 用 camelCase 的 toolCall（OpenAI 风格 content part）。
+            if ("toolCall".Equals(pType) || "tool_call".Equals(pType)) return true;
         }
         return false;
     }
@@ -1160,6 +1162,9 @@ internal sealed partial class AgentSessionWatcher
             if (part == null) return false;
             string pType = part.ContainsKey("type") ? part["type"] as string : null;
             if ("tool_result".Equals(pType) || "function_call_output".Equals(pType) || "tool_output".Equals(pType))
+                any = true;
+            // Pi CLI 的 toolResult（camelCase）也是工具回传，不该当作人类输入。
+            else if ("toolResult".Equals(pType))
                 any = true;
             else
                 return false;
