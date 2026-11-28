@@ -2,6 +2,22 @@
 
 This project follows a simple release-based changelog. Dates use ISO 8601 (`YYYY-MM-DD`).
 
+## [1.16] - 2026-11-28
+
+### Added
+
+- **Pi 智能体状态感知 (Pi agent state sensing)**: 新增 Pi 接入——监听 `~/.pi/agent/sessions/<cwd-slug>/*.jsonl` 递归会话目录；Pi 是 Node CLI，进程名与普通 node 进程无法区分，因此按「文件写入」而非「进程」发现会话，并纳入常驻监听的基础智能体列表。识别其 camelCase 内容协议：`toolCall`（工具调用）与 `toolResult`（工具输出，不会被误当成人类输入）；从 assistant 文本里提取 `<think>...</think>` 思考块作为实时思考状态；状态条上使用专属青色徽章。/ Pi support: watches `~/.pi/agent/sessions/<cwd-slug>/*.jsonl` recursively. Pi is a Node CLI whose process name is indistinguishable from any other node process, so sessions are discovered by file writes rather than by process, and it joins the always-on base agent list. Its camelCase protocol is recognized (`toolCall`, and `toolResult` which is never mistaken for human input), `<think>...</think>` blocks inside assistant text surface as live thinking, and Pi gets its own teal badge.
+
+- **崩溃可追查日志 (Crash diagnostics)**: `AppDomain.UnhandledException` 与 `Application.ThreadException` 全部落盘到 `%APPDATA%\iClock\crash.log`（含完整堆栈），下一次崩溃可精确定位，而不是无声退出。/ Unhandled exceptions are now dumped to `%APPDATA%\iClock\crash.log` with the full stack, so the next crash can be located precisely instead of exiting silently.
+
+### Fixed
+
+- **状态条越界崩溃 (HUD index-out-of-range crash)**: 两道防线消除反复出现的 `ArgumentOutOfRangeException(param 'index')`：`GetActiveTasks` 末尾无条件夹紧 `currentAgentIndex`（此前只做上界检查，同一轮里列表缩短就会越界），并给渲染心跳加 try/catch，把完整堆栈写入 crash.log 而不是弹出未处理异常对话框。/ Two defenses against the recurring `ArgumentOutOfRangeException(param 'index')`: `currentAgentIndex` is now clamped unconditionally at the end of `GetActiveTasks` (callers only did an upper-bound check, so a list that shrank in the same pass could overflow it), and the render heartbeat is wrapped in try/catch that logs the full stack to crash.log instead of raising an unhandled exception dialog.
+
+- **Claude 等待通道读对字段并过滤陈旧文件 (Claude waiting channel: right field path, stale files filtered)**: waiting-input 文件里的真实 CLI 会话 UUID 位于 `entries[].msg.session_id`，而非并不存在的顶层 `cliSessionId`（此前恒为 null，❓ 等待胶囊永远无法出现）。同时新增新鲜度校验：shell 会遗留旧 waiting-input 文件（实测有指向 23 天前会话的残留），现在要求 `savedAt` 在 10 分钟内且引用的会话确有活跃注册表记录或转录行才采信。/ The real CLI session UUID in waiting-input files lives at `entries[].msg.session_id`, not the non-existent top-level `cliSessionId` (previously always null, so the waiting pill could never appear). Freshness is now enforced: the shell leaves old waiting-input files behind (one referencing a session last active 23 days ago was observed), so a file is only adopted when `savedAt` is within 10 minutes and the referenced session has a live registry record or transcript row.
+
+- **Codex 思考残留与 WorkBuddy 预热过滤 (Codex stale Thought residue & WorkBuddy prewarm filtering)**: 工具开始执行时清空 `session.Thought`（完成的思考不应在模型继续跑工具的十几分钟里一直挂在状态条上，此前 Codex 会卡在 11 分钟前的思考）；Codex 助手发出 `message` 行时同样清空。WorkBuddy 跳过 `kind=prewarm` 的暖池进程（并非真实用户会话），并停止通过 PID 复用兜底复活心跳超过 2 分钟的陈旧注册表（避免 PID 被回收后出现的幽灵在线）。/ `session.Thought` is cleared when a tool starts executing and when Codex emits a reply message, so a finished thought no longer lingers as the live status while the model keeps running tools. WorkBuddy skips `kind=prewarm` warm-pool processes and stops reviving stale registries (>2 min heartbeat) via the PID-reuse fallback that produced phantom-online states.
+
 ## [1.15] - 2026-11-21
 
 ### Added
